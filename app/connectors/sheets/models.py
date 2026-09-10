@@ -67,6 +67,10 @@ class SheetSchemaSnapshot(BaseModel):
         default=["Nom", "pré-cocher?", "rayon"],
         description="En-têtes de l'onglet Hors_Repas",
     )
+    ingredients_rayons_headers: List[str] = Field(
+        default=["Ingrédient", "Rayon"],
+        description="En-têtes de l'onglet Ingredients_Rayons",
+    )
     required_worksheets: List[str] = Field(
         default=[
             "Cette semaine",
@@ -75,6 +79,7 @@ class SheetSchemaSnapshot(BaseModel):
             "Courses festives",
             "Rayons",
             "Hors_Repas",
+            "Ingredients_Rayons",
         ],
         description="Onglets obligatoires permanents (hors feuille annuelle dynamique)",
     )

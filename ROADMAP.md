@@ -14,8 +14,8 @@
 | **Étape 1** | Analyse approfondie du script existant (`meal-planner`) et compréhension de l'architecture | 🟢 Validé | ✅ Validé par l'utilisateur | N/A (Analyse) |
 | **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 24/24 verts (Mock + Live) |
 | **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 29/29 verts (Modèles Pydantic) |
-| **Étape 4** | Conception des tests de non-régression de structure du Sheet (Drift detection) | 🟡 En cours | ⏳ En cours | ⚪ Tests de contrat / schéma |
-| **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (si requis) | ⚪ À faire | ⚪ À faire | ⚪ Tests fonctionnels |
+| **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
+| **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (si requis) | 🟡 En cours | ⏳ Analyse / Discussion | ⚪ Tests fonctionnels |
 | **Étape 6** | Implémentation du connecteur `SheetsConnector` et liaison avec le NLU (`intent_parser`) | ⚪ À faire | ⚪ À faire | ⚪ Tests unitaires connecteur |
 | **Étape 7** | Tests d'intégration End-to-End (E2E) complets & validation finale de la feature | ⚪ À faire | ⚪ À faire | ⚪ 100% vert (Unitaires + E2E) |
 
@@ -69,10 +69,17 @@
   * Tests unitaires des modèles dans `tests/test_sheets_models.py` (29/29 tests au vert).
 * **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
-### ⚪ Étape 4 : Tests de structure du Sheet (Détection de dérive / Drift)
-* **Objectif :** Créer des tests automatisés qui s'assurent que si une colonne ou un onglet du Sheet change de place, une alerte claire soit remontée.
-* **Livrable :** Fichier `tests/test_sheet_schema.py`.
-* **Critère de passage :** `pytest` vert sur les tests de schéma.
+### 🟢 Étape 4 : Tests de structure du Sheet (Détection de dérive / Schema Drift)
+* **Objectif :** Créer un système de détection de dérive pour lever des alertes claires et immédiates si un onglet ou une colonne obligatoire est manquant, déplacé ou renommé.
+* **Livrables réalisés :**
+  * Module `app/connectors/sheets/schema_validator.py` :
+    * Exceptions explicites et typées (`SheetSchemaWorksheetNotFoundError`, `SheetSchemaHeaderDriftError`, `SheetSchemaError`) respectant la **Règle 7 (Fail-Fast)**.
+    * Modèle de rapport Pydantic `ValidationReport` avec liste d'erreurs et d'avertissements.
+    * Classe `SheetSchemaValidator` avec normalisation robuste des chaînes (`normalize_header`) et validation modulaire.
+  * Suite de tests complète dans `tests/test_sheet_schema.py` :
+    * 6 tests unitaires isolés (mocks) couvrant tous les scénarios de dérive (onglet manquant, colonnes manquantes dans planning, recettes, hors-repas, mode non-strict d'agrégation).
+    * 1 test d'intégration réel validant la conformité totale du Google Sheet en direct (`Semaine de repas 2025`).
+* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
 ### ⚪ Étape 5 : Préparation du Sheet / Apps Script pour l'API
 * **Objectif :** Si nécessaire, adapter le format d'écriture des données ou ajouter un point d'entrée pour que l'API puisse ajouter un article ou lire le repas du jour de façon optimale.
