@@ -69,3 +69,8 @@ personal-assistant-hub/
 3. **Typage et Contrats :** Tout modèle de données entrant ou sortant doit être typé via Pydantic. Pas de dictionnaires bruts arbitraires non validés.
 4. **Indépendance des Connecteurs :** Chaque connecteur dans `app/connectors/` doit pouvoir fonctionner avec des mocks en mode hors-ligne ou lors des tests.
 5. **Intégration Continue (CI) :** Les tests doivent tourner automatiquement sur GitHub Actions à chaque PR/MR.
+6. **Roadmap par Feature & Validation Pas-à-Pas (Human-in-the-Loop) :**
+   * Pour chaque fonctionnalité (`feat/*`), un fichier `ROADMAP.md` dédié doit être créé à la racine du projet.
+   * La roadmap détaille les étapes d'implémentation de manière ordonnée et progressive.
+   * **Chaque étape doit être validée manuellement et explicitement par l'utilisateur** et afficher 100% de tests au vert avant de passer à la suivante.
+   * **Test d'intégration final :** À la fin de chaque feature, un test d'intégration complet (E2E) doit être mis en place pour valider le flux de bout en bout et garantir la pérennité de la solution dans le temps.
