@@ -11,8 +11,8 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Analyse approfondie du script existant (`meal-planner`) et compréhension de l'architecture | 🟢 Réalisé | ⏳ En attente | N/A (Analyse) |
-| **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | ⚪ À faire | ⚪ À faire | ⚪ Mocks + Test connexion |
+| **Étape 1** | Analyse approfondie du script existant (`meal-planner`) et compréhension de l'architecture | 🟢 Validé | ✅ Validé par l'utilisateur | N/A (Analyse) |
+| **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟡 En cours | ⏳ En cours | ⚪ Mocks + Test connexion |
 | **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | ⚪ À faire | ⚪ À faire | ⚪ Snapshot du schéma |
 | **Étape 4** | Conception des tests de non-régression de structure du Sheet (Drift detection) | ⚪ À faire | ⚪ À faire | ⚪ Tests de contrat / schéma |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (si requis) | ⚪ À faire | ⚪ À faire | ⚪ Tests fonctionnels |
@@ -23,15 +23,22 @@
 
 ## Détail des Étapes
 
-### 🟢 Étape 1 : Analyse du script existant (`meal-planner`)
-* **Objectif :** Décortiquer `Code.js` de l'Apps Script local pour comprendre les onglets, la gestion des menus, des recettes et de la liste de courses.
-* **Livrable :** Synthèse d'architecture documentée (onglets mensuels, onglet `Cette semaine`, `Recettes`, `Rayons`, `Hors_Repas`).
-* **Critère de passage :** Validation de la compréhension par l'utilisateur.
+### 🟢 Étape 1 : Analyse du script existant (`meal-planner`) & Clarification du Sheet
+* **Objectif :** Décortiquer `Code.js` de l'Apps Script local et valider l'organisation réelle du tableur.
+* **Résultat validé avec l'utilisateur :**
+  * 📅 **Planning annuel (`repas 2026`, `repas 2027`...) :**
+    * Structure propre et chronologique sur toute l'année avec 5 colonnes : `Date` (format `JJ/MM/AAAA`), `Jour`, `Midi`, `Soir`, `Notes / Magasin`.
+    * Les anciens onglets mensuels sont du legacy.
+  * 📖 **Recettes :** Onglet `Recettes` actif (l'ancien onglet `Liste` n'existe plus).
+  * 🛒 **Courses & Rayons :** Onglets `Cette semaine` (liste active), `Rayons` (ordre et couleurs) et `Hors_Repas`.
+* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
-### ⚪ Étape 2 : Connexion sécurisée au Google Sheet
-* **Objectif :** Mettre en place les credentials Google (Compte de service ou OAuth) via variables d'environnement (`.env`) sans jamais les exposer dans Git.
-* **Livrable :** Client Python (`gspread` ou `google-api-python-client`) capable de ping le Sheet cible.
-* **Critère de passage :** Connexion réussie et validée par l'utilisateur.
+### 🟡 Étape 2 : Connexion sécurisée au Google Sheet (Lecture seule d'abord)
+* **Objectif :** Mettre en place la passerelle d'authentification vers le Google Sheet cible en respectant les règles de sécurité (`.env`, `.gitignore`).
+* **Livrables :**
+  * Configuration du client Google Sheets (Service Account ou OAuth).
+  * Script / test de ping de connexion unitaire (`tests/test_sheets_connection.py`).
+* **Critère de passage :** Connexion réussie en lecture seule et validée par l'utilisateur.
 
 ### ⚪ Étape 3 : Cartographie de la structure réelle du Sheet
 * **Objectif :** L'agent inspecte directement les onglets, colonnes et types de données réels du Sheet.
