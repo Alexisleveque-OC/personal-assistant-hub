@@ -59,6 +59,11 @@ personal-assistant-hub/
 
 ## 4. Règles d'Or de Développement Agentique
 
+0. **Règle Suprême - Challenger Technique & Gardien des Bonnes Pratiques :**
+   * L'agent n'est JAMAIS un exécutant aveugle ou passif.
+   * Si l'utilisateur propose une direction sous-optimale, une mauvaise pratique, ou une solution risquant d'introduire de la dette technique ou des bugs, l'agent **a l'obligation de la remettre en question**.
+   * L'agent doit initier l'échange, expliquer avec pédagogie les compromis (avantages, inconvénients, impacts sur la maintenance) et proposer la meilleure alternative conforme à l'état de l'art.
+
 1. **Test-First & Feedback Loops :** Toujours écrire ou mettre à jour un test pour chaque nouvelle fonctionnalité. Exécuter `pytest` après chaque modification. Si un test échoue, analyser la trace d'erreur et corriger de façon autonome avant de solliciter l'utilisateur.
 2. **Hygiène Git & Stratégie de Branches :**
    * **Branche `main` :** Protégée, toujours déployable. Aucun commit direct pour les features.
@@ -74,3 +79,7 @@ personal-assistant-hub/
    * La roadmap détaille les étapes d'implémentation de manière ordonnée et progressive.
    * **Chaque étape doit être validée manuellement et explicitement par l'utilisateur** et afficher 100% de tests au vert avant de passer à la suivante.
    * **Test d'intégration final :** À la fin de chaque feature, un test d'intégration complet (E2E) doit être mis en place pour valider le flux de bout en bout et garantir la pérennité de la solution dans le temps.
+7. **Erreurs Explicites & Fail-Fast (Déboguabilité Maximale) :**
+   * Ne JAMAIS étouffer ou masquer une erreur avec des retours silencieux (`try/except: pass` ou fallbacks masqués sans log).
+   * Toujours lever des exceptions claires, typées et contextualisées : indiquer précisément la ressource manquante, le paramètre attendu (ex: l'année cible et le nom d'onglet attendu), et la liste des ressources disponibles.
+   * Cette clarté permet à l'utilisateur de comprendre immédiatement l'action requise (ex: créer l'onglet manquant sur son Google Sheet) et à l'agent de corriger de façon chirurgicale sans suppositions.
