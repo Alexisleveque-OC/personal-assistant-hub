@@ -70,7 +70,9 @@ personal-assistant-hub/
    * **Stratégie de branches :** Chaque fonctionnalité ou correction est développée sur une branche dédiée (`feat/<feature-name>`, `fix/<bug-name>`) ou sur `develop`.
    * **Pull Request / Merge Request (PR/MR) :** Fusion vers `main` uniquement après validation de la suite de tests (`pytest` à 100% vert) et relecture.
    * **Sécurité :** Ne JAMAIS commiter de fichiers sensibles (`.env`, `credentials.json`, `token.json`, `.venv`).
-   * **Commits :** Atomiques et explicites au format Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
+   * **Commits :** Atomiques, explicites et séparés selon leur périmètre :
+     * **Fichiers d'instructions agent (ex: `AGENTS.md`) :** Toujours isolés dans leurs propres commits et préfixés par `#AGENT : <message>`.
+     * **Code de feature :** Toujours préfixés par `#PAH - <feature-tag> : <type>: <message>` (ex: `#PAH - shop connector : feat: ...`), combinant le tag de feature et le format Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
 3. **Typage et Contrats :** Tout modèle de données entrant ou sortant doit être typé via Pydantic. Pas de dictionnaires bruts arbitraires non validés.
 4. **Indépendance des Connecteurs :** Chaque connecteur dans `app/connectors/` doit pouvoir fonctionner avec des mocks en mode hors-ligne ou lors des tests.
 5. **Intégration Continue (CI) :** Les tests doivent tourner automatiquement sur GitHub Actions à chaque PR/MR.
