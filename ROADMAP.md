@@ -12,7 +12,7 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Analyse approfondie du script existant (`meal-planner`) et compréhension de l'architecture | 🟢 Validé | ✅ Validé par l'utilisateur | N/A (Analyse) |
-| **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟡 En cours | ⏳ En cours | ⚪ Mocks + Test connexion |
+| **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟢 Réalisé | ⏳ En attente | ✅ 22/22 verts (Mock + Live) |
 | **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | ⚪ À faire | ⚪ À faire | ⚪ Snapshot du schéma |
 | **Étape 4** | Conception des tests de non-régression de structure du Sheet (Drift detection) | ⚪ À faire | ⚪ À faire | ⚪ Tests de contrat / schéma |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (si requis) | ⚪ À faire | ⚪ À faire | ⚪ Tests fonctionnels |
@@ -33,12 +33,16 @@
   * 🛒 **Courses & Rayons :** Onglets `Cette semaine` (liste active), `Rayons` (ordre et couleurs) et `Hors_Repas`.
 * **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
-### 🟡 Étape 2 : Connexion sécurisée au Google Sheet (Lecture seule d'abord)
+### 🟢 Étape 2 : Connexion sécurisée au Google Sheet (Lecture seule d'abord)
 * **Objectif :** Mettre en place la passerelle d'authentification vers le Google Sheet cible en respectant les règles de sécurité (`.env`, `.gitignore`).
-* **Livrables :**
-  * Configuration du client Google Sheets (Service Account ou OAuth).
-  * Script / test de ping de connexion unitaire (`tests/test_sheets_connection.py`).
-* **Critère de passage :** Connexion réussie en lecture seule et validée par l'utilisateur.
+* **Livrables réalisés :**
+  * Clé de compte de service isolée et sécurisée dans `credentials/service_account.json` (ignorée par Git).
+  * Variables d'environnement configurées dans `.env`.
+  * Dépendances `gspread` et `google-auth` installées dans `.venv`.
+  * Tests automatisés dans `tests/test_sheets_connection.py` :
+    * `test_sheets_connection_mocked` (pour le mode hors-ligne / CI).
+    * `test_live_sheets_connection` (ping réel réussi sur le Sheet `Semaine de repas 2025` avec détection de `repas 2026`, `Recettes`, `Cette semaine`...).
+* **Statut :** 🟢 Réalisé avec succès (22/22 tests au vert). En attente de validation utilisateur pour passer à l'Étape 3.
 
 ### ⚪ Étape 3 : Cartographie de la structure réelle du Sheet
 * **Objectif :** L'agent inspecte directement les onglets, colonnes et types de données réels du Sheet.
