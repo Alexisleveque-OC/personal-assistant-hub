@@ -13,8 +13,8 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Analyse approfondie du script existant (`meal-planner`) et compréhension de l'architecture | 🟢 Validé | ✅ Validé par l'utilisateur | N/A (Analyse) |
 | **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 24/24 verts (Mock + Live) |
-| **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟡 En cours | ⏳ En cours | ⚪ Snapshot du schéma |
-| **Étape 4** | Conception des tests de non-régression de structure du Sheet (Drift detection) | ⚪ À faire | ⚪ À faire | ⚪ Tests de contrat / schéma |
+| **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 29/29 verts (Modèles Pydantic) |
+| **Étape 4** | Conception des tests de non-régression de structure du Sheet (Drift detection) | 🟡 En cours | ⏳ En cours | ⚪ Tests de contrat / schéma |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (si requis) | ⚪ À faire | ⚪ À faire | ⚪ Tests fonctionnels |
 | **Étape 6** | Implémentation du connecteur `SheetsConnector` et liaison avec le NLU (`intent_parser`) | ⚪ À faire | ⚪ À faire | ⚪ Tests unitaires connecteur |
 | **Étape 7** | Tests d'intégration End-to-End (E2E) complets & validation finale de la feature | ⚪ À faire | ⚪ À faire | ⚪ 100% vert (Unitaires + E2E) |
@@ -44,10 +44,30 @@
   * Tests automatisés dans `tests/test_sheets_connection.py` (24/24 tests au vert).
 * **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
-### ⚪ Étape 3 : Cartographie de la structure réelle du Sheet
+### 🟢 Étape 3 : Cartographie de la structure réelle du Sheet
 * **Objectif :** L'agent inspecte directement les onglets, colonnes et types de données réels du Sheet.
-* **Livrable :** Modèle Pydantic ou rapport de structure documentant l'état exact du document.
-* **Critère de passage :** Confirmation par l'utilisateur que la cartographie correspond bien à son usage.
+* **Résultats de l'inspection en direct :**
+  * 📅 **`repas 2026` (366 lignes) :**
+    * Colonnes : `Date` (JJ/MM/AAAA), `Jour`, `Midi`, `Soir`, `Notes / Magasin`.
+  * 📖 **`Recettes` (1006 lignes) :**
+    * Base de données de plus de 1000 recettes !
+    * Colonnes : `Plat`, `Catégorie`, `Catégorie 2`, `Complet` (TRUE/FALSE), puis colonnes E+ pour la liste des ingrédients.
+  * 🛒 **`Cette semaine` (32 lignes) :**
+    * Lignes 1 à 8 : Tableau du planning de la semaine (Midi col C, Soir col E).
+    * Ligne 9 : Séparateur.
+    * Lignes 10 à 32 : Grille de courses organisée en 4 colonnes de rayons avec cases à cocher `FALSE`/`TRUE` et noms d'ingrédients.
+  * 🏷️ **`Rayons` (17 lignes) :**
+    * Liste ordonnancée des rayons : Fruits (1), Légumes (2), Plat préparé (3), Viande (4), etc.
+  * 📦 **`Hors_Repas` (64 lignes) :**
+    * Produits récurrents : `Nom`, `pré-cocher?` (FALSE/TRUE), `rayon` (Hygiène, Entretien...).
+  * 🍹 **`Recette festive` (25 lignes) :**
+    * Recettes dédiées Apéro / Gâteaux (ex: `guacamole`, `Chocolat mascarpone`, `Sauce St moret`, `Préfou`...) avec ingrédients.
+  * 🥂 **`Courses festives` (11 lignes) :**
+    * Grille de courses dédiée pour l'apéro et réceptions, organisée par rayons avec cases à cocher `FALSE`/`TRUE`.
+* **Livrables réalisés :**
+  * Modèles Pydantic stricts dans `app/connectors/sheets/models.py` (`DayMealPlan`, `Recipe` avec tags festifs, `ShoppingItem`, `RayonSetting`, `SheetSchemaSnapshot`).
+  * Tests unitaires des modèles dans `tests/test_sheets_models.py` (29/29 tests au vert).
+* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
 ### ⚪ Étape 4 : Tests de structure du Sheet (Détection de dérive / Drift)
 * **Objectif :** Créer des tests automatisés qui s'assurent que si une colonne ou un onglet du Sheet change de place, une alerte claire soit remontée.
@@ -65,6 +85,11 @@
     * `get_meal_plan(target_date: str | date)` :
       * *Relatif / jour de la semaine :* « Qu'est-ce qu'on mange ce soir ? », « On mange quoi demain ? », « Qu'est-ce qu'on mange jeudi prochain ? » (jour variable).
       * *Date absolue :* « Qu'est-ce qu'on mange le 24 septembre ? » (résolution automatique du jour dans le planning mensuel ou hebdomadaire).
+  * 📖 **Consultation des ingrédients d'une recette :**
+    * `get_recipe_ingredients(recipe_name: str) -> List[str]` :
+      * « Quels sont les ingrédients pour le risotto de quinoa ? »
+      * « Qu'est-ce qu'il faut pour faire du guacamole ? »
+      * Recherche insensible à la casse et tolérante dans `Recettes` ET dans `Recette festive`.
   * ✏️ **Planification / Suggestion de repas *(À discuter et confirmer avant dev)* :**
     * `set_meal_plan(meal: str, target_date: str | date, meal_type: str = "soir")` :
       * « J'aimerais manger des lasagnes jeudi prochain » ou « Prévois une pizza la semaine prochaine ».
