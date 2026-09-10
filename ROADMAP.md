@@ -48,13 +48,21 @@
 * **Livrable :** Modifications validées sur le Sheet / Apps Script.
 * **Critère de passage :** Validation manuelle des modifications.
 
-### ⚪ Étape 6 : Implémentation du `SheetsConnector`
-* **Objectif :** Développer `app/connectors/sheets/meal_connector.py` :
-  * `get_today_meal()` / `get_meal_plan(date)` -> *« Qu'est-ce qu'on mange ce soir ? »*
-  * `add_shopping_item(item, rayon)` -> *« Ajoute du café à ma liste »*
-  * `get_shopping_list()` -> *« Donne-moi la liste de courses »*
-* **Livrable :** Code du connecteur + tests unitaires avec mocks étanches.
-* **Critère de passage :** `pytest` 100% vert et validation utilisateur.
+### ⚪ Étape 6 : Implémentation du `SheetsConnector` & Intentions NLU
+* **Objectif :** Développer `app/connectors/sheets/meal_connector.py` et enrichir `intent_parser.py` :
+  * 🍽️ **Consultation de repas (Fonction unifiée avec résolution de date) :**
+    * `get_meal_plan(target_date: str | date)` :
+      * *Relatif / jour de la semaine :* « Qu'est-ce qu'on mange ce soir ? », « On mange quoi demain ? », « Qu'est-ce qu'on mange jeudi prochain ? » (jour variable).
+      * *Date absolue :* « Qu'est-ce qu'on mange le 24 septembre ? » (résolution automatique du jour dans le planning mensuel ou hebdomadaire).
+  * ✏️ **Planification / Suggestion de repas *(À discuter et confirmer avant dev)* :**
+    * `set_meal_plan(meal: str, target_date: str | date, meal_type: str = "soir")` :
+      * « J'aimerais manger des lasagnes jeudi prochain » ou « Prévois une pizza la semaine prochaine ».
+      * *Points à arbitrer ensemble :* Vérification si la recette existe dans l'onglet `Recettes`, choix du créneau (Midi vs Soir).
+  * 🛒 **Gestion de la liste de courses :**
+    * `add_shopping_item(item: str, rayon: Optional[str] = None)` -> « Ajoute du café bio à ma liste de courses ».
+    * `get_shopping_list()` -> « Donne-moi la liste de courses ».
+* **Livrable :** Code du connecteur + parseur NLU mis à jour + tests unitaires exhaustifs avec mocks étanches.
+* **Critère de passage :** Validation explicite des cas d'usage par l'utilisateur et suite `pytest` à 100% au vert.
 
 ### ⚪ Étape 7 : Test d'intégration End-to-End (E2E) & Clôture
 * **Objectif :** Valider le scénario complet : Phrase utilisateur -> Parser NLU -> Déclenchement du connecteur -> Résultat Sheet vérifié.
