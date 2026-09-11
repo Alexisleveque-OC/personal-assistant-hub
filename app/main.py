@@ -38,6 +38,10 @@ from app.connectors.sheets.meals_connector import (
 
 intent_parser = IntentParser()
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 _meals_connector: Optional[MealsShoppingConnector] = None
 
 
@@ -47,7 +51,8 @@ def get_meals_connector() -> Optional[MealsShoppingConnector]:
     if _meals_connector is None:
         try:
             _meals_connector = MealsShoppingConnector()
-        except Exception:
+        except Exception as exc:
+            logger.warning(f"Impossible d'initialiser MealsShoppingConnector : {exc}")
             _meals_connector = None
     return _meals_connector
 

@@ -68,6 +68,9 @@ class MealsShoppingConnector(BaseConnector):
             gc = gspread.service_account(filename=cred_file)
             self._spreadsheet = gc.open_by_key(settings.spreadsheet_meals_shopping_id)
 
+        self._rayons_cache: Optional[Dict[str, str]] = None
+        self._recipes_cache: Optional[List[Recipe]] = None
+
     @property
     def name(self) -> str:
         return "meals_shopping_connector"
@@ -141,52 +144,6 @@ class MealsShoppingConnector(BaseConnector):
             f"Aucun repas planifié pour la date {date_str_target} dans l'onglet '{ws_name}'."
         )
 
-    def get_recipe_ingredients(self, recipe_name: str) -> Optional[Recipe]:
-        """Recherche une recette et ses ingrédients dans 'Recettes' ou 'Recette festive'."""
-        query_norm = self._normalize(recipe_name)
-
-        # 1. Recherche dans 'Recettes' standard
-        try:
-            ws_recipes = self._spreadsheet.worksheet("Recettes")
-            rows = ws_recipes.get_all_values()
-            for row in rows[1:]:
-                if row and self._normalize(row[0]) == query_norm:
-                    ingredients = [item.strip() for item in row[4:] if item.strip()]
-                    is_comp = row[3].strip().upper() == "TRUE" if len(row) > 3 else False
-                    return Recipe(
-                        name=row[0].strip(),
-                        category=row[1].strip() if len(row) > 1 else None,
-                        category_2=row[2].strip() if len(row) > 2 else None,
-                        is_complete=is_comp,
-                        is_festive=False,
-                        source_sheet="Recettes",
-                        ingredients=ingredients,
-                    )
-        except Exception:
-            pass
-
-        # 2. Recherche dans 'Recette festive'
-        try:
-            ws_festive = self._spreadsheet.worksheet("Recette festive")
-            rows_festive = ws_festive.get_all_values()
-            for row in rows_festive[1:]:
-                if row and self._normalize(row[0]) == query_norm:
-                    ingredients = [item.strip() for item in row[4:] if item.strip()]
-                    is_comp = row[3].strip().upper() == "TRUE" if len(row) > 3 else False
-                    return Recipe(
-                        name=row[0].strip(),
-                        category=row[1].strip() if len(row) > 1 else None,
-                        category_2=row[2].strip() if len(row) > 2 else None,
-                        is_complete=is_comp,
-                        is_festive=True,
-                        source_sheet="Recette festive",
-                        ingredients=ingredients,
-                    )
-        except Exception:
-            pass
-
-        return None
-
     def set_meal_plan(
         self,
         meal: str,
@@ -242,28 +199,92 @@ class MealsShoppingConnector(BaseConnector):
             notes=matched_row[4].strip() if len(matched_row) > 4 and matched_row[4].strip() else None,
         )
 
-    def _resolve_rayon(self, item_name: str) -> tuple[str, Optional[str]]:
-        """Déduit dynamiquement le rayon d'un article depuis Ingredients_Rayons ou Hors_Repas."""
-        norm_item = self._normalize(item_name)
+    def _get_all_recipes(self) -> List[Recipe]:
+        """Charge et met en cache l'ensemble des recettes (standard et festives)."""
+        if self._recipes_cache is not None:
+            return self._recipes_cache
 
-        # 1. Chercher dans Ingredients_Rayons
+        recipes: List[Recipe] = []
+        for sheet_name, is_festive in [("Recettes", False), ("Recette festive", True)]:
+            try:
+                ws = self._spreadsheet.worksheet(sheet_name)
+                for row in ws.get_all_values()[1:]:
+                    if row and row[0].strip():
+                        ingredients = [item.strip() for item in row[4:] if item.strip()]
+                        is_comp = row[3].strip().upper() == "TRUE" if len(row) > 3 else False
+                        recipes.append(
+                            Recipe(
+                                name=row[0].strip(),
+                                category=row[1].strip() if len(row) > 1 else None,
+                                category_2=row[2].strip() if len(row) > 2 else None,
+                                is_complete=is_comp,
+                                is_festive=is_festive,
+                                source_sheet=sheet_name,
+                                ingredients=ingredients,
+                            )
+                        )
+            except Exception:
+                pass
+
+        self._recipes_cache = recipes
+        return self._recipes_cache
+
+    def get_recipe_ingredients(self, recipe_name: str) -> Optional[Recipe]:
+        """Recherche une recette et ses ingrédients dans le catalogue en cache."""
+        query_norm = self._normalize(recipe_name)
+        if not query_norm:
+            return None
+
+        all_recipes = self._get_all_recipes()
+
+        # 1. Passe 1 : Recherche exacte
+        for recipe in all_recipes:
+            if self._normalize(recipe.name) == query_norm:
+                return recipe
+
+        # 2. Passe 2 : Recherche partielle (ex: 'risotto de quinoa' -> 'Risotto de Quinoa courgette')
+        for recipe in all_recipes:
+            rec_norm = self._normalize(recipe.name)
+            if query_norm in rec_norm or rec_norm in query_norm:
+                return recipe
+
+        return None
+
+    def _get_rayons_map(self) -> Dict[str, str]:
+        """Charge le catalogue des rayons en cache mémoire pour économiser les quotas d'appels API."""
+        if self._rayons_cache is not None:
+            return self._rayons_cache
+
+        cache: Dict[str, str] = {}
+        # 1. Ingredients_Rayons
         try:
             ws_ing = self._spreadsheet.worksheet("Ingredients_Rayons")
             for row in ws_ing.get_all_values()[1:]:
-                if row and self._normalize(row[0]) == norm_item:
-                    return row[1].strip(), None
+                if row and len(row) >= 2 and row[0].strip():
+                    cache[self._normalize(row[0])] = row[1].strip()
         except Exception:
             pass
 
-        # 2. Chercher dans Hors_Repas
+        # 2. Hors_Repas
         try:
             ws_hr = self._spreadsheet.worksheet("Hors_Repas")
             for row in ws_hr.get_all_values()[1:]:
-                if row and self._normalize(row[0]) == norm_item:
-                    rayon = row[2].strip() if len(row) > 2 and row[2].strip() else "Divers"
-                    return rayon, None
+                if row and len(row) >= 3 and row[0].strip():
+                    key = self._normalize(row[0])
+                    if key not in cache:
+                        cache[key] = row[2].strip() if row[2].strip() else "Divers"
         except Exception:
             pass
+
+        self._rayons_cache = cache
+        return self._rayons_cache
+
+    def _resolve_rayon(self, item_name: str) -> tuple[str, Optional[str]]:
+        """Déduit dynamiquement le rayon d'un article depuis le catalogue en cache."""
+        norm_item = self._normalize(item_name)
+        rayons_map = self._get_rayons_map()
+        if norm_item in rayons_map:
+            return rayons_map[norm_item], None
 
         return "Divers", f"Rayon non répertorié pour '{item_name}', classé temporairement en 'Divers'."
 
@@ -323,7 +344,7 @@ class MealsShoppingConnector(BaseConnector):
         try:
             ws_wa = self._spreadsheet.worksheet("Liste_Attente")
             for row in ws_wa.get_all_values()[1:]:
-                if row and len(row) >= 2:
+                if row and len(row) >= 2 and row[1].strip():
                     is_bought = row[0].strip().upper() == "TRUE"
                     if not is_bought:
                         rayon, _ = self._resolve_rayon(row[1])

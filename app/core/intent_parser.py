@@ -25,7 +25,7 @@ class IntentParser:
 
         # 1. Ajout d'ingrédients d'une recette ("ajoute les ingrédients du risotto de quinoa à la liste de courses")
         recipe_ing_add_match = re.search(
-            r"(?:ajoute|mets)\s+les\s+ingrédients\s+(?:du|de\s+la|de\s+l'|de|d')\s*(.+)",
+            r"(?:ajoute|mets)\s+les\s+ingr[ée]dients\s+(?:du|de\s+la|de\s+l'|de|d')\s*(.+)",
             cleaned,
             re.IGNORECASE,
         )
@@ -38,7 +38,7 @@ class IntentParser:
                 rest, exclude_val = rest.split(" sauf ", 1)
                 exclude_val = exclude_val.strip()
             # Nettoyer "à la liste de courses"
-            rest = re.sub(r"\s+(?:à|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", rest, flags=re.IGNORECASE).strip()
+            rest = re.sub(r"\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", rest, flags=re.IGNORECASE).strip()
             params = {"recipe": rest}
             if exclude_val:
                 params["exclude"] = exclude_val
@@ -51,7 +51,7 @@ class IntentParser:
 
         # 2. Consultation d'ingrédients d'une recette ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...")
         recipe_ing_match = re.search(
-            r"(?:ingrédients\s+(?:pour|du|de\s+la|de\s+l'|de|d')|qu'est-ce\s+qu'il\s+faut\s+pour\s+(?:faire\s+)?(?:du|de\s+la|de\s+l'|des|le|la|l'|d')?)\s*(.+)",
+            r"(?:ingr[ée]dients\s+(?:pour|du|de\s+la|de\s+l'|de|d')|qu'est[- ]ce\s+qu'il\s+faut\s+pour\s+(?:faire\s+)?(?:du|de\s+la|de\s+l'|des|le|la|l'|d')?)\s*(.+)",
             cleaned,
             re.IGNORECASE,
         )
@@ -85,7 +85,7 @@ class IntentParser:
             )
 
         # 4. Consultation repas ("qu'est-ce qu'on mange ce soir / midi / demain ?")
-        if any(kw in cleaned for kw in ["qu'est-ce qu'on mange", "qu'est ce qu'on mange", "menu de ce", "on mange quoi"]):
+        if re.search(r"(?:qu[' ]?est[- ]ce\s+qu[' ]?on\s+mange|on\s+mange\s+quoi|menu\s+d[eu]|quel\s+est\s+le\s+repas)", cleaned):
             period = "soir"
             if "midi" in cleaned:
                 period = "midi"
@@ -100,7 +100,7 @@ class IntentParser:
 
         # 5. Marquage courses achetées ("j'ai acheté le café bio et le dentifrice")
         bought_match = re.search(
-            r"^j'ai\s+acheté\s+(?!pour\s+\d)(.+)$",
+            r"^j[' ]?ai\s+achet[ée]\s+(?!pour\s+\d)(.+)$",
             cleaned,
             re.IGNORECASE,
         )

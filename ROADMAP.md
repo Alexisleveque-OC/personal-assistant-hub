@@ -16,8 +16,8 @@
 | **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 29/29 verts (Modèles Pydantic) |
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
-| **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Prêt pour validation | ⏳ En attente validation utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & validation finale de la feature | ⚪ À faire | ⚪ À faire | ⚪ 100% vert (Unitaires + E2E) |
+| **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
+| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 63/63 tests verts (Unitaires + E2E Live) |
 
 ---
 
@@ -118,9 +118,20 @@
     * Câblage complet dans `app/main.py` sur l'endpoint `/api/v1/interact` avec support d'injection de mocks (`set_meals_connector`).
     * Tests fonctionnels d'interaction dans `tests/test_interact.py`.
     * Suite complète automatisée : **59/59 tests au vert** (`pytest`).
-* **Statut :** ⏳ En attente de validation utilisateur avant passage à l'Étape 7 (Test E2E).
+* **Statut :** ✅ Validé par l'utilisateur le 11/09/2026 (59/59 tests au vert).
 
-### ⚪ Étape 7 : Test d'intégration End-to-End (E2E) & Clôture
-* **Objectif :** Valider le scénario complet : Phrase utilisateur -> Parser NLU -> Déclenchement du connecteur -> Résultat Sheet vérifié.
-* **Livrable :** Test d'intégration E2E + documentation dans `walkthrough.md`.
-* **Critère de passage :** Validation finale par l'utilisateur avant création de la Pull Request vers `develop`.
+### 🟢 Étape 7 : Test d'intégration End-to-End (E2E) & Console Interactive
+* **Objectif :** Valider le cycle complet en conditions réelles (phrase utilisateur -> Parser NLU -> Déclencheur connecteur -> Google Sheet en direct) et fournir un moyen immédiat à l'utilisateur de tester son assistant.
+* **Livrables réalisés :**
+  * **Tests d'intégration E2E (`tests/test_e2e_meals_shopping.py`) :**
+    * Test réel de recherche de recette standard (`Recettes`).
+    * Test réel de recherche de recette apéro (`Recette festive`).
+    * Test réel de lecture et parsing de la liste de courses (`Cette semaine` et `Liste_Attente`).
+    * Test réel du cycle de vie complet d'un article dans `Liste_Attente` : ajout d'un article avec rayon automatique, vérification de sa présence, marquage comme acheté (`TRUE`), et nettoyage (`clear`).
+  * **Optimisation de performance & Quotas Sheets :**
+    * Mise en cache mémoire O(1) des catalogues statiques (`Recettes`, `Recette festive`, `Rayons`, `Hors_Repas`) dans le connecteur afin d'éliminer le risque d'épuisement de quota API (429 Too Many Requests).
+  * **Console de test interactive (`scripts/chat.py`) :**
+    * Script interactif permettant à l'utilisateur de discuter directement avec son assistant en français dans son terminal (`.\.venv\Scripts\python scripts/chat.py`).
+  * **Résultat de la suite de tests complète :** **63/63 tests au vert (100%)** en ~22 secondes.
+* **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
+
