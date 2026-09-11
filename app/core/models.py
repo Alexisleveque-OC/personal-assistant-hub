@@ -45,6 +45,8 @@ class InteractionRequest(BaseModel):
     """Requête entrante (texte ou transcription vocale)."""
     query: str = Field(..., min_length=1, description="Phrase ou commande en langage naturel")
     source: Optional[str] = Field(default="api", description="Origine: android, alexa, web, etc.")
+    session_id: Optional[str] = Field(default=None, description="Identifiant unique de session ou utilisateur")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Contexte conversationnel additionnel")
 
 
 class InteractionResponse(BaseModel):

@@ -120,3 +120,64 @@ def test_interact_budget_query():
     assert data["success"] is True
     assert "budget courses" in data["spoken_response"]
 
+
+def test_interact_conversational_anaphora_followup():
+    """Vérifie le chaînage conversationnel : consultation de recette puis 'Ajoutes ces ingrédients'."""
+    mock_connector = MagicMock()
+    mock_connector.get_recipe_ingredients.return_value = Recipe(
+        name="Orzo brocolis",
+        ingredients=["Orzo", "Brocolis", "Champignons", "Poitrine", "Lait"],
+    )
+    mock_connector.add_recipe_ingredients_to_shopping_list.return_value = (
+        Recipe(name="Orzo brocolis", ingredients=["Orzo", "Brocolis", "Champignons", "Poitrine", "Lait"]),
+        [
+            WaitingListItem(item="Orzo", rayon="Féculents"),
+            WaitingListItem(item="Brocolis", rayon="Légumes"),
+            WaitingListItem(item="Poitrine", rayon="Boucherie"),
+            WaitingListItem(item="Lait", rayon="Frais"),
+        ],
+    )
+    set_meals_connector(mock_connector)
+
+    # 1. Première requête : consultation de recette
+    r1 = client.post(
+        "/api/v1/interact",
+        json={"query": "Donnes moi les ingrédients pour Orzo brocolis", "source": "session_test_1"},
+    )
+    assert r1.status_code == 200
+    assert "Orzo brocolis" in r1.json()["spoken_response"]
+
+    # 2. Deuxième requête en anaphore contextuelle : "Ajoutes ces ingrédients sauf les champignons"
+    r2 = client.post(
+        "/api/v1/interact",
+        json={"query": "Ajoutes ces ingrédients sauf les champignons", "source": "session_test_1"},
+    )
+    assert r2.status_code == 200
+    res_data = r2.json()
+    assert res_data["intent"]["intent"] == "add_recipe_ingredients"
+    assert "Orzo brocolis" in res_data["spoken_response"]
+    assert "hors champignons" in res_data["spoken_response"]
+
+    # Vérification que le connecteur a bien été appelé avec la recette mémorisée
+    mock_connector.add_recipe_ingredients_to_shopping_list.assert_called_with(
+        recipe_name="Orzo brocolis",
+        exclude_items=["champignons"],
+    )
+
+    set_meals_connector(None)
+
+
+def test_interact_conversational_anaphora_without_context():
+    """Vérifie le message d'aide poli si l'utilisateur utilise une anaphore sans contexte de recette préalable."""
+    response = client.post(
+        "/api/v1/interact",
+        json={"query": "Ajoutes ces ingrédients", "source": "session_isolated_orphan"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is False
+    assert data["intent"]["intent"] == "add_recipe_ingredients"
+    assert "Je ne sais pas de quelle recette vous parlez" in data["spoken_response"]
+
+
+

@@ -11,7 +11,7 @@ class IntentParser:
     avec possibilité de délégation à un LLM pour les cas ambigus.
     """
 
-    def parse(self, text: str) -> ParsedIntent:
+    def parse(self, text: str, context: Optional[dict] = None) -> ParsedIntent:
         cleaned = text.strip().lower()
 
         # 0. Nettoyage de la liste de courses ("vide la liste de courses", "nettoie la liste")
@@ -22,6 +22,51 @@ class IntentParser:
                 parameters={},
                 raw_query=text,
             )
+
+        # 0.bis Anaphore contextuelle : "ajoute ces ingrédients", "ajoute-les", "mets-les sur la liste sauf ...", "ajoutes ces ingrédients sauf le lait"
+        anaphora_match = re.search(
+            r"^(?:ajoute[sz]?|ajoutez|rajoute[sz]?|rajoutez|mets?|mettez)(?:\s+tous)?(?:\s+ces\s+ingr[ée]dients|-les(?:\s+tous)?|\s+les\s+tous|\s+les(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$)|(?:\s+(?:tous\s+)?les\s+ingr[ée]dients(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$))|\s+cette\s+recette)\s*(?:(?:[àa]|sur|dans)\s+(?:la\s+)?liste(?:\s+(?:de\s+|des\s+)?courses?)?)?(.*)$",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if anaphora_match:
+            rest = anaphora_match.group(1).strip()
+            rest = re.sub(r"[?!.,;]+$", "", rest).strip()
+            exclude_val = None
+            if " sauf " in rest:
+                _, exclude_val = rest.split(" sauf ", 1)
+            elif rest.startswith("sauf "):
+                exclude_val = rest[5:].strip()
+            elif " sans " in rest:
+                _, exclude_val = rest.split(" sans ", 1)
+            elif rest.startswith("sans "):
+                exclude_val = rest[5:].strip()
+
+            if exclude_val:
+                exclude_val = re.sub(r"\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", exclude_val, flags=re.IGNORECASE).strip()
+                exclude_val = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une|d')\s+", "", exclude_val.strip(), flags=re.IGNORECASE).strip()
+
+            last_recipe = (context or {}).get("last_recipe")
+            if last_recipe:
+                params = {"recipe": last_recipe}
+                if exclude_val:
+                    params["exclude"] = exclude_val
+                return ParsedIntent(
+                    intent=IntentType.ADD_RECIPE_INGREDIENTS,
+                    confidence=0.95,
+                    parameters=params,
+                    raw_query=text,
+                )
+            else:
+                params = {"error": "no_context_recipe"}
+                if exclude_val:
+                    params["exclude"] = exclude_val
+                return ParsedIntent(
+                    intent=IntentType.ADD_RECIPE_INGREDIENTS,
+                    confidence=0.90,
+                    parameters=params,
+                    raw_query=text,
+                )
 
         # 1. Ajout d'ingrédients d'une recette ("ajoute les ingrédients du risotto", "ajoute les ingrédients pour faire du boeuf aux poivrons...")
         recipe_ing_add_match = re.search(

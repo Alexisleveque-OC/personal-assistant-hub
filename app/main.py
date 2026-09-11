@@ -63,6 +63,14 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     _meals_connector = connector
 
 
+_SESSIONS: dict[str, dict] = {}
+
+
+def clear_sessions() -> None:
+    """Réinitialise la mémoire de session (utilitaire pour les tests)."""
+    _SESSIONS.clear()
+
+
 @app.get("/", tags=["System"])
 async def root():
     return {
@@ -85,7 +93,11 @@ async def health_check():
 @app.post("/api/v1/intent/parse", response_model=ParsedIntent, tags=["NLU"])
 async def parse_intent(request: InteractionRequest):
     """Analyse la phrase en langage naturel et extrait l'intention et ses paramètres."""
-    return intent_parser.parse(request.query)
+    session_id = request.session_id or request.source or "default"
+    session_ctx = _SESSIONS.setdefault(session_id, {})
+    if request.context:
+        session_ctx.update(request.context)
+    return intent_parser.parse(request.query, context=session_ctx)
 
 
 @app.post("/api/v1/interact", response_model=InteractionResponse, tags=["Interaction"])
@@ -96,7 +108,12 @@ async def interact(request: InteractionRequest):
     2. Route vers le connecteur approprié (MealsShoppingConnector, Tasks, etc.)
     3. Formule une réponse parlée / textuelle
     """
-    parsed = intent_parser.parse(request.query)
+    session_id = request.session_id or request.source or "default"
+    session_ctx = _SESSIONS.setdefault(session_id, {})
+    if request.context:
+        session_ctx.update(request.context)
+
+    parsed = intent_parser.parse(request.query, context=session_ctx)
     connector = get_meals_connector()
     data = dict(parsed.parameters)
 
@@ -124,31 +141,39 @@ async def interact(request: InteractionRequest):
                 if recipe:
                     spoken = f"Pour préparer {recipe.name}, il vous faut : {', '.join(recipe.ingredients)}."
                     data["recipe"] = recipe.model_dump()
+                    session_ctx["last_recipe"] = recipe.name
                 else:
                     spoken = f"Désolé, je n'ai pas trouvé la recette '{recipe_name}' dans vos carnets de recettes."
             else:
                 spoken = f"Pour préparer {recipe_name}, il vous faut les ingrédients standard."
+                session_ctx["last_recipe"] = recipe_name
 
         case IntentType.ADD_RECIPE_INGREDIENTS:
-            recipe_name = parsed.parameters.get("recipe", "")
-            exclude = parsed.parameters.get("exclude")
-            exclude_items = [exclude] if exclude else None
-            if connector:
-                try:
-                    recipe, added = connector.add_recipe_ingredients_to_shopping_list(
-                        recipe_name=recipe_name,
-                        exclude_items=exclude_items,
-                    )
-                    excl_suffix = f" (hors {exclude})" if exclude else ""
-                    spoken = f"J'ai ajouté les ingrédients de {recipe.name}{excl_suffix} à votre liste de courses ({len(added)} article(s) en attente)."
-                    data["recipe"] = recipe.model_dump()
-                    data["added_items"] = [it.model_dump() for it in added]
-                except RecipeNotFoundError:
-                    spoken = f"Impossible d'ajouter les ingrédients : la recette '{recipe_name}' est introuvable."
-                except Exception as exc:
-                    spoken = f"Erreur lors de l'ajout des ingrédients de '{recipe_name}' : {exc}"
+            if parsed.parameters.get("error") == "no_context_recipe":
+                spoken = "Je ne sais pas de quelle recette vous parlez. Demandez-moi d'abord la recette ou les ingrédients d'un plat !"
             else:
-                spoken = f"J'ai ajouté les ingrédients de {recipe_name} à votre liste de courses."
+                recipe_name = parsed.parameters.get("recipe", "")
+                exclude = parsed.parameters.get("exclude")
+                exclude_items = [exclude] if exclude else None
+                if connector:
+                    try:
+                        recipe, added = connector.add_recipe_ingredients_to_shopping_list(
+                            recipe_name=recipe_name,
+                            exclude_items=exclude_items,
+                        )
+                        excl_suffix = f" (hors {exclude})" if exclude else ""
+                        spoken = f"J'ai ajouté les ingrédients de {recipe.name}{excl_suffix} à votre liste de courses ({len(added)} article(s) en attente)."
+                        data["recipe"] = recipe.model_dump()
+                        data["added_items"] = [it.model_dump() for it in added]
+                        session_ctx["last_recipe"] = recipe.name
+                    except RecipeNotFoundError:
+                        spoken = f"Impossible d'ajouter les ingrédients : la recette '{recipe_name}' est introuvable."
+                    except Exception as exc:
+                        spoken = f"Erreur lors de l'ajout des ingrédients de '{recipe_name}' : {exc}"
+                else:
+                    excl_suffix = f" (hors {exclude})" if exclude else ""
+                    spoken = f"J'ai ajouté les ingrédients de {recipe_name}{excl_suffix} à votre liste de courses."
+                    session_ctx["last_recipe"] = recipe_name
 
         case IntentType.SET_MEAL_PLAN:
             meal = parsed.parameters.get("meal", "")
@@ -248,7 +273,7 @@ async def interact(request: InteractionRequest):
             spoken = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler ?"
 
     return InteractionResponse(
-        success=parsed.intent != IntentType.UNKNOWN,
+        success=parsed.intent != IntentType.UNKNOWN and "error" not in parsed.parameters,
         spoken_response=spoken,
         intent=parsed,
         data=data,

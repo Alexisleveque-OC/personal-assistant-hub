@@ -51,3 +51,39 @@ def test_intent_parser_unknown():
     parsed = parser.parse("Quel temps fait-il sur Mars ?")
     assert parsed.intent == IntentType.UNKNOWN
     assert parsed.confidence < 0.5
+
+
+def test_intent_parser_anaphora_with_context():
+    """Vérifie la résolution des anaphores ('ces ingrédients', 'ajoute-les') via le contexte conversationnel."""
+    ctx = {"last_recipe": "Orzo brocolis"}
+
+    # 1. Ajout direct sans exclusion
+    p1 = parser.parse("Ajoutes ces ingrédients", context=ctx)
+    assert p1.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p1.parameters.get("recipe") == "Orzo brocolis"
+    assert "exclude" not in p1.parameters
+
+    # 2. Ajoute-les
+    p2 = parser.parse("Ajoute-les", context=ctx)
+    assert p2.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p2.parameters.get("recipe") == "Orzo brocolis"
+
+    # 3. Ajout avec exclusion
+    p3 = parser.parse("Ajoute ces ingrédients sauf le lait", context=ctx)
+    assert p3.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p3.parameters.get("recipe") == "Orzo brocolis"
+    assert p3.parameters.get("exclude") == "lait"
+
+    # 4. Mets-les sur la liste sauf ...
+    p4 = parser.parse("Mets-les sur la liste sauf les champignons", context=ctx)
+    assert p4.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p4.parameters.get("recipe") == "Orzo brocolis"
+    assert p4.parameters.get("exclude") == "champignons"
+
+
+def test_intent_parser_anaphora_without_context():
+    """Vérifie le comportement si l'utilisateur dit 'ajoute ces ingrédients' sans contexte préalable."""
+    p = parser.parse("Ajoutes ces ingrédients")
+    assert p.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p.parameters.get("error") == "no_context_recipe"
+
