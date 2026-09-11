@@ -103,18 +103,19 @@ async def interact(request: InteractionRequest):
     match parsed.intent:
         case IntentType.GET_MEAL_PLAN:
             period = parsed.parameters.get("period", "soir")
+            period_label = "ce soir" if period == "soir" else ("ce midi" if period == "midi" else period)
             if connector:
                 try:
                     plan = connector.get_meal_plan(period=period)
                     dish = plan.dinner if period != "midi" and plan.dinner else (plan.lunch or "Rien de planifié")
-                    spoken = f"D'après le planning des repas pour {period}, vous avez prévu : {dish}."
+                    spoken = f"D'après le planning des repas pour {period_label}, vous avez prévu : {dish}."
                     data["meal_plan"] = plan.model_dump()
                 except DayMealPlanNotFoundError:
-                    spoken = f"D'après le planning des repas pour {period}, aucun repas n'est encore programmé."
+                    spoken = f"D'après le planning des repas pour {period_label}, aucun repas n'est encore programmé."
                 except Exception as exc:
-                    spoken = f"Impossible de récupérer le repas pour {period} : {exc}"
+                    spoken = f"Impossible de récupérer le repas pour {period_label} : {exc}"
             else:
-                spoken = f"D'après le planning des repas pour {period}, vous avez prévu : Lasagnes maison et salade verte."
+                spoken = f"D'après le planning des repas pour {period_label}, vous avez prévu : Lasagnes maison et salade verte."
 
         case IntentType.GET_RECIPE_INGREDIENTS:
             recipe_name = parsed.parameters.get("recipe", "")
@@ -138,7 +139,8 @@ async def interact(request: InteractionRequest):
                         recipe_name=recipe_name,
                         exclude_items=exclude_items,
                     )
-                    spoken = f"J'ai ajouté les ingrédients de {recipe.name} à votre liste de courses ({len(added)} article(s) en attente)."
+                    excl_suffix = f" (hors {exclude})" if exclude else ""
+                    spoken = f"J'ai ajouté les ingrédients de {recipe.name}{excl_suffix} à votre liste de courses ({len(added)} article(s) en attente)."
                     data["recipe"] = recipe.model_dump()
                     data["added_items"] = [it.model_dump() for it in added]
                 except RecipeNotFoundError:

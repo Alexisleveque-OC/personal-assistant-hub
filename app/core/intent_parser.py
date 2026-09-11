@@ -31,17 +31,23 @@ class IntentParser:
         )
         if recipe_ing_add_match:
             rest = recipe_ing_add_match.group(1).strip()
-            # Nettoyer d'éventuels points d'interrogation / ponctuation
             rest = re.sub(r"[?!.,;]+$", "", rest).strip()
             exclude_val = None
             if " sauf " in rest:
                 rest, exclude_val = rest.split(" sauf ", 1)
-                exclude_val = exclude_val.strip()
-            # Nettoyer "à la liste de courses"
+            elif " sans " in rest:
+                rest, exclude_val = rest.split(" sans ", 1)
+
+            # Nettoyer "à la liste de courses" (avec tolérance sur accent et singulier)
             rest = re.sub(r"\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", rest, flags=re.IGNORECASE).strip()
+            rest = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une|d')\s+", "", rest).strip()
+
             params = {"recipe": rest}
             if exclude_val:
+                exclude_val = re.sub(r"\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", exclude_val, flags=re.IGNORECASE).strip()
+                exclude_val = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une|d')\s+", "", exclude_val.strip()).strip()
                 params["exclude"] = exclude_val
+
             return ParsedIntent(
                 intent=IntentType.ADD_RECIPE_INGREDIENTS,
                 confidence=0.95,
@@ -49,16 +55,27 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 2. Consultation d'ingrédients d'une recette ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...")
-        recipe_ing_match = re.search(
-            r"(?:ingr[ée]dients\s+(?:pour|du|de\s+la|de\s+l'|de|d')|qu'est[- ]ce\s+qu'il\s+faut\s+pour\s+(?:faire\s+)?(?:du|de\s+la|de\s+l'|des|le|la|l'|d')?)\s*(.+)",
+        # 2. Consultation de recette ou d'ingrédients ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...", "donnes-moi la recette du préfou")
+        recipe_direct_match = re.search(
+            r"(?:(?:donne[sz]?(?:-moi|\s+moi)?|quelle\s+est|c[' ]est\s+quoi)\s+(?:la\s+)?recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ]))\s*(.+)",
             cleaned,
             re.IGNORECASE,
         )
-        if recipe_ing_match:
-            recipe_name = recipe_ing_match.group(1).strip()
-            recipe_name = re.sub(r"[?!.,;]+$", "", recipe_name).strip()
-            recipe_name = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une)\s+", "", recipe_name).strip()
+        recipe_ing_match = re.search(
+            r"(?:ingr[ée]dients\s+(?:pour|d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|"
+            r"(?:qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut|il\s+(?:me\s+)?faut\s+quoi|(?:j[' ]?ai\s+)?besoin\s+de\s+quoi)\s+pour\s+(?:faire|pr[ée]parer|cuisiner)?\s*(?:d[eu]|de\s+la|de\s+l[' ]|des|un[e]?|le|la|les|l[' ]|d[' ])?)\s*(.+)",
+            cleaned,
+            re.IGNORECASE,
+        )
+        matched_recipe_raw = None
+        if recipe_direct_match:
+            matched_recipe_raw = recipe_direct_match.group(1).strip()
+        elif recipe_ing_match:
+            matched_recipe_raw = recipe_ing_match.group(1).strip()
+
+        if matched_recipe_raw:
+            recipe_name = re.sub(r"[?!.,;]+$", "", matched_recipe_raw).strip()
+            recipe_name = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une|d')\s+", "", recipe_name).strip()
             return ParsedIntent(
                 intent=IntentType.GET_RECIPE_INGREDIENTS,
                 confidence=0.95,
@@ -114,20 +131,33 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 6. Ajout article liste de courses ("ajoute du lait à la liste de courses", "mets du pain sur la liste")
+        # 6. Ajout article liste de courses ("ajoute du lait à la liste de courses", "ajoute chocolat a la liste de course", "ajoute chocolat")
         add_shopping_match = re.search(
-            r"(?:ajoute|mets|rajoute)\s+(.+?)\s+(?:à|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+)?courses?",
+            r"^(?:ajoute|mets|rajoute)\s+(.+?)\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$",
             cleaned,
             re.IGNORECASE,
         )
-        if add_shopping_match:
-            item = add_shopping_match.group(1).strip()
-            return ParsedIntent(
-                intent=IntentType.ADD_SHOPPING_ITEM,
-                confidence=0.95,
-                parameters={"item": item},
-                raw_query=text,
+        short_add_match = None
+        if not add_shopping_match:
+            # Format court : "ajoute chocolat", "rajoute des oeufs"
+            short_add_match = re.search(
+                r"^(?:ajoute|rajoute)\s+(?!les\s+ingr[ée]dients)(.+)$",
+                cleaned,
+                re.IGNORECASE,
             )
+
+        target_match = add_shopping_match or short_add_match
+        if target_match:
+            item = target_match.group(1).strip()
+            item = re.sub(r"[?!.,;]+$", "", item).strip()
+            item = re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", item, flags=re.IGNORECASE).strip()
+            if item:
+                return ParsedIntent(
+                    intent=IntentType.ADD_SHOPPING_ITEM,
+                    confidence=0.95,
+                    parameters={"item": item},
+                    raw_query=text,
+                )
 
         # 7. Consultation liste de courses ("donne-moi la liste de courses", "qu'est-ce qu'il y a sur la liste de courses")
         if "liste de courses" in cleaned or "liste des courses" in cleaned:

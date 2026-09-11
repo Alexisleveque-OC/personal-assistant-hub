@@ -17,7 +17,7 @@
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
 | **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 63/63 tests verts (Unitaires + E2E Live) |
+| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 72/72 tests verts (Unitaires + E2E Live) |
 
 ---
 
@@ -128,10 +128,16 @@
     * Test réel de recherche de recette apéro (`Recette festive`).
     * Test réel de lecture et parsing de la liste de courses (`Cette semaine` et `Liste_Attente`).
     * Test réel du cycle de vie complet d'un article dans `Liste_Attente` : ajout d'un article avec rayon automatique, vérification de sa présence, marquage comme acheté (`TRUE`), et nettoyage (`clear`).
+  * **Robustification NLU & Connecteur (Suite aux tests réels utilisateur en TDD Strict) :**
+    * Support des exclusions de recettes avec déterminants (`sauf le jambon`) et multi-exclusions (`sans le jambon et le fromage`).
+    * Nettoyage automatique des articles partitifs (`du café` -> `Café`) pour résolution exacte du rayon (`Petit dej + bio`).
+    * Reconnaissance des requêtes de recettes étendues (`donnes moi la recette de...`, `j'ai besoin de quoi pour préparer...`).
+    * Prise en charge des ajouts d'articles au format court (`ajoute chocolat`).
+    * Harmonisation de la synthèse vocale (`pour ce soir`, mention explicite des exclusions).
   * **Optimisation de performance & Quotas Sheets :**
     * Mise en cache mémoire O(1) des catalogues statiques (`Recettes`, `Recette festive`, `Rayons`, `Hors_Repas`) dans le connecteur afin d'éliminer le risque d'épuisement de quota API (429 Too Many Requests).
   * **Console de test interactive (`scripts/chat.py`) :**
     * Script interactif permettant à l'utilisateur de discuter directement avec son assistant en français dans son terminal (`.\.venv\Scripts\python scripts/chat.py`).
-  * **Résultat de la suite de tests complète :** **63/63 tests au vert (100%)** en ~22 secondes.
+  * **Résultat de la suite de tests complète :** **72/72 tests au vert (100%)** en ~17 secondes.
 * **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
 

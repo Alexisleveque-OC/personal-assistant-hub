@@ -1,6 +1,7 @@
 """Connecteur Google Sheets pour les repas, recettes et courses (MealsShoppingConnector)."""
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
+import re
 import unicodedata
 
 try:
@@ -282,22 +283,39 @@ class MealsShoppingConnector(BaseConnector):
     def _resolve_rayon(self, item_name: str) -> tuple[str, Optional[str]]:
         """Déduit dynamiquement le rayon d'un article depuis le catalogue en cache."""
         norm_item = self._normalize(item_name)
+        norm_item_clean = re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", norm_item).strip()
         rayons_map = self._get_rayons_map()
+
         if norm_item in rayons_map:
             return rayons_map[norm_item], None
+        if norm_item_clean in rayons_map:
+            return rayons_map[norm_item_clean], None
+
+        # Recherche par sous-chaîne pour les articles composés
+        for cat_item, rayon in rayons_map.items():
+            if norm_item_clean == cat_item or (len(cat_item) > 3 and cat_item in norm_item_clean):
+                return rayon, None
 
         return "Divers", f"Rayon non répertorié pour '{item_name}', classé temporairement en 'Divers'."
 
     def add_shopping_item(self, item: str) -> tuple[WaitingListItem, Optional[str]]:
         """Ajoute un article dans la liste d'attente (Liste_Attente)."""
-        rayon, warning = self._resolve_rayon(item)
+        cleaned = re.sub(
+            r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+",
+            "",
+            item.strip(),
+            flags=re.IGNORECASE,
+        ).strip()
+        clean_item = (cleaned[0].upper() + cleaned[1:]) if cleaned else item.strip()
+
+        rayon, warning = self._resolve_rayon(clean_item)
         today_str = date.today().strftime("%d/%m/%Y")
 
         ws = self._spreadsheet.worksheet("Liste_Attente")
-        ws.append_row(["FALSE", item.strip(), today_str])
+        ws.append_row(["FALSE", clean_item, today_str])
 
         item_obj = WaitingListItem(
-            item=item.strip(),
+            item=clean_item,
             is_bought=False,
             added_at=today_str,
             rayon=rayon,
@@ -317,18 +335,34 @@ class MealsShoppingConnector(BaseConnector):
 
         candidates = list(recipe.ingredients)
 
+        def _clean_token(t: str) -> str:
+            t_norm = self._normalize(t)
+            return re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", t_norm, flags=re.IGNORECASE).strip()
+
         if include_items:
-            inc_low = [self._normalize(inc) for inc in include_items]
+            flat_inc: List[str] = []
+            for inc in include_items:
+                for part in re.split(r",|\bet\b", inc):
+                    token = _clean_token(part)
+                    if token:
+                        flat_inc.append(token)
+
             candidates = [
                 ing for ing in candidates
-                if any(inc in self._normalize(ing) for inc in inc_low)
+                if any(inc in self._normalize(ing) or self._normalize(ing) in inc for inc in flat_inc)
             ]
 
         if exclude_items:
-            exc_low = [self._normalize(exc) for exc in exclude_items]
+            flat_exc: List[str] = []
+            for exc in exclude_items:
+                for part in re.split(r",|\bet\b", exc):
+                    token = _clean_token(part)
+                    if token:
+                        flat_exc.append(token)
+
             candidates = [
                 ing for ing in candidates
-                if not any(exc in self._normalize(ing) for exc in exc_low)
+                if not any(exc in self._normalize(ing) or self._normalize(ing) in exc for exc in flat_exc)
             ]
 
         added: List[WaitingListItem] = []

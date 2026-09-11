@@ -43,6 +43,7 @@ def mock_spreadsheet():
         ["Plat", "Catégorie", "Catégorie 2", "Complet", "Ingrédient", "", "", ""],
         ["Risotto de quinoa", "Féculents", "Chaud", "TRUE", "Quinoa", "Champignons", "Bouillon", "Parmesan"],
         ["Pizza maison", "Plaisir", "Four", "TRUE", "Pâte à pizza", "Sauce tomate", "Mozzarella", ""],
+        ["Panini", "Sandwich", "Chaud", "FALSE", "Pain panini", "Jambon", "Fromage croque", ""],
     ]
 
     recette_festive_data = [
@@ -59,6 +60,9 @@ def mock_spreadsheet():
         ["Café bio", "Épicerie"],
         ["Avocat", "Légumes"],
         ["Citron vert", "Fruits"],
+        ["Jambon", "Charcuterie"],
+        ["Pain panini", "Boulangerie"],
+        ["Fromage croque", "Fromage"],
     ]
 
     hors_repas_data = [
@@ -231,6 +235,47 @@ def test_add_recipe_ingredients_with_exclude(mock_spreadsheet):
     assert "Avocat" in item_names
     assert "Citron vert" not in item_names
     assert len(added_items) == 2
+
+
+def test_add_shopping_item_cleans_determinants(mock_spreadsheet):
+    """Vérifie que l'ajout d'un article nettoie les déterminants (du, le, de la...)."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    item, warning = connector.add_shopping_item("du café bio")
+
+    assert item.item == "Café bio"
+    assert item.rayon == "Épicerie"
+    assert warning is None
+
+
+def test_add_recipe_ingredients_with_exclude_with_determinants(mock_spreadsheet):
+    """Vérifie l'exclusion même si l'utilisateur spécifie un déterminant (sauf le jambon)."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    recipe, added_items = connector.add_recipe_ingredients_to_shopping_list(
+        "Panini",
+        exclude_items=["le jambon"],
+    )
+
+    item_names = [it.item for it in added_items]
+    assert "Pain panini" in item_names
+    assert "Fromage croque" in item_names
+    assert "Jambon" not in item_names
+    assert len(added_items) == 2
+
+
+def test_add_recipe_ingredients_with_multiple_exclusions(mock_spreadsheet):
+    """Vérifie le support des exclusions multiples séparées par 'et'."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    recipe, added_items = connector.add_recipe_ingredients_to_shopping_list(
+        "Panini",
+        exclude_items=["le jambon et le fromage croque"],
+    )
+
+    item_names = [it.item for it in added_items]
+    assert "Pain panini" in item_names
+    assert "Jambon" not in item_names
+    assert "Fromage croque" not in item_names
+    assert len(added_items) == 1
+
 
 
 def test_get_shopping_list_unified(mock_spreadsheet):
