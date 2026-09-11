@@ -16,7 +16,7 @@
 | **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 29/29 verts (Modèles Pydantic) |
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
-| **Étape 6** | Implémentation du connecteur `SheetsConnector` et liaison avec le NLU (`intent_parser`) | 🟡 En cours | ⏳ En cours | ⚪ Tests unitaires connecteur |
+| **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Prêt pour validation | ⏳ En attente validation utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
 | **Étape 7** | Tests d'intégration End-to-End (E2E) complets & validation finale de la feature | ⚪ À faire | ⚪ À faire | ⚪ 100% vert (Unitaires + E2E) |
 
 ---
@@ -97,26 +97,28 @@
   * **Tests automatisés :** 37/37 tests au vert (`pytest`), y compris validation de l'onglet `Liste_Attente` en direct sur le Google Sheet réel.
 * **Statut :** ✅ Validé par l'utilisateur le 11/09/2026.
 
-### ⚪ Étape 6 : Implémentation du `SheetsConnector` & Intentions NLU
-* **Objectif :** Développer `app/connectors/sheets/meal_connector.py` et enrichir `intent_parser.py` :
-  * 🍽️ **Consultation de repas (Fonction unifiée avec résolution de date) :**
-    * `get_meal_plan(target_date: str | date)` :
-      * *Relatif / jour de la semaine :* « Qu'est-ce qu'on mange ce soir ? », « On mange quoi demain ? », « Qu'est-ce qu'on mange jeudi prochain ? » (jour variable).
-      * *Date absolue :* « Qu'est-ce qu'on mange le 24 septembre ? » (résolution automatique du jour dans le planning mensuel ou hebdomadaire).
-  * 📖 **Consultation des ingrédients d'une recette :**
-    * `get_recipe_ingredients(recipe_name: str) -> List[str]` :
-      * « Quels sont les ingrédients pour le risotto de quinoa ? »
-      * « Qu'est-ce qu'il faut pour faire du guacamole ? »
-      * Recherche insensible à la casse et tolérante dans `Recettes` ET dans `Recette festive`.
-  * ✏️ **Planification / Suggestion de repas *(À discuter et confirmer avant dev)* :**
-    * `set_meal_plan(meal: str, target_date: str | date, meal_type: str = "soir")` :
-      * « J'aimerais manger des lasagnes jeudi prochain » ou « Prévois une pizza la semaine prochaine ».
-      * *Points à arbitrer ensemble :* Vérification si la recette existe dans l'onglet `Recettes`, choix du créneau (Midi vs Soir).
-  * 🛒 **Gestion de la liste de courses :**
-    * `add_shopping_item(item: str, rayon: Optional[str] = None)` -> « Ajoute du café bio à ma liste de courses ».
-    * `get_shopping_list()` -> « Donne-moi la liste de courses ».
-* **Livrable :** Code du connecteur + parseur NLU mis à jour + tests unitaires exhaustifs avec mocks étanches.
-* **Critère de passage :** Validation explicite des cas d'usage par l'utilisateur et suite `pytest` à 100% au vert.
+### 🟢 Étape 6 : Implémentation du `MealsShoppingConnector` & Intentions NLU
+* **Objectif :** Développer `app/connectors/sheets/meals_connector.py` et enrichir `intent_parser.py` en suivant le cycle **TDD Strict (Règle 1)**.
+* **Livrables réalisés :**
+  * 🔴 **Phase Rouge (Tests d'abord) :**
+    * Tests rédigés dans `tests/test_meals_connector.py` et `tests/test_intent_parser.py` et échec constaté lors de la collecte initiale.
+  * 🟢 **Phase Verte (Implémentation minimale) :**
+    * Énumérations `IntentType` enrichies dans `app/core/models.py`.
+    * Règles NLU enrichies dans `app/core/intent_parser.py` avec nettoyage d'articles et gestion d'exclusions.
+    * Implémentation complète de `MealsShoppingConnector` dans `app/connectors/sheets/meals_connector.py` :
+      * 🍽️ `get_meal_plan` (résolution relative/absolue de date et onglet annuel).
+      * 📖 `get_recipe_ingredients` (recherche insensible à la casse dans `Recettes` et `Recette festive`).
+      * 🧺 `add_recipe_ingredients_to_shopping_list` (support des inclusions/exclusions et ajout à `Liste_Attente`).
+      * ✏️ `set_meal_plan` (mise à jour directe de la cellule midi/soir dans le planning annuel).
+      * 🛒 `add_shopping_item` (déduction de rayon dynamique via `Ingredients_Rayons` / `Hors_Repas` avec repli gracieux et warning sur `Divers`).
+      * 📋 `get_shopping_list` (agrégation unifiée des articles non achetés de `Liste_Attente` et de `Cette semaine`).
+      * ✅ `mark_shopping_items_bought` (coche comme acheté dans `Liste_Attente`).
+      * 🧹 `clear_shopping_list` (suppression sécurisée de bas en haut des articles achetés).
+  * 🔵 **Phase Refactor & Intégration :**
+    * Câblage complet dans `app/main.py` sur l'endpoint `/api/v1/interact` avec support d'injection de mocks (`set_meals_connector`).
+    * Tests fonctionnels d'interaction dans `tests/test_interact.py`.
+    * Suite complète automatisée : **59/59 tests au vert** (`pytest`).
+* **Statut :** ⏳ En attente de validation utilisateur avant passage à l'Étape 7 (Test E2E).
 
 ### ⚪ Étape 7 : Test d'intégration End-to-End (E2E) & Clôture
 * **Objectif :** Valider le scénario complet : Phrase utilisateur -> Parser NLU -> Déclenchement du connecteur -> Résultat Sheet vérifié.

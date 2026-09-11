@@ -14,7 +14,77 @@ class IntentParser:
     def parse(self, text: str) -> ParsedIntent:
         cleaned = text.strip().lower()
 
-        # 1. Repas ("qu'est-ce qu'on mange ce soir / midi / demain ?")
+        # 0. Nettoyage de la liste de courses ("vide la liste de courses", "nettoie la liste")
+        if re.search(r"(?:vide|nettoie|supprime|efface)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?", cleaned):
+            return ParsedIntent(
+                intent=IntentType.CLEAR_SHOPPING_LIST,
+                confidence=0.95,
+                parameters={},
+                raw_query=text,
+            )
+
+        # 1. Ajout d'ingrédients d'une recette ("ajoute les ingrédients du risotto de quinoa à la liste de courses")
+        recipe_ing_add_match = re.search(
+            r"(?:ajoute|mets)\s+les\s+ingrédients\s+(?:du|de\s+la|de\s+l'|de|d')\s*(.+)",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if recipe_ing_add_match:
+            rest = recipe_ing_add_match.group(1).strip()
+            # Nettoyer d'éventuels points d'interrogation / ponctuation
+            rest = re.sub(r"[?!.,;]+$", "", rest).strip()
+            exclude_val = None
+            if " sauf " in rest:
+                rest, exclude_val = rest.split(" sauf ", 1)
+                exclude_val = exclude_val.strip()
+            # Nettoyer "à la liste de courses"
+            rest = re.sub(r"\s+(?:à|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", rest, flags=re.IGNORECASE).strip()
+            params = {"recipe": rest}
+            if exclude_val:
+                params["exclude"] = exclude_val
+            return ParsedIntent(
+                intent=IntentType.ADD_RECIPE_INGREDIENTS,
+                confidence=0.95,
+                parameters=params,
+                raw_query=text,
+            )
+
+        # 2. Consultation d'ingrédients d'une recette ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...")
+        recipe_ing_match = re.search(
+            r"(?:ingrédients\s+(?:pour|du|de\s+la|de\s+l'|de|d')|qu'est-ce\s+qu'il\s+faut\s+pour\s+(?:faire\s+)?(?:du|de\s+la|de\s+l'|des|le|la|l'|d')?)\s*(.+)",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if recipe_ing_match:
+            recipe_name = recipe_ing_match.group(1).strip()
+            recipe_name = re.sub(r"[?!.,;]+$", "", recipe_name).strip()
+            recipe_name = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une)\s+", "", recipe_name).strip()
+            return ParsedIntent(
+                intent=IntentType.GET_RECIPE_INGREDIENTS,
+                confidence=0.95,
+                parameters={"recipe": recipe_name},
+                raw_query=text,
+            )
+
+        # 3. Planification de repas ("mets des pâtes carbonara ce soir", "prévois une pizza demain soir")
+        set_meal_match = re.search(
+            r"(?:mets|prévois|programme|planifie)\s+(.+?)\s+(ce\s+soir|ce\s+midi|demain(?:\s+soir|\s+midi)?|pour\s+demain|pour\s+ce\s+soir)$",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if set_meal_match:
+            meal = set_meal_match.group(1).strip()
+            meal = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une)\s+", "", meal).strip()
+            time_expr = set_meal_match.group(2).lower()
+            period = "demain" if "demain" in time_expr else ("midi" if "midi" in time_expr else "soir")
+            return ParsedIntent(
+                intent=IntentType.SET_MEAL_PLAN,
+                confidence=0.95,
+                parameters={"meal": meal, "period": period},
+                raw_query=text,
+            )
+
+        # 4. Consultation repas ("qu'est-ce qu'on mange ce soir / midi / demain ?")
         if any(kw in cleaned for kw in ["qu'est-ce qu'on mange", "qu'est ce qu'on mange", "menu de ce", "on mange quoi"]):
             period = "soir"
             if "midi" in cleaned:
@@ -28,7 +98,23 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 2. Ajout liste de courses ("ajoute du lait à la liste de courses", "mets du pain sur la liste")
+        # 5. Marquage courses achetées ("j'ai acheté le café bio et le dentifrice")
+        bought_match = re.search(
+            r"^j'ai\s+acheté\s+(?!pour\s+\d)(.+)$",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if bought_match:
+            items_str = bought_match.group(1).strip()
+            items_str = re.sub(r"[?!.,;]+$", "", items_str).strip()
+            return ParsedIntent(
+                intent=IntentType.MARK_SHOPPING_BOUGHT,
+                confidence=0.95,
+                parameters={"items": items_str},
+                raw_query=text,
+            )
+
+        # 6. Ajout article liste de courses ("ajoute du lait à la liste de courses", "mets du pain sur la liste")
         add_shopping_match = re.search(
             r"(?:ajoute|mets|rajoute)\s+(.+?)\s+(?:à|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+)?courses?",
             cleaned,
@@ -43,7 +129,7 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 3. Consultation liste de courses ("donne-moi la liste de courses", "qu'est-ce qu'il y a sur la liste de courses")
+        # 7. Consultation liste de courses ("donne-moi la liste de courses", "qu'est-ce qu'il y a sur la liste de courses")
         if "liste de courses" in cleaned or "liste des courses" in cleaned:
             return ParsedIntent(
                 intent=IntentType.GET_SHOPPING_LIST,

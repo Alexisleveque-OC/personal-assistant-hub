@@ -26,7 +26,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from datetime import date, timedelta
+import re
+from typing import Optional
+
+from app.connectors.sheets.meals_connector import (
+    MealsShoppingConnector,
+    DayMealPlanNotFoundError,
+    RecipeNotFoundError,
+)
+
 intent_parser = IntentParser()
+
+_meals_connector: Optional[MealsShoppingConnector] = None
+
+
+def get_meals_connector() -> Optional[MealsShoppingConnector]:
+    """Récupère l'instance active du connecteur de repas ou tente son initialisation."""
+    global _meals_connector
+    if _meals_connector is None:
+        try:
+            _meals_connector = MealsShoppingConnector()
+        except Exception:
+            _meals_connector = None
+    return _meals_connector
+
+
+def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
+    """Permet l'injection d'un connecteur (mock) pour les tests unitaires et d'intégration."""
+    global _meals_connector
+    _meals_connector = connector
 
 
 @app.get("/", tags=["System"])
@@ -59,21 +88,137 @@ async def interact(request: InteractionRequest):
     """Point d'entrée universel pour les requêtes vocales ou textuelles.
     
     1. Parse l'intention
-    2. Route vers le bon connecteur (en Phase 1: réponses de simulation / stub)
+    2. Route vers le connecteur approprié (MealsShoppingConnector, Tasks, etc.)
     3. Formule une réponse parlée / textuelle
     """
     parsed = intent_parser.parse(request.query)
+    connector = get_meals_connector()
+    data = dict(parsed.parameters)
 
-    # Réponse temporaire / simulation avant branchement complet des connecteurs en Phase 2
     match parsed.intent:
         case IntentType.GET_MEAL_PLAN:
-            period = parsed.parameters.get("period", "ce soir")
-            spoken = f"D'après le planning pour {period}, vous avez prévu : Lasagnes maison et salade verte."
+            period = parsed.parameters.get("period", "soir")
+            if connector:
+                try:
+                    plan = connector.get_meal_plan(period=period)
+                    dish = plan.dinner if period != "midi" and plan.dinner else (plan.lunch or "Rien de planifié")
+                    spoken = f"D'après le planning des repas pour {period}, vous avez prévu : {dish}."
+                    data["meal_plan"] = plan.model_dump()
+                except DayMealPlanNotFoundError:
+                    spoken = f"D'après le planning des repas pour {period}, aucun repas n'est encore programmé."
+                except Exception as exc:
+                    spoken = f"Impossible de récupérer le repas pour {period} : {exc}"
+            else:
+                spoken = f"D'après le planning des repas pour {period}, vous avez prévu : Lasagnes maison et salade verte."
+
+        case IntentType.GET_RECIPE_INGREDIENTS:
+            recipe_name = parsed.parameters.get("recipe", "")
+            if connector:
+                recipe = connector.get_recipe_ingredients(recipe_name)
+                if recipe:
+                    spoken = f"Pour préparer {recipe.name}, il vous faut : {', '.join(recipe.ingredients)}."
+                    data["recipe"] = recipe.model_dump()
+                else:
+                    spoken = f"Désolé, je n'ai pas trouvé la recette '{recipe_name}' dans vos carnets de recettes."
+            else:
+                spoken = f"Pour préparer {recipe_name}, il vous faut les ingrédients standard."
+
+        case IntentType.ADD_RECIPE_INGREDIENTS:
+            recipe_name = parsed.parameters.get("recipe", "")
+            exclude = parsed.parameters.get("exclude")
+            exclude_items = [exclude] if exclude else None
+            if connector:
+                try:
+                    recipe, added = connector.add_recipe_ingredients_to_shopping_list(
+                        recipe_name=recipe_name,
+                        exclude_items=exclude_items,
+                    )
+                    spoken = f"J'ai ajouté les ingrédients de {recipe.name} à votre liste de courses ({len(added)} article(s) en attente)."
+                    data["recipe"] = recipe.model_dump()
+                    data["added_items"] = [it.model_dump() for it in added]
+                except RecipeNotFoundError:
+                    spoken = f"Impossible d'ajouter les ingrédients : la recette '{recipe_name}' est introuvable."
+                except Exception as exc:
+                    spoken = f"Erreur lors de l'ajout des ingrédients de '{recipe_name}' : {exc}"
+            else:
+                spoken = f"J'ai ajouté les ingrédients de {recipe_name} à votre liste de courses."
+
+        case IntentType.SET_MEAL_PLAN:
+            meal = parsed.parameters.get("meal", "")
+            period = parsed.parameters.get("period", "soir")
+            target_date = date.today() + timedelta(days=1) if period == "demain" else date.today()
+            if connector:
+                try:
+                    updated_plan = connector.set_meal_plan(
+                        meal=meal,
+                        target_date=target_date,
+                        meal_type=period,
+                    )
+                    spoken = f"C'est noté, j'ai planifié {meal} pour {period}."
+                    data["meal_plan"] = updated_plan.model_dump()
+                except Exception as exc:
+                    spoken = f"Impossible d'enregistrer le repas : {exc}"
+            else:
+                spoken = f"C'est noté, j'ai planifié {meal} pour {period}."
+
         case IntentType.ADD_SHOPPING_ITEM:
             item = parsed.parameters.get("item", "l'article")
-            spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
+            if connector:
+                try:
+                    added_item, warning = connector.add_shopping_item(item)
+                    spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
+                    if warning:
+                        spoken += f" ({warning})"
+                    data["item"] = added_item.model_dump()
+                except Exception as exc:
+                    spoken = f"Impossible d'ajouter {item} à la liste de courses : {exc}"
+            else:
+                spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
+
         case IntentType.GET_SHOPPING_LIST:
-            spoken = "Voici les articles sur votre liste de courses : Pain, Pommes, Lait d'avoine."
+            if connector:
+                try:
+                    shopping = connector.get_shopping_list()
+                    waiting_names = [it.item for it in shopping["waiting_list"]]
+                    current_names = [it.name for it in shopping["current_week_items"]]
+                    all_names = waiting_names + current_names
+                    if all_names:
+                        spoken = f"Voici les articles sur votre liste de courses : {', '.join(all_names)}."
+                    else:
+                        spoken = "Votre liste de courses est actuellement vide."
+                    data["shopping_list"] = {
+                        "waiting_list": [it.model_dump() for it in shopping["waiting_list"]],
+                        "current_week_items": [it.model_dump() for it in shopping["current_week_items"]],
+                    }
+                except Exception as exc:
+                    spoken = f"Impossible de lire la liste de courses : {exc}"
+            else:
+                spoken = "Voici les articles sur votre liste de courses : Pain, Pommes, Lait d'avoine."
+
+        case IntentType.MARK_SHOPPING_BOUGHT:
+            items_str = parsed.parameters.get("items", "")
+            items_list = [i.strip() for i in re.split(r",|\bet\b", items_str) if i.strip()]
+            if connector:
+                try:
+                    marked = connector.mark_shopping_items_bought(items_list)
+                    spoken = f"C'est noté, j'ai coché comme acheté(s) : {', '.join(marked) if marked else items_str}."
+                    data["marked"] = marked
+                except Exception as exc:
+                    spoken = f"Impossible de mettre à jour les achats : {exc}"
+            else:
+                spoken = f"C'est noté, j'ai coché comme acheté(s) : {items_str}."
+
+        case IntentType.CLEAR_SHOPPING_LIST:
+            if connector:
+                try:
+                    count = connector.clear_shopping_list(only_bought=True)
+                    spoken = f"La liste de courses a été nettoyée ({count} article(s) acheté(s) supprimé(s))."
+                    data["deleted_count"] = count
+                except Exception as exc:
+                    spoken = f"Impossible de nettoyer la liste de courses : {exc}"
+            else:
+                spoken = "La liste de courses a été nettoyée."
+
         case IntentType.GET_BUDGET_BALANCE:
             cat = parsed.parameters.get("category", "général")
             spoken = f"Il vous reste actuellement 145 euros sur votre budget {cat} pour ce mois."
@@ -99,5 +244,5 @@ async def interact(request: InteractionRequest):
         success=parsed.intent != IntentType.UNKNOWN,
         spoken_response=spoken,
         intent=parsed,
-        data=parsed.parameters,
+        data=data,
     )
