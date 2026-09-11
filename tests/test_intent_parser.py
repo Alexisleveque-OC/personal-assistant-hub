@@ -25,6 +25,7 @@ parser = IntentParser()
         ("Donnes moi la recette du préfou", IntentType.GET_RECIPE_INGREDIENTS, {"recipe": "préfou"}),
         ("Donne la recette de la tarte aux pommes", IntentType.GET_RECIPE_INGREDIENTS, {"recipe": "tarte aux pommes"}),
         ("Ajoute les ingrédients du Panini sans le jambon", IntentType.ADD_RECIPE_INGREDIENTS, {"recipe": "panini", "exclude": "jambon"}),
+        ("ajoute les ingrédients pour faire du Boeuf aux poivrons sauf ail et oignons", IntentType.ADD_RECIPE_INGREDIENTS, {"recipe": "boeuf aux poivrons", "exclude": "ail et oignons"}),
         ("Donne-moi la liste de courses", IntentType.GET_SHOPPING_LIST, {}),
         ("J'ai acheté le café bio et le dentifrice", IntentType.MARK_SHOPPING_BOUGHT, {"items": "le café bio et le dentifrice"}),
         ("Vide la liste de courses", IntentType.CLEAR_SHOPPING_LIST, {}),

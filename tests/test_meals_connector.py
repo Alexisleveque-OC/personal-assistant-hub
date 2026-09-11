@@ -44,6 +44,7 @@ def mock_spreadsheet():
         ["Risotto de quinoa", "Féculents", "Chaud", "TRUE", "Quinoa", "Champignons", "Bouillon", "Parmesan"],
         ["Pizza maison", "Plaisir", "Four", "TRUE", "Pâte à pizza", "Sauce tomate", "Mozzarella", ""],
         ["Panini", "Sandwich", "Chaud", "FALSE", "Pain panini", "Jambon", "Fromage croque", ""],
+        ["Boeuf aux poivrons", "Plat", "Chaud", "FALSE", "Chair à saucisse", "Poivrons", "Pomme de terre", "Féta", "oignon", "Ail", "Pulpe de tomates"],
     ]
 
     recette_festive_data = [
@@ -275,6 +276,22 @@ def test_add_recipe_ingredients_with_multiple_exclusions(mock_spreadsheet):
     assert "Jambon" not in item_names
     assert "Fromage croque" not in item_names
     assert len(added_items) == 1
+
+
+def test_add_recipe_ingredients_with_plural_and_conjunction_exclusion(mock_spreadsheet):
+    """Vérifie l'exclusion avec pluriel et conjonction (sauf ail et oignons)."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    recipe, added_items = connector.add_recipe_ingredients_to_shopping_list(
+        "Boeuf aux poivrons",
+        exclude_items=["ail et oignons"],
+    )
+
+    item_names = [it.item for it in added_items]
+    assert "Ail" not in item_names
+    assert "oignon" not in item_names
+    # La recette contenait 7 ingrédients, 2 sont exclus -> 5 doivent être ajoutés
+    assert len(added_items) == 5
+
 
 
 

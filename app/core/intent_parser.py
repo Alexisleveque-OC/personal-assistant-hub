@@ -23,9 +23,9 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 1. Ajout d'ingrédients d'une recette ("ajoute les ingrédients du risotto de quinoa à la liste de courses")
+        # 1. Ajout d'ingrédients d'une recette ("ajoute les ingrédients du risotto", "ajoute les ingrédients pour faire du boeuf aux poivrons...")
         recipe_ing_add_match = re.search(
-            r"(?:ajoute|mets)\s+les\s+ingr[ée]dients\s+(?:du|de\s+la|de\s+l'|de|d')\s*(.+)",
+            r"^(?:ajoute|mets|rajoute)\s+(?:tous\s+)?les\s+ingr[ée]dients\s+(?:pour\s+(?:faire|pr[ée]parer|cuisiner)?\s*)?(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ]|le|la|les|l[' ]|un[e]?\s+)?\s*(.+)",
             cleaned,
             re.IGNORECASE,
         )
@@ -56,17 +56,21 @@ class IntentParser:
             )
 
         # 2. Consultation de recette ou d'ingrédients ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...", "donnes-moi la recette du préfou")
-        recipe_direct_match = re.search(
-            r"(?:(?:donne[sz]?(?:-moi|\s+moi)?|quelle\s+est|c[' ]est\s+quoi)\s+(?:la\s+)?recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ]))\s*(.+)",
-            cleaned,
-            re.IGNORECASE,
-        )
-        recipe_ing_match = re.search(
-            r"(?:ingr[ée]dients\s+(?:pour|d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|"
-            r"(?:qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut|il\s+(?:me\s+)?faut\s+quoi|(?:j[' ]?ai\s+)?besoin\s+de\s+quoi)\s+pour\s+(?:faire|pr[ée]parer|cuisiner)?\s*(?:d[eu]|de\s+la|de\s+l[' ]|des|un[e]?|le|la|les|l[' ]|d[' ])?)\s*(.+)",
-            cleaned,
-            re.IGNORECASE,
-        )
+        recipe_direct_match = None
+        recipe_ing_match = None
+        if not re.search(r"^(?:ajoute|mets|rajoute)\b", cleaned):
+            recipe_direct_match = re.search(
+                r"(?:(?:donne[sz]?(?:-moi|\s+moi)?|quelle\s+est|c[' ]est\s+quoi)\s+(?:la\s+)?recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ]))\s*(.+)",
+                cleaned,
+                re.IGNORECASE,
+            )
+            recipe_ing_match = re.search(
+                r"(?:ingr[ée]dients\s+(?:pour|d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|"
+                r"(?:qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut|il\s+(?:me\s+)?faut\s+quoi|(?:j[' ]?ai\s+)?besoin\s+de\s+quoi)\s+pour\s+(?:faire|pr[ée]parer|cuisiner)?\s*(?:d[eu]|de\s+la|de\s+l[' ]|des|un[e]?|le|la|les|l[' ]|d[' ])?)\s*(.+)",
+                cleaned,
+                re.IGNORECASE,
+            )
+
         matched_recipe_raw = None
         if recipe_direct_match:
             matched_recipe_raw = recipe_direct_match.group(1).strip()
