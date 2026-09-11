@@ -14,7 +14,25 @@ class IntentParser:
     def parse(self, text: str, context: Optional[dict] = None) -> ParsedIntent:
         cleaned = text.strip().lower()
 
-        # 0. Nettoyage de la liste de courses ("vide la liste de courses", "nettoie la liste")
+        # 0.0 Politesse et small-talk ("merci", "ok merci", "bonjour", "au revoir", "super", "parfait", "d'accord")
+        if re.search(
+            r"^(?:(?:ok|d[' ]accord|super|parfait|bien|top|merci)\s+)*(?:merci(?:\s+beaucoup|\s+bien)?|bonjour|salut|coucou|bonsoir|au\s+revoir|bonne\s+(?:journ[ée]e|soir[ée]e)|[àa]\s+bient[ôo]t|[àa]\s+plus(?:\s+tard)?|bye|de\s+rien|je\s+vous\s+en\s+prie|ça\s+marche|nickel|impeccable|d[' ]accord|parfait|super|top|ok)\s*[!.]*$",
+            cleaned,
+            re.IGNORECASE,
+        ):
+            category = "thanks" if "merci" in cleaned else (
+                "greeting" if any(w in cleaned for w in ["bonjour", "salut", "coucou", "bonsoir"]) else (
+                    "farewell" if any(w in cleaned for w in ["au revoir", "bonne journée", "bonne soirée", "a bientot", "à bientôt", "bye"]) else "ack"
+                )
+            )
+            return ParsedIntent(
+                intent=IntentType.SMALL_TALK,
+                confidence=0.95,
+                parameters={"type": category},
+                raw_query=text,
+            )
+
+        # 0.1 Nettoyage de la liste de courses ("vide la liste de courses", "nettoie la liste")
         if re.search(r"(?:vide|nettoie|supprime|efface)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?", cleaned):
             return ParsedIntent(
                 intent=IntentType.CLEAR_SHOPPING_LIST,
@@ -23,15 +41,32 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 0.bis Anaphore contextuelle : "ajoute ces ingrédients", "ajoute-les", "mets-les sur la liste sauf ...", "ajoutes ces ingrédients sauf le lait"
+        # 0.2 Nettoyage des préfixes conversationnels / modaux pour les commandes
+        # Ex: "tu peux tout rajouter...", "est-ce que tu peux...", "ok tu peux..."
+        command_cleaned = cleaned
+        command_cleaned = re.sub(
+            r"^(?:(?:ok|d[' ]accord|bon|dis|dis[- ]moi|s[' ]?il\s+te\s+pla[îi]t|s[' ]?il\s+vous\s+pla[îi]t|stp|svp)\s*[,!.]?\s*)+",
+            "",
+            command_cleaned,
+            flags=re.IGNORECASE,
+        ).strip()
+        command_cleaned = re.sub(
+            r"^(?:(?:est[- ]ce\s+que\s+)?(?:tu\s+peux|tu\s+pourrais|peux[- ]tu|pourrais[- ]tu|vous\s+pouvez|pouvez[- ]vous|on\s+peut)|merci\s+de|veuillez)\s+(?:de\s+|d[' ])?",
+            "",
+            command_cleaned,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        # 0.bis Anaphore contextuelle : "ajoute ces ingrédients", "rajoute tout", "tu peux tout rajouter a la liste d'ingrédients"
         anaphora_match = re.search(
-            r"^(?:ajoute[sz]?|ajoutez|rajoute[sz]?|rajoutez|mets?|mettez)(?:\s+tous)?(?:\s+ces\s+ingr[ée]dients|-les(?:\s+tous)?|\s+les\s+tous|\s+les(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$)|(?:\s+(?:tous\s+)?les\s+ingr[ée]dients(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$))|\s+cette\s+recette)\s*(?:(?:[àa]|sur|dans)\s+(?:la\s+)?liste(?:\s+(?:de\s+|des\s+)?courses?)?)?(.*)$",
-            cleaned,
+            r"^(?:tout\s+(?:ajoute[sz]?|ajoutez|ajouter|rajoute[sz]?|rajoutez|rajouter|mets?|mettez|mettre)|(?:ajoute[sz]?|ajoutez|ajouter|rajoute[sz]?|rajoutez|rajouter|mets?|mettez|mettre)(?:\s+tous)?(?:\s+tout(?:\s+ça)?|\s+tous\s+ces\s+ingr[ée]dients|\s+ces\s+ingr[ée]dients|-les(?:\s+tous)?|\s+les\s+tous|\s+les(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$)|(?:\s+(?:tous\s+)?les\s+ingr[ée]dients(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$))|\s+cette\s+recette))\s*(?:(?:[àa]|sur|dans)\s+(?:la\s+)?liste(?:\s+(?:de\s+|des\s+|d[' ])?(?:courses?|ingr[ée]dients?))?)?(.*)$",
+            command_cleaned,
             re.IGNORECASE,
         )
         if anaphora_match:
             rest = anaphora_match.group(1).strip()
             rest = re.sub(r"[?!.,;]+$", "", rest).strip()
+            rest = re.sub(r"\s*(?:s[' ]?il\s+te\s+pla[îi]t|s[' ]?il\s+vous\s+pla[îi]t|stp|svp)$", "", rest, flags=re.IGNORECASE).strip()
             exclude_val = None
             if " sauf " in rest:
                 _, exclude_val = rest.split(" sauf ", 1)
@@ -43,7 +78,7 @@ class IntentParser:
                 exclude_val = rest[5:].strip()
 
             if exclude_val:
-                exclude_val = re.sub(r"\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$", "", exclude_val, flags=re.IGNORECASE).strip()
+                exclude_val = re.sub(r"\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+|d[' ])?(?:courses?|ingr[ée]dients?).*$", "", exclude_val, flags=re.IGNORECASE).strip()
                 exclude_val = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une|d')\s+", "", exclude_val.strip(), flags=re.IGNORECASE).strip()
 
             last_recipe = (context or {}).get("last_recipe")
@@ -200,7 +235,7 @@ class IntentParser:
             item = target_match.group(1).strip()
             item = re.sub(r"[?!.,;]+$", "", item).strip()
             item = re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", item, flags=re.IGNORECASE).strip()
-            if item:
+            if item and item.lower() not in ["tout", "tous", "rien", "ça", "ceci", "cela", "les"]:
                 return ParsedIntent(
                     intent=IntentType.ADD_SHOPPING_ITEM,
                     confidence=0.95,

@@ -180,4 +180,59 @@ def test_interact_conversational_anaphora_without_context():
     assert "Je ne sais pas de quelle recette vous parlez" in data["spoken_response"]
 
 
+def test_interact_multi_turn_with_politeness_and_modal_anaphora():
+    """Vérifie l'enchaînement naturel : consultation -> politesse ('ok merci') -> anaphore modale ('tu peux tout rajouter')."""
+    mock_connector = MagicMock()
+    mock_connector.get_recipe_ingredients.return_value = Recipe(
+        name="Wrap de légumes",
+        ingredients=["Wrap", "Salade", "Tomates cerises", "Carotte", "Crème fraiche"],
+    )
+    mock_connector.add_recipe_ingredients_to_shopping_list.return_value = (
+        Recipe(name="Wrap de légumes", ingredients=["Wrap", "Salade", "Tomates cerises", "Carotte", "Crème fraiche"]),
+        [
+            WaitingListItem(item="Wrap", rayon="Pain"),
+            WaitingListItem(item="Salade", rayon="Légumes"),
+            WaitingListItem(item="Tomates cerises", rayon="Légumes"),
+            WaitingListItem(item="Carotte", rayon="Légumes"),
+            WaitingListItem(item="Crème fraiche", rayon="Frais"),
+        ],
+    )
+    set_meals_connector(mock_connector)
+
+    # 1. Consultation des ingrédients
+    r1 = client.post(
+        "/api/v1/interact",
+        json={"query": "Qu'est-ce qu'il faut pour faire du Wrap de légumes ?", "source": "session_wrap_test"},
+    )
+    assert r1.status_code == 200
+    assert "Wrap de légumes" in r1.json()["spoken_response"]
+
+    # 2. Politesse : 'ok merci'
+    r2 = client.post(
+        "/api/v1/interact",
+        json={"query": "ok merci", "source": "session_wrap_test"},
+    )
+    assert r2.status_code == 200
+    d2 = r2.json()
+    assert d2["intent"]["intent"] == "small_talk"
+    assert any(w in d2["spoken_response"].lower() for w in ["plaisir", "prie", "service"])
+
+    # 3. Anaphore modale : 'tu peux tout rajouter a la liste d'ingrédients'
+    r3 = client.post(
+        "/api/v1/interact",
+        json={"query": "tu peux tout rajouter a la liste d'ingrédients", "source": "session_wrap_test"},
+    )
+    assert r3.status_code == 200
+    d3 = r3.json()
+    assert d3["intent"]["intent"] == "add_recipe_ingredients"
+    assert "Wrap de légumes" in d3["spoken_response"]
+    mock_connector.add_recipe_ingredients_to_shopping_list.assert_called_with(
+        recipe_name="Wrap de légumes",
+        exclude_items=None,
+    )
+
+    set_meals_connector(None)
+
+
+
 

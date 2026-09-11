@@ -269,6 +269,16 @@ async def interact(request: InteractionRequest):
             device = parsed.parameters.get("device", "appareil")
             action = "allumée" if parsed.parameters.get("action") == "on" else "éteinte"
             spoken = f"La {device} a bien été {action}."
+        case IntentType.SMALL_TALK:
+            sub_type = parsed.parameters.get("type", "ack")
+            if sub_type == "thanks":
+                spoken = "Avec plaisir ! N'hésitez pas si vous avez besoin d'autre chose."
+            elif sub_type == "greeting":
+                spoken = "Bonjour ! Que puis-je faire pour vous aujourd'hui ?"
+            elif sub_type == "farewell":
+                spoken = "Au revoir et bonne journée ! 👋"
+            else:
+                spoken = "Parfait ! Que souhaitez-vous faire d'autre ?"
         case _:
             spoken = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler ?"
 

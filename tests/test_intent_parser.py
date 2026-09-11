@@ -87,3 +87,50 @@ def test_intent_parser_anaphora_without_context():
     assert p.intent == IntentType.ADD_RECIPE_INGREDIENTS
     assert p.parameters.get("error") == "no_context_recipe"
 
+
+def test_intent_parser_small_talk():
+    """Vérifie la reconnaissance des salutations, remerciements et accusés de réception."""
+    for phrase in ["ok merci", "merci", "merci beaucoup", "bonjour", "au revoir", "d'accord", "super merci", "parfait"]:
+        p = parser.parse(phrase)
+        assert p.intent == IntentType.SMALL_TALK, f"Échec pour '{phrase}'"
+
+
+def test_intent_parser_natural_anaphora():
+    """Vérifie la prise en compte des tournures naturelles : 'rajoute tout', 'tu peux tout rajouter...'."""
+    ctx = {"last_recipe": "Wrap de légumes"}
+
+    # 1. rajoute tout / ajoute tout
+    p1 = parser.parse("rajoute tout", context=ctx)
+    assert p1.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p1.parameters.get("recipe") == "Wrap de légumes"
+
+    p2 = parser.parse("ajoute tout", context=ctx)
+    assert p2.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p2.parameters.get("recipe") == "Wrap de légumes"
+
+    # 2. Formules modales avec 'tu peux tout rajouter a la liste d'ingrédients'
+    p3 = parser.parse("tu peux tout rajouter a la liste d'ingrédients", context=ctx)
+    assert p3.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p3.parameters.get("recipe") == "Wrap de légumes"
+
+    p4 = parser.parse("tu peux tout mettre sur la liste de courses", context=ctx)
+    assert p4.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p4.parameters.get("recipe") == "Wrap de légumes"
+
+    # 3. Formules avec exclusion
+    p5 = parser.parse("rajoute tout sauf la crème", context=ctx)
+    assert p5.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p5.parameters.get("recipe") == "Wrap de légumes"
+    assert p5.parameters.get("exclude") == "crème"
+
+    p6 = parser.parse("tu peux tout rajouter sauf les carottes", context=ctx)
+    assert p6.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p6.parameters.get("recipe") == "Wrap de légumes"
+    assert p6.parameters.get("exclude") == "carottes"
+
+    # 4. 'rajoute tout' sans contexte ne doit JAMAIS ajouter l'article 'tout'
+    p7 = parser.parse("rajoute tout")
+    assert p7.intent == IntentType.ADD_RECIPE_INGREDIENTS
+    assert p7.parameters.get("error") == "no_context_recipe"
+
+

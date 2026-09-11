@@ -137,11 +137,13 @@
     * Harmonisation de la synthèse vocale (`pour ce soir`, mention explicite des exclusions).
   * **Optimisation de performance & Quotas Sheets :**
     * Mise en cache mémoire O(1) des catalogues statiques (`Recettes`, `Recette festive`, `Rayons`, `Hors_Repas`) dans le connecteur afin d'éliminer le risque d'épuisement de quota API (429 Too Many Requests).
-  * **Console de test interactive (`scripts/chat.py`) & Mémoire conversationnelle (Anaphores) :**
+  * **Console de test interactive (`scripts/chat.py`) & Mémoire conversationnelle (Anaphores & Politesse) :**
     * Script interactif permettant à l'utilisateur de discuter directement avec son assistant en français dans son terminal (`.\.venv\Scripts\python scripts/chat.py`).
     * Gestion de la mémoire de session (`_SESSIONS` et `session_id`) : mémorisation automatique de la dernière recette consultée (`last_recipe`).
-    * Résolution contextuelle des anaphores en TDD Strict : requêtes de suivi sans répéter le plat (*« Ajoutes ces ingrédients »*, *« Ajoute-les »*, *« Mets-les sur la liste sauf les champignons »*) avec conservation des clauses d'exclusion (*« sauf ... »*, *« sans ... »*).
+    * Résolution contextuelle des anaphores en TDD Strict : requêtes de suivi sans répéter le plat (*« Ajoutes ces ingrédients »*, *« Ajoute-les »*, *« rajoute tout »*, *« tu peux tout rajouter a la liste d'ingrédients »*) avec conservation des clauses d'exclusion (*« sauf ... »*, *« sans ... »*).
+    * Gestion native de la politesse et du small-talk (*« ok merci »*, *« bonjour »*, *« parfait »*) avec préservation continue du contexte conversationnel.
+    * Protection absolue contre l'ajout de pronoms (*« tout »*, *« rien »*, *« ça »*) comme articles isolés dans la liste de courses.
     * Réponse explicite et bienveillante en cas d'anaphore orpheline sans contexte de recette préalable.
-  * **Résultat de la suite de tests complète :** **77 tests au total (65 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
+  * **Résultat de la suite de tests complète :** **80 tests au total (68 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
 * **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
 

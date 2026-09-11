@@ -29,6 +29,9 @@ class IntentType(str, Enum):
     # Domotique
     TOGGLE_DEVICE = "toggle_device"
 
+    # Conversation / Politesse
+    SMALL_TALK = "small_talk"
+
     # Non reconnu
     UNKNOWN = "unknown"
 
