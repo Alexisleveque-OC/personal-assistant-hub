@@ -64,7 +64,13 @@ personal-assistant-hub/
    * Si l'utilisateur propose une direction sous-optimale, une mauvaise pratique, ou une solution risquant d'introduire de la dette technique ou des bugs, l'agent **a l'obligation de la remettre en question**.
    * L'agent doit initier l'échange, expliquer avec pédagogie les compromis (avantages, inconvénients, impacts sur la maintenance) et proposer la meilleure alternative conforme à l'état de l'art.
 
-1. **Test-First & Feedback Loops :** Toujours écrire ou mettre à jour un test pour chaque nouvelle fonctionnalité. Exécuter `pytest` après chaque modification. Si un test échoue, analyser la trace d'erreur et corriger de façon autonome avant de solliciter l'utilisateur.
+1. **TDD Strict (Test-Driven Development) - Priorité Absolue :**
+   * Tout développement de fonctionnalité DOIT obligatoirement suivre le cycle TDD :
+     1. **Phase Rouge (Red) :** Écrire d'abord le test unitaire définissant le contrat, les paramètres attendus et le comportement cible. Exécuter `pytest` et constater que le test échoue pour la bonne raison (fonction/méthode non implémentée).
+     2. **Phase Verte (Green) :** Écrire le code de production minimal permettant de satisfaire le test et valider que `pytest` passe à 100% vert.
+     3. **Phase Refactor :** Améliorer la lisibilité, le typage strict, la modularité et l'adhérence aux conventions, tout en conservant 100% des tests au vert.
+   * Il est formellement interdit d'écrire du code de production avant d'avoir le test correspondant qui échoue.
+   * Boucle de rétroaction autonome : exécuter `pytest` après chaque changement. En cas d'échec, analyser la trace d'erreur et corriger de façon autonome avant de solliciter l'utilisateur.
 2. **Hygiène Git & Stratégie de Branches :**
    * **Branche `main` :** Protégée, toujours déployable. Aucun commit direct pour les features.
    * **Stratégie de branches :** Chaque fonctionnalité ou correction est développée sur une branche dédiée (`feat/<feature-name>`, `fix/<bug-name>`) ou sur `develop`.
