@@ -91,6 +91,8 @@ class SheetSchemaValidator:
             return self.snapshot.hors_repas_headers
         if lower_title == "ingredients_rayons":
             return self.snapshot.ingredients_rayons_headers
+        if lower_title == "liste_attente":
+            return self.snapshot.liste_attente_headers
         if lower_title == "cette semaine":
             # Cette semaine a 'Midi' et 'Soir' en ligne 1
             return ["Midi", "Soir"]

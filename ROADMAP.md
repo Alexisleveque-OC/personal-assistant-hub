@@ -15,8 +15,8 @@
 | **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 24/24 verts (Mock + Live) |
 | **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 29/29 verts (Modèles Pydantic) |
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
-| **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (si requis) | 🟡 En cours | ⏳ Analyse / Discussion | ⚪ Tests fonctionnels |
-| **Étape 6** | Implémentation du connecteur `SheetsConnector` et liaison avec le NLU (`intent_parser`) | ⚪ À faire | ⚪ À faire | ⚪ Tests unitaires connecteur |
+| **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
+| **Étape 6** | Implémentation du connecteur `SheetsConnector` et liaison avec le NLU (`intent_parser`) | 🟡 En cours | ⏳ En cours | ⚪ Tests unitaires connecteur |
 | **Étape 7** | Tests d'intégration End-to-End (E2E) complets & validation finale de la feature | ⚪ À faire | ⚪ À faire | ⚪ 100% vert (Unitaires + E2E) |
 
 ---
@@ -81,10 +81,21 @@
     * 1 test d'intégration réel validant la conformité totale du Google Sheet en direct (`Semaine de repas 2025`).
 * **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
 
-### ⚪ Étape 5 : Préparation du Sheet / Apps Script pour l'API
-* **Objectif :** Si nécessaire, adapter le format d'écriture des données ou ajouter un point d'entrée pour que l'API puisse ajouter un article ou lire le repas du jour de façon optimale.
-* **Livrable :** Modifications validées sur le Sheet / Apps Script.
-* **Critère de passage :** Validation manuelle des modifications.
+### 🟢 Étape 5 : Préparation du Sheet & Intégration Apps Script (Liste_Attente)
+* **Objectif :** Mettre en place l'onglet `Liste_Attente` dans le Google Sheet et adapter l'Apps Script existant (`meal-planner/Code.js`) pour intégrer les besoins au fil de l'eau sans écrasement involontaire.
+* **Livrables réalisés :**
+  * **Droits Éditeur :** Compte de service basculé en Éditeur par l'utilisateur.
+  * **Nouvel onglet `Liste_Attente` créé et stylisé :**
+    * Colonnes : `Acheté` (cases à cocher natives Google Sheets), `Article`, `Date d'ajout`.
+    * En-tête figé (ligne 1) avec mise en page soignée.
+  * **Modèles & Schéma :**
+    * Modèle Pydantic `WaitingListItem` ajouté dans `app/connectors/sheets/models.py`.
+    * Snapshot et validateur de schéma enrichis pour auditer automatiquement `Liste_Attente`.
+  * **Adaptation de `meal-planner/Code.js` (Google Apps Script) :**
+    * `getHorsRepasItems()` lit `Liste_Attente` et pré-coche automatiquement les articles en attente dans la barre latérale (qu'ils soient dans `Hors_Repas` ou ajoutés au vol sous leur rayon).
+    * `generatePrintSheet()` effectue un nettoyage ciblé : seuls les articles de `Liste_Attente` effectivement cochés lors de la génération sont supprimés, les autres restent préservés.
+  * **Tests automatisés :** 37/37 tests au vert (`pytest`), y compris validation de l'onglet `Liste_Attente` en direct sur le Google Sheet réel.
+* **Statut :** ✅ Validé par l'utilisateur le 11/09/2026.
 
 ### ⚪ Étape 6 : Implémentation du `SheetsConnector` & Intentions NLU
 * **Objectif :** Développer `app/connectors/sheets/meal_connector.py` et enrichir `intent_parser.py` :

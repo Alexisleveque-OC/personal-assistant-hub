@@ -49,6 +49,14 @@ class RayonSetting(BaseModel):
     order: int = Field(description="Ordre d'affichage dans les courses")
 
 
+class WaitingListItem(BaseModel):
+    """Représente un article dans l'onglet Liste_Attente."""
+    item: str = Field(description="Nom de l'article")
+    is_bought: bool = Field(default=False, description="Coché si déjà acheté")
+    added_at: Optional[str] = Field(default=None, description="Date d'ajout JJ/MM/AAAA")
+    rayon: Optional[str] = Field(default=None, description="Rayon déduit dynamiquement")
+
+
 class SheetSchemaSnapshot(BaseModel):
     """Contrat de structure officiel du Google Sheet partagé."""
     planning_headers: List[str] = Field(
@@ -71,6 +79,10 @@ class SheetSchemaSnapshot(BaseModel):
         default=["Ingrédient", "Rayon"],
         description="En-têtes de l'onglet Ingredients_Rayons",
     )
+    liste_attente_headers: List[str] = Field(
+        default=["Acheté", "Article", "Date d'ajout"],
+        description="En-têtes de l'onglet Liste_Attente",
+    )
     required_worksheets: List[str] = Field(
         default=[
             "Cette semaine",
@@ -80,6 +92,7 @@ class SheetSchemaSnapshot(BaseModel):
             "Rayons",
             "Hors_Repas",
             "Ingredients_Rayons",
+            "Liste_Attente",
         ],
         description="Onglets obligatoires permanents (hors feuille annuelle dynamique)",
     )

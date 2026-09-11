@@ -4,6 +4,7 @@ from app.connectors.sheets.models import (
     Recipe,
     ShoppingItem,
     RayonSetting,
+    WaitingListItem,
     SheetSchemaSnapshot,
 )
 from app.connectors.sheets.schema_validator import (
@@ -19,6 +20,7 @@ __all__ = [
     "Recipe",
     "ShoppingItem",
     "RayonSetting",
+    "WaitingListItem",
     "SheetSchemaSnapshot",
     "SheetSchemaValidator",
     "SheetSchemaError",

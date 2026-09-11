@@ -41,6 +41,7 @@ def create_mock_spreadsheet_conforming(year: int = 2026) -> MagicMock:
         create_mock_worksheet("Rayons", ["Rayons", "Ordre"]),
         create_mock_worksheet("Hors_Repas", ["Nom", "pré-cocher?", "rayon"]),
         create_mock_worksheet("Ingredients_Rayons", ["Ingrédient", "Rayon"]),
+        create_mock_worksheet("Liste_Attente", ["Acheté", "Article", "Date d'ajout"]),
     ]
     sh = MagicMock()
     sh.worksheets.return_value = worksheets
@@ -61,6 +62,7 @@ def test_schema_validator_conforming_sheet_passes():
     assert "Recette festive" in report.checked_worksheets
     assert "Courses festives" in report.checked_worksheets
     assert "Ingredients_Rayons" in report.checked_worksheets
+    assert "Liste_Attente" in report.checked_worksheets
 
 
 def test_schema_validator_missing_annual_worksheet_raises_explicit_error():
@@ -93,6 +95,7 @@ def test_schema_validator_missing_static_worksheet_raises_explicit_error():
         create_mock_worksheet("Rayons", ["Rayons", "Ordre"]),
         create_mock_worksheet("Hors_Repas", ["Nom", "pré-cocher?", "rayon"]),
         create_mock_worksheet("Ingredients_Rayons", ["Ingrédient", "Rayon"]),
+        create_mock_worksheet("Liste_Attente", ["Acheté", "Article", "Date d'ajout"]),
     ]
     validator = SheetSchemaValidator()
 
@@ -116,6 +119,7 @@ def test_schema_validator_header_drift_in_planning_raises_explicit_error():
         create_mock_worksheet("Rayons", ["Rayons", "Ordre"]),
         create_mock_worksheet("Hors_Repas", ["Nom", "pré-cocher?", "rayon"]),
         create_mock_worksheet("Ingredients_Rayons", ["Ingrédient", "Rayon"]),
+        create_mock_worksheet("Liste_Attente", ["Acheté", "Article", "Date d'ajout"]),
     ]
     validator = SheetSchemaValidator()
 
@@ -142,6 +146,7 @@ def test_schema_validator_header_drift_in_recettes_raises_explicit_error():
         create_mock_worksheet("Rayons", ["Rayons", "Ordre"]),
         create_mock_worksheet("Hors_Repas", ["Nom", "pré-cocher?", "rayon"]),
         create_mock_worksheet("Ingredients_Rayons", ["Ingrédient", "Rayon"]),
+        create_mock_worksheet("Liste_Attente", ["Acheté", "Article", "Date d'ajout"]),
     ]
     validator = SheetSchemaValidator()
 
@@ -196,5 +201,5 @@ def test_live_google_sheet_schema_conformity():
     assert report.is_valid is True
     assert len(report.errors) == 0
     # Vérifie que les onglets indispensables ont tous été audités
-    for mandatory in ["repas 2026", "Cette semaine", "Recettes", "Recette festive", "Courses festives", "Rayons", "Hors_Repas", "Ingredients_Rayons"]:
+    for mandatory in ["repas 2026", "Cette semaine", "Recettes", "Recette festive", "Courses festives", "Rayons", "Hors_Repas", "Ingredients_Rayons", "Liste_Attente"]:
         assert mandatory in report.checked_worksheets

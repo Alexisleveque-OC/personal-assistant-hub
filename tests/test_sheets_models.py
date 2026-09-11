@@ -5,8 +5,22 @@ from app.connectors.sheets.models import (
     Recipe,
     ShoppingItem,
     RayonSetting,
+    WaitingListItem,
     SheetSchemaSnapshot,
 )
+
+
+def test_waiting_list_item_model():
+    item = WaitingListItem(
+        item="Papier sulfurisé",
+        is_bought=False,
+        added_at="11/09/2026",
+        rayon="Entretien",
+    )
+    assert item.item == "Papier sulfurisé"
+    assert item.is_bought is False
+    assert item.added_at == "11/09/2026"
+    assert item.rayon == "Entretien"
 
 
 def test_day_meal_plan_parsing():
@@ -69,3 +83,7 @@ def test_sheet_schema_snapshot_defaults():
     assert "Courses festives" in snapshot.required_worksheets
     assert "Rayons" in snapshot.required_worksheets
     assert "Hors_Repas" in snapshot.required_worksheets
+    assert "Ingredients_Rayons" in snapshot.required_worksheets
+    assert "Liste_Attente" in snapshot.required_worksheets
+    assert "Acheté" in snapshot.liste_attente_headers
+    assert "Article" in snapshot.liste_attente_headers
