@@ -135,19 +135,19 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 2. Consultation de recette ou d'ingrédients ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...", "donnes-moi la recette du préfou")
+        # 2. Consultation de recette ou d'ingrédients ("quels sont les ingrédients pour...", "qu'est-ce qu'il faut pour faire...", "donnes-moi la recette du préfou", "quel est la recette pour le chilli sin carne")
         recipe_direct_match = None
         recipe_ing_match = None
-        if not re.search(r"^(?:ajoute|mets|rajoute)\b", cleaned):
+        if not re.search(r"^(?:ajoute|mets|rajoute)\b", command_cleaned):
             recipe_direct_match = re.search(
-                r"(?:(?:donne[sz]?(?:-moi|\s+moi)?|quelle\s+est|c[' ]est\s+quoi)\s+(?:la\s+)?recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|recette\s+(?:d[eu]|de\s+la|de\s+l[' ]|des|d[' ]))\s*(.+)",
-                cleaned,
+                r"(?:(?:(?:(?:me|nous)\s+)?(?:donne[sz]?|donner)(?:-moi|\s+moi)?|quel(?:le)?[sz]?\s+est|c[' ]est\s+quoi)\s+(?:la\s+)?recette|(?:la\s+)?recette)\s+(?:pour\s+(?:faire|pr[ée]parer|cuisiner)?\s*|d[eu]|de\s+la|de\s+l[' ]|des|d[' ])\s*(.+)",
+                command_cleaned,
                 re.IGNORECASE,
             )
             recipe_ing_match = re.search(
                 r"(?:ingr[ée]dients\s+(?:pour|d[eu]|de\s+la|de\s+l[' ]|des|d[' ])|"
                 r"(?:qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut|il\s+(?:me\s+)?faut\s+quoi|(?:j[' ]?ai\s+)?besoin\s+de\s+quoi)\s+pour\s+(?:faire|pr[ée]parer|cuisiner)?\s*(?:d[eu]|de\s+la|de\s+l[' ]|des|un[e]?|le|la|les|l[' ]|d[' ])?)\s*(.+)",
-                cleaned,
+                command_cleaned,
                 re.IGNORECASE,
             )
 
