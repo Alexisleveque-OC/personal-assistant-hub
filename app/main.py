@@ -297,16 +297,23 @@ async def interact(request: InteractionRequest):
                 spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
 
         case IntentType.GET_SHOPPING_LIST:
+            filter_mode = parsed.parameters.get("filter")
             if connector:
                 try:
                     shopping = connector.get_shopping_list()
                     waiting_names = [it.item for it in shopping["waiting_list"]]
                     current_names = [it.name for it in shopping["current_week_items"]]
-                    all_names = waiting_names + current_names
-                    if all_names:
-                        spoken = f"Voici les articles sur votre liste de courses : {', '.join(all_names)}."
+                    if filter_mode == "waiting_list":
+                        if waiting_names:
+                            spoken = f"Voici les articles sur votre liste d'attente : {', '.join(waiting_names)}."
+                        else:
+                            spoken = "Votre liste d'attente est actuellement vide."
                     else:
-                        spoken = "Votre liste de courses est actuellement vide."
+                        all_names = waiting_names + current_names
+                        if all_names:
+                            spoken = f"Voici les articles sur votre liste de courses : {', '.join(all_names)}."
+                        else:
+                            spoken = "Votre liste de courses est actuellement vide."
                     data["shopping_list"] = {
                         "waiting_list": [it.model_dump() for it in shopping["waiting_list"]],
                         "current_week_items": [it.model_dump() for it in shopping["current_week_items"]],
@@ -314,20 +321,31 @@ async def interact(request: InteractionRequest):
                 except Exception as exc:
                     spoken = f"Impossible de lire la liste de courses : {exc}"
             else:
-                spoken = "Voici les articles sur votre liste de courses : Pain, Pommes, Lait d'avoine."
+                if filter_mode == "waiting_list":
+                    spoken = "Voici les articles sur votre liste d'attente : Café bio, Pommes."
+                else:
+                    spoken = "Voici les articles sur votre liste de courses : Pain, Pommes, Lait d'avoine."
 
         case IntentType.MARK_SHOPPING_BOUGHT:
+            is_all = parsed.parameters.get("all") is True
             items_str = parsed.parameters.get("items", "")
             items_list = [i.strip() for i in re.split(r",|\bet\b", items_str) if i.strip()]
             if connector:
                 try:
-                    marked = connector.mark_shopping_items_bought(items_list)
-                    spoken = f"C'est noté, j'ai coché comme acheté(s) : {', '.join(marked) if marked else items_str}."
+                    if is_all:
+                        marked = connector.mark_shopping_items_bought(mark_all=True)
+                        spoken = f"C'est noté, j'ai coché tous les articles de la liste d'attente comme achetés ({len(marked)} article(s) mis à jour)."
+                    else:
+                        marked = connector.mark_shopping_items_bought(items=items_list)
+                        spoken = f"C'est noté, j'ai coché comme acheté(s) : {', '.join(marked) if marked else items_str}."
                     data["marked"] = marked
                 except Exception as exc:
                     spoken = f"Impossible de mettre à jour les achats : {exc}"
             else:
-                spoken = f"C'est noté, j'ai coché comme acheté(s) : {items_str}."
+                if is_all:
+                    spoken = "C'est noté, j'ai coché tous les articles comme achetés."
+                else:
+                    spoken = f"C'est noté, j'ai coché comme acheté(s) : {items_str}."
 
         case IntentType.CLEAR_SHOPPING_LIST:
             if connector:

@@ -469,16 +469,20 @@ class MealsShoppingConnector(BaseConnector):
             "current_week_items": current_week_items,
         }
 
-    def mark_shopping_items_bought(self, items: List[str]) -> List[str]:
-        """Coche comme acheté ('TRUE') les articles désignés dans 'Liste_Attente'."""
+    def mark_shopping_items_bought(
+        self,
+        items: Optional[List[str]] = None,
+        mark_all: bool = False,
+    ) -> List[str]:
+        """Coche comme acheté ('TRUE') les articles désignés dans 'Liste_Attente' (ou tous si mark_all=True)."""
         ws = self._spreadsheet.worksheet("Liste_Attente")
         rows = ws.get_all_values()
         marked: List[str] = []
-        items_norm = [self._normalize(it) for it in items]
+        items_norm = [self._normalize(it) for it in items] if items else []
 
         for idx, row in enumerate(rows[1:], start=2):
-            if row and len(row) >= 2:
-                if self._normalize(row[1]) in items_norm:
+            if row and len(row) >= 2 and row[1].strip():
+                if mark_all or (self._normalize(row[1]) in items_norm):
                     ws.update_cell(idx, 1, "TRUE")
                     marked.append(row[1].strip())
 

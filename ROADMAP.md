@@ -17,7 +17,7 @@
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
 | **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 104/104 tests verts (Unitaires + E2E Live) |
+| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 113/113 tests verts (Unitaires + E2E Live) |
 
 ---
 
@@ -149,6 +149,8 @@
     * **Restitution enrichie midi + soir :** Pour une journée complète (*« qu'est-ce qu'on mange jeudi prochain ? »*), formulation complète décrivant à la fois le déjeuner et le dîner s'ils sont prévus.
     * **Vérification de recette & Dialogue de confirmation (`CONFIRM` / `CANCEL`) :** Détection automatique des recettes non répertoriées dans le carnet (`Recettes` / `Recette festive`) lors d'une planification (*« prévois du poulet pour jeudi »*). L'assistant suspend l'action et demande confirmation à l'utilisateur (*« oui »* $\rightarrow$ insertion, *« non »* $\rightarrow$ abandon).
     * **Anaphore Repas $\rightarrow$ Ingrédients :** Enchaînement fluide après consultation de menu : demander *« On mange quoi ? »* puis *« quels ingrédients faut-il ? »* résout instantanément les ingrédients du plat sans avoir à répéter son nom.
-  * **Résultat de la suite de tests complète :** **104 tests au total (92 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
+    * **Consultation ciblée Liste d'Attente & Synonymes Courses :** Prise en charge des requêtes *« donne moi la liste d'attente »* pour n'afficher que les éléments ajoutés dynamiquement, et reconnaissance naturelle des questions de courses (*« Qu'est ce que je doit acheter ? »*, *« qu'est-ce qu'il faut acheter »*).
+    * **Marquage groupé "Tout acheté" :** Prise en charge de *« J'ai acheté tout les produit de la listes d'attente »*, *« J'ai tout acheté »* avec détection du flag `all=True` et mise à jour collective de tous les articles en un seul appel sans injection de libellé parasite.
+  * **Résultat de la suite de tests complète :** **113 tests au total (101 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
 * **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
 

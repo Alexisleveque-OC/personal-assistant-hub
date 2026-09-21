@@ -47,6 +47,11 @@ parser = IntentParser()
         ("prévois du poulet pour jeudi", IntentType.SET_MEAL_PLAN, {"meal": "poulet", "day_name": "Jeudi"}),
         ("Allume la prise du salon", IntentType.TOGGLE_DEVICE, {"device": "prise", "action": "on"}),
         ("Éteins la prise", IntentType.TOGGLE_DEVICE, {"device": "prise", "action": "off"}),
+        ("donne moi la liste d'attente", IntentType.GET_SHOPPING_LIST, {"filter": "waiting_list"}),
+        ("Qu'est ce que je doit acheter ?", IntentType.GET_SHOPPING_LIST, {}),
+        ("qu'est-ce qu'il faut acheter", IntentType.GET_SHOPPING_LIST, {}),
+        ("J'ai acheté tout les produit de la listes d'attente", IntentType.MARK_SHOPPING_BOUGHT, {"all": True}),
+        ("J'ai tout acheté", IntentType.MARK_SHOPPING_BOUGHT, {"all": True}),
     ],
 )
 def test_intent_parser_known_cases(phrase, expected_intent, expected_params):

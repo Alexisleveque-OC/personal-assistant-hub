@@ -253,7 +253,19 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 5. Marquage courses achetées ("j'ai acheté le café bio et le dentifrice")
+        # 5. Marquage courses achetées ("j'ai acheté le café bio et le dentifrice", "j'ai tout acheté", "j'ai acheté tout les produit de la listes d'attente")
+        if re.search(
+            r"^(?:j[' ]?ai\s+tout\s+(?:achet[ée]|pris)|(?:j[' ]?ai\s+(?:achet[ée]|pris)\s+)?(?:tout(?:es?|s)?|tous?)(?:\s+(?:les?|la))?(?:\s+(?:articles?|produits?))?(?:\s+(?:de|sur)\s+(?:la\s+)?listes?(?:\s+d[' ]attente|\s+de\s+courses?)?)?|tout\s+est\s+(?:achet[ée]|pris))\s*[?!.]*$",
+            cleaned,
+            re.IGNORECASE,
+        ) and not re.search(r"^j[' ]?ai\s+achet[ée]\s+(?!pour\s+\d)(?:du|des|le|la|les|un|une)\s+[a-z0-9]+(?:\s+(?:et|avec)\s+|$)", cleaned, re.IGNORECASE):
+            return ParsedIntent(
+                intent=IntentType.MARK_SHOPPING_BOUGHT,
+                confidence=0.95,
+                parameters={"all": True},
+                raw_query=text,
+            )
+
         bought_match = re.search(
             r"^j[' ]?ai\s+achet[ée]\s+(?!pour\s+\d)(.+)$",
             cleaned,
@@ -297,12 +309,19 @@ class IntentParser:
                     raw_query=text,
                 )
 
-        # 7. Consultation liste de courses ("donne-moi la liste de courses", "qu'est-ce qu'il y a sur la liste de courses")
-        if "liste de courses" in cleaned or "liste des courses" in cleaned:
+        # 7. Consultation liste de courses ("donne-moi la liste de courses", "donne moi la liste d'attente", "qu'est ce que je doit acheter ?")
+        if re.search(
+            r"(?:liste\s+(?:de\s+|des\s+)?courses?|liste\s+d[' ]attente|qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut\s+acheter|qu[' ]?est[- ]ce\s+(?:que\s+)?(?:je|on)\s+doi[ts]\s+acheter|qu[' ]?est[- ]ce\s+qu[' ]?il\s+y\s+a\s+[àa]\s+acheter|quoi\s+acheter)",
+            cleaned,
+            re.IGNORECASE,
+        ):
+            params = {}
+            if "attente" in cleaned:
+                params["filter"] = "waiting_list"
             return ParsedIntent(
                 intent=IntentType.GET_SHOPPING_LIST,
-                confidence=0.90,
-                parameters={},
+                confidence=0.95,
+                parameters=params,
                 raw_query=text,
             )
 

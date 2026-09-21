@@ -335,6 +335,66 @@ def test_interact_set_meal_plan_unknown_recipe_confirmation_flow():
     set_meals_connector(None)
 
 
+def test_interact_get_waiting_list_specifically():
+    """'donne moi la liste d'attente' filtre spécifiquement les articles en attente."""
+    mock_connector = MagicMock()
+    mock_connector.get_shopping_list.return_value = {
+        "waiting_list": [
+            WaitingListItem(item="Café", rayon="Épicerie"),
+            WaitingListItem(item="Blanc de poulet", rayon="Boucherie"),
+        ],
+        "current_week_items": [
+            ShoppingItem(name="Pommes", checked=False),
+        ],
+    }
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "donne moi la liste d'attente"})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "liste d'attente" in spoken
+    assert "Café" in spoken
+    assert "Blanc de poulet" in spoken
+    assert "Pommes" not in spoken
+
+    set_meals_connector(None)
+
+
+def test_interact_what_to_buy_synonym():
+    """'Qu'est ce que je doit acheter ?' renvoie la liste de courses unifiée."""
+    mock_connector = MagicMock()
+    mock_connector.get_shopping_list.return_value = {
+        "waiting_list": [WaitingListItem(item="Crème fraiche", rayon="Frais")],
+        "current_week_items": [ShoppingItem(name="Pain", checked=False)],
+    }
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "Qu'est ce que je doit acheter ?"})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "Crème fraiche" in spoken
+    assert "Pain" in spoken
+
+    set_meals_connector(None)
+
+
+def test_interact_mark_all_shopping_bought():
+    """'J'ai acheté tout les produit de la listes d'attente' coche tous les articles."""
+    mock_connector = MagicMock()
+    mock_connector.mark_shopping_items_bought.return_value = ["Café", "Blanc de poulet", "Crème fraiche"]
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "J'ai acheté tout les produit de la listes d'attente"})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "tous les articles" in spoken
+    assert "3" in spoken
+    mock_connector.mark_shopping_items_bought.assert_called_with(mark_all=True)
+
+    set_meals_connector(None)
+
+
+
 
 
 

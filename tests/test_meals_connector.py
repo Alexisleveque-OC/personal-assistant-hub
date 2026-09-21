@@ -371,6 +371,16 @@ def test_mark_shopping_items_bought(mock_spreadsheet):
     ws.update_cell.assert_called()
 
 
+def test_mark_shopping_items_bought_all(mock_spreadsheet):
+    """Vérifie le marquage de tous les articles avec mark_all=True."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    marked = connector.mark_shopping_items_bought(mark_all=True)
+
+    assert "Café bio" in marked
+    ws = mock_spreadsheet.worksheet("Liste_Attente")
+    ws.update_cell.assert_called()
+
+
 def test_clear_shopping_list_only_bought(mock_spreadsheet):
     """Vérifie la suppression des articles achetés uniquement."""
     connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
