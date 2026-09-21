@@ -71,6 +71,16 @@ def test_resolve_explicit_calendar_date():
     res2 = resolve_date_expression("prévois une pizza le 25/09", now=ref_dt)
     assert res2.target_date == date(2026, 9, 25)
 
+    res3 = resolve_date_expression("qu'est ce qu'on mange dimanche 20 septembre ?", now=ref_dt)
+    assert res3.target_date == date(2026, 9, 20)
+    assert res3.date_str == "20/09/2026"
+    assert res3.day_name == "Dimanche"
+
+    res4 = resolve_date_expression("on mange quoi dimanche 20/09 ?", now=ref_dt)
+    assert res4.target_date == date(2026, 9, 20)
+    assert res4.date_str == "20/09/2026"
+    assert res4.day_name == "Dimanche"
+
 
 def test_resolve_no_date_expression():
     """Quand aucun repère temporel n'est présent."""

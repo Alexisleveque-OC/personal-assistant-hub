@@ -486,6 +486,28 @@ def test_interact_shopping_rayon_conversational_followup():
     set_meals_connector(None)
 
 
+def test_interact_explicit_weekday_plus_date():
+    """'qu'est ce qu'on mange dimanche 20 septembre ?' interroge bien le 20/09/2026 et non le 27/09/2026."""
+    mock_connector = MagicMock()
+    mock_connector.get_meal_plan.return_value = DayMealPlan(
+        date_str="20/09/2026",
+        day_name="Dimanche",
+        lunch="Avocado toast",
+        dinner="Gauffre carotte + Crudités",
+    )
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "qu'est ce qu'on mange dimanche 20 septembre ?"})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "20/09/2026" in spoken
+    assert "27/09/2026" not in spoken
+    assert "Avocado toast" in spoken
+    assert "Gauffre carotte" in spoken
+
+    set_meals_connector(None)
+
+
 
 
 

@@ -17,7 +17,7 @@
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
 | **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 127/127 tests verts (Unitaires + E2E Live) |
+| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 128/128 tests verts (Unitaires + E2E Live) |
 
 ---
 
@@ -153,6 +153,6 @@
     * **Marquage groupé "Tout acheté" :** Prise en charge de *« J'ai acheté tout les produit de la listes d'attente »*, *« J'ai tout acheté »* avec détection du flag `all=True` et mise à jour collective de tous les articles en un seul appel sans injection de libellé parasite.
     * **Consultation ciblée par Rayon sur « Cette semaine » :** Détection automatique du rayon demandé (*« j'ai quoi a acheter au rayon "Fruits" »*, *« au rayon Charcuterie »*, *« il me reste quoi a acheter au rayon Légumes »*, etc.) avec interrogation stricte de l'onglet `Cette semaine` (sans polluer avec `Liste_Attente`), prise en compte du statut coché (`TRUE` = déjà acheté) vs non coché (`FALSE` = reste à acheter), mention du nombre d'articles déjà cochés, et support des requêtes de suivi anaphoriques (*« et au rayon Légumes ? »*).
     * **Question générale sur les articles restants de la semaine :** Prise en charge des formulations naturelles et phonétiques (*« Il me reste quoi a acheté »*, *« il me reste quoi à acheter »*, *« qu'est-ce qu'il me reste à acheter »*, etc.) ciblant exclusivement `Cette semaine` avec distinction nette entre articles restants et articles déjà cochés.
-  * **Résultat de la suite de tests complète :** **127 tests au total (115 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
+  * **Résultat de la suite de tests complète :** **128 tests au total (116 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
 * **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
 
