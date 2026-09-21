@@ -17,7 +17,8 @@
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
 | **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 128/128 tests verts (Unitaires + E2E Live) |
+| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 128/128 tests verts (Unitaires + E2E Live) |
+| **Étape 8** | Fiabilisation & déploiement de l'intégration Liste_Attente dans l'Apps Script (`meal-planner`) | 🟢 Réalisé | ⏳ En attente validation utilisateur après déploiement | ✅ 128/128 tests verts |
 
 ---
 
@@ -154,5 +155,30 @@
     * **Consultation ciblée par Rayon sur « Cette semaine » :** Détection automatique du rayon demandé (*« j'ai quoi a acheter au rayon "Fruits" »*, *« au rayon Charcuterie »*, *« il me reste quoi a acheter au rayon Légumes »*, etc.) avec interrogation stricte de l'onglet `Cette semaine` (sans polluer avec `Liste_Attente`), prise en compte du statut coché (`TRUE` = déjà acheté) vs non coché (`FALSE` = reste à acheter), mention du nombre d'articles déjà cochés, et support des requêtes de suivi anaphoriques (*« et au rayon Légumes ? »*).
     * **Question générale sur les articles restants de la semaine :** Prise en charge des formulations naturelles et phonétiques (*« Il me reste quoi a acheté »*, *« il me reste quoi à acheter »*, *« qu'est-ce qu'il me reste à acheter »*, etc.) ciblant exclusivement `Cette semaine` avec distinction nette entre articles restants et articles déjà cochés.
   * **Résultat de la suite de tests complète :** **128 tests au total (116 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
-* **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
+* **Statut :** ✅ Validé par l'utilisateur le 21/09/2026.
+
+---
+
+### 🟢 Étape 8 : Fiabilisation & Déploiement de l'intégration Liste_Attente dans Apps Script (`meal-planner`)
+* **Objectif :** Corriger et déployer la prise en charge des articles de `Liste_Attente` dans l'application Google Apps Script (`meal-planner`) pour garantir que les produits ajoutés au fil de l'eau par l'assistant ou l'utilisateur apparaissent bien pré-cochés dans la barre latérale et soient reportés fidèlement sur l'onglet `Cette semaine`.
+* **Diagnostic technique des anomalies rencontrées :**
+  1. 🛑 **Déconnexion Clasp / Déploiement cloud :** Le jeton OAuth Clasp local avait expiré le 09/09/2026 (`invalid_rapt`), et le compte de service ne dispose pas des droits API Apps Script. Les modifications apportées lors de l'Étape 5 étaient donc restées locales sur disque et n'avaient pas pu être synchronisées dans le projet Apps Script hébergé sur Google Drive.
+  2. ⚠️ **Perte silencieuse des articles du rayon « Divers » :** Dans `generatePrintSheet()`, la génération de la grille par bloc de 4 colonnes itérait strictement sur la liste ordonnancée `sortedRayonsList` (les 16 rayons de la feuille `Rayons`). Comme `Divers` n'était pas répertorié dans cette feuille, tout article rattaché à `Divers` (ou à un rayon non listé) était silencieusement écarté et disparaissait de `Cette semaine`.
+  3. 🔍 **Résolution incomplète des rayons :** `getIngredientsRayonMap()` consultait uniquement l'onglet `Ingredients_Rayons` sans vérifier `Hors_Repas`, et ne gérait pas les variations d'accents (`café` vs `cafe`, `crème fraiche` vs `creme fraiche`), forçant ces articles vers `Divers`.
+* **Livrables et correctifs réalisés dans `meal-planner/` :**
+  * **Normalisation des chaînes (`normalizeStr`) :** Nettoyage insensible à la casse et sans accents (`NFD` regex) pour matcher les articles et rayons avec une tolérance maximale.
+  * **Catalogue croisé des rayons (`getIngredientsRayonMap`) :** Agrégation combinée de `Ingredients_Rayons` et de `Hors_Repas` avec double indexation (brute et sans accents).
+  * **Pré-cochage robuste (`getHorsRepasItems`) :**
+    * Détection améliorée des articles non achetés dans `Liste_Attente` (tolérance boolean `true` et texte `"TRUE"`, exclusion des lignes vides résiduelles).
+    * Pré-cochage systématique des articles déjà présents dans `Hors_Repas`.
+    * Inclusion automatique des articles orphelins sous leur rayon déduit ou sous `Divers`, avec statut pré-coché (`preCocher = true`).
+  * **Garantie d'affichage total dans `generatePrintSheet()` :**
+    * Détection dynamique de tous les rayons présents dans les articles sélectionnés. Tout rayon absent de la feuille `Rayons` (dont `Divers`) est automatiquement ajouté à `rayonsSortedList` avec un style dédié (`#78909c`, texte blanc).
+    * Plus **aucun article n'est perdu** lors de la génération.
+  * **Nettoyage chirurgical de `Liste_Attente` :** Suppression ciblée de bas en haut uniquement des articles effectivement intégrés dans `Cette semaine`.
+  * **Expérience utilisateur Sidebar (`Sidebar.html`) :** Intitulé de l'étape 3 enrichi en *« Articles récurrents & Liste d'attente »*.
+* **Procédure de mise en production :**
+  * Guide fourni à l'utilisateur pour le déploiement immédiat dans son tableur Google Sheets (soit via re-connexion `npx clasp login` + `npx clasp push`, soit par copier-coller dans l'éditeur Apps Script).
+* **Statut :** 🟢 Réalisé — ⏳ En attente de validation par l'utilisateur après test de génération en direct.
+
 
