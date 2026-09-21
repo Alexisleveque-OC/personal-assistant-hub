@@ -23,6 +23,8 @@ token.json
 client_secret*.json
 *.pem
 service_account.json
+*service_account*.json
+credentials/
 
 # IDEs & Editor
 .vscode/

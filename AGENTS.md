@@ -59,13 +59,35 @@ personal-assistant-hub/
 
 ## 4. Règles d'Or de Développement Agentique
 
-1. **Test-First & Feedback Loops :** Toujours écrire ou mettre à jour un test pour chaque nouvelle fonctionnalité. Exécuter `pytest` après chaque modification. Si un test échoue, analyser la trace d'erreur et corriger de façon autonome avant de solliciter l'utilisateur.
+0. **Règle Suprême - Challenger Technique & Gardien des Bonnes Pratiques :**
+   * L'agent n'est JAMAIS un exécutant aveugle ou passif.
+   * Si l'utilisateur propose une direction sous-optimale, une mauvaise pratique, ou une solution risquant d'introduire de la dette technique ou des bugs, l'agent **a l'obligation de la remettre en question**.
+   * L'agent doit initier l'échange, expliquer avec pédagogie les compromis (avantages, inconvénients, impacts sur la maintenance) et proposer la meilleure alternative conforme à l'état de l'art.
+
+1. **TDD Strict (Test-Driven Development) - Priorité Absolue :**
+   * Tout développement de fonctionnalité DOIT obligatoirement suivre le cycle TDD :
+     1. **Phase Rouge (Red) :** Écrire d'abord le test unitaire définissant le contrat, les paramètres attendus et le comportement cible. Exécuter `pytest` et constater que le test échoue pour la bonne raison (fonction/méthode non implémentée).
+     2. **Phase Verte (Green) :** Écrire le code de production minimal permettant de satisfaire le test et valider que `pytest` passe à 100% vert.
+     3. **Phase Refactor :** Améliorer la lisibilité, le typage strict, la modularité et l'adhérence aux conventions, tout en conservant 100% des tests au vert.
+   * Il est formellement interdit d'écrire du code de production avant d'avoir le test correspondant qui échoue.
+   * Boucle de rétroaction autonome : exécuter `pytest` après chaque changement. En cas d'échec, analyser la trace d'erreur et corriger de façon autonome avant de solliciter l'utilisateur.
 2. **Hygiène Git & Stratégie de Branches :**
    * **Branche `main` :** Protégée, toujours déployable. Aucun commit direct pour les features.
    * **Stratégie de branches :** Chaque fonctionnalité ou correction est développée sur une branche dédiée (`feat/<feature-name>`, `fix/<bug-name>`) ou sur `develop`.
    * **Pull Request / Merge Request (PR/MR) :** Fusion vers `main` uniquement après validation de la suite de tests (`pytest` à 100% vert) et relecture.
    * **Sécurité :** Ne JAMAIS commiter de fichiers sensibles (`.env`, `credentials.json`, `token.json`, `.venv`).
-   * **Commits :** Atomiques et explicites au format Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
+   * **Commits :** Atomiques, explicites et séparés selon leur périmètre :
+     * **Fichiers d'instructions agent (ex: `AGENTS.md`) :** Toujours isolés dans leurs propres commits et préfixés par `#AGENT : <message>`.
+     * **Code de feature :** Toujours préfixés par `#PAH - <feature-tag> : <type>: <message>` (ex: `#PAH - shop connector : feat: ...`), combinant le tag de feature et le format Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
 3. **Typage et Contrats :** Tout modèle de données entrant ou sortant doit être typé via Pydantic. Pas de dictionnaires bruts arbitraires non validés.
 4. **Indépendance des Connecteurs :** Chaque connecteur dans `app/connectors/` doit pouvoir fonctionner avec des mocks en mode hors-ligne ou lors des tests.
 5. **Intégration Continue (CI) :** Les tests doivent tourner automatiquement sur GitHub Actions à chaque PR/MR.
+6. **Roadmap par Feature & Validation Pas-à-Pas (Human-in-the-Loop) :**
+   * Pour chaque fonctionnalité (`feat/*`), un fichier `ROADMAP.md` dédié doit être créé à la racine du projet.
+   * La roadmap détaille les étapes d'implémentation de manière ordonnée et progressive.
+   * **Chaque étape doit être validée manuellement et explicitement par l'utilisateur** et afficher 100% de tests au vert avant de passer à la suivante.
+   * **Test d'intégration final :** À la fin de chaque feature, un test d'intégration complet (E2E) doit être mis en place pour valider le flux de bout en bout et garantir la pérennité de la solution dans le temps.
+7. **Erreurs Explicites & Fail-Fast (Déboguabilité Maximale) :**
+   * Ne JAMAIS étouffer ou masquer une erreur avec des retours silencieux (`try/except: pass` ou fallbacks masqués sans log).
+   * Toujours lever des exceptions claires, typées et contextualisées : indiquer précisément la ressource manquante, le paramètre attendu (ex: l'année cible et le nom d'onglet attendu), et la liste des ressources disponibles.
+   * Cette clarté permet à l'utilisateur de comprendre immédiatement l'action requise (ex: créer l'onglet manquant sur son Google Sheet) et à l'agent de corriger de façon chirurgicale sans suppositions.

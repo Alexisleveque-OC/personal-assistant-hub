@@ -7,8 +7,13 @@ from pydantic import BaseModel, Field
 class IntentType(str, Enum):
     # Repas & Courses (Google Sheet 1)
     GET_MEAL_PLAN = "get_meal_plan"
+    GET_RECIPE_INGREDIENTS = "get_recipe_ingredients"
+    ADD_RECIPE_INGREDIENTS = "add_recipe_ingredients"
+    SET_MEAL_PLAN = "set_meal_plan"
     ADD_SHOPPING_ITEM = "add_shopping_item"
     GET_SHOPPING_LIST = "get_shopping_list"
+    MARK_SHOPPING_BOUGHT = "mark_shopping_bought"
+    CLEAR_SHOPPING_LIST = "clear_shopping_list"
 
     # Budget (Google Sheet 2)
     GET_BUDGET_BALANCE = "get_budget_balance"
@@ -23,6 +28,13 @@ class IntentType(str, Enum):
 
     # Domotique
     TOGGLE_DEVICE = "toggle_device"
+
+    # Conversation / Politesse
+    SMALL_TALK = "small_talk"
+
+    # Confirmation interactive
+    CONFIRM = "confirm"
+    CANCEL = "cancel"
 
     # Non reconnu
     UNKNOWN = "unknown"
@@ -40,6 +52,8 @@ class InteractionRequest(BaseModel):
     """Requête entrante (texte ou transcription vocale)."""
     query: str = Field(..., min_length=1, description="Phrase ou commande en langage naturel")
     source: Optional[str] = Field(default="api", description="Origine: android, alexa, web, etc.")
+    session_id: Optional[str] = Field(default=None, description="Identifiant unique de session ou utilisateur")
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Contexte conversationnel additionnel")
 
 
 class InteractionResponse(BaseModel):
