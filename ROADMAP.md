@@ -18,7 +18,7 @@
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
 | **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
 | **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 128/128 tests verts (Unitaires + E2E Live) |
-| **Étape 8** | Fiabilisation & déploiement de l'intégration Liste_Attente dans l'Apps Script (`meal-planner`) | 🟢 Réalisé | ⏳ En attente validation utilisateur après déploiement | ✅ 128/128 tests verts |
+| **Étape 8** | Fiabilisation & déploiement de l'intégration Liste_Attente dans l'Apps Script (`meal-planner`) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 128/128 tests verts |
 
 ---
 
@@ -179,6 +179,6 @@
   * **Expérience utilisateur Sidebar (`Sidebar.html`) :** Intitulé de l'étape 3 enrichi en *« Articles récurrents & Liste d'attente »*.
 * **Procédure de mise en production :**
   * Guide fourni à l'utilisateur pour le déploiement immédiat dans son tableur Google Sheets (soit via re-connexion `npx clasp login` + `npx clasp push`, soit par copier-coller dans l'éditeur Apps Script).
-* **Statut :** 🟢 Réalisé — ⏳ En attente de validation par l'utilisateur après test de génération en direct.
+* **Statut :** ✅ Validé par l'utilisateur le 21/09/2026.
 
 
