@@ -394,6 +394,98 @@ def test_interact_mark_all_shopping_bought():
     set_meals_connector(None)
 
 
+def test_interact_shopping_list_by_rayon_only_cette_semaine():
+    """'j'ai quoi a acheter au rayon Fruits' interroge UNIQUEMENT 'Cette semaine' et tient compte des cochés."""
+    mock_connector = MagicMock()
+    mock_connector.get_shopping_list.return_value = {
+        "waiting_list": [WaitingListItem(item="Chocolat", rayon="Petit dej + bio")],
+        "current_week_items": [
+            ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
+            ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
+            ShoppingItem(name="Lait", checked=False, rayon="Oeufs/farine/lait"),
+        ],
+    }
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "j'ai quoi a acheter au rayon \"Fruits\""})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "Bananes" in spoken
+    assert "Chocolat" not in spoken  # Ne doit PAS venir de Liste_Attente
+    assert "Lait" not in spoken
+    assert "coché" in spoken
+
+    set_meals_connector(None)
+
+
+def test_interact_shopping_list_general_remaining_cette_semaine():
+    """'Il me reste quoi a acheté' renvoie tous les articles non cochés de 'Cette semaine' sans la liste d'attente."""
+    mock_connector = MagicMock()
+    mock_connector.get_shopping_list.return_value = {
+        "waiting_list": [WaitingListItem(item="Chocolat", rayon="Petit dej + bio")],
+        "current_week_items": [
+            ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
+            ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
+            ShoppingItem(name="Lait", checked=False, rayon="Oeufs/farine/lait"),
+        ],
+    }
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "Il me reste quoi a acheté"})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "Bananes" in spoken
+    assert "Lait" in spoken
+    assert "Chocolat" not in spoken  # Ne doit PAS venir de Liste_Attente
+    assert "1 article(s) déjà coché" in spoken
+
+    set_meals_connector(None)
+
+
+def test_interact_shopping_list_already_checked():
+    """'qu'est-ce qui est déjà coché au rayon Fruits ?' renvoie les articles déjà cochés."""
+    mock_connector = MagicMock()
+    mock_connector.get_shopping_list.return_value = {
+        "waiting_list": [],
+        "current_week_items": [
+            ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
+            ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
+        ],
+    }
+    set_meals_connector(mock_connector)
+
+    r = client.post("/api/v1/interact", json={"query": "qu'est-ce qui est déjà coché au rayon Fruits ?"})
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "Pommes" in spoken
+    assert "Bananes" not in spoken
+
+    set_meals_connector(None)
+
+
+def test_interact_shopping_rayon_conversational_followup():
+    """Enchaînement conversationnel : 'au rayon Charcuterie' après une première question."""
+    mock_connector = MagicMock()
+    mock_connector.get_shopping_list.return_value = {
+        "waiting_list": [],
+        "current_week_items": [
+            ShoppingItem(name="Jambon", checked=False, rayon="Charcuterie"),
+        ],
+    }
+    set_meals_connector(mock_connector)
+
+    r = client.post(
+        "/api/v1/interact",
+        json={"query": "au rayon Charcuterie", "session_id": "test_session_rayon"},
+    )
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "Charcuterie" in spoken
+    assert "Jambon" in spoken
+
+    set_meals_connector(None)
+
+
 
 
 

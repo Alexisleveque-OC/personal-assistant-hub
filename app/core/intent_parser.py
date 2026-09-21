@@ -5,6 +5,69 @@ from app.core.models import IntentType, ParsedIntent
 from app.core.date_resolver import resolve_date_expression
 
 
+def _normalize_rayon(raw: str) -> str:
+    """Normalise le nom du rayon en insensibilité à la casse, singulier/pluriel et synonymes."""
+    r = raw.strip().strip("'\"").strip()
+    r_lower = r.lower()
+
+    mapping = {
+        "fruit": "Fruits",
+        "fruits": "Fruits",
+        "legume": "Légumes",
+        "legumes": "Légumes",
+        "légume": "Légumes",
+        "légumes": "Légumes",
+        "viande": "Viande",
+        "viandes": "Viande",
+        "boucherie": "Viande",
+        "charcuterie": "Charcuterie",
+        "charcuteries": "Charcuterie",
+        "dessert": "Dessert",
+        "desserts": "Dessert",
+        "fromage": "Fromage/Beurre/Creme",
+        "fromages": "Fromage/Beurre/Creme",
+        "beurre": "Fromage/Beurre/Creme",
+        "creme": "Fromage/Beurre/Creme",
+        "crème": "Fromage/Beurre/Creme",
+        "fromage/beurre/creme": "Fromage/Beurre/Creme",
+        "apero": "Apéro",
+        "apéro": "Apéro",
+        "oeuf": "Oeufs/farine/lait",
+        "oeufs": "Oeufs/farine/lait",
+        "œufs": "Oeufs/farine/lait",
+        "farine": "Oeufs/farine/lait",
+        "lait": "Oeufs/farine/lait",
+        "petit dej": "Petit dej + bio",
+        "petit dejeuner": "Petit dej + bio",
+        "petit déjeuner": "Petit dej + bio",
+        "bio": "Petit dej + bio",
+        "produit du monde": "Produit du monde",
+        "produits du monde": "Produit du monde",
+        "monde": "Produit du monde",
+        "epicerie": "Épicerie",
+        "épicerie": "Épicerie",
+        "boisson": "Boisson",
+        "boissons": "Boisson",
+        "hygiene": "Hygiène",
+        "hygiène": "Hygiène",
+        "pq": "PQ + entretien",
+        "entretien": "PQ + entretien",
+        "pq + entretien": "PQ + entretien",
+        "surgele": "Surgelé",
+        "surgelé": "Surgelé",
+        "surgeles": "Surgelé",
+        "surgelés": "Surgelé",
+        "plat prepare": "Plat préparé",
+        "plat préparé": "Plat préparé",
+        "plats prepares": "Plat préparé",
+        "plats préparés": "Plat préparé",
+    }
+    for key, mapped in mapping.items():
+        if r_lower == key or r_lower == f"{key}s":
+            return mapped
+    return r.capitalize()
+
+
 class IntentParser:
     """Analyseur d'intentions.
     
@@ -309,7 +372,55 @@ class IntentParser:
                     raw_query=text,
                 )
 
-        # 7. Consultation liste de courses ("donne-moi la liste de courses", "donne moi la liste d'attente", "qu'est ce que je doit acheter ?")
+        # 7. Consultation liste de courses (spécifique rayon, reste à acheter dans Cette semaine, ou globale)
+        # 7.1 Requête sur un rayon spécifique ("j'ai quoi a acheter au rayon Fruits", "au rayon Charcuterie", "il me reste quoi a acheter au rayon Légumes", "qu'est-ce qui est déjà coché au rayon Fruits ?")
+        rayon_match = re.search(
+            r"(?:(?:au|dans\s+le)\s+rayon|rayon)\s+['\"]?([a-zA-ZÀ-ÿ0-9 /+-]+?)['\"]?(?:\s+[?.,!]*)?$",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if rayon_match and not re.search(r"^(?:ajoute|mets|rajoute)\b", cleaned):
+            is_chk_query = bool(re.search(r"(?:d[ée]j[àa]\s+(?:coch[ée]|pris|achet[ée])|qui\s+est\s+coch[ée])", cleaned, re.IGNORECASE))
+            status = "checked" if is_chk_query else "remaining"
+            rayon_name = _normalize_rayon(rayon_match.group(1))
+            return ParsedIntent(
+                intent=IntentType.GET_SHOPPING_LIST,
+                confidence=0.95,
+                parameters={
+                    "filter": "current_week",
+                    "rayon": rayon_name,
+                    "status": status,
+                },
+                raw_query=text,
+            )
+
+        # 7.2 Articles déjà cochés (général) ("qu'est-ce qui est déjà coché ?", "qu'est ce que j'ai déjà coché")
+        if re.search(
+            r"^(?:qu[' ]?est[- ]ce\s+(?:qui\s+est|que\s+j[' ]?ai)\s+d[ée]j[àa]\s+(?:coch[ée]|pris|achet[ée])|articles?\s+d[ée]j[àa]\s+coch[ée]s?)\s*[?!.]*$",
+            cleaned,
+            re.IGNORECASE,
+        ):
+            return ParsedIntent(
+                intent=IntentType.GET_SHOPPING_LIST,
+                confidence=0.95,
+                parameters={"filter": "current_week", "status": "checked"},
+                raw_query=text,
+            )
+
+        # 7.3 Reste à acheter dans 'Cette semaine' ("Il me reste quoi a acheté", "il me reste quoi à acheter", "qu'est ce qu'il me reste a acheter ?")
+        if "budget" not in cleaned and re.search(
+            r"(?:(?:qu[' ]?est[- ]ce\s+(?:qu[' ]?il|qui)\s+(?:me\s+)?reste|(?:il\s+(?:me\s+)?reste\s+quoi)|qu[' ]?est[- ]ce\s+que\s+je\s+dois\s+encore\s+acheter)\s*(?:[àa]\s+achet[ée]r?|dans\s+(?:les\s+courses|le\s+caddie)|sur\s+la\s+liste(?:\s+de\s+la\s+semaine)?)?|il\s+(?:me\s+)?reste\s+quoi\s+[àa]\s+achet[ée]r?)",
+            cleaned,
+            re.IGNORECASE,
+        ):
+            return ParsedIntent(
+                intent=IntentType.GET_SHOPPING_LIST,
+                confidence=0.95,
+                parameters={"filter": "current_week", "status": "remaining"},
+                raw_query=text,
+            )
+
+        # 7.4 Consultation globale ou liste d'attente ("donne-moi la liste de courses", "donne moi la liste d'attente", "qu'est ce que je doit acheter ?")
         if re.search(
             r"(?:liste\s+(?:de\s+|des\s+)?courses?|liste\s+d[' ]attente|qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut\s+acheter|qu[' ]?est[- ]ce\s+(?:que\s+)?(?:je|on)\s+doi[ts]\s+acheter|qu[' ]?est[- ]ce\s+qu[' ]?il\s+y\s+a\s+[àa]\s+acheter|quoi\s+acheter)",
             cleaned,

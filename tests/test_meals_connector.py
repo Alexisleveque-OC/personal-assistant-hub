@@ -361,6 +361,28 @@ def test_get_shopping_list_unified(mock_spreadsheet):
     assert shopping_summary["waiting_list"][0].item == "Café bio"
 
 
+def test_get_shopping_list_with_rayons_and_checked_status(mock_spreadsheet):
+    """Vérifie que chaque article de 'Cette semaine' est associé à son rayon et conserve son statut coché/non coché."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    shopping = connector.get_shopping_list()
+    items = shopping["current_week_items"]
+
+    pommes = next((it for it in items if it.name == "Pommes"), None)
+    assert pommes is not None
+    assert pommes.rayon == "Fruits"
+    assert pommes.checked is False
+
+    carottes = next((it for it in items if it.name == "Carottes"), None)
+    assert carottes is not None
+    assert carottes.rayon == "Légumes"
+    assert carottes.checked is False
+
+    riz = next((it for it in items if it.name == "Riz"), None)
+    assert riz is not None
+    assert riz.rayon == "Épicerie"
+    assert riz.checked is True
+
+
 def test_mark_shopping_items_bought(mock_spreadsheet):
     """Vérifie le marquage comme acheté dans Liste_Attente."""
     connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)

@@ -298,31 +298,87 @@ async def interact(request: InteractionRequest):
 
         case IntentType.GET_SHOPPING_LIST:
             filter_mode = parsed.parameters.get("filter")
+            req_rayon = parsed.parameters.get("rayon")
+            status = parsed.parameters.get("status", "remaining")
+
+            if req_rayon:
+                session_ctx["last_rayon"] = req_rayon
+                session_ctx["last_intent"] = IntentType.GET_SHOPPING_LIST
+
             if connector:
                 try:
                     shopping = connector.get_shopping_list()
-                    waiting_names = [it.item for it in shopping["waiting_list"]]
-                    current_names = [it.name for it in shopping["current_week_items"]]
+                    waiting_items = [it for it in shopping.get("waiting_list", []) if not it.is_bought]
+                    current_items = shopping.get("current_week_items", [])
+
                     if filter_mode == "waiting_list":
+                        waiting_names = [it.item for it in waiting_items]
                         if waiting_names:
                             spoken = f"Voici les articles sur votre liste d'attente : {', '.join(waiting_names)}."
                         else:
                             spoken = "Votre liste d'attente est actuellement vide."
+                    elif filter_mode == "current_week":
+                        if req_rayon:
+                            rayon_items = [
+                                it for it in current_items
+                                if it.rayon and (it.rayon.lower() == req_rayon.lower() or req_rayon.lower() in it.rayon.lower())
+                            ]
+                            if not rayon_items:
+                                spoken = f"Vous n'avez aucun article prévu au rayon {req_rayon} cette semaine."
+                            else:
+                                rem = [it.name for it in rayon_items if not it.checked]
+                                chk = [it.name for it in rayon_items if it.checked]
+                                if status == "checked":
+                                    if chk:
+                                        spoken = f"Au rayon {req_rayon}, vous avez déjà coché : {', '.join(chk)}."
+                                    else:
+                                        spoken = f"Au rayon {req_rayon}, aucun article n'a encore été coché."
+                                else:
+                                    if rem:
+                                        chk_suffix = f" ({len(chk)} article(s) déjà coché(s))" if chk else ""
+                                        spoken = f"Au rayon {req_rayon}, il vous reste à acheter : {', '.join(rem)}{chk_suffix}."
+                                    else:
+                                        spoken = f"Au rayon {req_rayon}, tous les articles sont déjà cochés !"
+                        else:
+                            rem = [it for it in current_items if not it.checked]
+                            chk = [it for it in current_items if it.checked]
+                            if status == "checked":
+                                if chk:
+                                    spoken = f"Voici les articles déjà cochés cette semaine : {', '.join(it.name for it in chk)}."
+                                else:
+                                    spoken = "Aucun article n'a encore été coché cette semaine."
+                            else:
+                                if rem:
+                                    chk_suffix = f" ({len(chk)} article(s) déjà coché(s))" if chk else ""
+                                    spoken = f"Dans votre liste de la semaine, il vous reste {len(rem)} article(s) à acheter : {', '.join(it.name for it in rem)}{chk_suffix}."
+                                else:
+                                    spoken = "Tous les articles de la semaine sont déjà cochés, vos courses sont terminées !"
                     else:
-                        all_names = waiting_names + current_names
+                        all_names = [it.item for it in waiting_items] + [it.name for it in current_items if not it.checked]
                         if all_names:
                             spoken = f"Voici les articles sur votre liste de courses : {', '.join(all_names)}."
                         else:
                             spoken = "Votre liste de courses est actuellement vide."
                     data["shopping_list"] = {
-                        "waiting_list": [it.model_dump() for it in shopping["waiting_list"]],
-                        "current_week_items": [it.model_dump() for it in shopping["current_week_items"]],
+                        "waiting_list": [it.model_dump() for it in shopping.get("waiting_list", [])],
+                        "current_week_items": [it.model_dump() for it in current_items],
                     }
                 except Exception as exc:
                     spoken = f"Impossible de lire la liste de courses : {exc}"
             else:
                 if filter_mode == "waiting_list":
                     spoken = "Voici les articles sur votre liste d'attente : Café bio, Pommes."
+                elif filter_mode == "current_week":
+                    if req_rayon:
+                        if status == "checked":
+                            spoken = f"Au rayon {req_rayon}, vous avez déjà coché : Pommes."
+                        else:
+                            spoken = f"Au rayon {req_rayon}, il vous reste à acheter : Bananes (1 article(s) déjà coché(s))."
+                    else:
+                        if status == "checked":
+                            spoken = "Voici les articles déjà cochés cette semaine : Pommes."
+                        else:
+                            spoken = "Dans votre liste de la semaine, il vous reste 2 articles à acheter : Bananes, Lait (1 article(s) déjà coché(s))."
                 else:
                     spoken = "Voici les articles sur votre liste de courses : Pain, Pommes, Lait d'avoine."
 

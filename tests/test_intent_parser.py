@@ -52,6 +52,13 @@ parser = IntentParser()
         ("qu'est-ce qu'il faut acheter", IntentType.GET_SHOPPING_LIST, {}),
         ("J'ai acheté tout les produit de la listes d'attente", IntentType.MARK_SHOPPING_BOUGHT, {"all": True}),
         ("J'ai tout acheté", IntentType.MARK_SHOPPING_BOUGHT, {"all": True}),
+        ("j'ai quoi a acheter au rayon \"Fruits\"", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Fruits", "status": "remaining"}),
+        ("au rayon Charcuterie", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Charcuterie", "status": "remaining"}),
+        ("il me reste quoi a acheter au rayon Légumes", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Légumes", "status": "remaining"}),
+        ("Il me reste quoi a acheté", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "status": "remaining"}),
+        ("il me reste quoi à acheter", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "status": "remaining"}),
+        ("qu'est ce qu'il me reste a acheter ?", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "status": "remaining"}),
+        ("qu'est-ce qui est déjà coché au rayon Fruits ?", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Fruits", "status": "checked"}),
     ],
 )
 def test_intent_parser_known_cases(phrase, expected_intent, expected_params):

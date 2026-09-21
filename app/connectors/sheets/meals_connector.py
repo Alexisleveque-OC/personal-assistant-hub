@@ -447,17 +447,22 @@ class MealsShoppingConnector(BaseConnector):
             ws_cs = self._spreadsheet.worksheet("Cette semaine")
             rows = ws_cs.get_all_values()
             if len(rows) >= 10:
+                current_rayons: Dict[int, str] = {}
                 for r_idx in range(9, len(rows)):
                     r = rows[r_idx]
                     for col_offset in [0, 2, 4, 6]:
-                        if len(r) > col_offset + 1:
-                            chk = r[col_offset].strip().upper()
-                            name = r[col_offset + 1].strip()
-                            if name and chk != "TRUE":
+                        if len(r) > col_offset:
+                            val0 = r[col_offset].strip()
+                            val1 = r[col_offset + 1].strip() if len(r) > col_offset + 1 else ""
+                            if val0 and val0.upper() not in ["TRUE", "FALSE"] and not val1:
+                                current_rayons[col_offset] = val0
+                            elif val1:
+                                is_chk = val0.upper() == "TRUE"
                                 current_week_items.append(
                                     ShoppingItem(
-                                        name=name,
-                                        checked=False,
+                                        name=val1,
+                                        checked=is_chk,
+                                        rayon=current_rayons.get(col_offset),
                                         destination_sheet="Cette semaine",
                                     )
                                 )
