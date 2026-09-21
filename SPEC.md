@@ -47,20 +47,34 @@ Un hub d'assistance unifié capable de recevoir des requêtes en langage naturel
 
 ## 3. Feuille de Route / Backlog d'Implémentation
 
-- [x] **Phase 1 : Socle & Pratiques**
+- [x] **Phase 1 : Socle & Pratiques (Terminée)**
   - [x] Création des fichiers de contexte (`AGENTS.md`, `SPEC.md`, `.gitignore`)
-  - [ ] Configuration de l'environnement Python (`.venv`, `requirements.txt`)
-  - [ ] Architecture modulaire de base (`app/main.py`, `app/core/`, `app/connectors/`)
-  - [ ] Tests unitaires initiaux et validation de la boucle de rétroaction
-  - [ ] Initialisation du dépôt Git & push vers `origin`
-- [ ] **Phase 2 : Connecteur Repas & Courses (Google Sheets)**
-  - [ ] Modélisation des données repas & courses
-  - [ ] Mock local pour tester sans dépendre de Google API en phase de dev
-  - [ ] Intégration Google Sheets API / Service Account
+  - [x] Configuration de l'environnement Python (`.venv`, `requirements.txt`)
+  - [x] Architecture modulaire de base (`app/main.py`, `app/core/`, `app/connectors/`)
+  - [x] Tests unitaires initiaux et validation de la boucle de rétroaction
+  - [x] Initialisation du dépôt Git & push vers `origin`
+- [x] **Phase 2 : Connecteur Repas & Courses - Google Sheets (Terminée)**
+  - [x] Modélisation des données repas & courses
+  - [x] Mock local pour tester sans dépendre de Google API en phase de dev
+  - [x] Intégration Google Sheets API / Service Account
+  - [x] Tests automatisés (128 tests au vert, unitaires + E2E)
+  - [x] Intégration Apps Script (`meal-planner`) et synchronisation Liste d'Attente
+- [ ] **Phase 3 : Interface Mobile & Entrées Vocales - Android (Prochaine étape)**
+  - [ ] Exposition et sécurisation de l'API / Webhook pour accès mobile (Wi-Fi local & distant sécurisé)
+  - [ ] Interface utilisateur légère & PWA vocale (STT/TTS avec reconnaissance vocale)
+  - [ ] Support des raccourcis Android (HTTP Shortcuts / Widget d'écran d'accueil / Bouton vocal)
+  - [ ] Validation en conditions réelles sur smartphone (supermarché, maison)
+- [ ] **Phase 4 : Tâches & Mails - Google Tasks & Gmail**
+  - [ ] Connecteur Google Tasks (synthèse des tâches du jour, ajout vocal de tâche avec échéance)
+  - [ ] Connecteur Gmail (analyse des mails non lus, filtrage du bruit, synthèse des messages importants)
   - [ ] Tests automatisés
-- [ ] **Phase 3 : Connecteur Budget (Google Sheets)**
-  - [ ] Modélisation des dépenses & catégories
-  - [ ] Calculs de soldes
+- [ ] **Phase 5 : Connecteur Budget - Google Sheets**
+  - [ ] Modélisation des dépenses & catégories budgétaires
+  - [ ] Consultation des soldes restants par catégorie
+  - [ ] Enregistrement des dépenses au fil de l'eau
+  - [ ] Calculs de soldes & alertes de dépassement
   - [ ] Tests automatisés
-- [ ] **Phase 4 : Google Tasks & Gmail**
-- [ ] **Phase 5 : Domotique & Interfaces Vocales (Android / Alexa)**
+- [ ] **Phase 6 : Domotique & Alexa**
+  - [ ] Connecteur prise connectée (allumer / éteindre / statut)
+  - [ ] Intégration Skill Alexa pour les enceintes du domicile
+
