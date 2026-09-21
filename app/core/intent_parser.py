@@ -2,6 +2,7 @@
 import re
 from typing import Optional
 from app.core.models import IntentType, ParsedIntent
+from app.core.date_resolver import resolve_date_expression
 
 
 class IntentParser:
@@ -13,6 +14,23 @@ class IntentParser:
 
     def parse(self, text: str, context: Optional[dict] = None) -> ParsedIntent:
         cleaned = text.strip().lower()
+
+        # 0.00 Confirmation ou annulation interactive d'une action en attente
+        if context and context.get("pending_action"):
+            if re.search(r"^(?:oui|ouais|vas[- ]y|confirme|c[' ]est\s+bon|exactement|tout\s+[àa]\s+fait|absolument|ok|d[' ]accord)\b", cleaned):
+                return ParsedIntent(
+                    intent=IntentType.CONFIRM,
+                    confidence=0.95,
+                    parameters={"action": context["pending_action"]},
+                    raw_query=text,
+                )
+            if re.search(r"^(?:non|nan|annule|laisse\s+tomber|pas\s+la\s+peine|non\s+merci)\b", cleaned):
+                return ParsedIntent(
+                    intent=IntentType.CANCEL,
+                    confidence=0.95,
+                    parameters={"action": context["pending_action"]},
+                    raw_query=text,
+                )
 
         # 0.0 Politesse et small-talk ("merci", "ok merci", "bonjour", "au revoir", "super", "parfait", "d'accord")
         if re.search(
@@ -167,35 +185,71 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 3. Planification de repas ("mets des pâtes carbonara ce soir", "prévois une pizza demain soir")
-        set_meal_match = re.search(
-            r"(?:mets|prévois|programme|planifie)\s+(.+?)\s+(ce\s+soir|ce\s+midi|demain(?:\s+soir|\s+midi)?|pour\s+demain|pour\s+ce\s+soir)$",
-            cleaned,
+        # 2.bis Anaphore d'ingrédients : "quel ingredients faut-il ?", "il faut quoi ?"
+        recipe_anaphora_match = re.search(
+            r"^(?:(?:quel(?:le)?[sz]?\s+ingr[ée]dients?\s+faut[- ]il|il\s+faut\s+quoi(?:\s+comme\s+ingr[ée]dients?)?|quel(?:le)?[sz]?\s+sont\s+les\s+ingr[ée]dients?|qu[' ]?est[- ]ce\s+qu[' ]?il\s+faut))\s*[?!.]*$",
+            command_cleaned,
             re.IGNORECASE,
         )
-        if set_meal_match:
-            meal = set_meal_match.group(1).strip()
-            meal = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une)\s+", "", meal).strip()
-            time_expr = set_meal_match.group(2).lower()
-            period = "demain" if "demain" in time_expr else ("midi" if "midi" in time_expr else "soir")
-            return ParsedIntent(
-                intent=IntentType.SET_MEAL_PLAN,
-                confidence=0.95,
-                parameters={"meal": meal, "period": period},
-                raw_query=text,
-            )
+        if recipe_anaphora_match:
+            last_recipe = (context or {}).get("last_recipe")
+            if last_recipe:
+                return ParsedIntent(
+                    intent=IntentType.GET_RECIPE_INGREDIENTS,
+                    confidence=0.95,
+                    parameters={"recipe": last_recipe},
+                    raw_query=text,
+                )
+            else:
+                return ParsedIntent(
+                    intent=IntentType.UNKNOWN,
+                    confidence=0.2,
+                    parameters={},
+                    raw_query=text,
+                )
 
-        # 4. Consultation repas ("qu'est-ce qu'on mange ce soir / midi / demain ?")
-        if re.search(r"(?:qu[' ]?est[- ]ce\s+qu[' ]?on\s+mange|on\s+mange\s+quoi|menu\s+d[eu]|quel\s+est\s+le\s+repas)", cleaned):
-            period = "soir"
-            if "midi" in cleaned:
-                period = "midi"
-            elif "demain" in cleaned:
-                period = "demain"
+        # 3. Planification de repas ("mets des pâtes carbonara ce soir", "prévois du poulet pour jeudi", "j'aimerai mangé du risotto jeudi prochain")
+        set_meal_match = re.search(
+            r"(?:(?:j[' ]?aimerai[sz]?|je\s+voudrai[sz]?|on\s+(?:pourrait|va))\s+(?:manger|mang[ée]|cuisiner|faire)|(?:mets|prévois|programme|planifie))\s+(.+)$",
+            command_cleaned,
+            re.IGNORECASE,
+        )
+        if set_meal_match and not re.search(r"\b(?:ingr[ée]dient|liste\s+(?:de\s+|des\s+)?courses?)\b", command_cleaned):
+            raw_payload = set_meal_match.group(1).strip()
+            resolved = resolve_date_expression(raw_payload)
+            meal_candidate = resolved.cleaned_query if resolved.cleaned_query else raw_payload
+            meal_candidate = re.sub(r"\b(?:pour|ce\s+soir|ce\s+midi|demain)\b.*$", "", meal_candidate, flags=re.IGNORECASE).strip()
+            meal_candidate = re.sub(r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+", "", meal_candidate, flags=re.IGNORECASE).strip()
+            meal_candidate = re.sub(r"[?!.,;]+$", "", meal_candidate).strip()
+            if meal_candidate:
+                params = {"meal": meal_candidate}
+                if resolved.period:
+                    params["period"] = resolved.period
+                if resolved.target_date:
+                    params["target_date"] = resolved.date_str
+                if resolved.day_name:
+                    params["day_name"] = resolved.day_name
+                return ParsedIntent(
+                    intent=IntentType.SET_MEAL_PLAN,
+                    confidence=0.95,
+                    parameters=params,
+                    raw_query=text,
+                )
+
+        # 4. Consultation repas ("qu'est-ce qu'on mange ce soir / midi / demain ?", "on mange quoi ?", "que mange t-on...")
+        if re.search(r"(?:qu[' ]?est[- ]ce\s+qu[' ]?on\s+mange|on\s+mange\s+quoi|que\s+mange[- ]t[- ]on|menu\s+d[eu]|quel\s+est\s+le\s+repas)", cleaned):
+            resolved = resolve_date_expression(cleaned)
+            params = {}
+            if resolved.period:
+                params["period"] = resolved.period
+            if resolved.target_date:
+                params["target_date"] = resolved.date_str
+            if resolved.day_name:
+                params["day_name"] = resolved.day_name
             return ParsedIntent(
                 intent=IntentType.GET_MEAL_PLAN,
                 confidence=0.95,
-                parameters={"period": period},
+                parameters=params,
                 raw_query=text,
             )
 

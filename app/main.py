@@ -119,20 +119,69 @@ async def interact(request: InteractionRequest):
 
     match parsed.intent:
         case IntentType.GET_MEAL_PLAN:
-            period = parsed.parameters.get("period", "soir")
-            period_label = "ce soir" if period == "soir" else ("ce midi" if period == "midi" else period)
+            period = parsed.parameters.get("period")
+            target_date_str = parsed.parameters.get("target_date")
+            day_name = parsed.parameters.get("day_name")
+
             if connector:
                 try:
-                    plan = connector.get_meal_plan(period=period)
-                    dish = plan.dinner if period != "midi" and plan.dinner else (plan.lunch or "Rien de planifié")
-                    spoken = f"D'après le planning des repas pour {period_label}, vous avez prévu : {dish}."
-                    data["meal_plan"] = plan.model_dump()
+                    if period == "prochain" or (not period and not target_date_str):
+                        plan, meal_type, label, dish = connector.get_next_meal_plan()
+                        if dish and dish != "Rien de planifié":
+                            spoken = f"D'après le planning des repas pour {label}, vous avez prévu : {dish}."
+                            session_ctx["last_recipe"] = dish
+                        else:
+                            spoken = f"D'après le planning des repas pour {label}, aucun repas n'est encore programmé."
+                        data["meal_plan"] = plan.model_dump()
+                    else:
+                        # Jour ou date ciblé
+                        plan = connector.get_meal_plan(period=period, target_date=target_date_str)
+                        # Libellé du jour/moment
+                        if day_name:
+                            day_label = f"{day_name}" + (f" {target_date_str}" if target_date_str else "")
+                        elif target_date_str:
+                            day_label = f"le {target_date_str}"
+                        elif period == "demain":
+                            day_label = "demain"
+                        elif period == "midi":
+                            day_label = "ce midi"
+                        elif period == "soir":
+                            day_label = "ce soir"
+                        else:
+                            day_label = period or "aujourd'hui"
+
+                        if period == "midi":
+                            dish = plan.lunch or "Rien de planifié"
+                            spoken = f"D'après le planning des repas pour {day_label}, vous avez prévu : {dish}."
+                            if plan.lunch:
+                                session_ctx["last_recipe"] = plan.lunch
+                        elif period == "soir":
+                            dish = plan.dinner or "Rien de planifié"
+                            spoken = f"D'après le planning des repas pour {day_label}, vous avez prévu : {dish}."
+                            if plan.dinner:
+                                session_ctx["last_recipe"] = plan.dinner
+                        else:
+                            # Journée complète demandée
+                            if plan.lunch and plan.dinner:
+                                spoken = f"Pour {day_label}, vous avez prévu : à midi {plan.lunch}, et ce soir {plan.dinner}."
+                                session_ctx["last_recipe"] = plan.dinner
+                            elif plan.lunch:
+                                spoken = f"Pour {day_label}, vous avez prévu à midi : {plan.lunch} (rien pour le soir)."
+                                session_ctx["last_recipe"] = plan.lunch
+                            elif plan.dinner:
+                                spoken = f"Pour {day_label}, vous avez prévu pour ce soir : {plan.dinner} (rien pour le midi)."
+                                session_ctx["last_recipe"] = plan.dinner
+                            else:
+                                spoken = f"D'après le planning des repas pour {day_label}, aucun repas n'est encore programmé."
+                        data["meal_plan"] = plan.model_dump()
                 except DayMealPlanNotFoundError:
-                    spoken = f"D'après le planning des repas pour {period_label}, aucun repas n'est encore programmé."
+                    label_err = day_name or target_date_str or period or "ce soir"
+                    spoken = f"D'après le planning des repas pour {label_err}, aucun repas n'est encore programmé."
                 except Exception as exc:
-                    spoken = f"Impossible de récupérer le repas pour {period_label} : {exc}"
+                    spoken = f"Impossible de récupérer le repas : {exc}"
             else:
-                spoken = f"D'après le planning des repas pour {period_label}, vous avez prévu : Lasagnes maison et salade verte."
+                spoken = "D'après le planning des repas pour ce soir, vous avez prévu : Lasagnes maison et salade verte."
+                session_ctx["last_recipe"] = "Lasagnes maison"
 
         case IntentType.GET_RECIPE_INGREDIENTS:
             recipe_name = parsed.parameters.get("recipe", "")
@@ -178,20 +227,60 @@ async def interact(request: InteractionRequest):
         case IntentType.SET_MEAL_PLAN:
             meal = parsed.parameters.get("meal", "")
             period = parsed.parameters.get("period", "soir")
-            target_date = date.today() + timedelta(days=1) if period == "demain" else date.today()
+            target_date_str = parsed.parameters.get("target_date")
+            day_name = parsed.parameters.get("day_name")
+            meal_type = "midi" if period == "midi" else "soir"
+
+            # 1. Vérification si la recette existe
+            recipe_exists = False
             if connector:
                 try:
-                    updated_plan = connector.set_meal_plan(
-                        meal=meal,
-                        target_date=target_date,
-                        meal_type=period,
-                    )
-                    spoken = f"C'est noté, j'ai planifié {meal} pour {period}."
-                    data["meal_plan"] = updated_plan.model_dump()
-                except Exception as exc:
-                    spoken = f"Impossible d'enregistrer le repas : {exc}"
+                    rec = connector.get_recipe_ingredients(meal)
+                    recipe_exists = bool(rec)
+                except Exception:
+                    recipe_exists = False
+
+            target_label = f"pour {day_name}" if day_name else (f"le {target_date_str}" if target_date_str else (f"pour {period}" if period != "jour" else "pour aujourd'hui"))
+
+            if connector and not recipe_exists:
+                # Recette non répertoriée -> Demande confirmation interactive
+                session_ctx["pending_action"] = {
+                    "type": "set_meal_plan",
+                    "meal": meal,
+                    "target_date": target_date_str,
+                    "day_name": day_name,
+                    "meal_type": meal_type,
+                    "period": period,
+                }
+                spoken = (
+                    f"Attention, la recette '{meal}' n'est pas répertoriée dans votre carnet de recettes. "
+                    f"Voulez-vous quand même la planifier {target_label} ?"
+                )
+                data["pending_action"] = session_ctx["pending_action"]
             else:
-                spoken = f"C'est noté, j'ai planifié {meal} pour {period}."
+                # Recette connue (ou sans connecteur en fallback) -> insertion immédiate
+                if target_date_str:
+                    target_date = target_date_str
+                elif period == "demain":
+                    target_date = date.today() + timedelta(days=1)
+                else:
+                    target_date = date.today()
+
+                if connector:
+                    try:
+                        updated_plan = connector.set_meal_plan(
+                            meal=meal,
+                            target_date=target_date,
+                            meal_type=meal_type,
+                        )
+                        spoken = f"C'est noté, j'ai planifié {meal} {target_label}."
+                        data["meal_plan"] = updated_plan.model_dump()
+                        session_ctx["last_recipe"] = meal
+                    except Exception as exc:
+                        spoken = f"Impossible d'enregistrer le repas : {exc}"
+                else:
+                    spoken = f"C'est noté, j'ai planifié {meal} {target_label}."
+                    session_ctx["last_recipe"] = meal
 
         case IntentType.ADD_SHOPPING_ITEM:
             item = parsed.parameters.get("item", "l'article")
@@ -279,6 +368,40 @@ async def interact(request: InteractionRequest):
                 spoken = "Au revoir et bonne journée ! 👋"
             else:
                 spoken = "Parfait ! Que souhaitez-vous faire d'autre ?"
+
+        case IntentType.CONFIRM:
+            pending = session_ctx.pop("pending_action", None)
+            if pending and pending.get("type") == "set_meal_plan":
+                meal = pending["meal"]
+                target_date_str = pending.get("target_date")
+                meal_type = pending.get("meal_type", "soir")
+                day_name = pending.get("day_name")
+                period = pending.get("period", "soir")
+                target_label = f"pour {day_name}" if day_name else (f"le {target_date_str}" if target_date_str else f"pour {period}")
+
+                target = target_date_str if target_date_str else (date.today() + timedelta(days=1) if period == "demain" else date.today())
+                if connector:
+                    try:
+                        updated_plan = connector.set_meal_plan(
+                            meal=meal,
+                            target_date=target,
+                            meal_type=meal_type,
+                        )
+                        spoken = f"C'est confirmé, j'ai ajouté '{meal}' {target_label} au planning."
+                        data["meal_plan"] = updated_plan.model_dump()
+                        session_ctx["last_recipe"] = meal
+                    except Exception as exc:
+                        spoken = f"Impossible d'enregistrer le repas : {exc}"
+                else:
+                    spoken = f"C'est confirmé, j'ai ajouté '{meal}' {target_label} au planning."
+                    session_ctx["last_recipe"] = meal
+            else:
+                spoken = "C'est noté !"
+
+        case IntentType.CANCEL:
+            session_ctx.pop("pending_action", None)
+            spoken = "Très bien, j'ai annulé l'opération."
+
         case _:
             spoken = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler ?"
 

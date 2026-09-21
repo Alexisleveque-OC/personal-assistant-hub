@@ -137,6 +137,60 @@ def test_get_meal_plan_not_found(mock_spreadsheet):
         connector.get_meal_plan(target_date="31/12/2099")
 
 
+def test_get_next_meal_plan_morning_with_lunch(mock_spreadsheet):
+    """Matin (< 14h) avec repas du midi présent -> renvoie ce midi."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    today = date.today()
+    ref_dt = datetime(today.year, today.month, today.day, 10, 30, 0)
+    
+    plan, meal_type, label, dish = connector.get_next_meal_plan(now=ref_dt)
+    assert meal_type == "lunch"
+    assert label == "ce midi"
+    assert dish == "Salade composée"
+
+
+def test_get_next_meal_plan_morning_empty_lunch_falls_back_to_dinner(mock_spreadsheet):
+    """Matin (< 14h) mais midi vide -> bascule sur le repas de ce soir."""
+    # Vider le midi d'aujourd'hui
+    today_str = date.today().strftime("%d/%m/%Y")
+    tomorrow_str = (date.today() + timedelta(days=1)).strftime("%d/%m/%Y")
+    ws = mock_spreadsheet.worksheet("repas 2026")
+    ws.get_all_values.return_value = [
+        ["Date", "Jour", "Midi", "Soir", "Notes / Magasin"],
+        [today_str, "Vendredi", "", "Pizza maison", ""],
+        [tomorrow_str, "Samedi", "Pâtes pesto", "Burger veggie", ""],
+    ]
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    ref_dt = datetime(date.today().year, date.today().month, date.today().day, 11, 0, 0)
+    
+    plan, meal_type, label, dish = connector.get_next_meal_plan(now=ref_dt)
+    assert meal_type == "dinner"
+    assert label == "ce soir"
+    assert dish == "Pizza maison"
+
+
+def test_get_next_meal_plan_afternoon_returns_dinner(mock_spreadsheet):
+    """Après-midi (>= 14h et < 21h30) -> renvoie ce soir."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    ref_dt = datetime(date.today().year, date.today().month, date.today().day, 16, 0, 0)
+    
+    plan, meal_type, label, dish = connector.get_next_meal_plan(now=ref_dt)
+    assert meal_type == "dinner"
+    assert label == "ce soir"
+    assert dish == "Pizza maison"
+
+
+def test_get_next_meal_plan_late_night_returns_tomorrow_lunch(mock_spreadsheet):
+    """Tard le soir (>= 21h30) -> renvoie demain midi."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    ref_dt = datetime(date.today().year, date.today().month, date.today().day, 22, 0, 0)
+    
+    plan, meal_type, label, dish = connector.get_next_meal_plan(now=ref_dt)
+    assert meal_type == "lunch"
+    assert label == "demain midi"
+    assert dish == "Pâtes pesto"
+
+
 def test_get_recipe_ingredients_standard(mock_spreadsheet):
     """Vérifie la recherche d'ingrédients d'une recette classique (Recettes)."""
     connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)

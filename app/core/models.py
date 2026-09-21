@@ -32,6 +32,10 @@ class IntentType(str, Enum):
     # Conversation / Politesse
     SMALL_TALK = "small_talk"
 
+    # Confirmation interactive
+    CONFIRM = "confirm"
+    CANCEL = "cancel"
+
     # Non reconnu
     UNKNOWN = "unknown"
 

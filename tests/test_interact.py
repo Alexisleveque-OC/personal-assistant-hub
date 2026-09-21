@@ -234,5 +234,107 @@ def test_interact_multi_turn_with_politeness_and_modal_anaphora():
     set_meals_connector(None)
 
 
+def test_interact_smart_next_meal_and_recipe_anaphora():
+    """'On mange quoi?' récupère le prochain repas réel et alimente l'anaphore d'ingrédients."""
+    mock_connector = MagicMock()
+    mock_connector.get_next_meal_plan.return_value = (
+        DayMealPlan(date_str="21/09/2026", day_name="Lundi", dinner="Salade de lentilles"),
+        "dinner",
+        "ce soir",
+        "Salade de lentilles",
+    )
+    mock_connector.get_recipe_ingredients.return_value = Recipe(
+        name="Salade de lentilles",
+        ingredients=["Lentilles", "Échalote", "Vinaigre", "Moutarde"],
+    )
+    set_meals_connector(mock_connector)
+
+    # 1. On mange quoi?
+    r1 = client.post(
+        "/api/v1/interact",
+        json={"query": "On mange quoi?", "source": "session_next_meal_test"},
+    )
+    assert r1.status_code == 200
+    d1 = r1.json()
+    assert "Salade de lentilles" in d1["spoken_response"]
+    assert "ce soir" in d1["spoken_response"]
+
+    # 2. quel ingredients faut-il ?
+    r2 = client.post(
+        "/api/v1/interact",
+        json={"query": "quel ingredients faut-il ?", "source": "session_next_meal_test"},
+    )
+    assert r2.status_code == 200
+    d2 = r2.json()
+    assert d2["intent"]["intent"] == "get_recipe_ingredients"
+    assert "Salade de lentilles" in d2["spoken_response"]
+    assert "Lentilles" in d2["spoken_response"]
+    mock_connector.get_recipe_ingredients.assert_called_with("Salade de lentilles")
+
+    set_meals_connector(None)
+
+
+def test_interact_meal_plan_both_lunch_and_dinner():
+    """Vérifie l'affichage combiné midi et soir pour une requête de journée complète."""
+    mock_connector = MagicMock()
+    mock_connector.get_meal_plan.return_value = DayMealPlan(
+        date_str="24/09/2026",
+        day_name="Jeudi",
+        lunch="Salade César",
+        dinner="Gratin dauphinois",
+    )
+    set_meals_connector(mock_connector)
+
+    r = client.post(
+        "/api/v1/interact",
+        json={"query": "Qu'est ce qu'on mange Jeudi prochain ?", "source": "session_both_meals_test"},
+    )
+    assert r.status_code == 200
+    spoken = r.json()["spoken_response"]
+    assert "Salade César" in spoken
+    assert "Gratin dauphinois" in spoken
+    assert "midi" in spoken
+    assert "soir" in spoken
+
+    set_meals_connector(None)
+
+
+def test_interact_set_meal_plan_unknown_recipe_confirmation_flow():
+    """Si la recette est inconnue, demande confirmation avant insertion (Oui / Non)."""
+    mock_connector = MagicMock()
+    # "poulet" n'est pas dans les recettes
+    mock_connector.get_recipe_ingredients.return_value = None
+    mock_connector.set_meal_plan.return_value = DayMealPlan(
+        date_str="24/09/2026",
+        day_name="Jeudi",
+        dinner="Poulet rôti",
+    )
+    set_meals_connector(mock_connector)
+
+    # 1. Demande de planification
+    r1 = client.post(
+        "/api/v1/interact",
+        json={"query": "prévois du poulet pour jeudi", "source": "session_confirm_flow"},
+    )
+    assert r1.status_code == 200
+    d1 = r1.json()
+    assert "pas répertoriée" in d1["spoken_response"]
+    assert "Voulez-vous quand même" in d1["spoken_response"]
+    mock_connector.set_meal_plan.assert_not_called()
+
+    # 2. Utilisateur confirme avec "oui"
+    r2 = client.post(
+        "/api/v1/interact",
+        json={"query": "oui", "source": "session_confirm_flow"},
+    )
+    assert r2.status_code == 200
+    d2 = r2.json()
+    assert "confirmé" in d2["spoken_response"]
+    mock_connector.set_meal_plan.assert_called_once()
+
+    set_meals_connector(None)
+
+
+
 
 

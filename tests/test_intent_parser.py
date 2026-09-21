@@ -16,7 +16,7 @@ parser = IntentParser()
         ("Ajoute les ingrédients du risotto de quinoa à la liste de courses", IntentType.ADD_RECIPE_INGREDIENTS, {"recipe": "risotto de quinoa"}),
         ("Ajoute les ingrédients du guacamole sauf le citron vert", IntentType.ADD_RECIPE_INGREDIENTS, {"recipe": "guacamole", "exclude": "citron vert"}),
         ("Mets des pâtes carbonara ce soir", IntentType.SET_MEAL_PLAN, {"meal": "pâtes carbonara", "period": "soir"}),
-        ("Prévois une pizza maison demain soir", IntentType.SET_MEAL_PLAN, {"meal": "pizza maison", "period": "demain"}),
+        ("Prévois une pizza maison demain soir", IntentType.SET_MEAL_PLAN, {"meal": "pizza maison", "period": "soir"}),
         ("Ajoute du café bio à la liste de courses", IntentType.ADD_SHOPPING_ITEM, {"item": "café bio"}),
         ("Mets des pâtes sur la liste de courses", IntentType.ADD_SHOPPING_ITEM, {"item": "pâtes"}),
         ("ajoute chocolat", IntentType.ADD_SHOPPING_ITEM, {"item": "chocolat"}),
@@ -40,6 +40,11 @@ parser = IntentParser()
         ("Rappelle-moi d'appeler le garagiste", IntentType.ADD_TASK, {"task": "appeler le garagiste"}),
         ("Quelles sont mes tâches aujourd'hui ?", IntentType.LIST_TASKS, {}),
         ("Résume mes mails importants", IntentType.SUMMARIZE_EMAILS, {}),
+        ("que mange t-on jeudi prochain ?", IntentType.GET_MEAL_PLAN, {"period": "jour", "day_name": "Jeudi"}),
+        ("Qu'est ce qu'on mange Jeudi prochain ?", IntentType.GET_MEAL_PLAN, {"period": "jour", "day_name": "Jeudi"}),
+        ("On mange quoi?", IntentType.GET_MEAL_PLAN, {"period": "prochain"}),
+        ("J'aimerai mangé du risotto jeudi prochain", IntentType.SET_MEAL_PLAN, {"meal": "risotto", "day_name": "Jeudi"}),
+        ("prévois du poulet pour jeudi", IntentType.SET_MEAL_PLAN, {"meal": "poulet", "day_name": "Jeudi"}),
         ("Allume la prise du salon", IntentType.TOGGLE_DEVICE, {"device": "prise", "action": "on"}),
         ("Éteins la prise", IntentType.TOGGLE_DEVICE, {"device": "prise", "action": "off"}),
     ],
@@ -112,7 +117,6 @@ def test_intent_parser_natural_anaphora():
     assert p2.intent == IntentType.ADD_RECIPE_INGREDIENTS
     assert p2.parameters.get("recipe") == "Wrap de légumes"
 
-    # 2. Formules modales avec 'tu peux tout rajouter a la liste d'ingrédients'
     p3 = parser.parse("tu peux tout rajouter a la liste d'ingrédients", context=ctx)
     assert p3.intent == IntentType.ADD_RECIPE_INGREDIENTS
     assert p3.parameters.get("recipe") == "Wrap de légumes"
@@ -136,5 +140,36 @@ def test_intent_parser_natural_anaphora():
     p7 = parser.parse("rajoute tout")
     assert p7.intent == IntentType.ADD_RECIPE_INGREDIENTS
     assert p7.parameters.get("error") == "no_context_recipe"
+
+
+def test_intent_parser_recipe_ingredients_anaphora():
+    """Anaphore demandant les ingrédients du plat mentionné précédemment."""
+    parsed1 = parser.parse("quel ingredients faut-il ?", context={"last_recipe": "Risotto de quinoa"})
+    assert parsed1.intent == IntentType.GET_RECIPE_INGREDIENTS
+    assert parsed1.parameters.get("recipe") == "Risotto de quinoa"
+
+    parsed2 = parser.parse("il faut quoi ?", context={"last_recipe": "Salade de lentilles"})
+    assert parsed2.intent == IntentType.GET_RECIPE_INGREDIENTS
+    assert parsed2.parameters.get("recipe") == "Salade de lentilles"
+
+    parsed3 = parser.parse("quel ingredients faut-il ?", context={})
+    assert parsed3.intent == IntentType.UNKNOWN
+
+
+def test_intent_parser_confirm_cancel():
+    """Confirmation et annulation interactive en présence d'une action en attente."""
+    ctx = {"pending_action": {"type": "set_meal_plan", "meal": "poulet", "target_date": "24/09/2026"}}
+    
+    parsed_yes = parser.parse("oui", context=ctx)
+    assert parsed_yes.intent == IntentType.CONFIRM
+
+    parsed_vas_y = parser.parse("vas-y", context=ctx)
+    assert parsed_vas_y.intent == IntentType.CONFIRM
+
+    parsed_no = parser.parse("non", context=ctx)
+    assert parsed_no.intent == IntentType.CANCEL
+
+    parsed_annule = parser.parse("annule", context=ctx)
+    assert parsed_annule.intent == IntentType.CANCEL
 
 

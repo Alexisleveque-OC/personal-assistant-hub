@@ -17,7 +17,7 @@
 | **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
 | **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
 | **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 74/74 tests verts (Unitaires + E2E Live) |
+| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ⏳ En attente validation finale utilisateur | ✅ 104/104 tests verts (Unitaires + E2E Live) |
 
 ---
 
@@ -143,7 +143,12 @@
     * Résolution contextuelle des anaphores en TDD Strict : requêtes de suivi sans répéter le plat (*« Ajoutes ces ingrédients »*, *« Ajoute-les »*, *« rajoute tout »*, *« tu peux tout rajouter a la liste d'ingrédients »*) avec conservation des clauses d'exclusion (*« sauf ... »*, *« sans ... »*).
     * Gestion native de la politesse et du small-talk (*« ok merci »*, *« bonjour »*, *« parfait »*) avec préservation continue du contexte conversationnel.
     * Protection absolue contre l'ajout de pronoms (*« tout »*, *« rien »*, *« ça »*) comme articles isolés dans la liste de courses.
-    * Réponse explicite et bienveillante en cas d'anaphore orpheline sans contexte de recette préalable.
-  * **Résultat de la suite de tests complète :** **80 tests au total (68 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
+  * **Raffinement Conversationnel Avancé & Intendance Temporelle (TDD Strict) :**
+    * **Résolveur de dates relatives (`app/core/date_resolver.py`) :** Prise en charge des jours de la semaine relatifs (*« que mange t-on jeudi prochain ? »*, *« prévois du poulet pour jeudi »*) et dates calendaires (*« le 24 septembre »*). Élimination totale du bug de repli arbitraire sur le soir même.
+    * **Prochain repas réel (`get_next_meal_plan`) :** Pour *« On mange quoi ? »*, analyse de l'heure courante (< 14h vs $\ge$ 14h) et inspection du remplissage effectif du planning. Si le midi est vide, bascule automatique sur le dîner ; si le dîner est passé ou vide, bascule sur le lendemain.
+    * **Restitution enrichie midi + soir :** Pour une journée complète (*« qu'est-ce qu'on mange jeudi prochain ? »*), formulation complète décrivant à la fois le déjeuner et le dîner s'ils sont prévus.
+    * **Vérification de recette & Dialogue de confirmation (`CONFIRM` / `CANCEL`) :** Détection automatique des recettes non répertoriées dans le carnet (`Recettes` / `Recette festive`) lors d'une planification (*« prévois du poulet pour jeudi »*). L'assistant suspend l'action et demande confirmation à l'utilisateur (*« oui »* $\rightarrow$ insertion, *« non »* $\rightarrow$ abandon).
+    * **Anaphore Repas $\rightarrow$ Ingrédients :** Enchaînement fluide après consultation de menu : demander *« On mange quoi ? »* puis *« quels ingrédients faut-il ? »* résout instantanément les ingrédients du plat sans avoir à répéter son nom.
+  * **Résultat de la suite de tests complète :** **104 tests au total (92 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
 * **Statut :** ⏳ En attente de validation finale par l'utilisateur avant fusion / PR de la feature `feat/meals-shopping-connector`.
 

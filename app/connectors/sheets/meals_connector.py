@@ -1,6 +1,6 @@
 """Connecteur Google Sheets pour les repas, recettes et courses (MealsShoppingConnector)."""
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import re
 import unicodedata
 
@@ -144,6 +144,55 @@ class MealsShoppingConnector(BaseConnector):
         raise DayMealPlanNotFoundError(
             f"Aucun repas planifié pour la date {date_str_target} dans l'onglet '{ws_name}'."
         )
+
+    def get_next_meal_plan(
+        self,
+        now: Optional[datetime] = None,
+    ) -> Tuple[DayMealPlan, str, str, str]:
+        """Détecte intelligemment le prochain repas réel non vide.
+        
+        Retourne : (plan, meal_type, label_moment, dish_name)
+        """
+        ref_dt = now or datetime.now()
+        current_hour = ref_dt.hour + ref_dt.minute / 60.0
+        today = ref_dt.date()
+        tomorrow = today + timedelta(days=1)
+
+        # 1. Essayer aujourd'hui
+        try:
+            today_plan = self.get_meal_plan(target_date=today)
+        except DayMealPlanNotFoundError:
+            today_plan = None
+
+        if today_plan:
+            if current_hour < 14.0:
+                if today_plan.lunch:
+                    return today_plan, "lunch", "ce midi", today_plan.lunch
+                elif today_plan.dinner:
+                    return today_plan, "dinner", "ce soir", today_plan.dinner
+            elif current_hour < 21.5:
+                if today_plan.dinner:
+                    return today_plan, "dinner", "ce soir", today_plan.dinner
+
+        # 2. Chercher demain
+        try:
+            tomorrow_plan = self.get_meal_plan(target_date=tomorrow)
+        except DayMealPlanNotFoundError:
+            tomorrow_plan = None
+
+        if tomorrow_plan:
+            if tomorrow_plan.lunch:
+                return tomorrow_plan, "lunch", "demain midi", tomorrow_plan.lunch
+            elif tomorrow_plan.dinner:
+                return tomorrow_plan, "dinner", "demain soir", tomorrow_plan.dinner
+
+        # 3. Repli si aucun repas n'est planifié
+        if today_plan:
+            return today_plan, "dinner", "ce soir", "Rien de planifié"
+        elif tomorrow_plan:
+            return tomorrow_plan, "lunch", "demain midi", "Rien de planifié"
+
+        raise DayMealPlanNotFoundError("Aucun repas planifié trouvé pour aujourd'hui ou demain.")
 
     def set_meal_plan(
         self,
