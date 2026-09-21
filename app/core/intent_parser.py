@@ -375,7 +375,7 @@ class IntentParser:
         # 7. Consultation liste de courses (spécifique rayon, reste à acheter dans Cette semaine, ou globale)
         # 7.1 Requête sur un rayon spécifique ("j'ai quoi a acheter au rayon Fruits", "au rayon Charcuterie", "il me reste quoi a acheter au rayon Légumes", "qu'est-ce qui est déjà coché au rayon Fruits ?")
         rayon_match = re.search(
-            r"(?:(?:au|dans\s+le)\s+rayon|rayon)\s+['\"]?([a-zA-ZÀ-ÿ0-9 /+-]+?)['\"]?(?:\s+[?.,!]*)?$",
+            r"(?:(?:au|dans\s+le)\s+rayon|rayon)\s+['\"]?([a-zA-ZÀ-ÿ0-9 /+-]+?)['\"]?(?:\s+(?:s[' ]il\s+te\s+pla[îi]t|svp|stp))?\s*[?.,!;:]*$",
             cleaned,
             re.IGNORECASE,
         )

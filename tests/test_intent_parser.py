@@ -59,6 +59,8 @@ parser = IntentParser()
         ("il me reste quoi à acheter", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "status": "remaining"}),
         ("qu'est ce qu'il me reste a acheter ?", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "status": "remaining"}),
         ("qu'est-ce qui est déjà coché au rayon Fruits ?", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Fruits", "status": "checked"}),
+        ("il me reste quoi a acheté au rayon Fruits?", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Fruits", "status": "remaining"}),
+        ("j'ai quoi à acheter au rayon fruits ?", IntentType.GET_SHOPPING_LIST, {"filter": "current_week", "rayon": "Fruits", "status": "remaining"}),
     ],
 )
 def test_intent_parser_known_cases(phrase, expected_intent, expected_params):
