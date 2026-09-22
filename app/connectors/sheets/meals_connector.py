@@ -347,29 +347,86 @@ class MealsShoppingConnector(BaseConnector):
 
         return "Divers", f"Rayon non répertorié pour '{item_name}', classé temporairement en 'Divers'."
 
-    def add_shopping_item(self, item: str) -> tuple[WaitingListItem, Optional[str]]:
-        """Ajoute un article dans la liste d'attente (Liste_Attente)."""
-        cleaned = re.sub(
-            r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+",
-            "",
-            item.strip(),
-            flags=re.IGNORECASE,
-        ).strip()
-        clean_item = (cleaned[0].upper() + cleaned[1:]) if cleaned else item.strip()
+    def ensure_checkbox_validation(self) -> None:
+        """Garantit que la colonne A de Liste_Attente (à partir de la ligne 2) possède la validation case à cocher."""
+        if not self._spreadsheet:
+            return
+        try:
+            ws = self._spreadsheet.worksheet("Liste_Attente")
+            body = {
+                "requests": [
+                    {
+                        "setDataValidation": {
+                            "range": {
+                                "sheetId": ws.id,
+                                "startRowIndex": 1,        # Ligne 2 (0-indexed)
+                                "startColumnIndex": 0,     # Colonne A
+                                "endColumnIndex": 1,
+                            },
+                            "rule": {
+                                "condition": {
+                                    "type": "BOOLEAN"
+                                },
+                                "showCustomUi": True,
+                                "strict": True,
+                            },
+                        }
+                    }
+                ]
+            }
+            if hasattr(self._spreadsheet, "batch_update"):
+                self._spreadsheet.batch_update(body)
+        except Exception:
+            pass
 
-        rayon, warning = self._resolve_rayon(clean_item)
+    def add_shopping_items(self, items: List[str]) -> tuple[List[WaitingListItem], List[str]]:
+        """Ajoute une liste d'articles dans Liste_Attente avec case à cocher native."""
         today_str = date.today().strftime("%d/%m/%Y")
-
         ws = self._spreadsheet.worksheet("Liste_Attente")
-        ws.append_row(["FALSE", clean_item, today_str])
+        self.ensure_checkbox_validation()
 
-        item_obj = WaitingListItem(
-            item=clean_item,
-            is_bought=False,
-            added_at=today_str,
-            rayon=rayon,
-        )
-        return item_obj, warning
+        added_items: List[WaitingListItem] = []
+        warnings: List[str] = []
+        rows_to_append: List[List[Any]] = []
+
+        for raw_item in items:
+            cleaned = re.sub(
+                r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
+                "",
+                raw_item.strip(),
+                flags=re.IGNORECASE,
+            ).strip()
+            clean_item = (cleaned[0].upper() + cleaned[1:]) if cleaned else raw_item.strip()
+            rayon, warning = self._resolve_rayon(clean_item)
+            if warning:
+                warnings.append(warning)
+
+            # False (booléen Python) avec USER_ENTERED pour case à cocher native
+            rows_to_append.append([False, clean_item, today_str])
+            added_items.append(
+                WaitingListItem(
+                    item=clean_item,
+                    is_bought=False,
+                    added_at=today_str,
+                    rayon=rayon,
+                )
+            )
+
+        if len(rows_to_append) == 1:
+            ws.append_row(rows_to_append[0], value_input_option="USER_ENTERED")
+        elif hasattr(ws, "append_rows") and callable(ws.append_rows):
+            ws.append_rows(rows_to_append, value_input_option="USER_ENTERED")
+        else:
+            for row in rows_to_append:
+                ws.append_row(row, value_input_option="USER_ENTERED")
+
+        return added_items, warnings
+
+    def add_shopping_item(self, item: str) -> tuple[WaitingListItem, Optional[str]]:
+        """Ajoute un article unique dans la liste d'attente (Liste_Attente)."""
+        items, warnings = self.add_shopping_items([item])
+        warning = warnings[0] if warnings else None
+        return items[0], warning
 
     def add_recipe_ingredients_to_shopping_list(
         self,
@@ -551,6 +608,10 @@ class MealsShoppingConnector(BaseConnector):
         elif action_name == "add_shopping_item":
             item, warning = self.add_shopping_item(item=parameters.get("item", ""))
             return {"item": item.model_dump(), "warning": warning}
+
+        elif action_name == "add_shopping_items":
+            items, warnings = self.add_shopping_items(items=parameters.get("items", []))
+            return {"items": [it.model_dump() for it in items], "warnings": warnings}
 
         elif action_name == "get_shopping_list":
             res = self.get_shopping_list()
