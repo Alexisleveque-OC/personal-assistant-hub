@@ -29,9 +29,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import re
-from typing import Optional
+from typing import Optional, Any
 
 from app.connectors.sheets.meals_connector import (
     MealsShoppingConnector,
@@ -45,13 +45,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_meals_connector: Optional[MealsShoppingConnector] = None
+_meals_connector: Any = "UNSET"
 
 
 def get_meals_connector() -> Optional[MealsShoppingConnector]:
     """Récupère l'instance active du connecteur de repas ou tente son initialisation."""
     global _meals_connector
-    if _meals_connector is None:
+    if _meals_connector == "UNSET":
         try:
             _meals_connector = MealsShoppingConnector()
         except Exception as exc:
@@ -163,44 +163,77 @@ async def interact(request: InteractionRequest):
                     else:
                         # Jour ou date ciblé
                         plan = connector.get_meal_plan(period=period, target_date=target_date_str)
-                        # Libellé du jour/moment
-                        if day_name:
-                            day_label = f"{day_name}" + (f" {target_date_str}" if target_date_str else "")
-                        elif target_date_str:
-                            day_label = f"le {target_date_str}"
+                        # Libellé du jour/moment fluide et concis
+                        is_today = False
+                        is_tomorrow = False
+                        today_d = date.today()
+                        tomorrow_d = today_d + timedelta(days=1)
+                        if target_date_str:
+                            try:
+                                d_obj = datetime.strptime(target_date_str, "%d/%m/%Y").date()
+                                if d_obj == today_d:
+                                    is_today = True
+                                elif d_obj == tomorrow_d:
+                                    is_tomorrow = True
+                            except Exception:
+                                pass
+                        if period in ["ce soir", "ce midi", "aujourd'hui"] or (not target_date_str and not day_name and period in ["midi", "soir"]):
+                            is_today = True
                         elif period == "demain":
-                            day_label = "demain"
-                        elif period == "midi":
-                            day_label = "ce midi"
-                        elif period == "soir":
-                            day_label = "ce soir"
+                            is_tomorrow = True
+
+                        # Formulation naturelle et épurée
+                        if is_today:
+                            prefix = "Ce midi" if period == "midi" else ("Ce soir" if period == "soir" else "Aujourd'hui")
+                        elif is_tomorrow:
+                            prefix = "Demain midi" if period == "midi" else ("Demain soir" if period == "soir" else "Demain")
+                        elif day_name and target_date_str:
+                            day_label_base = f"{day_name} {target_date_str}"
+                            prefix = f"{day_label_base} midi" if period == "midi" else (f"{day_label_base} soir" if period == "soir" else f"{day_label_base}")
+                        elif day_name:
+                            prefix = f"{day_name} midi" if period == "midi" else (f"{day_name} soir" if period == "soir" else f"{day_name}")
                         else:
-                            day_label = period or "aujourd'hui"
+                            prefix = f"Pour le {target_date_str}" if target_date_str else "Pour ce repas"
 
                         if period == "midi":
-                            dish = plan.lunch or "Rien de planifié"
-                            spoken = f"D'après le planning des repas pour {day_label}, vous avez prévu : {dish}."
+                            dish = plan.lunch or "rien de planifié"
+                            spoken = f"{prefix}, vous avez prévu : {dish}."
                             if plan.lunch:
                                 session_ctx["last_recipe"] = plan.lunch
                         elif period == "soir":
-                            dish = plan.dinner or "Rien de planifié"
-                            spoken = f"D'après le planning des repas pour {day_label}, vous avez prévu : {dish}."
+                            dish = plan.dinner or "rien de planifié"
+                            spoken = f"{prefix}, vous avez prévu : {dish}."
                             if plan.dinner:
                                 session_ctx["last_recipe"] = plan.dinner
                         else:
                             # Journée complète demandée
                             if plan.lunch and plan.dinner:
-                                spoken = f"Pour {day_label}, vous avez prévu : à midi {plan.lunch}, et ce soir {plan.dinner}."
+                                spoken = f"{prefix}, vous avez prévu : à midi {plan.lunch}, et ce soir {plan.dinner}."
                                 session_ctx["last_recipe"] = plan.dinner
                             elif plan.lunch:
-                                spoken = f"Pour {day_label}, vous avez prévu à midi : {plan.lunch} (rien pour le soir)."
+                                spoken = f"{prefix}, vous avez prévu à midi : {plan.lunch} (rien pour le soir)."
                                 session_ctx["last_recipe"] = plan.lunch
                             elif plan.dinner:
-                                spoken = f"Pour {day_label}, vous avez prévu pour ce soir : {plan.dinner} (rien pour le midi)."
+                                spoken = f"{prefix}, vous avez prévu pour ce soir : {plan.dinner} (rien pour le midi)."
                                 session_ctx["last_recipe"] = plan.dinner
                             else:
-                                spoken = f"D'après le planning des repas pour {day_label}, aucun repas n'est encore programmé."
+                                spoken = f"{prefix}, aucun repas n'est encore programmé."
+
+                        data["plan"] = plan.model_dump()
                         data["meal_plan"] = plan.model_dump()
+
+                        if plan.lunch and connector and hasattr(connector, "get_recipe_ingredients"):
+                            try:
+                                rec_l = connector.get_recipe_ingredients(plan.lunch)
+                                data["lunch_ingredients"] = rec_l.ingredients if rec_l else []
+                            except Exception:
+                                data["lunch_ingredients"] = []
+                        if plan.dinner and connector and hasattr(connector, "get_recipe_ingredients"):
+                            try:
+                                rec_d = connector.get_recipe_ingredients(plan.dinner)
+                                data["dinner_ingredients"] = rec_d.ingredients if rec_d else []
+                            except Exception:
+                                data["dinner_ingredients"] = []
                 except DayMealPlanNotFoundError:
                     label_err = day_name or target_date_str or period or "ce soir"
                     spoken = f"D'après le planning des repas pour {label_err}, aucun repas n'est encore programmé."
@@ -423,6 +456,8 @@ async def interact(request: InteractionRequest):
                         "waiting_list": [it.model_dump() for it in shopping.get("waiting_list", [])],
                         "current_week_items": [it.model_dump() for it in current_items],
                     }
+                    data["waiting_list"] = [it.model_dump() for it in shopping.get("waiting_list", [])]
+                    data["current_week_items"] = [it.model_dump() for it in current_items]
                 except Exception as exc:
                     spoken = f"Impossible de lire la liste de courses : {exc}"
             else:
@@ -615,6 +650,20 @@ async def mobile_interact(
         return PlainTextResponse(content=res.spoken_response)
 
     return res
+
+
+@app.get(
+    "/api/v1/meals/week",
+    tags=["Meals"],
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_week_meals():
+    """Retourne le planning des repas pour la semaine complète avec ingrédients."""
+    connector = get_meals_connector()
+    if connector and hasattr(connector, "get_week_meal_plans"):
+        week_plan = connector.get_week_meal_plans()
+        return {"success": True, "week_plan": week_plan}
+    return {"success": False, "week_plan": [], "message": "Connecteur non disponible"}
 
 
 # --- PWA Mobile UI Routes ---

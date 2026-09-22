@@ -3,6 +3,9 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import re
 import unicodedata
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     import gspread
@@ -248,6 +251,67 @@ class MealsShoppingConnector(BaseConnector):
             dinner=matched_row[3].strip() if matched_row[3].strip() else None,
             notes=matched_row[4].strip() if len(matched_row) > 4 and matched_row[4].strip() else None,
         )
+
+    def get_week_meal_plans(self) -> List[Dict[str, Any]]:
+        """Récupère les repas prévus pour les 7 jours de la semaine courante avec leurs ingrédients."""
+        days_list: List[Dict[str, Any]] = []
+        today = date.today()
+        today_day_num = today.day
+
+        try:
+            ws_cs = self._spreadsheet.worksheet("Cette semaine")
+            rows = ws_cs.get_all_values()
+            # Lignes 2 à 8 : planning de la semaine (7 jours)
+            for r_idx in range(1, min(8, len(rows))):
+                row = rows[r_idx]
+                if not row or not row[0].strip():
+                    continue
+                day_label = row[0].strip()  # ex: 'sam. 19', 'mar. 22'
+                lunch = row[2].strip() if len(row) > 2 and row[2].strip() else None
+                dinner = row[4].strip() if len(row) > 4 and row[4].strip() else None
+
+                # Détection si c'est aujourd'hui
+                is_today = False
+                match_day = re.search(r"\b(\d{1,2})\b", day_label)
+                if match_day and int(match_day.group(1)) == today_day_num:
+                    is_today = True
+
+                # Ingrédients pour le midi
+                lunch_ing: List[str] = []
+                if lunch:
+                    rec = self.get_recipe_ingredients(lunch)
+                    if rec:
+                        lunch_ing = rec.ingredients
+                    else:
+                        for part in re.split(r"\+|\bet\b", lunch):
+                            rec_part = self.get_recipe_ingredients(part.strip())
+                            if rec_part:
+                                lunch_ing.extend(rec_part.ingredients)
+
+                # Ingrédients pour le soir
+                dinner_ing: List[str] = []
+                if dinner:
+                    rec = self.get_recipe_ingredients(dinner)
+                    if rec:
+                        dinner_ing = rec.ingredients
+                    else:
+                        for part in re.split(r"\+|\bet\b", dinner):
+                            rec_part = self.get_recipe_ingredients(part.strip())
+                            if rec_part:
+                                dinner_ing.extend(rec_part.ingredients)
+
+                days_list.append({
+                    "day_label": day_label,
+                    "lunch": lunch,
+                    "lunch_ingredients": list(dict.fromkeys(lunch_ing)),
+                    "dinner": dinner,
+                    "dinner_ingredients": list(dict.fromkeys(dinner_ing)),
+                    "is_today": is_today,
+                })
+        except Exception as e:
+            logger.warning(f"Impossible de lire le planning de 'Cette semaine': {e}")
+
+        return days_list
 
     def _get_all_recipes(self) -> List[Recipe]:
         """Charge et met en cache l'ensemble des recettes (standard et festives)."""
