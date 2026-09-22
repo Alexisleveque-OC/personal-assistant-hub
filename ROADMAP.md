@@ -1,9 +1,10 @@
-# Roadmap Feature : Connecteur Repas & Courses (`feat/meals-shopping-connector`)
+# Roadmap Feature : Interface Mobile & Entrées Vocales Android (`feat/android-voice-interface`)
 
 > **Règle d'or (AGENTS.md) :**
 > - Chaque étape doit être validée **manuellement et explicitement par l'utilisateur** avant de passer à la suivante.
 > - La suite de tests automatisés (`pytest`) doit être à **100% au vert** à chaque étape.
-> - À la fin de la feature, un **test d'intégration End-to-End (E2E)** doit valider le flux complet de bout en bout.
+> - Tout nouveau code de production est développé en **TDD Strict** (Phase Rouge $\rightarrow$ Phase Verte $\rightarrow$ Refactor).
+> - À la fin de la feature, un **test d'intégration End-to-End (E2E)** valide le flux complet en conditions réelles sur smartphone.
 
 ---
 
@@ -11,174 +12,76 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Analyse approfondie du script existant (`meal-planner`) et compréhension de l'architecture | 🟢 Validé | ✅ Validé par l'utilisateur | N/A (Analyse) |
-| **Étape 2** | Mise en place de l'authentification et connexion au Google Sheet (Lecture seule d'abord) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 24/24 verts (Mock + Live) |
-| **Étape 3** | Inspection et cartographie automatique de la structure réelle du Google Sheet | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 29/29 verts (Modèles Pydantic) |
-| **Étape 4** | Tests de structure du Sheet (Détection de dérive / Schema Drift) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 36/36 tests verts (Mock + Live) |
-| **Étape 5** | Évolution du Google Sheet / Apps Script pour accueillir les appels de l'API (Liste_Attente) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 37/37 tests verts (Mock + Live) |
-| **Étape 6** | Implémentation du connecteur `MealsShoppingConnector` et liaison NLU | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 59/59 tests verts (Unitaires + Live) |
-| **Étape 7** | Tests d'intégration End-to-End (E2E) complets & console de test interactive | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 128/128 tests verts (Unitaires + E2E Live) |
-| **Étape 8** | Fiabilisation & déploiement de l'intégration Liste_Attente dans l'Apps Script (`meal-planner`) | 🟢 Validé | ✅ Validé par l'utilisateur | ✅ 128/128 tests verts |
+| **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟡 En cours | En attente de validation | TDD (Red $\rightarrow$ Green) |
+| **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | ⚪ À venir | En attente | TDD (Red $\rightarrow$ Green) |
+| **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | ⚪ À venir | En attente | Tests unitaires & routes |
+| **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | ⚪ À venir | En attente | Validation réseau HTTPS |
+| **Étape 5** | Test d'intégration End-to-End (E2E) en conditions réelles sur smartphone | ⚪ À venir | En attente | Test réel sur mobile |
 
 ---
 
 ## Détail des Étapes
 
-### 🟢 Étape 1 : Analyse du script existant (`meal-planner`) & Clarification du Sheet
-* **Objectif :** Décortiquer `Code.js` de l'Apps Script local et valider l'organisation réelle du tableur.
-* **Résultat validé avec l'utilisateur :**
-  * 📅 **Planning annuel (`repas 2026`, `repas 2027`...) :**
-    * Structure propre et chronologique sur toute l'année avec 5 colonnes : `Date` (format `JJ/MM/AAAA`), `Jour`, `Midi`, `Soir`, `Notes / Magasin`.
-    * Les anciens onglets mensuels sont du legacy.
-  * 📖 **Recettes :** Onglet `Recettes` actif (l'ancien onglet `Liste` n'existe plus).
-  * 🛒 **Courses & Rayons :** Onglets `Cette semaine` (liste active), `Rayons` (ordre et couleurs) et `Hors_Repas`.
-* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
-
-### 🟢 Étape 2 : Connexion sécurisée au Google Sheet (Lecture seule d'abord)
-* **Objectif :** Mettre en place la passerelle d'authentification vers le Google Sheet cible en respectant les règles de sécurité (`.env`, `.gitignore`).
-* **Livrables réalisés :**
-  * Clé de compte de service isolée et sécurisée dans `credentials/service_account.json` (ignorée par Git).
-  * Variables d'environnement configurées dans `.env`.
-  * Dépendances `gspread` et `google-auth` installées dans `.venv`.
-  * Résolution dynamique de l'année (`get_expected_meals_sheet_name`, `resolve_meals_worksheet_name`).
-  * Gestion stricte et explicite des erreurs : `PlanningWorksheetNotFoundError` levée si une année future (ex: 2027) n'est pas encore créée dans le tableur.
-  * Tests automatisés dans `tests/test_sheets_connection.py` (24/24 tests au vert).
-* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
-
-### 🟢 Étape 3 : Cartographie de la structure réelle du Sheet
-* **Objectif :** L'agent inspecte directement les onglets, colonnes et types de données réels du Sheet.
-* **Résultats de l'inspection en direct :**
-  * 📅 **`repas 2026` (366 lignes) :**
-    * Colonnes : `Date` (JJ/MM/AAAA), `Jour`, `Midi`, `Soir`, `Notes / Magasin`.
-  * 📖 **`Recettes` (1006 lignes) :**
-    * Base de données de plus de 1000 recettes !
-    * Colonnes : `Plat`, `Catégorie`, `Catégorie 2`, `Complet` (TRUE/FALSE), puis colonnes E+ pour la liste des ingrédients.
-  * 🛒 **`Cette semaine` (32 lignes) :**
-    * Lignes 1 à 8 : Tableau du planning de la semaine (Midi col C, Soir col E).
-    * Ligne 9 : Séparateur.
-    * Lignes 10 à 32 : Grille de courses organisée en 4 colonnes de rayons avec cases à cocher `FALSE`/`TRUE` et noms d'ingrédients.
-  * 🏷️ **`Rayons` (17 lignes) :**
-    * Liste ordonnancée des rayons : Fruits (1), Légumes (2), Plat préparé (3), Viande (4), etc.
-  * 📦 **`Hors_Repas` (64 lignes) :**
-    * Produits récurrents : `Nom`, `pré-cocher?` (FALSE/TRUE), `rayon` (Hygiène, Entretien...).
-  * 🍹 **`Recette festive` (25 lignes) :**
-    * Recettes dédiées Apéro / Gâteaux (ex: `guacamole`, `Chocolat mascarpone`, `Sauce St moret`, `Préfou`...) avec ingrédients.
-  * 🥂 **`Courses festives` (11 lignes) :**
-    * Grille de courses dédiée pour l'apéro et réceptions, organisée par rayons avec cases à cocher `FALSE`/`TRUE`.
-* **Livrables réalisés :**
-  * Modèles Pydantic stricts dans `app/connectors/sheets/models.py` (`DayMealPlan`, `Recipe` avec tags festifs, `ShoppingItem`, `RayonSetting`, `SheetSchemaSnapshot`).
-  * Tests unitaires des modèles dans `tests/test_sheets_models.py` (29/29 tests au vert).
-* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
-
-### 🟢 Étape 4 : Tests de structure du Sheet (Détection de dérive / Schema Drift)
-* **Objectif :** Créer un système de détection de dérive pour lever des alertes claires et immédiates si un onglet ou une colonne obligatoire est manquant, déplacé ou renommé.
-* **Livrables réalisés :**
-  * Module `app/connectors/sheets/schema_validator.py` :
-    * Exceptions explicites et typées (`SheetSchemaWorksheetNotFoundError`, `SheetSchemaHeaderDriftError`, `SheetSchemaError`) respectant la **Règle 7 (Fail-Fast)**.
-    * Modèle de rapport Pydantic `ValidationReport` avec liste d'erreurs et d'avertissements.
-    * Classe `SheetSchemaValidator` avec normalisation robuste des chaînes (`normalize_header`) et validation modulaire.
-  * Suite de tests complète dans `tests/test_sheet_schema.py` :
-    * 6 tests unitaires isolés (mocks) couvrant tous les scénarios de dérive (onglet manquant, colonnes manquantes dans planning, recettes, hors-repas, mode non-strict d'agrégation).
-    * 1 test d'intégration réel validant la conformité totale du Google Sheet en direct (`Semaine de repas 2025`).
-* **Statut :** ✅ Validé par l'utilisateur le 10/09/2026.
-
-### 🟢 Étape 5 : Préparation du Sheet & Intégration Apps Script (Liste_Attente)
-* **Objectif :** Mettre en place l'onglet `Liste_Attente` dans le Google Sheet et adapter l'Apps Script existant (`meal-planner/Code.js`) pour intégrer les besoins au fil de l'eau sans écrasement involontaire.
-* **Livrables réalisés :**
-  * **Droits Éditeur :** Compte de service basculé en Éditeur par l'utilisateur.
-  * **Nouvel onglet `Liste_Attente` créé et stylisé :**
-    * Colonnes : `Acheté` (cases à cocher natives Google Sheets), `Article`, `Date d'ajout`.
-    * En-tête figé (ligne 1) avec mise en page soignée.
-  * **Modèles & Schéma :**
-    * Modèle Pydantic `WaitingListItem` ajouté dans `app/connectors/sheets/models.py`.
-    * Snapshot et validateur de schéma enrichis pour auditer automatiquement `Liste_Attente`.
-  * **Adaptation de `meal-planner/Code.js` (Google Apps Script) :**
-    * `getHorsRepasItems()` lit `Liste_Attente` et pré-coche automatiquement les articles en attente dans la barre latérale (qu'ils soient dans `Hors_Repas` ou ajoutés au vol sous leur rayon).
-    * `generatePrintSheet()` effectue un nettoyage ciblé : seuls les articles de `Liste_Attente` effectivement cochés lors de la génération sont supprimés, les autres restent préservés.
-  * **Tests automatisés :** 37/37 tests au vert (`pytest`), y compris validation de l'onglet `Liste_Attente` en direct sur le Google Sheet réel.
-* **Statut :** ✅ Validé par l'utilisateur le 11/09/2026.
-
-### 🟢 Étape 6 : Implémentation du `MealsShoppingConnector` & Intentions NLU
-* **Objectif :** Développer `app/connectors/sheets/meals_connector.py` et enrichir `intent_parser.py` en suivant le cycle **TDD Strict (Règle 1)**.
-* **Livrables réalisés :**
-  * 🔴 **Phase Rouge (Tests d'abord) :**
-    * Tests rédigés dans `tests/test_meals_connector.py` et `tests/test_intent_parser.py` et échec constaté lors de la collecte initiale.
-  * 🟢 **Phase Verte (Implémentation minimale) :**
-    * Énumérations `IntentType` enrichies dans `app/core/models.py`.
-    * Règles NLU enrichies dans `app/core/intent_parser.py` avec nettoyage d'articles et gestion d'exclusions.
-    * Implémentation complète de `MealsShoppingConnector` dans `app/connectors/sheets/meals_connector.py` :
-      * 🍽️ `get_meal_plan` (résolution relative/absolue de date et onglet annuel).
-      * 📖 `get_recipe_ingredients` (recherche insensible à la casse dans `Recettes` et `Recette festive`).
-      * 🧺 `add_recipe_ingredients_to_shopping_list` (support des inclusions/exclusions et ajout à `Liste_Attente`).
-      * ✏️ `set_meal_plan` (mise à jour directe de la cellule midi/soir dans le planning annuel).
-      * 🛒 `add_shopping_item` (déduction de rayon dynamique via `Ingredients_Rayons` / `Hors_Repas` avec repli gracieux et warning sur `Divers`).
-      * 📋 `get_shopping_list` (agrégation unifiée des articles non achetés de `Liste_Attente` et de `Cette semaine`).
-      * ✅ `mark_shopping_items_bought` (coche comme acheté dans `Liste_Attente`).
-      * 🧹 `clear_shopping_list` (suppression sécurisée de bas en haut des articles achetés).
-  * 🔵 **Phase Refactor & Intégration :**
-    * Câblage complet dans `app/main.py` sur l'endpoint `/api/v1/interact` avec support d'injection de mocks (`set_meals_connector`).
-    * Tests fonctionnels d'interaction dans `tests/test_interact.py`.
-    * Suite complète automatisée : **59/59 tests au vert** (`pytest`).
-* **Statut :** ✅ Validé par l'utilisateur le 11/09/2026 (59/59 tests au vert).
-
-### 🟢 Étape 7 : Test d'intégration End-to-End (E2E) & Console Interactive
-* **Objectif :** Valider le cycle complet en conditions réelles (phrase utilisateur -> Parser NLU -> Déclencheur connecteur -> Google Sheet en direct) et fournir un moyen immédiat à l'utilisateur de tester son assistant.
-* **Livrables réalisés :**
-  * **Tests d'intégration E2E (`tests/test_e2e_meals_shopping.py`) :**
-    * Test réel de recherche de recette standard (`Recettes`).
-    * Test réel de recherche de recette apéro (`Recette festive`).
-    * Test réel de lecture et parsing de la liste de courses (`Cette semaine` et `Liste_Attente`).
-    * Test réel du cycle de vie complet d'un article dans `Liste_Attente` : ajout d'un article avec rayon automatique, vérification de sa présence, marquage comme acheté (`TRUE`), et nettoyage (`clear`).
-  * **Robustification NLU & Connecteur (Suite aux tests réels utilisateur en TDD Strict) :**
-    * Support des exclusions de recettes avec déterminants (`sauf le jambon`), au pluriel (`sauf ail et oignons`), et multi-exclusions (`sans le jambon et le fromage`).
-    * Prise en charge des tournures composées d'ajout de recette : `ajoute les ingrédients pour faire du... / pour préparer...`.
-    * Nettoyage automatique des articles partitifs (`du café` -> `Café`) pour résolution exacte du rayon (`Petit dej + bio`).
-    * Reconnaissance des requêtes de recettes étendues (`donnes moi la recette de...`, `j'ai besoin de quoi pour préparer...`).
-    * Prise en charge des ajouts d'articles au format court (`ajoute chocolat`).
-    * Harmonisation de la synthèse vocale (`pour ce soir`, mention explicite des exclusions).
-  * **Optimisation de performance & Quotas Sheets :**
-    * Mise en cache mémoire O(1) des catalogues statiques (`Recettes`, `Recette festive`, `Rayons`, `Hors_Repas`) dans le connecteur afin d'éliminer le risque d'épuisement de quota API (429 Too Many Requests).
-  * **Console de test interactive (`scripts/chat.py`) & Mémoire conversationnelle (Anaphores & Politesse) :**
-    * Script interactif permettant à l'utilisateur de discuter directement avec son assistant en français dans son terminal (`.\.venv\Scripts\python scripts/chat.py`).
-    * Gestion de la mémoire de session (`_SESSIONS` et `session_id`) : mémorisation automatique de la dernière recette consultée (`last_recipe`).
-    * Résolution contextuelle des anaphores en TDD Strict : requêtes de suivi sans répéter le plat (*« Ajoutes ces ingrédients »*, *« Ajoute-les »*, *« rajoute tout »*, *« tu peux tout rajouter a la liste d'ingrédients »*) avec conservation des clauses d'exclusion (*« sauf ... »*, *« sans ... »*).
-    * Gestion native de la politesse et du small-talk (*« ok merci »*, *« bonjour »*, *« parfait »*) avec préservation continue du contexte conversationnel.
-    * Protection absolue contre l'ajout de pronoms (*« tout »*, *« rien »*, *« ça »*) comme articles isolés dans la liste de courses.
-  * **Raffinement Conversationnel Avancé & Intendance Temporelle (TDD Strict) :**
-    * **Résolveur de dates relatives (`app/core/date_resolver.py`) :** Prise en charge des jours de la semaine relatifs (*« que mange t-on jeudi prochain ? »*, *« prévois du poulet pour jeudi »*) et dates calendaires (*« le 24 septembre »*). Élimination totale du bug de repli arbitraire sur le soir même.
-    * **Prochain repas réel (`get_next_meal_plan`) :** Pour *« On mange quoi ? »*, analyse de l'heure courante (< 14h vs $\ge$ 14h) et inspection du remplissage effectif du planning. Si le midi est vide, bascule automatique sur le dîner ; si le dîner est passé ou vide, bascule sur le lendemain.
-    * **Restitution enrichie midi + soir :** Pour une journée complète (*« qu'est-ce qu'on mange jeudi prochain ? »*), formulation complète décrivant à la fois le déjeuner et le dîner s'ils sont prévus.
-    * **Vérification de recette & Dialogue de confirmation (`CONFIRM` / `CANCEL`) :** Détection automatique des recettes non répertoriées dans le carnet (`Recettes` / `Recette festive`) lors d'une planification (*« prévois du poulet pour jeudi »*). L'assistant suspend l'action et demande confirmation à l'utilisateur (*« oui »* $\rightarrow$ insertion, *« non »* $\rightarrow$ abandon).
-    * **Anaphore Repas $\rightarrow$ Ingrédients :** Enchaînement fluide après consultation de menu : demander *« On mange quoi ? »* puis *« quels ingrédients faut-il ? »* résout instantanément les ingrédients du plat sans avoir à répéter son nom.
-    * **Consultation ciblée Liste d'Attente & Synonymes Courses :** Prise en charge des requêtes *« donne moi la liste d'attente »* pour n'afficher que les éléments ajoutés dynamiquement, et reconnaissance naturelle des questions de courses (*« Qu'est ce que je doit acheter ? »*, *« qu'est-ce qu'il faut acheter »*).
-    * **Marquage groupé "Tout acheté" :** Prise en charge de *« J'ai acheté tout les produit de la listes d'attente »*, *« J'ai tout acheté »* avec détection du flag `all=True` et mise à jour collective de tous les articles en un seul appel sans injection de libellé parasite.
-    * **Consultation ciblée par Rayon sur « Cette semaine » :** Détection automatique du rayon demandé (*« j'ai quoi a acheter au rayon "Fruits" »*, *« au rayon Charcuterie »*, *« il me reste quoi a acheter au rayon Légumes »*, etc.) avec interrogation stricte de l'onglet `Cette semaine` (sans polluer avec `Liste_Attente`), prise en compte du statut coché (`TRUE` = déjà acheté) vs non coché (`FALSE` = reste à acheter), mention du nombre d'articles déjà cochés, et support des requêtes de suivi anaphoriques (*« et au rayon Légumes ? »*).
-    * **Question générale sur les articles restants de la semaine :** Prise en charge des formulations naturelles et phonétiques (*« Il me reste quoi a acheté »*, *« il me reste quoi à acheter »*, *« qu'est-ce qu'il me reste à acheter »*, etc.) ciblant exclusivement `Cette semaine` avec distinction nette entre articles restants et articles déjà cochés.
-  * **Résultat de la suite de tests complète :** **128 tests au total (116 unitaires + 12 de structure et intégration) 100% au vert** en TDD Strict.
-* **Statut :** ✅ Validé par l'utilisateur le 21/09/2026.
+### 🟡 Étape 1 : Sécurisation de l'API & Authentification par clé API (`X-API-Key`)
+* **Objectif :** Protéger l'API contre tout accès non autorisé lorsqu'elle sera exposée sur Internet via un tunnel HTTPS pour le smartphone.
+* **Spécifications fonctionnelles & techniques :**
+  * Variable d'environnement `API_KEY` dans `.env` et dans `app/config.py`.
+  * Dépendance de sécurité FastAPI (`APIKeyHeader`) pour intercepter le header `X-API-Key` sur les routes de l'API (`/api/v1/*`).
+  * Mode permissif en développement local si `API_KEY` n'est pas définie ou vide, pour ne pas casser la rétrocompatibilité des tests existants.
+  * Si `API_KEY` est configurée :
+    * Requête sans header ou clé invalide $\rightarrow$ HTTP 401 Unauthorized avec message clair.
+    * Clé valide $\rightarrow$ Exécution normale (HTTP 200).
+* **Démarche TDD Strict :**
+  * 🔴 **Phase Rouge :** Écriture des tests dans `tests/test_auth.py` constatant le refus d'accès 401 avec mauvaise clé.
+  * 🟢 **Phase Verte :** Implémentation du middleware / dépendance d'authentification.
+  * 🔵 **Phase Refactor :** Câblage propre sur l'application FastAPI, 100% de la suite de tests au vert.
+* **Livrables attendus :**
+  * `tests/test_auth.py`
+  * `app/core/security.py` (ou intégration dans `app/main.py`)
+  * Documentation du header dans Swagger UI.
 
 ---
 
-### 🟢 Étape 8 : Fiabilisation & Déploiement de l'intégration Liste_Attente dans Apps Script (`meal-planner`)
-* **Objectif :** Corriger et déployer la prise en charge des articles de `Liste_Attente` dans l'application Google Apps Script (`meal-planner`) pour garantir que les produits ajoutés au fil de l'eau par l'assistant ou l'utilisateur apparaissent bien pré-cochés dans la barre latérale et soient reportés fidèlement sur l'onglet `Cette semaine`.
-* **Diagnostic technique des anomalies rencontrées :**
-  1. 🛑 **Déconnexion Clasp / Déploiement cloud :** Le jeton OAuth Clasp local avait expiré le 09/09/2026 (`invalid_rapt`), et le compte de service ne dispose pas des droits API Apps Script. Les modifications apportées lors de l'Étape 5 étaient donc restées locales sur disque et n'avaient pas pu être synchronisées dans le projet Apps Script hébergé sur Google Drive.
-  2. ⚠️ **Perte silencieuse des articles du rayon « Divers » :** Dans `generatePrintSheet()`, la génération de la grille par bloc de 4 colonnes itérait strictement sur la liste ordonnancée `sortedRayonsList` (les 16 rayons de la feuille `Rayons`). Comme `Divers` n'était pas répertorié dans cette feuille, tout article rattaché à `Divers` (ou à un rayon non listé) était silencieusement écarté et disparaissait de `Cette semaine`.
-  3. 🔍 **Résolution incomplète des rayons :** `getIngredientsRayonMap()` consultait uniquement l'onglet `Ingredients_Rayons` sans vérifier `Hors_Repas`, et ne gérait pas les variations d'accents (`café` vs `cafe`, `crème fraiche` vs `creme fraiche`), forçant ces articles vers `Divers`.
-* **Livrables et correctifs réalisés dans `meal-planner/` :**
-  * **Normalisation des chaînes (`normalizeStr`) :** Nettoyage insensible à la casse et sans accents (`NFD` regex) pour matcher les articles et rayons avec une tolérance maximale.
-  * **Catalogue croisé des rayons (`getIngredientsRayonMap`) :** Agrégation combinée de `Ingredients_Rayons` et de `Hors_Repas` avec double indexation (brute et sans accents).
-  * **Pré-cochage robuste (`getHorsRepasItems`) :**
-    * Détection améliorée des articles non achetés dans `Liste_Attente` (tolérance boolean `true` et texte `"TRUE"`, exclusion des lignes vides résiduelles).
-    * Pré-cochage systématique des articles déjà présents dans `Hors_Repas`.
-    * Inclusion automatique des articles orphelins sous leur rayon déduit ou sous `Divers`, avec statut pré-coché (`preCocher = true`).
-  * **Garantie d'affichage total dans `generatePrintSheet()` :**
-    * Détection dynamique de tous les rayons présents dans les articles sélectionnés. Tout rayon absent de la feuille `Rayons` (dont `Divers`) est automatiquement ajouté à `rayonsSortedList` avec un style dédié (`#78909c`, texte blanc).
-    * Plus **aucun article n'est perdu** lors de la génération.
-  * **Nettoyage chirurgical de `Liste_Attente` :** Suppression ciblée de bas en haut uniquement des articles effectivement intégrés dans `Cette semaine`.
-  * **Expérience utilisateur Sidebar (`Sidebar.html`) :** Intitulé de l'étape 3 enrichi en *« Articles récurrents & Liste d'attente »*.
-* **Procédure de mise en production :**
-  * Guide fourni à l'utilisateur pour le déploiement immédiat dans son tableur Google Sheets (soit via re-connexion `npx clasp login` + `npx clasp push`, soit par copier-coller dans l'éditeur Apps Script).
-* **Statut :** ✅ Validé par l'utilisateur le 21/09/2026.
+### ⚪ Étape 2 : Adaptateur Webhook Mobile (HTTP Shortcuts & Android)
+* **Objectif :** Permettre à des applications Android de raccourcis/widgets (ex: *HTTP Shortcuts*, *Tasker*, widgets vocaux) d'envoyer des requêtes et de recevoir une réponse formatée pour la lecture vocale native (Android Text-to-Speech).
+* **Spécifications fonctionnelles & techniques :**
+  * Tolérance sur le payload d'entrée (`query` ou `text`).
+  * Réponse épurée optimisée pour les boîtes de dialogue et la synthèse vocale TTS mobile.
+* **Démarche TDD Strict :**
+  * 🔴 **Phase Rouge :** Rédaction des tests d'interopérabilité mobile.
+  * 🟢 **Phase Verte :** Implémentation de la route `/api/v1/mobile/interact` ou enrichissement de `/api/v1/interact`.
+  * 🔵 **Phase Refactor :** Typage Pydantic strict.
 
+---
 
+### ⚪ Étape 3 : Micro-Web App PWA Mobile embarquée (STT / TTS & Visualisation)
+* **Objectif :** Proposer une interface web mobile moderne servie directement par FastAPI (`/app`), installable comme une application native sur l'écran d'accueil Android (PWA).
+* **Spécifications fonctionnelles & techniques :**
+  * Design responsive épuré (dark mode, typographie soignée, boutons larges pour le supermarché).
+  * Gros bouton Micro exploitant la reconnaissance vocale native du navigateur (*Web Speech API*).
+  * Synthèse vocale de la réponse (*SpeechSynthesis API*) pour écouter l'assistant au casque ou haut-parleur.
+  * Cartes visuelles : affichage du menu du jour et liste de courses dynamique avec cases à cocher en direct.
+  * Fichier `manifest.json` pour installation en un clic sur Android.
+* **Démarche :**
+  * Fichiers statiques légers (HTML/CSS/JS Vanilla) dans `app/static/`.
+  * Tests d'intégration des routes statiques.
+
+---
+
+### ⚪ Étape 4 : Tunnel sécurisé distant & Guide d'installation smartphone
+* **Objectif :** Permettre au smartphone de joindre l'API en 4G/5G partout sans ouvrir de port sur la box internet.
+* **Spécifications fonctionnelles & techniques :**
+  * Script d'automatisation ou procédure avec Cloudflare Tunnel (`cloudflared`) / ngrok.
+  * Guide pas-à-pas illustré pour l'utilisateur :
+    1. Lancement du tunnel HTTPS.
+    2. Ajout de la PWA à l'écran d'accueil Android.
+    3. (Optionnel) Configuration du widget HTTP Shortcuts sur l'écran de verrouillage.
+
+---
+
+### ⚪ Étape 5 : Test d'intégration End-to-End (E2E) en conditions réelles
+* **Objectif :** Validation finale avec l'utilisateur sur son smartphone Android en direct.
+* **Scénarios validés :**
+  * Dictée vocale : *« Qu'est-ce qu'on mange ce soir ? »*
+  * Ajout d'article : *« Ajoute des bananes à la liste de courses »*
+  * Consultation et coche directe d'un article au rayon Fruits sur le smartphone.
