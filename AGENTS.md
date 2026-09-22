@@ -91,3 +91,11 @@ personal-assistant-hub/
    * Ne JAMAIS étouffer ou masquer une erreur avec des retours silencieux (`try/except: pass` ou fallbacks masqués sans log).
    * Toujours lever des exceptions claires, typées et contextualisées : indiquer précisément la ressource manquante, le paramètre attendu (ex: l'année cible et le nom d'onglet attendu), et la liste des ressources disponibles.
    * Cette clarté permet à l'utilisateur de comprendre immédiatement l'action requise (ex: créer l'onglet manquant sur son Google Sheet) et à l'agent de corriger de façon chirurgicale sans suppositions.
+8. **Mise en Cache Intelligente (Performance & Quotas API) :**
+   * Les lectures coûteuses (notamment les appels à l'API Google Sheets pour les listes de courses, plannings et recettes) doivent intégrer une mise en cache en mémoire (TTL raisonnable, ex: 2 à 5 minutes).
+   * Cela garantit des temps de réponse quasi-instantanés sur l'application mobile et préserve les quotas stricts de Google Cloud (limite de 60 requêtes/minute).
+   * **Invalidation immédiate :** Toute opération d'écriture ou de mutation (ex: ajout d'articles, coche d'un article acheté, suppression, modification de repas) doit obligatoirement invalider le cache immédiatement pour préserver la cohérence absolue des données.
+9. **Discipline de Fusion & Tests Manuels Utilisateur (Zéro Merge Prématuré) :**
+   * Il est **strictement interdit** de fusionner une branche de fonctionnalité (`feat/*`) vers `develop` ou `main` de manière anticipée.
+   * Tout nouveau développement reste cantonné sur sa branche dédiée (`feat/<name>`).
+   * L'agent doit inviter l'utilisateur à faire ses tests manuels sur son interface, et **attendre son retour explicite** avant de procéder à la moindre fusion vers `develop` ou `main`.
