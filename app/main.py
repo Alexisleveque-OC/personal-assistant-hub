@@ -1,8 +1,9 @@
 """Point d'entrée principal de l'API Personal Assistant Hub."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.core.security import verify_api_key
 from app.core.models import (
     InteractionRequest,
     InteractionResponse,
@@ -90,7 +91,12 @@ async def health_check():
     }
 
 
-@app.post("/api/v1/intent/parse", response_model=ParsedIntent, tags=["NLU"])
+@app.post(
+    "/api/v1/intent/parse",
+    response_model=ParsedIntent,
+    tags=["NLU"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def parse_intent(request: InteractionRequest):
     """Analyse la phrase en langage naturel et extrait l'intention et ses paramètres."""
     session_id = request.session_id or request.source or "default"
@@ -100,7 +106,12 @@ async def parse_intent(request: InteractionRequest):
     return intent_parser.parse(request.query, context=session_ctx)
 
 
-@app.post("/api/v1/interact", response_model=InteractionResponse, tags=["Interaction"])
+@app.post(
+    "/api/v1/interact",
+    response_model=InteractionResponse,
+    tags=["Interaction"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def interact(request: InteractionRequest):
     """Point d'entrée universel pour les requêtes vocales ou textuelles.
     

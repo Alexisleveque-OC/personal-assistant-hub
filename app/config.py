@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     debug: bool = True
     port: int = 8000
 
+    # Sécurité & Accès distant
+    api_key: str = ""
+
     # Google Sheets
     google_service_account_file: str = "credentials.json"
     spreadsheet_meals_shopping_id: str = ""
