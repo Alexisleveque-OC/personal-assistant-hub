@@ -1,6 +1,7 @@
-"""Point d'entrée principal de l'API Personal Assistant Hub."""
+from pathlib import Path
 from fastapi import FastAPI, Depends, Request, Query
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -80,6 +81,7 @@ async def root():
         "version": "0.1.0",
         "status": "online",
         "docs": "/docs",
+        "pwa": "/app",
     }
 
 
@@ -613,4 +615,32 @@ async def mobile_interact(
         return PlainTextResponse(content=res.spoken_response)
 
     return res
+
+
+# --- PWA Mobile UI Routes ---
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/app", include_in_schema=False)
+async def get_app_ui():
+    """Sert l'interface mobile PWA."""
+    index_path = STATIC_DIR / "index.html"
+    return FileResponse(index_path, media_type="text/html")
+
+
+@app.get("/manifest.json", include_in_schema=False)
+async def get_manifest():
+    """Sert le manifest Web App pour l'installation Android."""
+    manifest_path = STATIC_DIR / "manifest.json"
+    return FileResponse(manifest_path, media_type="application/manifest+json")
+
+
+@app.get("/sw.js", include_in_schema=False)
+async def get_service_worker():
+    """Sert le Service Worker PWA."""
+    sw_path = STATIC_DIR / "sw.js"
+    return FileResponse(sw_path, media_type="application/javascript")
+
 

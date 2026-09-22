@@ -1,0 +1,32 @@
+{
+  "name": "Assistant Personnel Hub",
+  "short_name": "Assistant",
+  "description": "Assistant vocal mobile pour la planification des repas et la liste de courses",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "fr-FR",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Repas ce soir",
+      "url": "/app?action=meal_today",
+      "description": "Consulter le repas de ce soir"
+    },
+    {
+      "name": "Courses",
+      "url": "/app?action=shopping_list",
+      "description": "Ouvrir la liste de courses"
+    }
+  ]
+}

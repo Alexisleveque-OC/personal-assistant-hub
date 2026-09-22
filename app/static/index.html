@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Assistant vocal mobile personnel pour la gestion des repas et de la liste de courses." />
+  <title>Assistant Personnel Hub</title>
+
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg" />
+  <link rel="apple-touch-icon" href="/static/icons/icon.svg" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">Assistant Hub</h1>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span>En ligne</span>
+      </div>
+
+      <!-- TTS Sound Toggle -->
+      <button class="btn-icon active" id="btn-tts-toggle" title="Synthèse vocale">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+        </svg>
+      </button>
+
+      <!-- Settings / API Key Button -->
+      <button class="btn-icon" id="btn-settings" title="Paramètres">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+
+    <!-- VIEW 1: VOCAL & CHAT -->
+    <section id="view-chat" class="view-panel active">
+      <!-- Suggestion chips -->
+      <div class="chips-container" id="chips-container">
+        <button class="chip-btn" data-query="Qu'est-ce qu'on mange ce soir ?">🍽️ Repas ce soir</button>
+        <button class="chip-btn" data-query="Donne-moi la liste de courses">🛒 Liste de courses</button>
+        <button class="chip-btn" data-query="Ajoute du pain et du beurre">🥖 Pain et beurre</button>
+        <button class="chip-btn" data-query="Qu'est-ce qu'on mange demain midi ?">☀️ Demain midi</button>
+      </div>
+
+      <!-- Live Voice Bar Visualizer -->
+      <div id="voice-bar-area" class="voice-bar-area">
+        <div class="voice-visualizer">
+          <div class="visual-bar"></div>
+          <div class="visual-bar"></div>
+          <div class="visual-bar"></div>
+          <div class="visual-bar"></div>
+          <div class="visual-bar"></div>
+          <div class="visual-bar"></div>
+        </div>
+        <div id="interim-transcript" class="interim-transcript">Je vous écoute...</div>
+      </div>
+
+      <!-- Messages Stream -->
+      <div id="chat-stream" class="chat-stream">
+        <div class="chat-bubble assistant">
+          <div class="bubble-header">
+            <span>Assistant Hub</span>
+          </div>
+          <div class="bubble-content">
+            Bonjour ! Je suis votre assistant personnel. Appuyez sur le micro ou tapez un message pour gérer vos repas ou votre liste de courses.
+          </div>
+        </div>
+      </div>
+
+      <!-- Big Mic & Input Dock -->
+      <div class="voice-dock">
+        <div class="mic-wrapper" id="mic-wrapper">
+          <div class="mic-pulse-ring"></div>
+          <button id="mic-btn" class="btn-mic-main" title="Parler à l'assistant" aria-label="Microphone">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+          </button>
+        </div>
+
+        <form id="query-form" class="input-bar-form">
+          <input type="text" id="query-input" class="text-input-field" placeholder="Dictez ou écrivez un message..." autocomplete="off" />
+          <button type="submit" class="btn-send" title="Envoyer">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW 2: SHOPPING LIST -->
+    <section id="view-shopping" class="view-panel">
+      <div class="shopping-header">
+        <h2 class="section-title">Liste de courses</h2>
+        <button id="btn-clear-bought" class="btn-action-small">Nettoyer achetés</button>
+      </div>
+      <div id="shopping-list-container">
+        <!-- Dynamically filled by app.js -->
+      </div>
+    </section>
+
+    <!-- VIEW 3: MEAL PLAN -->
+    <section id="view-meals" class="view-panel">
+      <div class="shopping-header">
+        <h2 class="section-title">Planning Repas</h2>
+      </div>
+      <div id="meal-container">
+        <!-- Dynamically filled by app.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-view="chat">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+      </svg>
+      <span>Vocal</span>
+    </button>
+    <button class="nav-item" data-view="shopping">
+      <svg viewBox="0 0 24 24">
+        <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/>
+      </svg>
+      <span>Courses</span>
+    </button>
+    <button class="nav-item" data-view="meals">
+      <svg viewBox="0 0 24 24">
+        <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/>
+      </svg>
+      <span>Repas</span>
+    </button>
+  </nav>
+
+  <!-- Settings Modal for API Key -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 class="modal-title">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="color:var(--accent-cyan)">
+          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+        </svg>
+        Sécurité & Clé API
+      </h3>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+        Si votre serveur est configuré avec une clé secrète, saisissez-la ici pour autoriser votre smartphone.
+      </p>
+      <div class="form-group">
+        <label class="form-label" for="api-key-input">Clé d'API (X-API-Key)</label>
+        <input type="password" id="api-key-input" class="form-input" placeholder="Ex: test1234 ou clé secrète..." autocomplete="off" />
+      </div>
+      <div class="modal-actions">
+        <button id="btn-close-settings" class="btn-secondary">Annuler</button>
+        <button id="btn-save-settings" class="btn-primary">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
