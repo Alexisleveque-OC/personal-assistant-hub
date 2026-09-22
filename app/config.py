@@ -1,4 +1,4 @@
-"""Configuration de l'application via variables d'environnement."""
+"""Configuration de l'application via variables d'environnement (.env)."""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = True
     port: int = 8000
+
+    # Sécurité & Accès distant
+    api_key: str = ""
 
     # Google Sheets
     google_service_account_file: str = "credentials.json"

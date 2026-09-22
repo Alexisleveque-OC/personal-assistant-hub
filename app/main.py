@@ -1,8 +1,10 @@
 """Point d'entrée principal de l'API Personal Assistant Hub."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Request, Query
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.core.security import verify_api_key
 from app.core.models import (
     InteractionRequest,
     InteractionResponse,
@@ -90,7 +92,12 @@ async def health_check():
     }
 
 
-@app.post("/api/v1/intent/parse", response_model=ParsedIntent, tags=["NLU"])
+@app.post(
+    "/api/v1/intent/parse",
+    response_model=ParsedIntent,
+    tags=["NLU"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def parse_intent(request: InteractionRequest):
     """Analyse la phrase en langage naturel et extrait l'intention et ses paramètres."""
     session_id = request.session_id or request.source or "default"
@@ -100,7 +107,12 @@ async def parse_intent(request: InteractionRequest):
     return intent_parser.parse(request.query, context=session_ctx)
 
 
-@app.post("/api/v1/interact", response_model=InteractionResponse, tags=["Interaction"])
+@app.post(
+    "/api/v1/interact",
+    response_model=InteractionResponse,
+    tags=["Interaction"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def interact(request: InteractionRequest):
     """Point d'entrée universel pour les requêtes vocales ou textuelles.
     
@@ -108,6 +120,19 @@ async def interact(request: InteractionRequest):
     2. Route vers le connecteur approprié (MealsShoppingConnector, Tasks, etc.)
     3. Formule une réponse parlée / textuelle
     """
+    if not request.query or not request.query.strip():
+        return InteractionResponse(
+            success=False,
+            spoken_response="Je n'ai rien entendu. Pouvez-vous répéter votre demande ?",
+            intent=ParsedIntent(
+                intent=IntentType.UNKNOWN,
+                confidence=0.0,
+                parameters={},
+                raw_query="",
+            ),
+            data={},
+        )
+
     session_id = request.session_id or request.source or "default"
     session_ctx = _SESSIONS.setdefault(session_id, {})
     if request.context:
@@ -283,18 +308,51 @@ async def interact(request: InteractionRequest):
                     session_ctx["last_recipe"] = meal
 
         case IntentType.ADD_SHOPPING_ITEM:
-            item = parsed.parameters.get("item", "l'article")
+            raw_items = parsed.parameters.get("items")
+            if not raw_items:
+                single = parsed.parameters.get("item", "l'article")
+                raw_items = [single]
+
             if connector:
                 try:
-                    added_item, warning = connector.add_shopping_item(item)
-                    spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
-                    if warning:
-                        spoken += f" ({warning})"
-                    data["item"] = added_item.model_dump()
+                    res = None
+                    if hasattr(connector, "add_shopping_items"):
+                        try:
+                            candidate = connector.add_shopping_items(raw_items)
+                            if isinstance(candidate, (tuple, list)) and len(candidate) == 2 and isinstance(candidate[0], list):
+                                res = candidate
+                        except Exception:
+                            res = None
+
+                    if res is not None:
+                        added_items, warnings = res
+                    else:
+                        added_items = []
+                        warnings = []
+                        for it in raw_items:
+                            ai, w = connector.add_shopping_item(it)
+                            added_items.append(ai)
+                            if w:
+                                warnings.append(w)
+
+                    if len(added_items) == 1:
+                        spoken = f"C'est noté, j'ai ajouté {added_items[0].item} à votre liste de courses."
+                    else:
+                        names = [it.item for it in added_items]
+                        spoken = f"C'est noté, j'ai ajouté {len(added_items)} article(s) à votre liste de courses : {', '.join(names)}."
+
+                    if warnings:
+                        spoken += f" ({'; '.join(warnings)})"
+
+                    data["items"] = [it.model_dump() for it in added_items]
+                    data["item"] = added_items[0].model_dump() if added_items else {}
                 except Exception as exc:
-                    spoken = f"Impossible d'ajouter {item} à la liste de courses : {exc}"
+                    spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
             else:
-                spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
+                if len(raw_items) == 1:
+                    spoken = f"C'est noté, j'ai ajouté {raw_items[0]} à votre liste de courses."
+                else:
+                    spoken = f"C'est noté, j'ai ajouté {len(raw_items)} article(s) à votre liste de courses : {', '.join(raw_items)}."
 
         case IntentType.GET_SHOPPING_LIST:
             filter_mode = parsed.parameters.get("filter")
@@ -485,3 +543,74 @@ async def interact(request: InteractionRequest):
         intent=parsed,
         data=data,
     )
+
+
+@app.post(
+    "/api/v1/mobile/interact",
+    response_model=InteractionResponse,
+    tags=["Mobile"],
+    dependencies=[Depends(verify_api_key)],
+    operation_id="mobile_interact_post",
+)
+@app.get(
+    "/api/v1/mobile/interact",
+    response_model=InteractionResponse,
+    tags=["Mobile"],
+    dependencies=[Depends(verify_api_key)],
+    operation_id="mobile_interact_get",
+)
+async def mobile_interact(
+    req: Request,
+    text: Optional[str] = Query(None, description="Texte de la requête pour appels GET ou query params"),
+    payload: Optional[InteractionRequest] = None,
+):
+    """Adaptateur optimisé pour les raccourcis mobiles Android (HTTP Shortcuts, Tasker, widgets).
+
+    - Accepte GET (?text=...) ou POST (JSON avec 'text', 'message' ou 'query').
+    - Retourne du JSON ou du texte brut directement si 'Accept: text/plain' est spécifié.
+    """
+    query_text = ""
+    source = "android"
+    session_id = "mobile_session"
+    context = {}
+
+    if payload:
+        query_text = payload.query
+        source = payload.source or source
+        session_id = payload.session_id or session_id
+        context = payload.context or context
+    elif text is not None:
+        query_text = text
+
+    # Si la requête POST contenait un JSON brut avec des clés alternatives
+    if not query_text and req.method == "POST":
+        try:
+            body = await req.json()
+            if isinstance(body, dict):
+                query_text = (
+                    body.get("query")
+                    or body.get("text")
+                    or body.get("message")
+                    or body.get("prompt")
+                    or ""
+                )
+                source = body.get("source", source)
+                session_id = body.get("session_id", session_id)
+        except Exception:
+            pass
+
+    interact_req = InteractionRequest(
+        query=query_text,
+        source=source,
+        session_id=session_id,
+        context=context,
+    )
+    res = await interact(interact_req)
+
+    # Réponse texte brut si demandée (ex: pour être lue directement par le TTS Android)
+    accept_header = req.headers.get("accept", "")
+    if "text/plain" in accept_header:
+        return PlainTextResponse(content=res.spoken_response)
+
+    return res
+
