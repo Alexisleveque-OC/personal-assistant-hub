@@ -1,7 +1,7 @@
 """Modèles de données Pydantic pour les intentions et interactions."""
 from enum import Enum
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, computed_field
 
 
 class IntentType(str, Enum):
@@ -50,10 +50,22 @@ class ParsedIntent(BaseModel):
 
 class InteractionRequest(BaseModel):
     """Requête entrante (texte ou transcription vocale)."""
-    query: str = Field(..., min_length=1, description="Phrase ou commande en langage naturel")
+    query: str = Field(default="", description="Phrase ou commande en langage naturel")
     source: Optional[str] = Field(default="api", description="Origine: android, alexa, web, etc.")
     session_id: Optional[str] = Field(default=None, description="Identifiant unique de session ou utilisateur")
     context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Contexte conversationnel additionnel")
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_aliases(cls, data: Any) -> Any:
+        """Permet l'interopérabilité avec les apps mobiles en acceptant 'text', 'message', 'prompt', etc."""
+        if isinstance(data, dict):
+            if not data.get("query"):
+                for alias in ["text", "message", "prompt", "q"]:
+                    if data.get(alias):
+                        data["query"] = data[alias]
+                        break
+        return data
 
 
 class InteractionResponse(BaseModel):
@@ -62,3 +74,16 @@ class InteractionResponse(BaseModel):
     spoken_response: str = Field(..., description="Texte formulé pour être lu à haute voix ou affiché")
     intent: ParsedIntent
     data: Optional[Dict[str, Any]] = None
+
+    @computed_field
+    @property
+    def speech(self) -> str:
+        """Alias pour les moteurs TTS Android et raccourcis vocaux."""
+        return self.spoken_response
+
+    @computed_field
+    @property
+    def text(self) -> str:
+        """Alias pour les affichages texte simples / bulles de dialogue."""
+        return self.spoken_response
+

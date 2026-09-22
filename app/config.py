@@ -1,4 +1,4 @@
-"""Configuration de l'application via variables d'environnement."""
+"""Configuration de l'application via variables d'environnement (.env)."""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
