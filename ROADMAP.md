@@ -14,8 +14,8 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 133/133 tests verts (TDD) |
 | **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 141/141 tests verts (TDD) |
-| **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | 🟡 En cours | En attente de lancement | Tests unitaires & routes |
-| **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | ⚪ À venir | En attente | Validation réseau HTTPS |
+| **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | 🟢 Réalisé | En attente de validation utilisateur | ✅ 153/153 tests verts (TDD) |
+| **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | ⚪ À venir | En attente | Configuration HTTPS & Routines |
 | **Étape 5** | Test d'intégration End-to-End (E2E) en conditions réelles sur smartphone | ⚪ À venir | En attente | Test réel sur mobile |
 
 ---
@@ -49,17 +49,20 @@
 
 ---
 
-### ⚪ Étape 3 : Micro-Web App PWA Mobile embarquée (STT / TTS & Visualisation)
+### 🟢 Étape 3 : Micro-Web App PWA Mobile embarquée (STT / TTS & Visualisation)
 * **Objectif :** Proposer une interface web mobile moderne servie directement par FastAPI (`/app`), installable comme une application native sur l'écran d'accueil Android (PWA).
-* **Spécifications fonctionnelles & techniques :**
-  * Design responsive épuré (dark mode, typographie soignée, boutons larges pour le supermarché).
-  * Gros bouton Micro exploitant la reconnaissance vocale native du navigateur (*Web Speech API*).
-  * Synthèse vocale de la réponse (*SpeechSynthesis API*) pour écouter l'assistant au casque ou haut-parleur.
-  * Cartes visuelles : affichage du menu du jour et liste de courses dynamique avec cases à cocher en direct.
-  * Fichier `manifest.json` pour installation en un clic sur Android.
-* **Démarche :**
-  * Fichiers statiques légers (HTML/CSS/JS Vanilla) dans `app/static/`.
-  * Tests d'intégration des routes statiques.
+* **Livrables & Réalisations :**
+  * **Design mobile premium (Dark mode) :** Palette violet/nuit profonde (`#0a0f1d`), typographie *Plus Jakarta Sans*, cartes glassmorphiques avec bordures subtiles et accents lumineux cyan/indigo.
+  * **Reconnaissance vocale native (STT) :** Exploitation de la *Web Speech API* (`SpeechRecognition`) avec retour visuel d'écoute en temps réel (égaliseur animé et transcription en direct).
+  * **Synthèse vocale intégrée (TTS) :** Lecture audio automatique des réponses via `SpeechSynthesis` en français avec bouton mute/démute rapide.
+  * **Navigation mobile à trois onglets :**
+    1. 🎙️ **Vocal :** Stream de messages avec bulles utilisateur/assistant, chips d'actions rapides et bouton microphone central flottant à pulsation lumineuse.
+    2. 🛒 **Courses :** Liste dynamique groupée par rayons, cases à cocher interactives en 1-tap et purge des achetés.
+    3. 🍽️ **Repas :** Cartes visuelles épurées des menus du midi et du soir.
+  * **PWA Installable :** Fichier `manifest.json`, icône vectorielle SVG dédiée, et `sw.js` (Service Worker) pour la mise en cache applicative.
+  * **Gestion clé API intégrée :** Modal de paramétrage de clé `X-API-Key` sauvegardée dans le `localStorage` du smartphone.
+  * **Validation TDD :** 6 nouveaux tests dans `tests/test_pwa_routes.py`.
+  * **Suite complète : 153/153 tests au vert (100% de réussite).**
 
 ---
 
