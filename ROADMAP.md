@@ -13,8 +13,8 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 133/133 tests verts (TDD) |
-| **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | 🟢 Réalisé | En attente de validation utilisateur | ✅ 141/141 tests verts (TDD) |
-| **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | ⚪ À venir | En attente | Tests unitaires & routes |
+| **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 141/141 tests verts (TDD) |
+| **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | 🟡 En cours | En attente de lancement | Tests unitaires & routes |
 | **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | ⚪ À venir | En attente | Validation réseau HTTPS |
 | **Étape 5** | Test d'intégration End-to-End (E2E) en conditions réelles sur smartphone | ⚪ À venir | En attente | Test réel sur mobile |
 
