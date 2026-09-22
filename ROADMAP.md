@@ -12,7 +12,7 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟡 En cours | En attente de validation | TDD (Red $\rightarrow$ Green) |
+| **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟢 Réalisé | En attente de validation utilisateur | ✅ 133/133 tests verts (TDD) |
 | **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | ⚪ À venir | En attente | TDD (Red $\rightarrow$ Green) |
 | **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | ⚪ À venir | En attente | Tests unitaires & routes |
 | **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | ⚪ À venir | En attente | Validation réseau HTTPS |
@@ -22,23 +22,17 @@
 
 ## Détail des Étapes
 
-### 🟡 Étape 1 : Sécurisation de l'API & Authentification par clé API (`X-API-Key`)
+### 🟢 Étape 1 : Sécurisation de l'API & Authentification par clé API (`X-API-Key`)
 * **Objectif :** Protéger l'API contre tout accès non autorisé lorsqu'elle sera exposée sur Internet via un tunnel HTTPS pour le smartphone.
-* **Spécifications fonctionnelles & techniques :**
-  * Variable d'environnement `API_KEY` dans `.env` et dans `app/config.py`.
-  * Dépendance de sécurité FastAPI (`APIKeyHeader`) pour intercepter le header `X-API-Key` sur les routes de l'API (`/api/v1/*`).
-  * Mode permissif en développement local si `API_KEY` n'est pas définie ou vide, pour ne pas casser la rétrocompatibilité des tests existants.
-  * Si `API_KEY` est configurée :
-    * Requête sans header ou clé invalide $\rightarrow$ HTTP 401 Unauthorized avec message clair.
-    * Clé valide $\rightarrow$ Exécution normale (HTTP 200).
-* **Démarche TDD Strict :**
-  * 🔴 **Phase Rouge :** Écriture des tests dans `tests/test_auth.py` constatant le refus d'accès 401 avec mauvaise clé.
-  * 🟢 **Phase Verte :** Implémentation du middleware / dépendance d'authentification.
-  * 🔵 **Phase Refactor :** Câblage propre sur l'application FastAPI, 100% de la suite de tests au vert.
-* **Livrables attendus :**
-  * `tests/test_auth.py`
-  * `app/core/security.py` (ou intégration dans `app/main.py`)
-  * Documentation du header dans Swagger UI.
+* **Livrables & Réalisations :**
+  * Variable d'environnement `API_KEY` ajoutée dans `app/config.py`.
+  * Dépendance de sécurité `verify_api_key` implémentée dans `app/core/security.py` avec `APIKeyHeader(name="X-API-Key")`.
+  * Mode permissif préservé si aucune clé n'est configurée (rétrocompatibilité totale).
+  * Rejet strict `401 Unauthorized` si une clé est configurée et que le header est manquant ou invalide.
+  * Protection appliquée sur les routes `/api/v1/*` de `app/main.py`.
+  * Suite de tests TDD dans `tests/test_auth.py` : 5 nouveaux tests au vert.
+  * **Suite complète : 133/133 tests au vert (100% de réussite).**
+
 
 ---
 
