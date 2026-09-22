@@ -308,18 +308,51 @@ async def interact(request: InteractionRequest):
                     session_ctx["last_recipe"] = meal
 
         case IntentType.ADD_SHOPPING_ITEM:
-            item = parsed.parameters.get("item", "l'article")
+            raw_items = parsed.parameters.get("items")
+            if not raw_items:
+                single = parsed.parameters.get("item", "l'article")
+                raw_items = [single]
+
             if connector:
                 try:
-                    added_item, warning = connector.add_shopping_item(item)
-                    spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
-                    if warning:
-                        spoken += f" ({warning})"
-                    data["item"] = added_item.model_dump()
+                    res = None
+                    if hasattr(connector, "add_shopping_items"):
+                        try:
+                            candidate = connector.add_shopping_items(raw_items)
+                            if isinstance(candidate, (tuple, list)) and len(candidate) == 2 and isinstance(candidate[0], list):
+                                res = candidate
+                        except Exception:
+                            res = None
+
+                    if res is not None:
+                        added_items, warnings = res
+                    else:
+                        added_items = []
+                        warnings = []
+                        for it in raw_items:
+                            ai, w = connector.add_shopping_item(it)
+                            added_items.append(ai)
+                            if w:
+                                warnings.append(w)
+
+                    if len(added_items) == 1:
+                        spoken = f"C'est noté, j'ai ajouté {added_items[0].item} à votre liste de courses."
+                    else:
+                        names = [it.item for it in added_items]
+                        spoken = f"C'est noté, j'ai ajouté {len(added_items)} article(s) à votre liste de courses : {', '.join(names)}."
+
+                    if warnings:
+                        spoken += f" ({'; '.join(warnings)})"
+
+                    data["items"] = [it.model_dump() for it in added_items]
+                    data["item"] = added_items[0].model_dump() if added_items else {}
                 except Exception as exc:
-                    spoken = f"Impossible d'ajouter {item} à la liste de courses : {exc}"
+                    spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
             else:
-                spoken = f"C'est noté, j'ai ajouté {item} à votre liste de courses."
+                if len(raw_items) == 1:
+                    spoken = f"C'est noté, j'ai ajouté {raw_items[0]} à votre liste de courses."
+                else:
+                    spoken = f"C'est noté, j'ai ajouté {len(raw_items)} article(s) à votre liste de courses : {', '.join(raw_items)}."
 
         case IntentType.GET_SHOPPING_LIST:
             filter_mode = parsed.parameters.get("filter")

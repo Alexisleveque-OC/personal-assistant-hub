@@ -361,14 +361,31 @@ class IntentParser:
 
         target_match = add_shopping_match or short_add_match
         if target_match:
-            item = target_match.group(1).strip()
-            item = re.sub(r"[?!.,;]+$", "", item).strip()
-            item = re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", item, flags=re.IGNORECASE).strip()
-            if item and item.lower() not in ["tout", "tous", "rien", "ça", "ceci", "cela", "les"]:
+            raw_payload = target_match.group(1).strip()
+            raw_payload = re.sub(r"[?!.;:]+$", "", raw_payload).strip()
+
+            # Découpage intelligent par virgule, 'et', 'ainsi que'
+            tokens = re.split(r",|\s+et\s+|\s+ainsi\s+que\s+", raw_payload, flags=re.IGNORECASE)
+            items = []
+            for tok in tokens:
+                cleaned_tok = re.sub(
+                    r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
+                    "",
+                    tok.strip(),
+                    flags=re.IGNORECASE,
+                ).strip()
+                cleaned_tok = re.sub(r"[?!.,;:]+$", "", cleaned_tok).strip()
+                if cleaned_tok and cleaned_tok.lower() not in ["tout", "tous", "rien", "ça", "ceci", "cela", "les"]:
+                    items.append(cleaned_tok)
+
+            if items:
                 return ParsedIntent(
                     intent=IntentType.ADD_SHOPPING_ITEM,
                     confidence=0.95,
-                    parameters={"item": item},
+                    parameters={
+                        "items": items,
+                        "item": items[0],  # Rétrocompatibilité
+                    },
                     raw_query=text,
                 )
 
