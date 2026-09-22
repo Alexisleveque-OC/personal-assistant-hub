@@ -169,6 +169,10 @@ Assistant > Au rayon Légumes, il vous reste 1 article(s) à acheter : Poireaux.
          [Intention: get_shopping_list | Confiance: 95%]
 ```
 
+> 💡 **Mode Démo / Évaluation Recruteur (*Zero-Config*) :**  
+> En l'absence de fichier d'identifiants Google (`service_account.json`), l'application bascule gracieusement en **mode simulation / mock hors-ligne**. Vous pouvez ainsi cloner le dépôt, lancer `scripts/chat.py` ou le serveur FastAPI et tester immédiatement la robustesse du moteur NLU, le routage d'intentions et la mémoire conversationnelle sans aucune configuration externe.
+
+
 ### 6. Lancer le serveur API
 
 ```powershell
