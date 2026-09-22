@@ -12,8 +12,8 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟢 Réalisé | En attente de validation utilisateur | ✅ 133/133 tests verts (TDD) |
-| **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | ⚪ À venir | En attente | TDD (Red $\rightarrow$ Green) |
+| **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 133/133 tests verts (TDD) |
+| **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | 🟢 Réalisé | En attente de validation utilisateur | ✅ 141/141 tests verts (TDD) |
 | **Étape 3** | Micro-Web App PWA Mobile embarquée (Reconnaissance vocale STT & Synthèse TTS) | ⚪ À venir | En attente | Tests unitaires & routes |
 | **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | ⚪ À venir | En attente | Validation réseau HTTPS |
 | **Étape 5** | Test d'intégration End-to-End (E2E) en conditions réelles sur smartphone | ⚪ À venir | En attente | Test réel sur mobile |
@@ -33,18 +33,19 @@
   * Suite de tests TDD dans `tests/test_auth.py` : 5 nouveaux tests au vert.
   * **Suite complète : 133/133 tests au vert (100% de réussite).**
 
-
 ---
 
-### ⚪ Étape 2 : Adaptateur Webhook Mobile (HTTP Shortcuts & Android)
+### 🟢 Étape 2 : Adaptateur Webhook Mobile (HTTP Shortcuts & Android)
 * **Objectif :** Permettre à des applications Android de raccourcis/widgets (ex: *HTTP Shortcuts*, *Tasker*, widgets vocaux) d'envoyer des requêtes et de recevoir une réponse formatée pour la lecture vocale native (Android Text-to-Speech).
-* **Spécifications fonctionnelles & techniques :**
-  * Tolérance sur le payload d'entrée (`query` ou `text`).
-  * Réponse épurée optimisée pour les boîtes de dialogue et la synthèse vocale TTS mobile.
-* **Démarche TDD Strict :**
-  * 🔴 **Phase Rouge :** Rédaction des tests d'interopérabilité mobile.
-  * 🟢 **Phase Verte :** Implémentation de la route `/api/v1/mobile/interact` ou enrichissement de `/api/v1/interact`.
-  * 🔵 **Phase Refactor :** Typage Pydantic strict.
+* **Livrables & Réalisations :**
+  * Tolérance automatique sur le payload d'entrée (`query`, `text`, `message`, `prompt`, `q`) via `InteractionRequest.resolve_aliases` dans `app/core/models.py`.
+  * Champs calculés `@computed_field` `speech` et `text` ajoutés sur `InteractionResponse` pour compatibilité directe avec les moteurs TTS Android.
+  * Endpoint polyvalent `/api/v1/mobile/interact` implémenté en GET (query param `?text=...`) et POST.
+  * Support du format de sortie en texte brut `text/plain` (via header `Accept: text/plain`) pour lecture vocale directe sans parsing JSON côté smartphone.
+  * Traitement bienveillant des entrées vides sans crash HTTP 422.
+  * Sécurité `X-API-Key` héritée et active sur les routes mobiles.
+  * Suite de tests TDD dans `tests/test_mobile_webhook.py` : 8 nouveaux tests au vert.
+  * **Suite complète : 141/141 tests au vert (100% de réussite).**
 
 ---
 
