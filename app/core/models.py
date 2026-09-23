@@ -14,6 +14,7 @@ class IntentType(str, Enum):
     GET_SHOPPING_LIST = "get_shopping_list"
     MARK_SHOPPING_BOUGHT = "mark_shopping_bought"
     CLEAR_SHOPPING_LIST = "clear_shopping_list"
+    CHECK_SHOPPING_COMPLETION = "check_shopping_completion"
 
     # Budget (Google Sheet 2)
     GET_BUDGET_BALANCE = "get_budget_balance"

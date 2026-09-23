@@ -122,6 +122,19 @@ class IntentParser:
                 raw_query=text,
             )
 
+        # 0.15 Vérification de complétion des courses ("est-ce que j'ai bien tout ?", "j'ai fini mes courses", "ai-je oublié quelque chose ?")
+        if re.search(
+            r"^(?:(?:est[- ]ce\s+que\s+)?j[' ]?ai\s+(?:bien\s+)?tout(?:\s+pris)?|j[' ]?ai\s+(?:fini|termin[ée])\s+mes\s+courses|ai[- ]je\s+(?:oubli[ée]\s+quelque\s+chose|tout\s+pris))\s*[?!.]*$",
+            cleaned,
+            re.IGNORECASE,
+        ):
+            return ParsedIntent(
+                intent=IntentType.CHECK_SHOPPING_COMPLETION,
+                confidence=0.95,
+                parameters={},
+                raw_query=text,
+            )
+
         # 0.2 Nettoyage des préfixes conversationnels / modaux pour les commandes
         # Ex: "tu peux tout rajouter...", "est-ce que tu peux...", "ok tu peux..."
         command_cleaned = cleaned
