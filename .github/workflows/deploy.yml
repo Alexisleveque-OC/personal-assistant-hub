@@ -3,6 +3,7 @@ name: CD Deployment Pipeline
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -63,7 +64,8 @@ jobs:
             --region ${{ secrets.GCP_REGION || 'europe-west1' }} \
             --platform managed \
             --allow-unauthenticated \
-            --port 8000
+            --port 8000 \
+            --set-env-vars "^##^API_KEY=${{ secrets.API_KEY }}##SPREADSHEET_MEALS_SHOPPING_ID=${{ secrets.SPREADSHEET_MEALS_SHOPPING_ID }}##GOOGLE_SERVICE_ACCOUNT_INFO=${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}"
         env:
           HAS_GCP_SECRET: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
 
