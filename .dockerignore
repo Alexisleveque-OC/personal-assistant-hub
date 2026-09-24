@@ -1,0 +1,29 @@
+# Environnements virtuels
+.venv
+venv
+ENV/
+
+# Caches Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+
+# Fichiers sensibles & secrets (JAMAIS dans l'image Docker)
+.env
+credentials.json
+token.json
+
+# Outils locaux & logs
+tools/
+*.log
+tunnel.log
+
+# Git
+.git
+.gitignore
+
+# Tests locaux (optionnels dans l'image de prod)
+tests/

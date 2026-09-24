@@ -1,0 +1,99 @@
+name: CD Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest Suite
+        run: |
+          pytest -v
+
+  deploy:
+    name: Deploy to Cloud
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # Option A : Déploiement Google Cloud Run (si secrets GCP configurés)
+      # ------------------------------------------------------------------------
+      - name: Authenticate to Google Cloud
+        if: env.HAS_GCP_SECRET == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+        env:
+          HAS_GCP_SECRET: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+
+      - name: Set up Google Cloud SDK
+        if: env.HAS_GCP_SECRET == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+        env:
+          HAS_GCP_SECRET: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+
+      - name: Deploy to Cloud Run
+        if: env.HAS_GCP_SECRET == 'true'
+        run: |
+          gcloud run deploy personal-assistant-hub \
+            --source . \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --region ${{ secrets.GCP_REGION || 'europe-west1' }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8000
+        env:
+          HAS_GCP_SECRET: ${{ secrets.GCP_SA_KEY != '' && secrets.GCP_PROJECT_ID != '' }}
+
+      # ------------------------------------------------------------------------
+      # Option B : Déploiement Render / Webhook PaaS (si deploy hook configuré)
+      # ------------------------------------------------------------------------
+      - name: Trigger Webhook Deploy Hook (Render / Koyeb)
+        if: env.HAS_WEBHOOK == 'true'
+        run: |
+          echo "Triggering cloud deploy hook..."
+          curl -s -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK || secrets.DEPLOY_HOOK_URL }}"
+          echo "Deploy hook successfully triggered!"
+        env:
+          HAS_WEBHOOK: ${{ secrets.RENDER_DEPLOY_HOOK != '' || secrets.DEPLOY_HOOK_URL != '' }}
+
+      # ------------------------------------------------------------------------
+      # Notice informative si aucun secret n'est encore configuré dans GitHub
+      # ------------------------------------------------------------------------
+      - name: Setup Notice (If secrets not yet configured)
+        if: env.NO_SECRETS == 'true'
+        run: |
+          echo "=========================================================================="
+          echo "ℹ️  Aucun secret de déploiement cloud n'est encore configuré."
+          echo "Pour activer le déploiement automatique sur votre cloud à chaque MR :"
+          echo "1. Rendez-vous sur votre dépôt GitHub > Settings > Secrets and variables > Actions"
+          echo "2. Ajoutez :"
+          echo "   - GCP_SA_KEY & GCP_PROJECT_ID (pour Google Cloud Run)"
+          echo "   OU"
+          echo "   - RENDER_DEPLOY_HOOK (pour Render / Koyeb)"
+          echo "Consultez docs/GUIDE_DEPLOIEMENT_CLOUD.md pour le guide pas-à-pas."
+          echo "=========================================================================="
+        env:
+          NO_SECRETS: ${{ secrets.GCP_SA_KEY == '' && secrets.RENDER_DEPLOY_HOOK == '' && secrets.DEPLOY_HOOK_URL == '' }}
