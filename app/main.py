@@ -705,20 +705,32 @@ if STATIC_DIR.exists():
 async def get_app_ui():
     """Sert l'interface mobile PWA."""
     index_path = STATIC_DIR / "index.html"
-    return FileResponse(index_path, media_type="text/html")
+    return FileResponse(
+        index_path,
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/manifest.json", include_in_schema=False)
 async def get_manifest():
     """Sert le manifest Web App pour l'installation Android."""
     manifest_path = STATIC_DIR / "manifest.json"
-    return FileResponse(manifest_path, media_type="application/manifest+json")
+    return FileResponse(
+        manifest_path,
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/sw.js", include_in_schema=False)
 async def get_service_worker():
     """Sert le Service Worker PWA."""
     sw_path = STATIC_DIR / "sw.js"
-    return FileResponse(sw_path, media_type="application/javascript")
+    return FileResponse(
+        sw_path,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
