@@ -74,9 +74,6 @@ jobs:
             ENV_VARS="${ENV_VARS},GOOGLE_SERVICE_ACCOUNT_INFO=${GSA_B64}"
           fi
 
-          echo "Activation des APIs Google Cloud requises (Cloud Build, Artifact Registry)..."
-          gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com --project "$GCP_PROJECT_ID" --quiet || true
-
           echo "Déploiement vers Google Cloud Run dans le projet $GCP_PROJECT_ID..."
           gcloud run deploy personal-assistant-hub \
             --source . \
