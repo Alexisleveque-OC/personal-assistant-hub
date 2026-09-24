@@ -5,6 +5,8 @@ import re
 import unicodedata
 import logging
 import time
+import json
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +71,20 @@ class MealsShoppingConnector(BaseConnector):
         else:
             if gspread is None:
                 raise RuntimeError("Le module gspread n'est pas installé.")
-            cred_file = credentials_path or settings.google_service_account_file
-            gc = gspread.service_account(filename=cred_file)
+            if getattr(settings, "google_service_account_info", None) and settings.google_service_account_info.strip():
+                raw_info = settings.google_service_account_info.strip()
+                if raw_info.startswith("{"):
+                    info_dict = json.loads(raw_info)
+                else:
+                    try:
+                        decoded = base64.b64decode(raw_info).decode("utf-8")
+                        info_dict = json.loads(decoded)
+                    except Exception:
+                        info_dict = json.loads(raw_info)
+                gc = gspread.service_account_from_dict(info_dict)
+            else:
+                cred_file = credentials_path or settings.google_service_account_file
+                gc = gspread.service_account(filename=cred_file)
             self._spreadsheet = gc.open_by_key(settings.spreadsheet_meals_shopping_id)
 
         self._rayons_cache: Optional[Dict[str, str]] = None
