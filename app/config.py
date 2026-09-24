@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     # Google Sheets
     google_service_account_file: str = "credentials.json"
+    google_service_account_info: str = ""
     spreadsheet_meals_shopping_id: str = ""
     spreadsheet_budget_id: str = ""
 
