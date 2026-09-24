@@ -33,7 +33,7 @@ Pour que le serveur Cloud puisse dialoguer avec votre Google Sheets sans risquer
 | Nom du Secret | Description | Exemple de valeur |
 | :--- | :--- | :--- |
 | `API_KEY` | Clé d'API secrète pour verrouiller l'accès mobile | `votre_cle_secrete_1234` |
-| `SPREADSHEET_MEALS_SHOPPING_ID` | Identifiant de votre classeur Google Sheets | `1judzIE4I2pT1IWCFUurQJAeMaITtqQK_U7OZz0eVZQ0` |
+| `SPREADSHEET_MEALS_SHOPPING_ID` | Identifiant de votre classeur Google Sheets (visible dans l'URL de votre sheet) | `1a2b3c4d5e_EXEMPLE_ID_CLASSEUR_VOTRE_SHEET` |
 | `GOOGLE_SERVICE_ACCOUNT_INFO` | Contenu intégral de votre fichier `credentials.json` | `{"type": "service_account", ...}` |
 
 > [!TIP]
