@@ -59,11 +59,19 @@ Un hub d'assistance unifié capable de recevoir des requêtes en langage naturel
   - [x] Intégration Google Sheets API / Service Account
   - [x] Tests automatisés (128 tests au vert, unitaires + E2E)
   - [x] Intégration Apps Script (`meal-planner`) et synchronisation Liste d'Attente
-- [ ] **Phase 3 : Interface Mobile & Entrées Vocales - Android (Prochaine étape)**
-  - [ ] Exposition et sécurisation de l'API / Webhook pour accès mobile (Wi-Fi local & distant sécurisé)
-  - [ ] Interface utilisateur légère & PWA vocale (STT/TTS avec reconnaissance vocale)
-  - [ ] Support des raccourcis Android (HTTP Shortcuts / Widget d'écran d'accueil / Bouton vocal)
-  - [ ] Validation en conditions réelles sur smartphone (supermarché, maison)
+- [x] **Phase 3 : Interface Mobile & Entrées Vocales - Android PWA (Terminée)**
+  - [x] Exposition et sécurisation de l'API (`API_KEY`) pour accès mobile
+  - [x] Interface utilisateur Web PWA vocale avec micro réactif et TTS
+  - [x] Logo personnalisé Monstera haute définition avec marge de respiration de 5%
+  - [x] Icônes Android PWA adaptatives (maskable, standard, touch icon)
+  - [x] Mode hors-ligne, Service Worker v3 et gestion du cache PWA
+  - [x] Validation sur smartphone en conditions réelles et tests E2E
+- [x] **Phase 3 bis : Conteneurisation & CI/CD Cloud 24h/24 (Terminée)**
+  - [x] Conteneurisation Docker de production (`python:3.12-slim`, non-root, `$PORT` dynamique)
+  - [x] Support des secrets Cloud pour Google Sheets (`GOOGLE_SERVICE_ACCOUNT_INFO`)
+  - [x] Pipeline GitHub Actions de déploiement automatique sur chaque MR fusionnée dans `main`
+  - [x] Guide de déploiement Cloud pas-à-pas (`docs/GUIDE_DEPLOIEMENT_CLOUD.md`)
+  - [x] *Évolution prévue (Backlog futur) :* Double environnement automatique avec préproduction (staging) branchée sur `develop` et production branchée sur `main` (deux applications distinctes pour tester avant la mise en production).
 - [ ] **Phase 4 : Tâches & Mails - Google Tasks & Gmail**
   - [ ] Connecteur Google Tasks (synthèse des tâches du jour, ajout vocal de tâche avec échéance)
   - [ ] Connecteur Gmail (analyse des mails non lus, filtrage du bruit, synthèse des messages importants)
@@ -77,4 +85,5 @@ Un hub d'assistance unifié capable de recevoir des requêtes en langage naturel
 - [ ] **Phase 6 : Domotique & Alexa**
   - [ ] Connecteur prise connectée (allumer / éteindre / statut)
   - [ ] Intégration Skill Alexa pour les enceintes du domicile
+
 
