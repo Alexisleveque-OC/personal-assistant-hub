@@ -15,8 +15,8 @@
 | **Étape 1** | Sécurisation de l'API & Authentification par clé API (`X-API-Key`) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 133/133 tests verts (TDD) |
 | **Étape 2** | Adaptateur Webhook Mobile (Interopérabilité HTTP Shortcuts & Android) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 141/141 tests verts (TDD) |
 | **Étape 3** | Micro-Web App PWA Mobile embarquée (STT, TTS, Thèmes Botaniques, Cache) | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ 160/160 tests verts (TDD) |
-| **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel / ngrok) & Guide d'installation Android | 🟡 En cours | En cours | Script de tunnel & Guide smartphone |
-| **Étape 5** | Test d'intégration End-to-End (E2E) en conditions réelles sur smartphone | ⚪ À venir | En attente | Test réel sur mobile |
+| **Étape 4** | Tunnel sécurisé distant (Cloudflare Tunnel) & Guide d'installation Android | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ Script de tunnel & Guide smartphone |
+| **Étape 5** | Test d'intégration End-to-End (E2E) en conditions réelles sur smartphone | 🟢 Réalisé | ✅ Validé par l'utilisateur | ✅ Tests E2E complets (`tests/test_e2e_mobile_voice_flow.py`) |
 
 ---
 
@@ -65,22 +65,29 @@
 
 ---
 
-### 🟡 Étape 4 : Tunnel sécurisé distant & Guide d'installation smartphone
+### 🟢 Étape 4 : Tunnel sécurisé distant & Guide d'installation smartphone
 * **Objectif :** Permettre au smartphone Android d'accéder à l'application partout (4G/5G, Wifi extérieur) via un tunnel HTTPS sécurisé sans ouverture de port box.
-* **Spécifications fonctionnelles & techniques :**
-  * Solution simple et gratuite clé en main : Cloudflare Tunnel (`cloudflared`) ou ngrok.
-  * Script PowerShell automatisé pour lancer le tunnel en une seule commande et afficher directement le lien HTTPS public et le QR Code à scanner.
-  * Guide pas-à-pas illustré pour l'utilisateur :
-    1. Lancement du tunnel HTTPS.
-    2. Ajout de la PWA à l'écran d'accueil Android (icône et application standalone plein écran).
-    3. Configuration de la clé API dans la modale de l'application.
-    4. (Optionnel) Configuration du raccourci Android / HTTP Shortcuts pour déclencher l'assistant au bouton ou à la voix.
+* **Livrables & Réalisations :**
+  * **Lanceur de tunnel automatisé (`scripts/start_tunnel.ps1`) :** Vérification du statut Uvicorn, démarrage automatique de Cloudflare Tunnel (`cloudflared`), récupération dynamique de l'URL publique HTTPS (`https://*.trycloudflare.com/app`), génération automatique d'un QR Code scannable directement dans la console PowerShell, et détection de la clé d'API.
+  * **Documentation & Guide d'installation complet (`docs/GUIDE_INSTALLATION_MOBILE.md`) :** Guide détaillé pas-à-pas pour l'installation PWA sous Android Chrome, enregistrement de la clé d'API dans l'application, utilisation vocale et de courses, et configuration optionnelle du widget HTTP Shortcuts.
+  * **Nouveau Logo Botanique & PWA Icons :** Logo Monstera sur-mesure intégré et recadré à ~5% de marge respiratoire, génération de la suite complète d'icônes PWA (`icon-192.png`, `icon-512.png`, `icon-maskable-192.png`, `icon-maskable-512.png`, `apple-touch-icon.png`, `icon.svg`).
+  * **Hygiène & Sécurité Git :** Exclusion des exécutables locaux dans `.gitignore` (`tools/`, `*.log`).
+  * **Validation utilisateur :** Validé manuellement par l'utilisateur sur son smartphone Android.
 
 ---
 
-### ⚪ Étape 5 : Test d'intégration End-to-End (E2E) en conditions réelles
-* **Objectif :** Validation finale avec l'utilisateur sur son smartphone Android en direct.
-* **Scénarios validés :**
-  * Dictée vocale : *« Qu'est-ce qu'on mange ce soir ? »*
-  * Ajout d'article : *« Ajoute des bananes à la liste de courses »*
-  * Consultation et coche directe d'un article au rayon Fruits sur le smartphone.
+### 🟢 Étape 5 : Test d'intégration End-to-End (E2E) en conditions réelles
+* **Objectif :** Validation finale avec l'utilisateur sur son smartphone Android en direct et automatisation de la pérennité de la solution.
+* **Livrables & Réalisations :**
+  * **Scénarios validés en conditions réelles sur smartphone par l'utilisateur :**
+    * Dictée vocale et synthèse TTS : *« Qu'est-ce qu'on mange ce soir ? »*
+    * Ajout d'articles vocalement à la liste de courses.
+    * Consultation de la liste avec tri par rayon et persistance des coches.
+    * Changement d'ambiance ☀️ / 🌙 avec fonds botaniques.
+    * Installation sur écran d'accueil avec nouvelle icône Monstera.
+  * **Suite de tests automatisés E2E (`tests/test_e2e_mobile_voice_flow.py`) :**
+    * Validation de l'intégrité du Manifest PWA, des icônes maskable/any et du Service Worker.
+    * Validation des en-têtes anti-cache (`Cache-Control: no-cache, no-store`).
+    * Validation de la barrière d'authentification (`X-API-Key`).
+    * Validation du cycle complet de requêtes vocales (JSON et text/plain).
+  * **Suite complète : 100% de tests au vert.**
