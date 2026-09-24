@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import re
 import unicodedata
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,43 @@ class MealsShoppingConnector(BaseConnector):
 
         self._rayons_cache: Optional[Dict[str, str]] = None
         self._recipes_cache: Optional[List[Recipe]] = None
+        self._shopping_cache: Optional[Dict[str, Any]] = None
+        self._shopping_cache_time: float = 0.0
+        self._week_meals_cache: Optional[List[Dict[str, Any]]] = None
+        self._week_meals_cache_time: float = 0.0
+        self._rayons_order: Optional[Dict[str, int]] = None
+        self._cache_ttl_seconds: int = 180
+
+    def invalidate_cache(self, domain: Optional[str] = None) -> None:
+        """Invalide le cache mémoire pour un domaine ('shopping', 'meals', 'recipes') ou tout."""
+        if domain in (None, "shopping"):
+            self._shopping_cache = None
+            self._shopping_cache_time = 0.0
+        if domain in (None, "meals"):
+            self._week_meals_cache = None
+            self._week_meals_cache_time = 0.0
+        if domain in (None, "recipes"):
+            self._recipes_cache = None
+
+    def get_rayons_order(self) -> Dict[str, int]:
+        """Charge et met en cache l'ordre des rayons défini dans l'onglet 'Rayons'."""
+        if getattr(self, "_rayons_order", None) is not None:
+            return self._rayons_order
+
+        order_map: Dict[str, int] = {}
+        try:
+            ws = self._spreadsheet.worksheet("Rayons")
+            for row in ws.get_all_values()[1:]:
+                if row and len(row) >= 2 and row[0].strip():
+                    try:
+                        order_map[row[0].strip()] = int(row[1].strip())
+                    except ValueError:
+                        order_map[row[0].strip()] = 999
+        except Exception:
+            pass
+
+        self._rayons_order = order_map
+        return self._rayons_order
 
     @property
     def name(self) -> str:
@@ -235,6 +273,7 @@ class MealsShoppingConnector(BaseConnector):
             )
 
         ws.update_cell(found_idx, col_idx, meal)
+        self.invalidate_cache("meals")
 
         # Met à jour la représentation locale pour retourner le nouveau DayMealPlan
         while len(matched_row) < 5:
@@ -254,6 +293,12 @@ class MealsShoppingConnector(BaseConnector):
 
     def get_week_meal_plans(self) -> List[Dict[str, Any]]:
         """Récupère les repas prévus pour les 7 jours de la semaine courante avec leurs ingrédients."""
+        now = time.time()
+        if getattr(self, "_week_meals_cache", None) is not None and (
+            now - getattr(self, "_week_meals_cache_time", 0.0) < getattr(self, "_cache_ttl_seconds", 180)
+        ):
+            return self._week_meals_cache
+
         days_list: List[Dict[str, Any]] = []
         today = date.today()
         today_day_num = today.day
@@ -311,6 +356,8 @@ class MealsShoppingConnector(BaseConnector):
         except Exception as e:
             logger.warning(f"Impossible de lire le planning de 'Cette semaine': {e}")
 
+        self._week_meals_cache = days_list
+        self._week_meals_cache_time = now
         return days_list
 
     def _get_all_recipes(self) -> List[Recipe]:
@@ -484,6 +531,7 @@ class MealsShoppingConnector(BaseConnector):
             for row in rows_to_append:
                 ws.append_row(row, value_input_option="USER_ENTERED")
 
+        self.invalidate_cache("shopping")
         return added_items, warnings
 
     def add_shopping_item(self, item: str) -> tuple[WaitingListItem, Optional[str]]:
@@ -544,6 +592,12 @@ class MealsShoppingConnector(BaseConnector):
 
     def get_shopping_list(self) -> Dict[str, Any]:
         """Agrège les articles non achetés de 'Liste_Attente' et de 'Cette semaine'."""
+        now = time.time()
+        if getattr(self, "_shopping_cache", None) is not None and (
+            now - getattr(self, "_shopping_cache_time", 0.0) < getattr(self, "_cache_ttl_seconds", 180)
+        ):
+            return self._shopping_cache
+
         waiting_items: List[WaitingListItem] = []
         try:
             ws_wa = self._spreadsheet.worksheet("Liste_Attente")
@@ -590,10 +644,14 @@ class MealsShoppingConnector(BaseConnector):
         except Exception:
             pass
 
-        return {
+        res = {
             "waiting_list": waiting_items,
             "current_week_items": current_week_items,
+            "rayons_order": self.get_rayons_order(),
         }
+        self._shopping_cache = res
+        self._shopping_cache_time = now
+        return res
 
     def mark_shopping_items_bought(
         self,
@@ -612,6 +670,7 @@ class MealsShoppingConnector(BaseConnector):
                     ws.update_cell(idx, 1, "TRUE")
                     marked.append(row[1].strip())
 
+        self.invalidate_cache("shopping")
         return marked
 
     def clear_shopping_list(self, only_bought: bool = True) -> int:
@@ -635,6 +694,7 @@ class MealsShoppingConnector(BaseConnector):
         for row_idx in reversed(to_delete):
             ws.delete_rows(row_idx)
 
+        self.invalidate_cache("shopping")
         return len(to_delete)
 
     async def execute_action(self, action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:

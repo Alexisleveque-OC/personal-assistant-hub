@@ -1,9 +1,14 @@
-const CACHE_NAME = "pah-pwa-cache-v1";
+const CACHE_NAME = "pah-pwa-cache-v3";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
   "/static/app.js",
   "/static/manifest.json",
+  "/static/icons/icon-192.png",
+  "/static/icons/icon-512.png",
+  "/static/icons/icon-maskable-192.png",
+  "/static/icons/icon-maskable-512.png",
+  "/static/icons/apple-touch-icon.png",
   "/static/icons/icon.svg"
 ];
 

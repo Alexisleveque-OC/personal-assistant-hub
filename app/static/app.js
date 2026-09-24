@@ -21,6 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Shopping Elements
   const shoppingListContainer = document.getElementById("shopping-list-container");
   const btnClearBought = document.getElementById("btn-clear-bought");
+  const btnCheckCompletion = document.getElementById("btn-check-completion");
+  const completionBanner = document.getElementById("shopping-completion-banner");
   const tabCetteSemaine = document.getElementById("tab-cette-semaine");
   const tabListeAttente = document.getElementById("tab-liste-attente");
   const badgeCetteSemaine = document.getElementById("badge-cette-semaine");
@@ -47,8 +49,60 @@ document.addEventListener("DOMContentLoaded", () => {
   let recognition = null;
   let currentShoppingSubview = "cette-semaine"; // 'cette-semaine' | 'liste-attente'
   let currentMealSubview = "today"; // 'today' | 'week'
-  let cachedShoppingData = { waiting_list: [], current_week_items: [] };
+  let cachedShoppingData = { waiting_list: [], current_week_items: [], rayons_order: null };
   let frenchVoices = [];
+
+  // Persistent Checked State Helper
+  function getStoredCheckedItems() {
+    try {
+      return JSON.parse(localStorage.getItem("pah_checked_cette_semaine") || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function setStoredCheckedItems(items) {
+    localStorage.setItem("pah_checked_cette_semaine", JSON.stringify(items));
+  }
+
+  // Theme Elements & State
+  const btnThemeToggle = document.getElementById("btn-theme-toggle");
+  const themeIconSun = document.getElementById("theme-icon-sun");
+  const themeIconMoon = document.getElementById("theme-icon-moon");
+
+  let currentTheme = localStorage.getItem("pah_theme") || "light";
+
+  function applyTheme(theme) {
+    currentTheme = theme;
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("pah_theme", theme);
+
+    if (themeIconSun && themeIconMoon) {
+      if (theme === "dark") {
+        themeIconSun.style.display = "block";
+        themeIconMoon.style.display = "none";
+        if (btnThemeToggle) btnThemeToggle.title = "Passer au thème clair (Cocooning)";
+      } else {
+        themeIconSun.style.display = "none";
+        themeIconMoon.style.display = "block";
+        if (btnThemeToggle) btnThemeToggle.title = "Passer au thème sombre (Botanique)";
+      }
+    }
+
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute("content", theme === "dark" ? "#0d1721" : "#f4f3ef");
+    }
+  }
+
+  applyTheme(currentTheme);
+
+  if (btnThemeToggle) {
+    btnThemeToggle.addEventListener("click", () => {
+      const nextTheme = currentTheme === "dark" ? "light" : "dark";
+      applyTheme(nextTheme);
+    });
+  }
 
   // Initialize UI State
   updateTtsButtonState();
@@ -57,7 +111,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Register PWA Service Worker
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js")
-      .then(() => console.log("[PWA] Service Worker registered"))
+      .then((reg) => {
+        console.log("[PWA] Service Worker registered");
+        reg.update();
+      })
       .catch((err) => console.warn("[PWA] Service Worker registration failed:", err));
   }
 
@@ -410,6 +467,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       cachedShoppingData.waiting_list = pData.waiting_list || shopObj.waiting_list || [];
       cachedShoppingData.current_week_items = pData.current_week_items || shopObj.current_week_items || [];
+      cachedShoppingData.rayons_order = pData.rayons_order || shopObj.rayons_order || null;
 
       if (badgeCetteSemaine) badgeCetteSemaine.textContent = cachedShoppingData.current_week_items.length;
       if (badgeListeAttente) badgeListeAttente.textContent = cachedShoppingData.waiting_list.length;
@@ -434,18 +492,63 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const storedChecked = getStoredCheckedItems();
+
     // Group by Rayon
     const grouped = {};
     rawItems.forEach((it) => {
       const name = isWaiting ? it.item : it.name;
-      const isBought = isWaiting ? it.is_bought : it.checked;
+      const isBought = isWaiting ? it.is_bought : (it.checked || storedChecked.includes(name));
       const rayon = it.rayon || "Divers";
       if (!grouped[rayon]) grouped[rayon] = [];
       grouped[rayon].push({ name, isBought, raw: it });
     });
 
+    function normRayon(r) {
+      return (r || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+    }
+
+    const defaultRayonsOrder = {
+      "fruits": 1,
+      "legumes": 2,
+      "plat prepare": 3,
+      "viande": 4,
+      "charcuterie": 5,
+      "dessert": 6,
+      "fromage/beurre/creme": 7,
+      "apero": 8,
+      "oeufs/farine/lait": 9,
+      "petit dej + bio": 10,
+      "produit du monde": 11,
+      "epicerie": 12,
+      "boisson": 13,
+      "hygiene": 14,
+      "pq + entretien": 15,
+      "surgele": 16,
+      "divers": 999
+    };
+
+    const rawOrder = cachedShoppingData.rayons_order || {};
+    const normalizedOrderMap = { ...defaultRayonsOrder };
+    Object.keys(rawOrder).forEach((k) => {
+      normalizedOrderMap[normRayon(k)] = rawOrder[k];
+    });
+
+    const sortedRayonNames = Object.keys(grouped).sort((a, b) => {
+      const nA = normRayon(a);
+      const nB = normRayon(b);
+      const ordA = normalizedOrderMap[nA] !== undefined ? normalizedOrderMap[nA] : 900;
+      const ordB = normalizedOrderMap[nB] !== undefined ? normalizedOrderMap[nB] : 900;
+      if (ordA !== ordB) return ordA - ordB;
+      return a.localeCompare(b);
+    });
+
     let html = "";
-    Object.keys(grouped).sort().forEach((rayon) => {
+    sortedRayonNames.forEach((rayon) => {
       const items = grouped[rayon];
       html += `
         <div class="rayon-card">
@@ -469,6 +572,13 @@ document.addEventListener("DOMContentLoaded", () => {
       html += `</div></div>`;
     });
 
+    // Add big completion button at the bottom of the list
+    html += `
+      <button id="btn-finish-shopping-bottom" class="btn-finish-big">
+        🏁 J'ai fini mes courses !
+      </button>
+    `;
+
     shoppingListContainer.innerHTML = html;
 
     // Toggle Checkbox event listener
@@ -479,23 +589,93 @@ document.addEventListener("DOMContentLoaded", () => {
         const wasChecked = row.classList.contains("checked");
 
         row.classList.toggle("checked");
+        const isNowChecked = !wasChecked;
 
-        // If from Liste_Attente, call API to persist bought status on Google Sheet
-        if (fromWaiting && !wasChecked) {
-          const headers = { "Content-Type": "application/json" };
-          if (apiKey) headers["X-API-Key"] = apiKey;
-          try {
-            await fetch("/api/v1/interact", {
-              method: "POST",
-              headers: headers,
-              body: JSON.stringify({ query: `J'ai acheté ${itemName}` })
-            });
-          } catch (e) {
-            console.warn("Failed to mark bought:", e);
+        if (!fromWaiting) {
+          // Persist checked status in localStorage for 'Cette semaine'
+          let stored = getStoredCheckedItems();
+          if (isNowChecked) {
+            if (!stored.includes(itemName)) stored.push(itemName);
+          } else {
+            stored = stored.filter((it) => it !== itemName);
+          }
+          setStoredCheckedItems(stored);
+
+          const target = cachedShoppingData.current_week_items.find((it) => it.name === itemName);
+          if (target) target.checked = isNowChecked;
+        } else {
+          // For waiting list
+          const target = cachedShoppingData.waiting_list.find((it) => it.item === itemName);
+          if (target) target.is_bought = isNowChecked;
+
+          // Call API to persist bought status on Google Sheet if checked
+          if (isNowChecked) {
+            const headers = { "Content-Type": "application/json" };
+            if (apiKey) headers["X-API-Key"] = apiKey;
+            try {
+              await fetch("/api/v1/interact", {
+                method: "POST",
+                headers: headers,
+                body: JSON.stringify({ query: `J'ai acheté ${itemName}` })
+              });
+            } catch (e) {
+              console.warn("Failed to mark bought:", e);
+            }
           }
         }
       });
     });
+
+    // Wire bottom finish button
+    const btnBottomFinish = document.getElementById("btn-finish-shopping-bottom");
+    if (btnBottomFinish) {
+      btnBottomFinish.addEventListener("click", checkShoppingCompletion);
+    }
+  }
+
+  // Check Shopping Completion Verification
+  function checkShoppingCompletion() {
+    const storedChecked = getStoredCheckedItems();
+    const isWaiting = currentShoppingSubview === "liste-attente";
+
+    let remaining = [];
+    if (isWaiting) {
+      remaining = (cachedShoppingData.waiting_list || [])
+        .filter((it) => !it.is_bought)
+        .map((it) => it.item);
+    } else {
+      remaining = (cachedShoppingData.current_week_items || [])
+        .filter((it) => !it.checked && !storedChecked.includes(it.name))
+        .map((it) => it.name);
+    }
+
+    if (completionBanner) {
+      if (remaining.length === 0) {
+        completionBanner.className = "completion-banner success";
+        completionBanner.innerHTML = `
+          <span>🎉 <strong>Félicitations !</strong> Vous avez tout pris dans votre liste. Vos courses sont complètes !</span>
+        `;
+        completionBanner.style.display = "block";
+        speak("Félicitations, vous avez tout pris ! Votre liste de courses est complète.");
+      } else {
+        completionBanner.className = "completion-banner warning";
+        completionBanner.innerHTML = `
+          <div>
+            <span>⚠️ <strong>Attention, il vous reste encore ${remaining.length} article(s) à prendre :</strong></span>
+            <div style="margin-top:6px; font-size:0.85rem; display:flex; flex-wrap:wrap; gap:4px;">
+              ${remaining.map((it) => `<span style="background:rgba(0,0,0,0.25); padding:2px 7px; border-radius:4px; font-weight:600;">${it}</span>`).join("")}
+            </div>
+          </div>
+        `;
+        completionBanner.style.display = "block";
+        speak(`Attention, il vous reste encore ${remaining.length} article(s) à prendre : ${remaining.slice(0, 4).join(", ")}.`);
+      }
+      completionBanner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  if (btnCheckCompletion) {
+    btnCheckCompletion.addEventListener("click", checkShoppingCompletion);
   }
 
   // Clear Bought Items
@@ -654,9 +834,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       let html = '<div class="week-cards-list">';
-      weekPlan.forEach((day) => {
+      weekPlan.forEach((day, idx) => {
         const todayClass = day.is_today ? "today" : "";
         const todayBadge = day.is_today ? '<span class="today-tag">AUJOURD\'HUI</span>' : "";
+        const hasLunchIng = day.lunch_ingredients && day.lunch_ingredients.length > 0;
+        const hasDinnerIng = day.dinner_ingredients && day.dinner_ingredients.length > 0;
+        const hasAnyIng = hasLunchIng || hasDinnerIng;
 
         html += `
           <div class="week-day-card ${todayClass}">
@@ -665,23 +848,66 @@ document.addEventListener("DOMContentLoaded", () => {
               ${todayBadge}
             </div>
 
-            <div class="week-meal-item">
-              <span class="week-meal-type">Midi :</span>
-              <span class="week-meal-dish">${day.lunch || "—"}</span>
-              ${renderIngChips(day.lunch_ingredients)}
+            <div class="week-meals-summary">
+              <div class="week-meal-line">
+                <span class="meal-label-pill">Midi</span>
+                <span class="week-meal-dish">${day.lunch || "—"}</span>
+              </div>
+              <div class="week-meal-line">
+                <span class="meal-label-pill">Soir</span>
+                <span class="week-meal-dish">${day.dinner || "—"}</span>
+              </div>
             </div>
 
-            <div class="week-meal-item" style="margin-top:8px;">
-              <span class="week-meal-type">Soir :</span>
-              <span class="week-meal-dish">${day.dinner || "—"}</span>
-              ${renderIngChips(day.dinner_ingredients)}
-            </div>
+            ${hasAnyIng ? `
+              <button class="btn-toggle-accordion" data-target="ing-panel-${idx}">
+                <span>🥕 Voir les ingrédients</span>
+                <svg class="accordion-chevron" viewBox="0 0 24 24" width="16" height="16">
+                  <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                </svg>
+              </button>
+              <div class="ingredients-collapsible" id="ing-panel-${idx}" style="display:none;">
+                ${hasLunchIng ? `
+                  <div class="accordion-sub">
+                    <span class="accordion-sub-title">Midi :</span>
+                    <div class="tags-list">
+                      ${day.lunch_ingredients.map((ing) => `<span class="tag-chip">${ing}</span>`).join("")}
+                    </div>
+                  </div>
+                ` : ""}
+                ${hasDinnerIng ? `
+                  <div class="accordion-sub" style="margin-top:6px;">
+                    <span class="accordion-sub-title">Soir :</span>
+                    <div class="tags-list">
+                      ${day.dinner_ingredients.map((ing) => `<span class="tag-chip">${ing}</span>`).join("")}
+                    </div>
+                  </div>
+                ` : ""}
+              </div>
+            ` : ""}
           </div>
         `;
       });
       html += '</div>';
 
       mealContainer.innerHTML = html;
+
+      // Attach accordion toggle listeners
+      mealContainer.querySelectorAll(".btn-toggle-accordion").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const targetId = btn.getAttribute("data-target");
+          const targetEl = document.getElementById(targetId);
+          if (targetEl) {
+            const isHidden = targetEl.style.display === "none";
+            targetEl.style.display = isHidden ? "block" : "none";
+            btn.classList.toggle("open", isHidden);
+            const labelSpan = btn.querySelector("span");
+            if (labelSpan) {
+              labelSpan.textContent = isHidden ? "🥕 Masquer les ingrédients" : "🥕 Voir les ingrédients";
+            }
+          }
+        });
+      });
     } catch (err) {
       mealContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-rose)">Erreur de connexion.</div>';
     }

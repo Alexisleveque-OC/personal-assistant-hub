@@ -452,12 +452,15 @@ async def interact(request: InteractionRequest):
                             spoken = f"Voici les articles sur votre liste de courses : {', '.join(all_names)}."
                         else:
                             spoken = "Votre liste de courses est actuellement vide."
+                    rayons_order = shopping.get("rayons_order", {})
                     data["shopping_list"] = {
                         "waiting_list": [it.model_dump() for it in shopping.get("waiting_list", [])],
                         "current_week_items": [it.model_dump() for it in current_items],
+                        "rayons_order": rayons_order,
                     }
                     data["waiting_list"] = [it.model_dump() for it in shopping.get("waiting_list", [])]
                     data["current_week_items"] = [it.model_dump() for it in current_items]
+                    data["rayons_order"] = rayons_order
                 except Exception as exc:
                     spoken = f"Impossible de lire la liste de courses : {exc}"
             else:
@@ -508,6 +511,32 @@ async def interact(request: InteractionRequest):
                     spoken = f"Impossible de nettoyer la liste de courses : {exc}"
             else:
                 spoken = "La liste de courses a été nettoyée."
+
+        case IntentType.CHECK_SHOPPING_COMPLETION:
+            if connector:
+                try:
+                    shopping = connector.get_shopping_list()
+                    waiting_items = [it for it in shopping.get("waiting_list", []) if not it.is_bought]
+                    current_items = [it for it in shopping.get("current_week_items", []) if not it.checked]
+
+                    remaining = [it.item for it in waiting_items] + [it.name for it in current_items]
+                    if remaining:
+                        spoken = f"Attention, il vous reste encore {len(remaining)} article(s) à prendre : {', '.join(remaining)}."
+                        completed = False
+                    else:
+                        spoken = "Félicitations, vous avez tout pris ! Votre liste de courses est complète."
+                        completed = True
+
+                    data["completed"] = completed
+                    data["remaining_items"] = remaining
+                except Exception as exc:
+                    spoken = f"Impossible de vérifier la liste de courses : {exc}"
+                    data["completed"] = False
+                    data["remaining_items"] = []
+            else:
+                spoken = "Félicitations, vous avez tout pris ! Votre liste de courses est complète."
+                data["completed"] = True
+                data["remaining_items"] = []
 
         case IntentType.GET_BUDGET_BALANCE:
             cat = parsed.parameters.get("category", "général")
@@ -676,20 +705,32 @@ if STATIC_DIR.exists():
 async def get_app_ui():
     """Sert l'interface mobile PWA."""
     index_path = STATIC_DIR / "index.html"
-    return FileResponse(index_path, media_type="text/html")
+    return FileResponse(
+        index_path,
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/manifest.json", include_in_schema=False)
 async def get_manifest():
     """Sert le manifest Web App pour l'installation Android."""
     manifest_path = STATIC_DIR / "manifest.json"
-    return FileResponse(manifest_path, media_type="application/manifest+json")
+    return FileResponse(
+        manifest_path,
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/sw.js", include_in_schema=False)
 async def get_service_worker():
     """Sert le Service Worker PWA."""
     sw_path = STATIC_DIR / "sw.js"
-    return FileResponse(sw_path, media_type="application/javascript")
+    return FileResponse(
+        sw_path,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 

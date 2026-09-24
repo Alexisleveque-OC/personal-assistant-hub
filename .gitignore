@@ -36,3 +36,7 @@ credentials/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Local tools & logs
+tools/
+*.log
