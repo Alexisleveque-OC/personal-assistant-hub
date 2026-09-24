@@ -76,6 +76,7 @@ personal-assistant-hub/
    * **Stratégie de branches :** Chaque fonctionnalité ou correction est développée sur une branche dédiée (`feat/<feature-name>`, `fix/<bug-name>`) ou sur `develop`.
    * **Pull Request / Merge Request (PR/MR) :** Fusion vers `main` uniquement après validation de la suite de tests (`pytest` à 100% vert) et relecture.
    * **Sécurité :** Ne JAMAIS commiter de fichiers sensibles (`.env`, `credentials.json`, `token.json`, `.venv`).
+   * **Zéro Commit Sans Test & Validation Préalable :** Il est **strictement interdit** de commiter du code avant d'avoir exécuté les tests (`pytest`), vérifié que tout fonctionne à 100%, et permis à l'utilisateur de tester/valider. Les tests et les vérifications viennent **toujours avant** tout commit git.
    * **Commits :** Atomiques, explicites et séparés selon leur périmètre :
      * **Fichiers d'instructions agent (ex: `AGENTS.md`) :** Toujours isolés dans leurs propres commits et préfixés par `#AGENT : <message>`.
      * **Code de feature :** Toujours préfixés par `#PAH - <feature-tag> : <type>: <message>` (ex: `#PAH - shop connector : feat: ...`), combinant le tag de feature et le format Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
