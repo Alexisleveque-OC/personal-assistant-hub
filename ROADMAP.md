@@ -13,7 +13,7 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Configuration Pydantic & Client Gemini avec auto-découverte du dernier modèle Flash | 🟢 Terminé | En attente de validation | ✅ 7/7 tests unitaires + live au vert |
 | **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) & Chaîne de repli | 🟢 Terminé | Validé par l'utilisateur | ✅ 6 tests NLU + 185 tests au vert |
-| **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | ⚪ À venir | En attente | Tests conversationnels |
+| **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | En attente de validation | ✅ 5 tests dédiés + 191 tests au vert |
 | **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | ⚪ À venir | En attente | Benchmarks & tests de cache |
 | **Étape 5** | Branchement dans `/api/v1/interact` avec fallback de résilience local | ⚪ À venir | En attente | 170+ tests au vert |
 | **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation sur PWA | ⚪ À venir | En attente | Tests E2E finaux |
@@ -48,13 +48,14 @@
 
 ---
 
-### ⚪ Étape 3 : Dialogue Multi-Tours & Clarifications Naturelles
+### 🟢 Étape 3 : Dialogue Multi-Tours & Clarifications Naturelles
 * **Objectifs :**
   1. Résoudre le problème du "papier cuisson classé automatiquement en Divers" :
-     * Quand un article a un rayon inconnu ou ambigu, l'assistant pose une question de clarification naturelle (*"Je n'ai pas de rayon pour le papier cuisson. Veux-tu que je le range en Épicerie ou en Entretien ?"*).
-  2. Mémorisation du contexte d'attente (`pending_clarification`) dans la session utilisateur.
-  3. Au tour suivant, traitement de la réponse courte de l'utilisateur (*"En entretien"*), enregistrement de l'article avec son rayon et mise à jour du catalogue.
-  4. Tests de dialogue à 2 tours.
+     * Quand un article a un rayon inconnu ou ambigu, l'assistant pose une question de clarification naturelle (*"Je n'ai pas de rayon pour 'Papier cuisson'. Veux-tu que je le range en Entretien ou en Épicerie ?"*).
+  2. Mémorisation du contexte d'attente (`pending_action` / `clarify_shopping_rayon`) dans la session utilisateur.
+  3. Au tour suivant, traitement de la réponse courte de l'utilisateur (*"En entretien"* ou *"Laisse en divers"* ou *"Annule"*), enregistrement de l'article avec le rayon choisi et mise à jour du cache de rayons.
+  4. Tests de dialogue à 2 tours (acceptation, choix alternatif, divers, annulation, article connu immédiat).
+* **Résultat validé :** 5 tests de clarification dédiés + 191/191 tests au vert dans toute la suite pytest (zéro régression).
 * **Critères de succès :** Scénario multi-tours testé et validé.
 
 ---
