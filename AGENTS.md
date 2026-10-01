@@ -40,20 +40,22 @@ personal-assistant-hub/
 
 ---
 
-## 3. Commandes Fondamentales (Windows PowerShell)
+## 3. Commandes Fondamentales (Linux / WSL)
 
 * **Activer l'environnement virtuel :**
-  ```powershell
-  .\.venv\Scripts\Activate.ps1
+  ```bash
+  source .venv/bin/activate
   ```
 * **Lancer les tests unitaires (Boucle de rétroaction) :**
-  ```powershell
-  .\.venv\Scripts\pytest -v
+  ```bash
+  .venv/bin/pytest -v
   ```
 * **Lancer le serveur de développement :**
-  ```powershell
-  .\.venv\Scripts\uvicorn app.main:app --reload --port 8000
+  ```bash
+  .venv/bin/uvicorn app.main:app --reload --port 8000
   ```
+
+*(Note legacy Windows PowerShell : `.\.venv\Scripts\Activate.ps1`, `.\.venv\Scripts\pytest -v`)*
 
 ---
 
