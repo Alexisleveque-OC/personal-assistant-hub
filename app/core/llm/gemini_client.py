@@ -9,12 +9,12 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FALLBACK_MODEL = "gemini-2.0-flash"
+DEFAULT_FALLBACK_MODEL = "gemini-3.6-flash"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 
 def _parse_gemini_version(model_name: str) -> tuple[int, ...]:
-    """Extrait le tuple de version majeure/mineure d'un nom de modèle Gemini (ex: 'gemini-2.0-flash' -> (2, 0))."""
+    """Extrait le tuple de version majeure/mineure d'un nom de modèle Gemini (ex: 'gemini-3.6-flash' -> (3, 6))."""
     match = re.search(r"gemini-(\d+)(?:\.(\d+))?", model_name.lower())
     if match:
         major = int(match.group(1))
@@ -42,6 +42,7 @@ class GeminiClient:
             else getattr(settings, "gemini_max_daily_requests", 1000)
         )
         self._resolved_model: Optional[str] = None
+        self._candidate_models: List[str] = []
 
         # Suivi pédagogique des métriques & quotas
         self._daily_requests_count: int = 0
@@ -163,9 +164,22 @@ class GeminiClient:
         if not candidates:
             return DEFAULT_FALLBACK_MODEL
 
-        # Tri par version décroissante (ex: (2, 0) > (1, 5))
+        # Tri par version décroissante (ex: (3, 8) > (3, 6))
         candidates.sort(key=_parse_gemini_version, reverse=True)
+        self._candidate_models = candidates
         return candidates[0]
+
+    def get_candidate_models(self) -> List[str]:
+        """Retourne la liste des modèles candidats par ordre de priorité pour le basculement."""
+        if self._candidate_models:
+            return list(self._candidate_models)
+        if self.configured_model and self.configured_model.lower() != "auto":
+            return [self.configured_model]
+        return [self._resolved_model or DEFAULT_FALLBACK_MODEL]
+
+    def set_resolved_model(self, model: str) -> None:
+        """Met à jour le modèle résolu actif."""
+        self._resolved_model = model
 
 
 _gemini_client: Optional[GeminiClient] = None
