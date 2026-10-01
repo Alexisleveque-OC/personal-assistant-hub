@@ -12,7 +12,7 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Configuration Pydantic & Client Gemini avec auto-découverte du dernier modèle Flash | 🟢 Terminé | En attente de validation | ✅ 7/7 tests unitaires + live au vert |
-| **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) | ⚪ À venir | En attente | Tests de parsing naturel |
+| **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) & Chaîne de repli | 🟢 Terminé | Validé par l'utilisateur | ✅ 6 tests NLU + 185 tests au vert |
 | **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | ⚪ À venir | En attente | Tests conversationnels |
 | **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | ⚪ À venir | En attente | Benchmarks & tests de cache |
 | **Étape 5** | Branchement dans `/api/v1/interact` avec fallback de résilience local | ⚪ À venir | En attente | 170+ tests au vert |
@@ -36,12 +36,14 @@
 
 ---
 
-### ⚪ Étape 2 : Extraction d'Intentions LLM avec Structured Outputs (Pydantic)
+### 🟢 Étape 2 : Extraction d'Intentions LLM avec Structured Outputs (Pydantic) & Chaîne de Repli
 * **Objectifs :**
-  1. Modéliser le schéma de réponse structuré Pydantic (`NLUResult`) contenant l'intention (`IntentType`), les paramètres typés et la réponse conversationnelle textuelle/orale.
-  2. Fournir au modèle les définitions des intentions du Hub et le catalogue de référence.
-  3. Remplacer les correspondances rigides de regex par une compréhension sémantique profonde et tolérante aux formulations orales variées.
-  4. Tests unitaires comparatifs vérifiant la conformité des sorties par rapport aux contrats existants.
+  1. Modéliser le schéma de réponse structuré Pydantic (`LLMNLUResponse`) contenant l'intention (`IntentType`), les paramètres typés, le niveau de confiance et la réponse conversationnelle contextuelle.
+  2. Fournir au modèle les définitions des intentions du Hub, les contraintes et le contexte conversationnel (anaphores multi-tours).
+  3. Implémenter une chaîne de repli multi-modèles robuste (`get_candidate_models`) pour basculer automatiquement sur un modèle stable (ex: `gemini-3.6-flash`) si le premier candidat renvoie une erreur 503 ou 404.
+  4. Bascule transparente sur le parseur local déterministe en cas de quota dépassé (garde-fou) ou indisponibilité réseau.
+  5. Tests unitaires et d'intégration validant le parsing naturel, l'extraction de paramètres multiples et la conformité stricte Pydantic.
+* **Résultat validé :** 6 tests unitaires LLM + 185/185 tests au vert dans toute la suite pytest.
 * **Critères de succès :** 100% des intentions reconnues et validées par tests.
 
 ---
