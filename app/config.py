@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     spreadsheet_meals_shopping_id: str = ""
     spreadsheet_budget_id: str = ""
 
+    # Google Gemini LLM
+    gemini_api_key: str = ""
+    gemini_model: str = "auto"
+    gemini_max_daily_requests: int = 1000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

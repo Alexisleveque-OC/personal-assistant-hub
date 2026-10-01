@@ -94,6 +94,14 @@ async def health_check():
     }
 
 
+@app.get("/api/v1/llm/stats", tags=["System"])
+async def get_llm_stats():
+    """Fournit les métriques et quotas de l'assistant LLM Gemini."""
+    from app.core.llm.gemini_client import get_gemini_client
+    client = get_gemini_client()
+    return client.get_usage_stats()
+
+
 @app.post(
     "/api/v1/intent/parse",
     response_model=ParsedIntent,

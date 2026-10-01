@@ -231,6 +231,20 @@
         <input type="password" id="api-key-input" class="form-input" placeholder="Ex: test1234 ou clé secrète..." autocomplete="off" />
       </div>
 
+      <!-- LLM & Quotas Educational Monitor -->
+      <div class="form-group" style="margin-top: 18px; padding: 12px; background: rgba(0,0,0,0.03); border-radius: 8px; border: 1px solid var(--border-color);">
+        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>🧠 Modèle & Quotas Gemini</span>
+          <span id="llm-quota-badge" style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #22c55e; color: white;">Actif</span>
+        </label>
+        <div style="font-size: 0.82rem; line-height: 1.6; margin-top: 6px;">
+          <div><strong>Modèle détecté :</strong> <span id="llm-stat-model">Chargement...</span></div>
+          <div><strong>Requêtes aujourd'hui :</strong> <span id="llm-stat-requests">0 / 1000</span></div>
+          <div><strong>Quota restant :</strong> <span id="llm-stat-remaining">1000</span></div>
+          <div><strong>Dernière latence :</strong> <span id="llm-stat-latency">-</span></div>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button id="btn-close-settings" class="btn-secondary">Fermer</button>
         <button id="btn-save-settings" class="btn-primary">Enregistrer</button>
