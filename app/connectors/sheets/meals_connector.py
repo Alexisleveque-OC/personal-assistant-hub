@@ -459,6 +459,8 @@ class MealsShoppingConnector(BaseConnector):
         norm_item = self._normalize(item_name)
         norm_item_clean = re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", norm_item).strip()
         rayons_map = self._get_rayons_map()
+        if not rayons_map:
+            return "Divers", None
 
         if norm_item in rayons_map:
             return rayons_map[norm_item], None
@@ -471,6 +473,42 @@ class MealsShoppingConnector(BaseConnector):
                 return rayon, None
 
         return "Divers", f"Rayon non répertorié pour '{item_name}', classé temporairement en 'Divers'."
+
+    def resolve_rayon(self, item_name: str) -> tuple[str, Optional[str]]:
+        """Expose publiquement la déduction du rayon d'un article et retourne (rayon, warning_si_inconnu)."""
+        return self._resolve_rayon(item_name)
+
+    def get_available_rayons(self) -> List[str]:
+        """Retourne la liste ordonnée des rayons officiels du classeur."""
+        order = self.get_rayons_order()
+        if order:
+            sorted_rayons = sorted(order.items(), key=lambda x: x[1])
+            return [r[0] for r in sorted_rayons]
+        return [
+            "Fruits & Légumes",
+            "Boucherie",
+            "Frais",
+            "Épicerie",
+            "Surgelés",
+            "Entretien",
+            "Hygiène",
+            "Divers",
+        ]
+
+    def suggest_rayons_for_item(self, item_name: str) -> List[str]:
+        """Suggère 2 rayons pertinents pour un article non répertorié."""
+        norm = self._normalize(item_name).lower()
+        if any(w in norm for w in ["papier", "eponge", "sopalin", "lessive", "nettoyant", "sac", "cuisson", "alu"]):
+            return ["Entretien", "Épicerie"]
+        if any(w in norm for w in ["shampoing", "savon", "dentifrice", "coton", "douche", "brosse"]):
+            return ["Hygiène", "Entretien"]
+        if any(w in norm for w in ["poulet", "boeuf", "porc", "steak", "viande", "jambon"]):
+            return ["Boucherie", "Frais"]
+        if any(w in norm for w in ["glace", "surgele", "sorbet", "poelee"]):
+            return ["Surgelés", "Frais"]
+        if any(w in norm for w in ["pomme", "poire", "legume", "fruit", "salade", "carotte", "tomate"]):
+            return ["Fruits & Légumes", "Frais"]
+        return ["Épicerie", "Entretien"]
 
     def ensure_checkbox_validation(self) -> None:
         """Garantit que la colonne A de Liste_Attente (à partir de la ligne 2) possède la validation case à cocher."""
@@ -504,7 +542,11 @@ class MealsShoppingConnector(BaseConnector):
         except Exception:
             pass
 
-    def add_shopping_items(self, items: List[str]) -> tuple[List[WaitingListItem], List[str]]:
+    def add_shopping_items(
+        self,
+        items: List[str],
+        rayons: Optional[Dict[str, str]] = None,
+    ) -> tuple[List[WaitingListItem], List[str]]:
         """Ajoute une liste d'articles dans Liste_Attente avec case à cocher native."""
         today_str = date.today().strftime("%d/%m/%Y")
         ws = self._spreadsheet.worksheet("Liste_Attente")
@@ -522,7 +564,16 @@ class MealsShoppingConnector(BaseConnector):
                 flags=re.IGNORECASE,
             ).strip()
             clean_item = (cleaned[0].upper() + cleaned[1:]) if cleaned else raw_item.strip()
-            rayon, warning = self._resolve_rayon(clean_item)
+            
+            explicit_rayon = (rayons or {}).get(clean_item) or (rayons or {}).get(raw_item.strip())
+            if explicit_rayon:
+                rayon = explicit_rayon
+                warning = None
+                if self._rayons_cache is not None:
+                    self._rayons_cache[self._normalize(clean_item)] = explicit_rayon
+            else:
+                rayon, warning = self._resolve_rayon(clean_item)
+
             if warning:
                 warnings.append(warning)
 
@@ -548,9 +599,14 @@ class MealsShoppingConnector(BaseConnector):
         self.invalidate_cache("shopping")
         return added_items, warnings
 
-    def add_shopping_item(self, item: str) -> tuple[WaitingListItem, Optional[str]]:
-        """Ajoute un article unique dans la liste d'attente (Liste_Attente)."""
-        items, warnings = self.add_shopping_items([item])
+    def add_shopping_item(
+        self,
+        item: str,
+        rayon: Optional[str] = None,
+    ) -> tuple[WaitingListItem, Optional[str]]:
+        """Ajoute un article unique dans la liste d'attente (Liste_Attente) avec support optionnel d'un rayon explicite."""
+        rayons_dict = {item: rayon} if rayon else None
+        items, warnings = self.add_shopping_items([item], rayons=rayons_dict)
         warning = warnings[0] if warnings else None
         return items[0], warning
 

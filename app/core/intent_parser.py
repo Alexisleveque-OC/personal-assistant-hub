@@ -80,14 +80,64 @@ class IntentParser:
 
         # 0.00 Confirmation ou annulation interactive d'une action en attente
         if context and context.get("pending_action"):
-            if re.search(r"^(?:oui|ouais|vas[- ]y|confirme|c[' ]est\s+bon|exactement|tout\s+[àa]\s+fait|absolument|ok|d[' ]accord)\b", cleaned):
+            pending = context["pending_action"]
+            pending_type = pending.get("type") if isinstance(pending, dict) else None
+
+            # Si l'utilisateur pose une nouvelle question ou donne un nouvel ordre explicite, on ignore l'attente
+            is_new_command = bool(
+                re.search(r"^(?:j[' ]ai\s+quoi|donne|qu[' ]est|quel|combien|ajoute|mets|planifie|prévois|recette|liste)\b", cleaned)
+            )
+
+            # Cas spécifique : clarification de rayon pour un article de courses
+            if pending_type == "clarify_shopping_rayon" and not is_new_command:
+                if re.search(r"\b(?:non|annule|annuler|laisse\s+tomber|pas\s+la\s+peine|non\s+merci)\b", cleaned):
+                    return ParsedIntent(
+                        intent=IntentType.CANCEL,
+                        confidence=0.95,
+                        parameters={"action": pending},
+                        raw_query=text,
+                    )
+                # Vérifier si l'utilisateur choisit 'Divers'
+                if re.search(r"\b(?:divers|laisse\s+en\s+divers|mets\s+en\s+divers)\b", cleaned):
+                    return ParsedIntent(
+                        intent=IntentType.CHOOSE_RAYON,
+                        confidence=0.95,
+                        parameters={"rayon": "Divers", "action": pending},
+                        raw_query=text,
+                    )
+                # Vérifier les suggestions de rayons enregistrées dans le contexte
+                suggested_rayons = pending.get("suggested_rayons", [])
+                for sug in suggested_rayons:
+                    if sug.lower() in cleaned:
+                        return ParsedIntent(
+                            intent=IntentType.CHOOSE_RAYON,
+                            confidence=0.95,
+                            parameters={"rayon": sug, "action": pending},
+                            raw_query=text,
+                        )
+                # Vérifier les rayons standards
+                known_rayons = [
+                    "Entretien", "Épicerie", "Hygiène", "Frais", "Boucherie",
+                    "Fruits & Légumes", "Surgelés", "Boisson", "Apéro", "Divers"
+                ]
+                for kr in known_rayons:
+                    kr_clean = kr.lower().replace("&", "et").split()[0]
+                    if kr_clean in cleaned.replace("&", "et"):
+                        return ParsedIntent(
+                            intent=IntentType.CHOOSE_RAYON,
+                            confidence=0.95,
+                            parameters={"rayon": kr, "action": pending},
+                            raw_query=text,
+                        )
+
+            if not is_new_command and re.search(r"^(?:oui|ouais|vas[- ]y|confirme|c[' ]est\s+bon|exactement|tout\s+[àa]\s+fait|absolument|ok|d[' ]accord)\b", cleaned):
                 return ParsedIntent(
                     intent=IntentType.CONFIRM,
                     confidence=0.95,
                     parameters={"action": context["pending_action"]},
                     raw_query=text,
                 )
-            if re.search(r"^(?:non|nan|annule|laisse\s+tomber|pas\s+la\s+peine|non\s+merci)\b", cleaned):
+            if not is_new_command and re.search(r"^(?:non|nan|annule|annuler|laisse\s+tomber|pas\s+la\s+peine|non\s+merci)\b", cleaned):
                 return ParsedIntent(
                     intent=IntentType.CANCEL,
                     confidence=0.95,

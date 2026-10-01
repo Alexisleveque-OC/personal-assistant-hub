@@ -51,7 +51,8 @@ Liste des intentions disponibles :
 15. toggle_device : domotique. Paramètres : "device", "action" ("on", "off").
 16. small_talk : salutations, politesse, humeur. Fournis une phrase courte et sympa dans "conversational_reply".
 17. confirm / cancel : oui, d'accord, non, annuler.
-18. unknown : si la phrase est totalement incompréhensible ou hors sujet.
+18. choose_rayon : réponse à une clarification de rayon pour un article (ex: "En entretien", "Épicerie", "Laisse en divers", "Rayon frais"). Paramètres : "rayon" (nom du rayon).
+19. unknown : si la phrase est totalement incompréhensible ou hors sujet.
 
 Résolution d'anaphores :
 Si la phrase dit "ajoute ses ingrédients" ou "mets-le à ce soir", utilise le contexte fourni pour déduire la recette ou l'élément mentionné.

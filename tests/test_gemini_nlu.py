@@ -130,6 +130,50 @@ async def test_llm_nlu_service_context_anaphora():
 
 
 @pytest.mark.asyncio
+async def test_llm_nlu_service_clarification_choose_rayon():
+    """Vérifie que le LLM NLU parse correctement la réponse de clarification de rayon."""
+    mock_gemini_api_resp = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": (
+                                '{"intent": "choose_rayon", "confidence": 0.97, '
+                                '"parameters": {"rayon": "Entretien"}, '
+                                '"conversational_reply": "Au rayon entretien, bien noté !"}'
+                            )
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    client = GeminiClient(api_key="fake-key", model="gemini-3.6-flash")
+    nlu_service = GeminiNLUService(gemini_client=client)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.json = lambda: mock_gemini_api_resp
+        mock_resp.raise_for_status = lambda: None
+        mock_post.return_value = mock_resp
+
+        context = {
+            "pending_action": {
+                "type": "clarify_shopping_rayon",
+                "item": "Papier cuisson",
+                "suggested_rayons": ["Entretien", "Épicerie"],
+            }
+        }
+        parsed = await nlu_service.parse("En entretien", context=context)
+
+        assert parsed.intent == IntentType.CHOOSE_RAYON
+        assert parsed.parameters["rayon"] == "Entretien"
+
+
+@pytest.mark.asyncio
 async def test_live_gemini_nlu_real_query():
     """Test réel d'extraction d'intention avec la vraie clé Gemini configurée."""
     from app.config import settings as app_settings

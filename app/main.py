@@ -358,6 +358,45 @@ async def interact(request: InteractionRequest):
 
             if connector:
                 try:
+                    # Cas d'un article unique avec rayon inconnu : déclencher une clarification naturelle
+                    resolved_rayon, warning = (None, None)
+                    if len(raw_items) == 1 and hasattr(connector, "resolve_rayon") and callable(getattr(connector, "resolve_rayon")):
+                        clean_candidate = re.sub(
+                            r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
+                            "",
+                            raw_items[0].strip(),
+                            flags=re.IGNORECASE,
+                        ).strip()
+                        clean_candidate = (clean_candidate[0].upper() + clean_candidate[1:]) if clean_candidate else raw_items[0].strip()
+                        try:
+                            cand = connector.resolve_rayon(clean_candidate)
+                            if isinstance(cand, (tuple, list)) and len(cand) == 2 and isinstance(cand[0], str):
+                                resolved_rayon, warning = cand
+                        except Exception:
+                            resolved_rayon, warning = (None, None)
+
+                        if warning and (resolved_rayon == "Divers" or "non répertorié" in warning.lower()):
+                            suggested = connector.suggest_rayons_for_item(clean_candidate) if hasattr(connector, "suggest_rayons_for_item") else ["Entretien", "Épicerie"]
+                            session_ctx["pending_action"] = {
+                                "type": "clarify_shopping_rayon",
+                                "item": clean_candidate,
+                                "raw_items": raw_items,
+                                "suggested_rayons": suggested,
+                            }
+                            sug_str = f"en {suggested[0]} ou en {suggested[1]}" if len(suggested) >= 2 else f"au rayon {suggested[0]}"
+                            spoken = (
+                                f"Je n'ai pas de rayon pour '{clean_candidate}'. "
+                                f"Veux-tu que je le range {sug_str} ?"
+                            )
+                            data["pending_action"] = session_ctx["pending_action"]
+                            data["suggested_rayons"] = suggested
+                            return InteractionResponse(
+                                success=True,
+                                spoken_response=spoken,
+                                intent=parsed,
+                                data=data,
+                            )
+
                     res = None
                     if hasattr(connector, "add_shopping_items"):
                         try:
@@ -575,6 +614,24 @@ async def interact(request: InteractionRequest):
             else:
                 spoken = "Parfait ! Que souhaitez-vous faire d'autre ?"
 
+        case IntentType.CHOOSE_RAYON:
+            pending = session_ctx.pop("pending_action", None)
+            if pending and pending.get("type") == "clarify_shopping_rayon":
+                item = pending.get("item", "l'article")
+                chosen_rayon = parsed.parameters.get("rayon", "Divers")
+                if connector:
+                    try:
+                        added_item, _ = connector.add_shopping_item(item, rayon=chosen_rayon)
+                        spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {chosen_rayon} dans votre liste de courses."
+                        data["item"] = added_item.model_dump()
+                        data["items"] = [added_item.model_dump()]
+                    except Exception as exc:
+                        spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
+                else:
+                    spoken = f"C'est noté, j'ai ajouté {item} au rayon {chosen_rayon} dans votre liste de courses."
+            else:
+                spoken = "C'est noté !"
+
         case IntentType.CONFIRM:
             pending = session_ctx.pop("pending_action", None)
             if pending and pending.get("type") == "set_meal_plan":
@@ -601,12 +658,30 @@ async def interact(request: InteractionRequest):
                 else:
                     spoken = f"C'est confirmé, j'ai ajouté '{meal}' {target_label} au planning."
                     session_ctx["last_recipe"] = meal
+            elif pending and pending.get("type") == "clarify_shopping_rayon":
+                item = pending.get("item", "l'article")
+                suggested = pending.get("suggested_rayons", ["Divers"])
+                default_rayon = suggested[0] if suggested else "Divers"
+                if connector:
+                    try:
+                        added_item, _ = connector.add_shopping_item(item, rayon=default_rayon)
+                        spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {default_rayon} dans votre liste de courses."
+                        data["item"] = added_item.model_dump()
+                        data["items"] = [added_item.model_dump()]
+                    except Exception as exc:
+                        spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
+                else:
+                    spoken = f"C'est noté, j'ai ajouté {item} au rayon {default_rayon} dans votre liste de courses."
             else:
                 spoken = "C'est noté !"
 
         case IntentType.CANCEL:
-            session_ctx.pop("pending_action", None)
-            spoken = "Très bien, j'ai annulé l'opération."
+            pending = session_ctx.pop("pending_action", None)
+            if pending and pending.get("type") == "clarify_shopping_rayon":
+                item = pending.get("item", "l'article")
+                spoken = f"Très bien, j'ai annulé l'ajout de {item}."
+            else:
+                spoken = "Très bien, j'ai annulé l'opération."
 
         case _:
             spoken = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler ?"
