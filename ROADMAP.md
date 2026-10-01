@@ -11,7 +11,7 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Configuration Pydantic & Client Gemini avec auto-découverte du dernier modèle Flash | 🟡 En cours | En attente | Tests unitaires ciblés |
+| **Étape 1** | Configuration Pydantic & Client Gemini avec auto-découverte du dernier modèle Flash | 🟢 Terminé | En attente de validation | ✅ 7/7 tests unitaires + live au vert |
 | **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) | ⚪ À venir | En attente | Tests de parsing naturel |
 | **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | ⚪ À venir | En attente | Tests conversationnels |
 | **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | ⚪ À venir | En attente | Benchmarks & tests de cache |
@@ -22,7 +22,7 @@
 
 ## Détail des Étapes
 
-### 🟡 Étape 1 : Configuration Pydantic & Client Gemini avec Auto-Découverte Dynamique
+### 🟢 Étape 1 : Configuration Pydantic & Client Gemini avec Auto-Découverte Dynamique
 * **Objectifs :**
   1. Étendre `app/config.py` avec `gemini_api_key` et `gemini_model` (valeur par défaut `"auto"`).
   2. Créer `app/core/llm/gemini_client.py` :
@@ -31,6 +31,7 @@
      * Mettre en cache le modèle sélectionné au démarrage pour éviter tout appel réseau inutile lors des requêtes vocales.
      * Fallback de secours résilient en cas d'absence de réseau au boot.
   3. Tests unitaires dédiés (mocks et cas limites) dans `tests/test_gemini_client.py`.
+* **Résultat validé :** 7/7 tests au vert, modèle auto-découvert en live avec succès (`gemini-3.8-flash`).
 * **Critères de succès :** Tests unitaires à 100% au vert, validation manuelle par l'utilisateur.
 
 ---
