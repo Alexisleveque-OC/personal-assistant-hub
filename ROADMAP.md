@@ -13,8 +13,8 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Configuration Pydantic & Client Gemini avec auto-découverte du dernier modèle Flash | 🟢 Terminé | En attente de validation | ✅ 7/7 tests unitaires + live au vert |
 | **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) & Chaîne de repli | 🟢 Terminé | Validé par l'utilisateur | ✅ 6 tests NLU + 185 tests au vert |
-| **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | En attente de validation | ✅ 5 tests dédiés + 191 tests au vert |
-| **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | ⚪ À venir | En attente | Benchmarks & tests de cache |
+| **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5 tests dédiés + 191 tests au vert |
+| **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | 🟢 Terminé | Validé par l'utilisateur | ✅ 3 tests de latence + 194 tests au vert |
 | **Étape 5** | Branchement dans `/api/v1/interact` avec fallback de résilience local | ⚪ À venir | En attente | 170+ tests au vert |
 | **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation sur PWA | ⚪ À venir | En attente | Tests E2E finaux |
 
@@ -60,14 +60,16 @@
 
 ---
 
-### ⚪ Étape 4 : Optimisation de Latence (< 1 à 2 secondes)
+### 🟢 Étape 4 : Optimisation de Latence (< 1 à 2 secondes)
 * **Objectifs :**
   1. Éliminer le goulot d'étranglement des 8-9 secondes :
-     * **Cache RAM persistant au démarrage** : chargement initial des catalogues de rayons et recettes en mémoire au boot de FastAPI. Plus aucun appel de lecture Google Sheets lors d'une commande vocale.
-     * **Écritures asynchrones (`BackgroundTasks`)** : validation immédiate de l'intention et renvoi du message audio à la PWA en ~300 ms, écriture dans Google Sheets en tâche de fond.
-  2. Invalidation chirurgicale du cache en cas de mutation.
-  3. Tests automatisés vérifiant la rapidité d'exécution et l'intégrité des écritures.
-* **Critères de succès :** Temps de réponse du endpoint mesuré à < 1-2s.
+     * **Cache RAM persistant au démarrage (`warmup_cache`)** : préchauffage via le cycle `lifespan` FastAPI au boot, chargeant en mémoire catalogues de rayons, recettes, ordre et listes.
+     * **Mise à jour optimiste du cache** : les ajouts d'articles mettent immédiatement à jour `_shopping_cache` en mémoire pour des lectures subséquentes instantanées sans réinterrogation Google Sheets.
+     * **Écritures asynchrones (`BackgroundTasks`)** : intégration dans `/api/v1/interact` et `/api/v1/mobile/interact` permettant d'envoyer la réponse audio instantanément.
+     * **Endpoint dédié** : `/api/v1/cache/warmup` pour préchauffer ou rafraîchir le cache à la demande.
+  2. Tests automatisés vérifiant la rapidité d'exécution (< 0.5s en mémoire) et l'intégrité du cache.
+* **Résultat validé :** 3 tests de performance/latence + 194/194 tests au vert.
+* **Critères de succès :** Temps de traitement mémoire < 0.5s et 100% des tests passés.
 
 ---
 
