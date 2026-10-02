@@ -1,5 +1,12 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Depends, Request, Query
+from datetime import date, datetime, timedelta
+import re
+import asyncio
+import logging
+from typing import Optional, Any
+
+from fastapi import FastAPI, Depends, Request, Query, BackgroundTasks
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,37 +20,15 @@ from app.core.models import (
     ParsedIntent,
 )
 from app.core.intent_parser import IntentParser
-
-app = FastAPI(
-    title=settings.app_name,
-    version="0.1.0",
-    description="Hub d'assistant personnel connecté à Google Sheets, Google Tasks, Gmail et Domotique.",
-)
-
-# CORS pour autoriser l'accès depuis une PWA, un widget ou un frontend local
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-from datetime import date, datetime, timedelta
-import re
-from typing import Optional, Any
-
 from app.connectors.sheets.meals_connector import (
     MealsShoppingConnector,
     DayMealPlanNotFoundError,
     RecipeNotFoundError,
 )
 
-intent_parser = IntentParser()
-
-import logging
-
 logger = logging.getLogger(__name__)
+
+intent_parser = IntentParser()
 
 _meals_connector: Any = "UNSET"
 
@@ -65,6 +50,34 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     global _meals_connector
     _meals_connector = connector
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Cycle de vie FastAPI : préchauffe le cache mémoire en arrière-plan dès le boot."""
+    connector = get_meals_connector()
+    if connector and hasattr(connector, "warmup_cache"):
+        try:
+            asyncio.create_task(asyncio.to_thread(connector.warmup_cache))
+        except Exception as exc:
+            logger.warning(f"Impossible de lancer le préchauffage initial du cache : {exc}")
+    yield
+
+
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    description="Hub d'assistant personnel connecté à Google Sheets, Google Tasks, Gmail et Domotique.",
+    lifespan=lifespan,
+)
+
+# CORS pour autoriser l'accès depuis une PWA, un widget ou un frontend local
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _SESSIONS: dict[str, dict] = {}
 
@@ -102,6 +115,16 @@ async def get_llm_stats():
     return client.get_usage_stats()
 
 
+@app.post("/api/v1/cache/warmup", tags=["System"])
+async def trigger_cache_warmup():
+    """Déclenche le préchauffage en mémoire des catalogues de données."""
+    connector = get_meals_connector()
+    if not connector or not hasattr(connector, "warmup_cache"):
+        return {"success": False, "message": "Connecteur non disponible", "stats": {}}
+    stats = connector.warmup_cache()
+    return {"success": True, "stats": stats}
+
+
 @app.post(
     "/api/v1/intent/parse",
     response_model=ParsedIntent,
@@ -123,7 +146,10 @@ async def parse_intent(request: InteractionRequest):
     tags=["Interaction"],
     dependencies=[Depends(verify_api_key)],
 )
-async def interact(request: InteractionRequest):
+async def interact(
+    request: InteractionRequest,
+    background_tasks: BackgroundTasks = None,
+):
     """Point d'entrée universel pour les requêtes vocales ou textuelles.
     
     1. Parse l'intention
@@ -710,6 +736,7 @@ async def interact(request: InteractionRequest):
 )
 async def mobile_interact(
     req: Request,
+    background_tasks: BackgroundTasks = None,
     text: Optional[str] = Query(None, description="Texte de la requête pour appels GET ou query params"),
     payload: Optional[InteractionRequest] = None,
 ):
@@ -754,7 +781,7 @@ async def mobile_interact(
         session_id=session_id,
         context=context,
     )
-    res = await interact(interact_req)
+    res = await interact(interact_req, background_tasks=background_tasks)
 
     # Réponse texte brut si demandée (ex: pour être lue directement par le TTS Android)
     accept_header = req.headers.get("accept", "")

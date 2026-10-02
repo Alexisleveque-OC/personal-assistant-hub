@@ -93,6 +93,8 @@ class MealsShoppingConnector(BaseConnector):
         self._shopping_cache_time: float = 0.0
         self._week_meals_cache: Optional[List[Dict[str, Any]]] = None
         self._week_meals_cache_time: float = 0.0
+        self._annual_meals_cache: Dict[int, List[List[str]]] = {}
+        self._annual_meals_cache_time: Dict[int, float] = {}
         self._rayons_order: Optional[Dict[str, int]] = None
         self._cache_ttl_seconds: int = 180
 
@@ -104,8 +106,43 @@ class MealsShoppingConnector(BaseConnector):
         if domain in (None, "meals"):
             self._week_meals_cache = None
             self._week_meals_cache_time = 0.0
+            self._annual_meals_cache.clear()
+            self._annual_meals_cache_time.clear()
         if domain in (None, "recipes"):
             self._recipes_cache = None
+
+    def warmup_cache(self) -> Dict[str, Any]:
+        """Préchauffe l'ensemble des catalogues statiques et plannings en mémoire."""
+        stats: Dict[str, Any] = {
+            "rayons_count": 0,
+            "recipes_count": 0,
+            "rayons_order_count": 0,
+            "shopping_loaded": False,
+            "meals_plan_loaded": False,
+        }
+        try:
+            stats["rayons_count"] = len(self._get_rayons_map())
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage rayons : {exc}")
+        try:
+            stats["recipes_count"] = len(self._get_all_recipes())
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage recettes : {exc}")
+        try:
+            stats["rayons_order_count"] = len(self.get_rayons_order())
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage ordre rayons : {exc}")
+        try:
+            sh = self.get_shopping_list()
+            stats["shopping_loaded"] = bool(sh)
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage shopping list : {exc}")
+        try:
+            today_plan = self.get_meal_plan(period="aujourd'hui")
+            stats["meals_plan_loaded"] = bool(today_plan)
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage planning repas : {exc}")
+        return stats
 
     def get_rayons_order(self) -> Dict[str, int]:
         """Charge et met en cache l'ordre des rayons défini dans l'onglet 'Rayons'."""
@@ -179,13 +216,23 @@ class MealsShoppingConnector(BaseConnector):
         year = resolved_date.year
         date_str_target = resolved_date.strftime("%d/%m/%Y")
 
-        # 2. Résolution dynamique de l'onglet annuel
-        available_worksheets = [ws.title for ws in self._spreadsheet.worksheets()]
-        ws_name = resolve_meals_worksheet_name(available_worksheets, year=year)
-        ws = self._spreadsheet.worksheet(ws_name)
+        # 2. Résolution via cache mémoire ou interrogation Google Sheets
+        now = time.time()
+        if (
+            year in getattr(self, "_annual_meals_cache", {})
+            and now - getattr(self, "_annual_meals_cache_time", {}).get(year, 0.0) < getattr(self, "_cache_ttl_seconds", 180)
+        ):
+            rows = self._annual_meals_cache[year]
+            ws_name = f"repas {year}"
+        else:
+            available_worksheets = [ws.title for ws in self._spreadsheet.worksheets()]
+            ws_name = resolve_meals_worksheet_name(available_worksheets, year=year)
+            ws = self._spreadsheet.worksheet(ws_name)
+            rows = ws.get_all_values()
+            self._annual_meals_cache[year] = rows
+            self._annual_meals_cache_time[year] = now
 
         # 3. Recherche de la ligne de date
-        rows = ws.get_all_values()
         for row in rows[1:]:
             if row and row[0].strip() == date_str_target:
                 return DayMealPlan(
@@ -596,7 +643,13 @@ class MealsShoppingConnector(BaseConnector):
             for row in rows_to_append:
                 ws.append_row(row, value_input_option="USER_ENTERED")
 
-        self.invalidate_cache("shopping")
+        # Mise à jour optimiste du cache mémoire si déjà présent, sinon invalidation
+        if getattr(self, "_shopping_cache", None) is not None:
+            self._shopping_cache.setdefault("waiting_list", []).extend(added_items)
+            self._shopping_cache_time = time.time()
+        else:
+            self.invalidate_cache("shopping")
+
         return added_items, warnings
 
     def add_shopping_item(
