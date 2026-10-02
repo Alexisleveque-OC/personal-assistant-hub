@@ -16,7 +16,7 @@
 | **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5 tests dédiés + 191 tests au vert |
 | **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | 🟢 Terminé | Validé par l'utilisateur | ✅ 3 tests de latence + 194 tests au vert |
 | **Étape 5** | Branchement dans `/api/v1/interact`, mémoire multi-tours & tolérance recettes | 🟢 Terminé | Validé par l'utilisateur | ✅ 205/205 tests au vert |
-| **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation sur PWA | ⚪ À venir | En attente | Tests E2E finaux |
+| **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation finale | 🟡 En cours de validation | En attente de validation utilisateur | ✅ 3/3 tests E2E (208/208 total) au vert |
 
 ---
 
@@ -85,9 +85,18 @@
 
 ---
 
-### ⚪ Étape 6 : Tests d'Intégration End-to-End (E2E) & Validation PWA
+### 🟡 Étape 6 : Tests d'Intégration End-to-End (E2E) & Validation Finale
 * **Objectifs :**
-  1. Écriture d'un test d'intégration complet E2E simulant un utilisateur réel sur la PWA.
-  2. Validation manuelle sur smartphone en conditions réelles par l'utilisateur.
-  3. Documentation finale et préparation de la MR vers `develop`.
+  1. Écriture d'un test d'intégration complet E2E simulant un utilisateur réel sur la PWA (`tests/test_e2e_gemini_llm_brain.py`).
+  2. Validation de l'enchaînement complet :
+     - Warmup & suivi des quotas LLM (`/api/v1/cache/warmup`, `/api/v1/llm/stats`).
+     - Tour 1 : Réflexion & suggestion de repas conversationnelle.
+     - Tour 2 : Choix dans le fil avec tolérance tiret/espace (`"croque-monsieur"` $\leftrightarrow$ `"Croque monsieur"`).
+     - Tour 3 & 4 : Clarification de rayon ambigu et confirmation de rangement.
+     - Tour 5 : Vérification de planning fluide et concis.
+     - Tour 6 : Anaphore contextuelle d'ingrédients (*« ajoute ses ingrédients »*).
+     - Résilience et bascule transparente si panne API Gemini.
+  3. Validation manuelle sur smartphone en conditions réelles par l'utilisateur.
+  4. Documentation finale et préparation de la fusion vers `develop`.
+* **Résultat automatisé :** ✅ 3/3 tests E2E passés avec succès (208/208 tests au vert sur toute la suite).
 * **Critères de succès :** Validation explicite par l'utilisateur sur son mobile.
