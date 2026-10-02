@@ -201,9 +201,9 @@ class IntentParser:
             flags=re.IGNORECASE,
         ).strip()
 
-        # 0.bis Anaphore contextuelle : "ajoute ces ingrédients", "rajoute tout", "tu peux tout rajouter a la liste d'ingrédients"
+        # 0.bis Anaphore contextuelle : "ajoute ces ingrédients", "ajoute ses ingrédients", "rajoute tout", "tu peux tout rajouter a la liste d'ingrédients"
         anaphora_match = re.search(
-            r"^(?:tout\s+(?:ajoute[sz]?|ajoutez|ajouter|rajoute[sz]?|rajoutez|rajouter|mets?|mettez|mettre)|(?:ajoute[sz]?|ajoutez|ajouter|rajoute[sz]?|rajoutez|rajouter|mets?|mettez|mettre)(?:\s+tous)?(?:\s+tout(?:\s+ça)?|\s+tous\s+ces\s+ingr[ée]dients|\s+ces\s+ingr[ée]dients|-les(?:\s+tous)?|\s+les\s+tous|\s+les(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$)|(?:\s+(?:tous\s+)?les\s+ingr[ée]dients(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$))|\s+cette\s+recette))\s*(?:(?:[àa]|sur|dans)\s+(?:la\s+)?liste(?:\s+(?:de\s+|des\s+|d[' ])?(?:courses?|ingr[ée]dients?))?)?(.*)$",
+            r"^(?:tout\s+(?:ajoute[sz]?|ajoutez|ajouter|rajoute[sz]?|rajoutez|rajouter|mets?|mettez|mettre)|(?:ajoute[sz]?|ajoutez|ajouter|rajoute[sz]?|rajoutez|rajouter|mets?|mettez|mettre)(?:\s+tous)?(?:\s+tout(?:\s+ça)?|\s+tous\s+(?:ces|ses)\s+ingr[ée]dients|\s+(?:ces|ses)\s+ingr[ée]dients|-les(?:\s+tous)?|\s+les\s+tous|\s+les(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$)|(?:\s+(?:tous\s+)?les\s+ingr[ée]dients(?=\s+(?:[àa]|sur|dans|sauf|sans)\b|$))|\s+cette\s+recette))\s*(?:(?:[àa]|sur|dans)\s+(?:la\s+)?liste(?:\s+(?:de\s+|des\s+|d[' ])?(?:courses?|ingr[ée]dients?))?)?(.*)$",
             command_cleaned,
             re.IGNORECASE,
         )
