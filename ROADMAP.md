@@ -15,7 +15,7 @@
 | **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) & Chaîne de repli | 🟢 Terminé | Validé par l'utilisateur | ✅ 6 tests NLU + 185 tests au vert |
 | **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5 tests dédiés + 191 tests au vert |
 | **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | 🟢 Terminé | Validé par l'utilisateur | ✅ 3 tests de latence + 194 tests au vert |
-| **Étape 5** | Branchement dans `/api/v1/interact` avec fallback de résilience local | ⚪ À venir | En attente | 170+ tests au vert |
+| **Étape 5** | Branchement dans `/api/v1/interact`, mémoire multi-tours & tolérance recettes | 🟢 Terminé | Validé par l'utilisateur | ✅ 205/205 tests au vert |
 | **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation sur PWA | ⚪ À venir | En attente | Tests E2E finaux |
 
 ---
@@ -73,12 +73,15 @@
 
 ---
 
-### ⚪ Étape 5 : Branchement dans `/api/v1/interact` & Mode Résilience Local
+### 🟢 Étape 5 : Branchement dans `/api/v1/interact`, Mémoire Conversationnelle & Tolérance Recettes
 * **Objectifs :**
-  1. Intégrer le moteur LLM dans le routeur principal de `/api/v1/interact`.
-  2. Mise en place d'un fallback automatique : si la clé API Gemini n'est pas fournie ou en cas d'indisponibilité réseau, le hub bascule en toute transparence sur le parseur local déterministe (zéro régression, mode hors-ligne préservé).
-  3. Garantir la compatibilité avec la PWA mobile et les raccourcis vocaux existants.
-* **Critères de succès :** Suite complète des 170+ tests à 100% au vert.
+  1. Intégrer le moteur LLM dans le routeur principal de `/api/v1/interact` avec réponses concises (1-2 phrases).
+  2. Maintenir l'historique conversationnel multi-tours (`history`) dans la session pour préserver le fil du dialogue.
+  3. Gestion robuste des dates relatives (`parse_target_date` pour `"today"`, `"tomorrow"`, `"ce soir"` sans erreur `ValueError`).
+  4. Tolérance avancée aux recettes dans Google Sheets : normalisation des tirets, accents, ponctuations et pluriels dans la recherche (`"croque-monsieur"` $\leftrightarrow$ `"Croque monsieur"`).
+  5. Mise en place d'un fallback automatique en cas de quota dépassé ou indisponibilité réseau.
+* **Résultat validé :** 205/205 tests passés au vert, validé manuellement par l'utilisateur sur sa PWA.
+* **Critères de succès :** Suite complète à 100% au vert et validation manuelle.
 
 ---
 
