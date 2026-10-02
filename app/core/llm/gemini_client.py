@@ -9,7 +9,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FALLBACK_MODEL = "gemini-3.6-flash"
+DEFAULT_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 
@@ -30,7 +30,7 @@ class GeminiClient:
         self,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
-        timeout: float = 10.0,
+        timeout: float = 8.0,
         max_daily_requests: Optional[int] = None,
     ) -> None:
         self.api_key = api_key if api_key is not None else settings.gemini_api_key
@@ -43,6 +43,7 @@ class GeminiClient:
         )
         self._resolved_model: Optional[str] = None
         self._candidate_models: List[str] = []
+        self._temporarily_unavailable_models: Dict[str, float] = {}
 
         # Suivi pédagogique des métriques & quotas
         self._daily_requests_count: int = 0
@@ -74,6 +75,12 @@ class GeminiClient:
         self._total_requests_count += 1
         self._last_latency_ms = round(latency_ms, 2)
 
+    def mark_model_temporarily_unavailable(self, model_name: str, duration_seconds: float = 60.0) -> None:
+        """Marque un modèle comme temporairement indisponible (429 rate limit ou 503) pour basculer sur les suivants."""
+        import time
+        self._temporarily_unavailable_models[model_name] = time.time() + duration_seconds
+        logger.info(f"Modèle {model_name} mis en pause pendant {duration_seconds}s suite à indisponibilité ou quota.")
+
     def get_usage_stats(self) -> Dict[str, Any]:
         """Retourne le bilan d'utilisation et des quotas pour affichage dans la PWA."""
         self._check_and_reset_daily()
@@ -94,7 +101,7 @@ class GeminiClient:
         """Résout le modèle à utiliser.
         
         - Si un modèle explicite est configuré (différent de 'auto'), il est utilisé directement.
-        - Si 'auto', interroge l'API pour sélectionner la version stable la plus récente de la famille Flash.
+        - Si 'auto', interroge l'API pour sélectionner la version stable optimale de la famille Flash.
         - Met en cache le résultat en mémoire.
         - Retombe gracieusement sur DEFAULT_FALLBACK_MODEL en cas d'erreur ou d'absence de clé.
         """
@@ -137,11 +144,10 @@ class GeminiClient:
             return self._resolved_model
 
     def _select_best_flash_model(self, models: List[Dict[str, Any]]) -> str:
-        """Sélectionne le modèle Flash le plus récent parmi les modèles disponibles."""
-        stable_flash_candidates: List[str] = []
-        any_flash_candidates: List[str] = []
+        """Sélectionne les meilleurs modèles Flash en privilégiant ceux qui sont rapides, stables et sans surchauffe."""
+        flash_models: List[str] = []
 
-        unstable_keywords = ("thinking", "exp", "experimental", "preview")
+        unstable_keywords = ("tts", "audio", "embed", "2.5")  # 2.5 est déprécié (404)
 
         for m in models:
             raw_name = m.get("name", "")
@@ -153,24 +159,41 @@ class GeminiClient:
             clean_name = raw_name.replace("models/", "").strip()
             name_lower = clean_name.lower()
 
+            if any(kw in name_lower for kw in unstable_keywords):
+                continue
+
             if "flash" in name_lower:
-                any_flash_candidates.append(clean_name)
-                if not any(kw in name_lower for kw in unstable_keywords):
-                    stable_flash_candidates.append(clean_name)
+                flash_models.append(clean_name)
 
-        # On privilégie les modèles stables
-        candidates = stable_flash_candidates or any_flash_candidates
-
-        if not candidates:
+        if not flash_models:
             return DEFAULT_FALLBACK_MODEL
 
-        # Tri par version décroissante (ex: (3, 8) > (3, 6))
-        candidates.sort(key=_parse_gemini_version, reverse=True)
-        self._candidate_models = candidates
-        return candidates[0]
+        # Priorité aux modèles Flash-Lite et Flash récents stables
+        # On place en premier les modèles ultra-réactifs et dotés de quotas élevés (3.5-flash-lite, 3.6-flash, flash-lite-latest)
+        def _model_priority(name: str) -> tuple[int, tuple[int, ...]]:
+            nl = name.lower()
+            ver = _parse_gemini_version(name)
+            # Éviter les pré-versions 3.8/3.7 à quotas Free-Tier microscopiques (20 req/j)
+            is_ultra_preview = ver >= (3, 7)
+            is_lite = "lite" in nl
+            score = 10 if (is_lite and not is_ultra_preview) else (8 if not is_ultra_preview else 2)
+            return (score, ver)
+
+        flash_models.sort(key=_model_priority, reverse=True)
+        self._candidate_models = flash_models
+        return flash_models[0]
 
     def get_candidate_models(self) -> List[str]:
         """Retourne la liste des modèles candidats par ordre de priorité pour le basculement."""
+        import time
+        now = time.time()
+        # Filtrer ceux en cooldown
+        active_candidates = [
+            m for m in self._candidate_models
+            if self._temporarily_unavailable_models.get(m, 0) < now
+        ]
+        if active_candidates:
+            return active_candidates
         if self._candidate_models:
             return list(self._candidate_models)
         if self.configured_model and self.configured_model.lower() != "auto":
@@ -180,6 +203,13 @@ class GeminiClient:
     def set_resolved_model(self, model: str) -> None:
         """Met à jour le modèle résolu actif."""
         self._resolved_model = model
+
+    def set_active_working_model(self, model_name: str) -> None:
+        """Promeut le modèle validé en tête des candidats pour les requêtes futures."""
+        self._resolved_model = model_name
+        if model_name in self._candidate_models:
+            self._candidate_models.remove(model_name)
+        self._candidate_models.insert(0, model_name)
 
 
 _gemini_client: Optional[GeminiClient] = None

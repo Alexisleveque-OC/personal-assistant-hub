@@ -7,6 +7,7 @@ import logging
 import time
 import json
 import base64
+import difflib
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ from app.connectors.sheets.models import (
     ShoppingItem,
     WaitingListItem,
 )
+from app.core.date_resolver import parse_target_date
 
 
 class MealsConnectorError(Exception):
@@ -181,12 +183,27 @@ class MealsShoppingConnector(BaseConnector):
 
     @staticmethod
     def _normalize(text: str) -> str:
-        """Normalise une chaîne (minuscules, sans accents, sans espaces superflus)."""
+        """Normalise une chaîne (minuscules, sans accents, sans tirets/ponctuation, sans espaces superflus)."""
         if not text:
             return ""
         normalized = unicodedata.normalize("NFKD", text)
         stripped = "".join(c for c in normalized if not unicodedata.combining(c))
-        return " ".join(stripped.lower().split())
+        cleaned = re.sub(r"[\-–—_'’‘/\\,.;:!?+*&()]+", " ", stripped)
+        return " ".join(cleaned.lower().split())
+
+    @classmethod
+    def _stem_tokens(cls, text: str) -> str:
+        """Produit une version simplifiée sans pluriels simples pour chaque mot."""
+        norm = cls._normalize(text)
+        tokens = []
+        for word in norm.split():
+            if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+                tokens.append(word[:-1])
+            elif len(word) > 3 and word.endswith("x") and word not in ("deux", "doux", "faux"):
+                tokens.append(word[:-1])
+            else:
+                tokens.append(word)
+        return " ".join(tokens)
 
     def get_meal_plan(
         self,
@@ -195,23 +212,7 @@ class MealsShoppingConnector(BaseConnector):
     ) -> DayMealPlan:
         """Récupère le menu prévu pour une date ou une période relative."""
         # 1. Résolution de la date cible
-        today = date.today()
-        if target_date is not None:
-            if isinstance(target_date, str):
-                try:
-                    resolved_date = datetime.strptime(target_date.strip(), "%d/%m/%Y").date()
-                except ValueError:
-                    resolved_date = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
-            else:
-                resolved_date = target_date
-        elif period is not None:
-            period_norm = period.strip().lower()
-            if "demain" in period_norm:
-                resolved_date = today + timedelta(days=1)
-            else:
-                resolved_date = today
-        else:
-            resolved_date = today
+        resolved_date = parse_target_date(target_date, period=period)
 
         year = resolved_date.year
         date_str_target = resolved_date.strftime("%d/%m/%Y")
@@ -303,13 +304,7 @@ class MealsShoppingConnector(BaseConnector):
         meal_type: str = "soir",
     ) -> DayMealPlan:
         """Modifie le repas prévu pour une date donnée dans le planning annuel."""
-        if isinstance(target_date, str):
-            try:
-                resolved_date = datetime.strptime(target_date.strip(), "%d/%m/%Y").date()
-            except ValueError:
-                resolved_date = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
-        else:
-            resolved_date = target_date
+        resolved_date = parse_target_date(target_date)
 
         year = resolved_date.year
         date_str_target = resolved_date.strftime("%d/%m/%Y")
@@ -452,23 +447,66 @@ class MealsShoppingConnector(BaseConnector):
         return self._recipes_cache
 
     def get_recipe_ingredients(self, recipe_name: str) -> Optional[Recipe]:
-        """Recherche une recette et ses ingrédients dans le catalogue en cache."""
+        """Recherche une recette et ses ingrédients dans le catalogue en cache avec tolérance maximale."""
         query_norm = self._normalize(recipe_name)
         if not query_norm:
             return None
 
+        query_stem = self._stem_tokens(recipe_name)
+        query_compact = query_norm.replace(" ", "")
+
         all_recipes = self._get_all_recipes()
 
-        # 1. Passe 1 : Recherche exacte
+        # 1. Passe 1 : Recherche exacte après normalisation (minuscules, sans accents, sans tirets)
+        # ex: 'croque-monsieur' == 'Croque monsieur'
         for recipe in all_recipes:
             if self._normalize(recipe.name) == query_norm:
                 return recipe
 
-        # 2. Passe 2 : Recherche partielle (ex: 'risotto de quinoa' -> 'Risotto de Quinoa courgette')
+        # 2. Passe 2 : Recherche compacte (en ignorant complètement les espaces et tirets)
+        # ex: 'croquemonsieur' == 'Croque monsieur'
+        for recipe in all_recipes:
+            if self._normalize(recipe.name).replace(" ", "") == query_compact:
+                return recipe
+
+        # 3. Passe 3 : Recherche avec normalisation des pluriels simples (stemming)
+        # ex: 'croque-monsieurs' -> 'Croque monsieur', 'gratin de crozet' -> 'Gratin de crozets'
+        for recipe in all_recipes:
+            if self._stem_tokens(recipe.name) == query_stem:
+                return recipe
+
+        # 4. Passe 4 : Recherche par inclusion / sous-chaîne
+        # ex: 'risotto de quinoa' -> 'Risotto de Quinoa courgette'
         for recipe in all_recipes:
             rec_norm = self._normalize(recipe.name)
             if query_norm in rec_norm or rec_norm in query_norm:
                 return recipe
+
+        # 5. Passe 5 : Recherche par inclusion sur les versions sans pluriels
+        for recipe in all_recipes:
+            rec_stem = self._stem_tokens(recipe.name)
+            if query_stem in rec_stem or rec_stem in query_stem:
+                return recipe
+
+        # 6. Passe 6 : Recherche par ensemble de mots-clés (mots réordonnés ou mots-clés présents)
+        query_words = set(query_norm.split())
+        for recipe in all_recipes:
+            rec_words = set(self._normalize(recipe.name).split())
+            if query_words and (query_words.issubset(rec_words) or rec_words.issubset(query_words)):
+                return recipe
+
+        # 7. Passe 7 : Similarité floue (fuzzy matching difflib) si ratio >= 80%
+        best_match = None
+        best_ratio = 0.0
+        for recipe in all_recipes:
+            rec_norm = self._normalize(recipe.name)
+            ratio = difflib.SequenceMatcher(None, query_norm, rec_norm).ratio()
+            if ratio > best_ratio and ratio >= 0.80:
+                best_ratio = ratio
+                best_match = recipe
+
+        if best_match:
+            return best_match
 
         return None
 

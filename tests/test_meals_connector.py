@@ -45,6 +45,7 @@ def mock_spreadsheet():
         ["Pizza maison", "Plaisir", "Four", "TRUE", "Pâte à pizza", "Sauce tomate", "Mozzarella", ""],
         ["Panini", "Sandwich", "Chaud", "FALSE", "Pain panini", "Jambon", "Fromage croque", ""],
         ["Boeuf aux poivrons", "Plat", "Chaud", "FALSE", "Chair à saucisse", "Poivrons", "Pomme de terre", "Féta", "oignon", "Ail", "Pulpe de tomates"],
+        ["Croque monsieur", "Sandwich", "Chaud", "TRUE", "Pain de mie", "Jambon", "Fromage croque", "Emmental râpé"],
     ]
 
     recette_festive_data = [
@@ -137,6 +138,23 @@ def test_get_meal_plan_not_found(mock_spreadsheet):
         connector.get_meal_plan(target_date="31/12/2099")
 
 
+def test_get_meal_plan_accepts_relative_string_keywords(mock_spreadsheet):
+    """Vérifie que get_meal_plan accepte 'today', 'tomorrow', 'ce soir', etc. sans planter sur strptime."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    plan_today = connector.get_meal_plan(target_date="today", period="soir")
+    assert plan_today.dinner == "Pizza maison"
+
+    plan_tomorrow = connector.get_meal_plan(target_date="tomorrow", period="soir")
+    assert plan_tomorrow.dinner == "Burger veggie"
+
+
+def test_set_meal_plan_accepts_relative_string_keywords(mock_spreadsheet):
+    """Vérifie que set_meal_plan accepte 'today' et 'tomorrow'."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+    plan = connector.set_meal_plan(meal="Ratatouille", target_date="today", meal_type="soir")
+    assert plan.dinner == "Ratatouille"
+
+
 def test_get_next_meal_plan_morning_with_lunch(mock_spreadsheet):
     """Matin (< 14h) avec repas du midi présent -> renvoie ce midi."""
     connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
@@ -221,6 +239,31 @@ def test_get_recipe_ingredients_not_found(mock_spreadsheet):
     connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
     recipe = connector.get_recipe_ingredients("Plat imaginaire 404")
     assert recipe is None
+
+
+def test_get_recipe_ingredients_matches_with_hyphens_accents_and_plurals(mock_spreadsheet):
+    """Vérifie que la recherche de recette ignore les tirets, accents, majuscules et pluriels."""
+    connector = MealsShoppingConnector(spreadsheet=mock_spreadsheet)
+
+    # 1. Tiret vs espace ("croque-monsieur" -> "Croque monsieur")
+    r1 = connector.get_recipe_ingredients("croque-monsieur")
+    assert r1 is not None
+    assert r1.name == "Croque monsieur"
+
+    # 2. Pluriel avec tiret ("croque-monsieurs" -> "Croque monsieur")
+    r2 = connector.get_recipe_ingredients("croque-monsieurs")
+    assert r2 is not None
+    assert r2.name == "Croque monsieur"
+
+    # 3. Compact sans espace ni tiret ("croquemonsieur" -> "Croque monsieur")
+    r3 = connector.get_recipe_ingredients("croquemonsieur")
+    assert r3 is not None
+    assert r3.name == "Croque monsieur"
+
+    # 4. Accents et tirets ("boeuf-aux-poivrons" -> "Boeuf aux poivrons")
+    r4 = connector.get_recipe_ingredients("boeuf-aux-poivrons")
+    assert r4 is not None
+    assert r4.name == "Boeuf aux poivrons"
 
 
 def test_set_meal_plan_success(mock_spreadsheet):

@@ -1,7 +1,7 @@
 """Module de résolution des expressions temporelles et dates en français."""
 from datetime import date, datetime, timedelta
 import re
-from typing import Optional
+from typing import Optional, Union, Any
 from pydantic import BaseModel, Field
 
 
@@ -182,3 +182,85 @@ def resolve_date_expression(text: str, now: Optional[datetime] = None) -> Resolv
         period="prochain",
         cleaned_query=cleaned,
     )
+
+
+def parse_target_date(
+    target: Union[str, date, datetime, None],
+    period: Optional[str] = None,
+    default: Optional[date] = None,
+) -> date:
+    """Résout de manière robuste et sûre une date cible à partir de divers formats.
+
+    Gère :
+    - Instance de date ou datetime
+    - Mots-clés temporels : 'today', 'tomorrow', 'yesterday', 'ce soir', 'ce midi', 'aujourd'hui', 'demain', 'hier'
+    - Formats de chaînes : JJ/MM/AAAA, AAAA-MM-JJ, JJ-MM-AAAA, JJ/MM, ISO 8601
+    - Résolution basée sur 'period' si target est None ou indéterminé
+    - Fallback garanti sans exception ValueError (renvoie default ou date.today()).
+    """
+    today = date.today()
+
+    if target is None or target == "":
+        if period:
+            p_lower = period.strip().lower()
+            if "demain" in p_lower:
+                return today + timedelta(days=1)
+            elif "hier" in p_lower:
+                return today - timedelta(days=1)
+        return default or today
+
+    if isinstance(target, datetime):
+        return target.date()
+
+    if isinstance(target, date):
+        return target
+
+    if not isinstance(target, str):
+        return default or today
+
+    raw = target.strip()
+    s = raw.lower()
+
+    # 1. Mots-clés directs
+    if s in ("today", "ce soir", "ce midi", "aujourd'hui", "aujourdhui", "ce jour", "current_date", "now"):
+        return today
+    if s in ("tomorrow", "demain", "lendemain"):
+        return today + timedelta(days=1)
+    if s in ("yesterday", "hier", "veille"):
+        return today - timedelta(days=1)
+
+    # 2. Formats explicites courants
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%y", "%d-%m-%y"):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            pass
+
+    # 3. Format jour/mois sans année (ex: 15/10 ou 15-10)
+    for fmt in ("%d/%m", "%d-%m"):
+        try:
+            d_part = datetime.strptime(raw, fmt).date()
+            return date(today.year, d_part.month, d_part.day)
+        except ValueError:
+            pass
+
+    # 4. Format ISO avec heure éventuelle (ex: 2026-10-02T12:00:00)
+    try:
+        return date.fromisoformat(raw[:10])
+    except (ValueError, TypeError):
+        pass
+
+    # 5. Tentative via le parseur d'expression en français (ex: "jeudi 24 octobre")
+    try:
+        res = resolve_date_expression(raw)
+        if res.target_date:
+            return res.target_date
+    except Exception:
+        pass
+
+    # 6. Fallback final respectant period si présent
+    if period and "demain" in period.strip().lower():
+        return today + timedelta(days=1)
+
+    return default or today
+
