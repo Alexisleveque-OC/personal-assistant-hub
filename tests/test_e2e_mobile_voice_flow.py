@@ -22,7 +22,7 @@ def test_e2e_pwa_manifest_and_sw_integration():
     assert resp_manifest.status_code == 200
     assert resp_manifest.headers.get("cache-control") == "no-cache, no-store, must-revalidate"
     manifest = resp_manifest.json()
-    assert manifest["id"] == "/app?v=3"
+    assert manifest["id"] == "/app?v=4"
     assert manifest["start_url"] == "/app"
     assert manifest["display"] == "standalone"
 
@@ -42,7 +42,7 @@ def test_e2e_pwa_manifest_and_sw_integration():
     resp_sw = client.get("/sw.js")
     assert resp_sw.status_code == 200
     assert resp_sw.headers.get("cache-control") == "no-cache, no-store, must-revalidate"
-    assert "pah-pwa-cache-v3" in resp_sw.text
+    assert "pah-pwa-cache-v4" in resp_sw.text
 
     # 3. Page principale PWA /app
     resp_app = client.get("/app")

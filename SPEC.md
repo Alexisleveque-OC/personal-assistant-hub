@@ -97,7 +97,7 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [x] Interface utilisateur Web PWA vocale avec micro réactif et TTS
   - [x] Logo personnalisé Monstera haute définition avec marge de respiration de 5%
   - [x] Icônes Android PWA adaptatives (maskable, standard, touch icon)
-  - [x] Mode hors-ligne, Service Worker v3 et gestion du cache PWA
+  - [x] Mode hors-ligne, Service Worker v4 et gestion du cache PWA avec auto-rechargement
   - [x] Validation sur smartphone en conditions réelles et tests E2E
 
 - [x] **Phase 3 bis : Conteneurisation & CI/CD Cloud 24h/24 (Terminée)**
