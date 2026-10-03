@@ -64,6 +64,7 @@ jobs:
           API_KEY: ${{ secrets.API_KEY }}
           SHEET_ID: ${{ secrets.SPREADSHEET_MEALS_SHOPPING_ID }}
           GSA_INFO: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # Encoder proprement GOOGLE_SERVICE_ACCOUNT_INFO en base64 pour éviter les sauts de ligne dans la commande gcloud
           GSA_B64=$(python3 -c "import os, base64; print(base64.b64encode(os.environ.get('GSA_INFO', '').encode('utf-8')).decode('utf-8'))")
@@ -72,6 +73,9 @@ jobs:
           ENV_VARS="API_KEY=${API_KEY},SPREADSHEET_MEALS_SHOPPING_ID=${SHEET_ID}"
           if [ -n "$GSA_B64" ]; then
             ENV_VARS="${ENV_VARS},GOOGLE_SERVICE_ACCOUNT_INFO=${GSA_B64}"
+          fi
+          if [ -n "$GEMINI_API_KEY" ]; then
+            ENV_VARS="${ENV_VARS},GEMINI_API_KEY=${GEMINI_API_KEY}"
           fi
 
           echo "Déploiement vers Google Cloud Run dans le projet $GCP_PROJECT_ID..."

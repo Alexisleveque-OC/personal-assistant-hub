@@ -35,6 +35,7 @@ Pour que le serveur Cloud puisse dialoguer avec votre Google Sheets sans risquer
 | `API_KEY` | Clé d'API secrète pour verrouiller l'accès mobile | `votre_cle_secrete_1234` |
 | `SPREADSHEET_MEALS_SHOPPING_ID` | Identifiant de votre classeur Google Sheets (visible dans l'URL de votre sheet) | `1a2b3c4d5e_EXEMPLE_ID_CLASSEUR_VOTRE_SHEET` |
 | `GOOGLE_SERVICE_ACCOUNT_INFO` | Contenu intégral de votre fichier `credentials.json` | `{"type": "service_account", ...}` |
+| `GEMINI_API_KEY` | Clé d'API Google AI Studio pour le moteur conversationnel Gemini Flash | `AIzaSy...` |
 
 > [!TIP]
 > **Astuce pour `GOOGLE_SERVICE_ACCOUNT_INFO` :**
@@ -52,18 +53,25 @@ Deux options s'offrent à vous : **Google Cloud Run** (inclus dans l'écosystèm
 
 Google Cloud Run offre un **niveau gratuit permanent de 2 millions de requêtes par mois**, idéal pour un usage personnel.
 
-1. **Activer l'API Cloud Run :**
+1. **Activer les APIs nécessaires sur Google Cloud :**
    * Rendez-vous sur la [Console Google Cloud](https://console.cloud.google.com/).
    * Sélectionnez le projet Google associé à vos identifiants Google Sheets.
-   * Dans la barre de recherche, tapez **Cloud Run Admin API** et cliquez sur **Activer**.
+   * Dans la barre de recherche ou sous **APIs & Services** > **Bibliothèque**, vérifiez que les APIs suivantes sont **activées** :
+     - **Cloud Run Admin API**
+     - **Cloud Build API** (requis pour compiler l'image depuis le code source)
+     - **Artifact Registry API** (requis pour stocker l'image du conteneur)
+     - **Cloud Storage API** (requis pour téléverser les sources de build)
 
-2. **Créer une clé de déploiement pour GitHub Actions :**
-   * Allez dans **IAM & Administration** > **Comptes de service**.
-   * Créez un compte de service nommé `github-deployer` avec les rôles :
-     * *Administrateur Cloud Run*
-     * *Utilisateur de compte de service*
-     * *Rédacteur de stockage (Storage Admin)* ou *Administrateur Artifact Registry*
-   * Cliquez sur le compte créé > Onglet **Clés** > **Ajouter une clé** > **Créer une clé au format JSON**.
+2. **Créer le compte de service `github-deployer` avec les rôles IAM complets :**
+   * Allez dans **IAM & Administration** > **IAM**.
+   * Localisez (ou créez dans **Comptes de service**) le compte `github-deployer@<PROJECT_ID>.iam.gserviceaccount.com`.
+   * Attribuez-lui (ou ajoutez-lui via le bouton Modifier) les 5 rôles indispensables :
+     * **Administrateur Cloud Run** (`roles/run.admin`)
+     * **Administrateur de stockage** (`roles/storage.admin`) *(évite l'erreur storage.buckets.get sur les run-sources)*
+     * **Éditeur Cloud Build** (`roles/cloudbuild.builds.editor`)
+     * **Administrateur Artifact Registry** (`roles/artifactregistry.admin`)
+     * **Utilisateur de compte de service** (`roles/iam.serviceAccountUser`)
+   * Allez dans l'onglet **Clés** de ce compte de service > **Ajouter une clé** > **Créer une clé au format JSON** et téléchargez-la.
 
 3. **Ajouter les secrets GCP dans GitHub :**
    * `GCP_PROJECT_ID` : L'identifiant de votre projet Google Cloud (ex: `personal-assistant-hub-123456`).
