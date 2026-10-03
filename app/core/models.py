@@ -33,9 +33,10 @@ class IntentType(str, Enum):
     # Conversation / Politesse
     SMALL_TALK = "small_talk"
 
-    # Confirmation interactive
+    # Confirmation interactive & clarifications
     CONFIRM = "confirm"
     CANCEL = "cancel"
+    CHOOSE_RAYON = "choose_rayon"
 
     # Non reconnu
     UNKNOWN = "unknown"
@@ -47,6 +48,10 @@ class ParsedIntent(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     parameters: Dict[str, Any] = Field(default_factory=dict)
     raw_query: str
+    conversational_reply: Optional[str] = Field(
+        default=None,
+        description="Réponse intelligente et réfléchie générée par le LLM pour guider l'utilisateur ou dialoguer",
+    )
 
 
 class InteractionRequest(BaseModel):
