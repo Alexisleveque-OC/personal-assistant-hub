@@ -16,7 +16,7 @@
 | **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5 tests dédiés + 191 tests au vert |
 | **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | 🟢 Terminé | Validé par l'utilisateur | ✅ 3 tests de latence + 194 tests au vert |
 | **Étape 5** | Branchement dans `/api/v1/interact`, mémoire multi-tours & tolérance recettes | 🟢 Terminé | Validé par l'utilisateur | ✅ 205/205 tests au vert |
-| **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation finale | 🟡 En cours de validation | En attente de validation utilisateur | ✅ 3/3 tests E2E (208/208 total) au vert |
+| **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation finale | 🟢 Terminé | Validé par l'utilisateur | ✅ 3/3 tests E2E (208/208 total) au vert |
 
 ---
 
@@ -85,7 +85,7 @@
 
 ---
 
-### 🟡 Étape 6 : Tests d'Intégration End-to-End (E2E) & Validation Finale
+### 🟢 Étape 6 : Tests d'Intégration End-to-End (E2E) & Validation Finale
 * **Objectifs :**
   1. Écriture d'un test d'intégration complet E2E simulant un utilisateur réel sur la PWA (`tests/test_e2e_gemini_llm_brain.py`).
   2. Validation de l'enchaînement complet :
@@ -99,4 +99,4 @@
   3. Validation manuelle sur smartphone en conditions réelles par l'utilisateur.
   4. Documentation finale et préparation de la fusion vers `develop`.
 * **Résultat automatisé :** ✅ 3/3 tests E2E passés avec succès (208/208 tests au vert sur toute la suite).
-* **Critères de succès :** Validation explicite par l'utilisateur sur son mobile.
+* **Critères de succès :** Validé manuellement par l'utilisateur sur son mobile.
