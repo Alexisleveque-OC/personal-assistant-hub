@@ -1,5 +1,12 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Depends, Request, Query
+from datetime import date, datetime, timedelta
+import re
+import asyncio
+import logging
+from typing import Optional, Any
+
+from fastapi import FastAPI, Depends, Request, Query, BackgroundTasks
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,37 +20,22 @@ from app.core.models import (
     ParsedIntent,
 )
 from app.core.intent_parser import IntentParser
-
-app = FastAPI(
-    title=settings.app_name,
-    version="0.1.0",
-    description="Hub d'assistant personnel connecté à Google Sheets, Google Tasks, Gmail et Domotique.",
+from app.core.llm.nlu_service import (
+    GeminiNLUService,
+    get_nlu_service,
+    set_nlu_service,
+    infer_rayon_with_llm,
 )
-
-# CORS pour autoriser l'accès depuis une PWA, un widget ou un frontend local
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-from datetime import date, datetime, timedelta
-import re
-from typing import Optional, Any
-
 from app.connectors.sheets.meals_connector import (
     MealsShoppingConnector,
     DayMealPlanNotFoundError,
     RecipeNotFoundError,
 )
-
-intent_parser = IntentParser()
-
-import logging
+from app.core.date_resolver import parse_target_date
 
 logger = logging.getLogger(__name__)
+
+intent_parser = IntentParser()
 
 _meals_connector: Any = "UNSET"
 
@@ -65,6 +57,34 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     global _meals_connector
     _meals_connector = connector
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Cycle de vie FastAPI : préchauffe le cache mémoire en arrière-plan dès le boot."""
+    connector = get_meals_connector()
+    if connector and hasattr(connector, "warmup_cache"):
+        try:
+            asyncio.create_task(asyncio.to_thread(connector.warmup_cache))
+        except Exception as exc:
+            logger.warning(f"Impossible de lancer le préchauffage initial du cache : {exc}")
+    yield
+
+
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    description="Hub d'assistant personnel connecté à Google Sheets, Google Tasks, Gmail et Domotique.",
+    lifespan=lifespan,
+)
+
+# CORS pour autoriser l'accès depuis une PWA, un widget ou un frontend local
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _SESSIONS: dict[str, dict] = {}
 
@@ -94,6 +114,24 @@ async def health_check():
     }
 
 
+@app.get("/api/v1/llm/stats", tags=["System"])
+async def get_llm_stats():
+    """Fournit les métriques et quotas de l'assistant LLM Gemini."""
+    from app.core.llm.gemini_client import get_gemini_client
+    client = get_gemini_client()
+    return client.get_usage_stats()
+
+
+@app.post("/api/v1/cache/warmup", tags=["System"])
+async def trigger_cache_warmup():
+    """Déclenche le préchauffage en mémoire des catalogues de données."""
+    connector = get_meals_connector()
+    if not connector or not hasattr(connector, "warmup_cache"):
+        return {"success": False, "message": "Connecteur non disponible", "stats": {}}
+    stats = connector.warmup_cache()
+    return {"success": True, "stats": stats}
+
+
 @app.post(
     "/api/v1/intent/parse",
     response_model=ParsedIntent,
@@ -115,7 +153,10 @@ async def parse_intent(request: InteractionRequest):
     tags=["Interaction"],
     dependencies=[Depends(verify_api_key)],
 )
-async def interact(request: InteractionRequest):
+async def interact(
+    request: InteractionRequest,
+    background_tasks: BackgroundTasks = None,
+):
     """Point d'entrée universel pour les requêtes vocales ou textuelles.
     
     1. Parse l'intention
@@ -140,8 +181,27 @@ async def interact(request: InteractionRequest):
     if request.context:
         session_ctx.update(request.context)
 
-    parsed = intent_parser.parse(request.query, context=session_ctx)
     connector = get_meals_connector()
+    nlu_service = get_nlu_service()
+
+    # Enrichissement du contexte NLU avec la liste des rayons disponibles
+    if connector and hasattr(connector, "get_available_rayons"):
+        try:
+            cand_rayons = connector.get_available_rayons()
+            if isinstance(cand_rayons, list) and all(isinstance(r, str) for r in cand_rayons):
+                session_ctx["available_rayons"] = cand_rayons
+        except Exception:
+            pass
+
+    # 1. Analyse locale déterministe
+    parsed = intent_parser.parse(request.query, context=session_ctx)
+
+    # 2. Si le modèle local ne comprend pas (UNKNOWN) : activation du cerveau LLM Gemini pour réfléchir
+    if parsed.intent == IntentType.UNKNOWN:
+        llm_parsed = await nlu_service.parse(request.query, context=session_ctx)
+        if llm_parsed.intent != IntentType.UNKNOWN or llm_parsed.conversational_reply:
+            parsed = llm_parsed
+
     data = dict(parsed.parameters)
 
     match parsed.intent:
@@ -162,38 +222,27 @@ async def interact(request: InteractionRequest):
                         data["meal_plan"] = plan.model_dump()
                     else:
                         # Jour ou date ciblé
-                        plan = connector.get_meal_plan(period=period, target_date=target_date_str)
+                        resolved_d = parse_target_date(target_date_str, period=period)
+                        plan = connector.get_meal_plan(period=period, target_date=resolved_d)
                         # Libellé du jour/moment fluide et concis
-                        is_today = False
-                        is_tomorrow = False
                         today_d = date.today()
                         tomorrow_d = today_d + timedelta(days=1)
-                        if target_date_str:
-                            try:
-                                d_obj = datetime.strptime(target_date_str, "%d/%m/%Y").date()
-                                if d_obj == today_d:
-                                    is_today = True
-                                elif d_obj == tomorrow_d:
-                                    is_tomorrow = True
-                            except Exception:
-                                pass
-                        if period in ["ce soir", "ce midi", "aujourd'hui"] or (not target_date_str and not day_name and period in ["midi", "soir"]):
-                            is_today = True
-                        elif period == "demain":
-                            is_tomorrow = True
+                        is_today = (resolved_d == today_d)
+                        is_tomorrow = (resolved_d == tomorrow_d)
 
                         # Formulation naturelle et épurée
                         if is_today:
                             prefix = "Ce midi" if period == "midi" else ("Ce soir" if period == "soir" else "Aujourd'hui")
                         elif is_tomorrow:
                             prefix = "Demain midi" if period == "midi" else ("Demain soir" if period == "soir" else "Demain")
-                        elif day_name and target_date_str:
+                        elif day_name and target_date_str and target_date_str.lower() not in ("today", "tomorrow", "demain", "aujourd'hui"):
                             day_label_base = f"{day_name} {target_date_str}"
                             prefix = f"{day_label_base} midi" if period == "midi" else (f"{day_label_base} soir" if period == "soir" else f"{day_label_base}")
                         elif day_name:
                             prefix = f"{day_name} midi" if period == "midi" else (f"{day_name} soir" if period == "soir" else f"{day_name}")
                         else:
-                            prefix = f"Pour le {target_date_str}" if target_date_str else "Pour ce repas"
+                            date_display = resolved_d.strftime("%d/%m/%Y")
+                            prefix = f"Pour le {date_display}"
 
                         if period == "midi":
                             dish = plan.lunch or "rien de planifié"
@@ -235,7 +284,16 @@ async def interact(request: InteractionRequest):
                             except Exception:
                                 data["dinner_ingredients"] = []
                 except DayMealPlanNotFoundError:
-                    label_err = day_name or target_date_str or period or "ce soir"
+                    if is_today:
+                        label_err = "ce midi" if period == "midi" else "ce soir"
+                    elif is_tomorrow:
+                        label_err = "demain midi" if period == "midi" else "demain soir"
+                    elif day_name:
+                        label_err = day_name
+                    elif target_date_str and target_date_str.lower() not in ("today", "tomorrow", "demain", "aujourd'hui"):
+                        label_err = f"le {resolved_d.strftime('%d/%m/%Y')}"
+                    else:
+                        label_err = period or "ce soir"
                     spoken = f"D'après le planning des repas pour {label_err}, aucun repas n'est encore programmé."
                 except Exception as exc:
                     spoken = f"Impossible de récupérer le repas : {exc}"
@@ -291,23 +349,37 @@ async def interact(request: InteractionRequest):
             day_name = parsed.parameters.get("day_name")
             meal_type = "midi" if period == "midi" else "soir"
 
+            resolved_target = parse_target_date(target_date_str, period=period)
+            is_today = (resolved_target == date.today())
+            is_tomorrow = (resolved_target == (date.today() + timedelta(days=1)))
+
+            if is_today:
+                target_label = "pour ce midi" if meal_type == "midi" else "pour ce soir"
+            elif is_tomorrow:
+                target_label = "pour demain midi" if meal_type == "midi" else "pour demain soir"
+            elif day_name:
+                target_label = f"pour {day_name}"
+            else:
+                target_label = f"le {resolved_target.strftime('%d/%m/%Y')}"
+
             # 1. Vérification si la recette existe
             recipe_exists = False
+            meal_to_plan = meal
             if connector:
                 try:
                     rec = connector.get_recipe_ingredients(meal)
-                    recipe_exists = bool(rec)
+                    if rec:
+                        recipe_exists = True
+                        meal_to_plan = rec.name
                 except Exception:
                     recipe_exists = False
-
-            target_label = f"pour {day_name}" if day_name else (f"le {target_date_str}" if target_date_str else (f"pour {period}" if period != "jour" else "pour aujourd'hui"))
 
             if connector and not recipe_exists:
                 # Recette non répertoriée -> Demande confirmation interactive
                 session_ctx["pending_action"] = {
                     "type": "set_meal_plan",
                     "meal": meal,
-                    "target_date": target_date_str,
+                    "target_date": resolved_target.strftime("%d/%m/%Y"),
                     "day_name": day_name,
                     "meal_type": meal_type,
                     "period": period,
@@ -319,28 +391,21 @@ async def interact(request: InteractionRequest):
                 data["pending_action"] = session_ctx["pending_action"]
             else:
                 # Recette connue (ou sans connecteur en fallback) -> insertion immédiate
-                if target_date_str:
-                    target_date = target_date_str
-                elif period == "demain":
-                    target_date = date.today() + timedelta(days=1)
-                else:
-                    target_date = date.today()
-
                 if connector:
                     try:
                         updated_plan = connector.set_meal_plan(
-                            meal=meal,
-                            target_date=target_date,
+                            meal=meal_to_plan,
+                            target_date=resolved_target,
                             meal_type=meal_type,
                         )
-                        spoken = f"C'est noté, j'ai planifié {meal} {target_label}."
+                        spoken = f"C'est noté, j'ai planifié {meal_to_plan} {target_label}."
                         data["meal_plan"] = updated_plan.model_dump()
-                        session_ctx["last_recipe"] = meal
+                        session_ctx["last_recipe"] = meal_to_plan
                     except Exception as exc:
                         spoken = f"Impossible d'enregistrer le repas : {exc}"
                 else:
-                    spoken = f"C'est noté, j'ai planifié {meal} {target_label}."
-                    session_ctx["last_recipe"] = meal
+                    spoken = f"C'est noté, j'ai planifié {meal_to_plan} {target_label}."
+                    session_ctx["last_recipe"] = meal_to_plan
 
         case IntentType.ADD_SHOPPING_ITEM:
             raw_items = parsed.parameters.get("items")
@@ -350,6 +415,102 @@ async def interact(request: InteractionRequest):
 
             if connector:
                 try:
+                    # Cas d'un article unique avec rayon inconnu : déclencher une clarification naturelle
+                    resolved_rayon, warning = (None, None)
+                    if len(raw_items) == 1 and hasattr(connector, "resolve_rayon") and callable(getattr(connector, "resolve_rayon")):
+                        clean_candidate = re.sub(
+                            r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
+                            "",
+                            raw_items[0].strip(),
+                            flags=re.IGNORECASE,
+                        ).strip()
+                        clean_candidate = (clean_candidate[0].upper() + clean_candidate[1:]) if clean_candidate else raw_items[0].strip()
+                        try:
+                            cand = connector.resolve_rayon(clean_candidate)
+                            if isinstance(cand, (tuple, list)) and len(cand) == 2 and isinstance(cand[0], str):
+                                resolved_rayon, warning = cand
+                        except Exception:
+                            resolved_rayon, warning = (None, None)
+
+                        if warning and (resolved_rayon == "Divers" or "non répertorié" in warning.lower()):
+                            # 1. Si le LLM a déjà résolu un rayon non-ambigu (ex: Mandarines -> Fruits & Légumes)
+                            explicit_rayon = parsed.parameters.get("rayon")
+                            is_ambig = bool(parsed.parameters.get("is_ambiguous", False))
+                            options = parsed.parameters.get("suggested_options")
+
+                            if explicit_rayon and explicit_rayon.lower() not in ("divers", "unknown", "none") and not is_ambig:
+                                added_item, _ = connector.add_shopping_item(clean_candidate, rayon=explicit_rayon)
+                                spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {explicit_rayon} dans votre liste de courses."
+                                data["items"] = [added_item.model_dump()]
+                                data["item"] = added_item.model_dump()
+                                return InteractionResponse(
+                                    success=True,
+                                    spoken_response=spoken,
+                                    intent=parsed,
+                                    data=data,
+                                )
+
+                            # 2. Si le LLM a identifié une ambiguïté réelle avec options suggérées
+                            if is_ambig and options and isinstance(options, list) and len(options) >= 1:
+                                suggested = options
+                                session_ctx["pending_action"] = {
+                                    "type": "clarify_shopping_rayon",
+                                    "item": clean_candidate,
+                                    "raw_items": raw_items,
+                                    "suggested_rayons": suggested,
+                                }
+                                sug_str = f"en {suggested[0]} ou en {suggested[1]}" if len(suggested) >= 2 else f"au rayon {suggested[0]}"
+                                spoken = (
+                                    parsed.conversational_reply
+                                    or f"Je n'ai pas de rayon certain pour '{clean_candidate}'. Veux-tu que je le range {sug_str} ?"
+                                )
+                                data["pending_action"] = session_ctx["pending_action"]
+                                data["suggested_rayons"] = suggested
+                                return InteractionResponse(
+                                    success=True,
+                                    spoken_response=spoken,
+                                    intent=parsed,
+                                    data=data,
+                                )
+
+                            # 3. Inférence intelligente complémentaire du rayon via Gemini si non déterminé au NLU
+                            raw_avail = connector.get_available_rayons() if hasattr(connector, "get_available_rayons") else []
+                            avail = [r for r in raw_avail if isinstance(r, str)] if isinstance(raw_avail, list) else []
+                            inferred_rayon, options = await infer_rayon_with_llm(clean_candidate, avail)
+                            if options is None and inferred_rayon and inferred_rayon.lower() != "divers":
+                                added_item, _ = connector.add_shopping_item(clean_candidate, rayon=inferred_rayon)
+                                spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {inferred_rayon} dans votre liste de courses."
+                                data["items"] = [added_item.model_dump()]
+                                data["item"] = added_item.model_dump()
+                                return InteractionResponse(
+                                    success=True,
+                                    spoken_response=spoken,
+                                    intent=parsed,
+                                    data=data,
+                                )
+
+                            # 4. Ambiguïté réelle -> poser une question ciblée avec suggestions
+                            suggested = options if options else (connector.suggest_rayons_for_item(clean_candidate) if hasattr(connector, "suggest_rayons_for_item") else ["Entretien", "Épicerie"])
+                            session_ctx["pending_action"] = {
+                                "type": "clarify_shopping_rayon",
+                                "item": clean_candidate,
+                                "raw_items": raw_items,
+                                "suggested_rayons": suggested,
+                            }
+                            sug_str = f"en {suggested[0]} ou en {suggested[1]}" if len(suggested) >= 2 else f"au rayon {suggested[0]}"
+                            spoken = (
+                                f"Je n'ai pas de rayon certain pour '{clean_candidate}'. "
+                                f"Veux-tu que je le range {sug_str} ?"
+                            )
+                            data["pending_action"] = session_ctx["pending_action"]
+                            data["suggested_rayons"] = suggested
+                            return InteractionResponse(
+                                success=True,
+                                spoken_response=spoken,
+                                intent=parsed,
+                                data=data,
+                            )
+
                     res = None
                     if hasattr(connector, "add_shopping_items"):
                         try:
@@ -567,6 +728,24 @@ async def interact(request: InteractionRequest):
             else:
                 spoken = "Parfait ! Que souhaitez-vous faire d'autre ?"
 
+        case IntentType.CHOOSE_RAYON:
+            pending = session_ctx.pop("pending_action", None)
+            if pending and pending.get("type") == "clarify_shopping_rayon":
+                item = pending.get("item", "l'article")
+                chosen_rayon = parsed.parameters.get("rayon", "Divers")
+                if connector:
+                    try:
+                        added_item, _ = connector.add_shopping_item(item, rayon=chosen_rayon)
+                        spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {chosen_rayon} dans votre liste de courses."
+                        data["item"] = added_item.model_dump()
+                        data["items"] = [added_item.model_dump()]
+                    except Exception as exc:
+                        spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
+                else:
+                    spoken = f"C'est noté, j'ai ajouté {item} au rayon {chosen_rayon} dans votre liste de courses."
+            else:
+                spoken = "C'est noté !"
+
         case IntentType.CONFIRM:
             pending = session_ctx.pop("pending_action", None)
             if pending and pending.get("type") == "set_meal_plan":
@@ -575,9 +754,18 @@ async def interact(request: InteractionRequest):
                 meal_type = pending.get("meal_type", "soir")
                 day_name = pending.get("day_name")
                 period = pending.get("period", "soir")
-                target_label = f"pour {day_name}" if day_name else (f"le {target_date_str}" if target_date_str else f"pour {period}")
+                target = parse_target_date(target_date_str, period=period)
+                is_today = (target == date.today())
+                is_tomorrow = (target == (date.today() + timedelta(days=1)))
+                if is_today:
+                    target_label = "pour ce midi" if meal_type == "midi" else "pour ce soir"
+                elif is_tomorrow:
+                    target_label = "pour demain midi" if meal_type == "midi" else "pour demain soir"
+                elif day_name:
+                    target_label = f"pour {day_name}"
+                else:
+                    target_label = f"le {target.strftime('%d/%m/%Y')}"
 
-                target = target_date_str if target_date_str else (date.today() + timedelta(days=1) if period == "demain" else date.today())
                 if connector:
                     try:
                         updated_plan = connector.set_meal_plan(
@@ -593,15 +781,60 @@ async def interact(request: InteractionRequest):
                 else:
                     spoken = f"C'est confirmé, j'ai ajouté '{meal}' {target_label} au planning."
                     session_ctx["last_recipe"] = meal
+            elif pending and pending.get("type") == "clarify_shopping_rayon":
+                item = pending.get("item", "l'article")
+                suggested = pending.get("suggested_rayons", ["Divers"])
+                default_rayon = suggested[0] if suggested else "Divers"
+                if connector:
+                    try:
+                        added_item, _ = connector.add_shopping_item(item, rayon=default_rayon)
+                        spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {default_rayon} dans votre liste de courses."
+                        data["item"] = added_item.model_dump()
+                        data["items"] = [added_item.model_dump()]
+                    except Exception as exc:
+                        spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
+                else:
+                    spoken = f"C'est noté, j'ai ajouté {item} au rayon {default_rayon} dans votre liste de courses."
             else:
-                spoken = "C'est noté !"
+                # Si aucun pending_action formel mais qu'un historique de conversation existe :
+                # L'utilisateur confirme ou rebondit sur la question posée par l'assistant
+                if session_ctx.get("history"):
+                    llm_parsed = await nlu_service.parse(request.query, context=session_ctx)
+                    if llm_parsed.conversational_reply:
+                        spoken = llm_parsed.conversational_reply
+                    else:
+                        spoken = "Parfait, c'est noté !"
+                else:
+                    spoken = "C'est noté !"
 
         case IntentType.CANCEL:
-            session_ctx.pop("pending_action", None)
-            spoken = "Très bien, j'ai annulé l'opération."
+            pending = session_ctx.pop("pending_action", None)
+            if pending and pending.get("type") == "clarify_shopping_rayon":
+                item = pending.get("item", "l'article")
+                spoken = f"Très bien, j'ai annulé l'ajout de {item}."
+            else:
+                spoken = "Très bien, j'ai annulé l'opération."
 
         case _:
-            spoken = "Je n'ai pas bien compris votre demande. Pouvez-vous reformuler ?"
+            reply = (
+                parsed.conversational_reply
+                or parsed.parameters.get("conversational_reply")
+            )
+            if reply:
+                spoken = reply
+            else:
+                spoken = (
+                    "Je n'ai pas bien compris votre demande. Vous pouvez me demander "
+                    "de consulter ou planifier vos repas, gérer votre liste de courses, vos tâches ou votre budget. "
+                    "Que souhaitez-vous faire ?"
+                )
+
+    # Mémorisation du tour dans l'historique de la session pour la continuité conversationnelle
+    hist = session_ctx.setdefault("history", [])
+    hist.append({"role": "user", "text": request.query.strip()})
+    hist.append({"role": "assistant", "text": spoken.strip()})
+    if len(hist) > 6:
+        session_ctx["history"] = hist[-6:]
 
     return InteractionResponse(
         success=parsed.intent != IntentType.UNKNOWN and "error" not in parsed.parameters,
@@ -627,6 +860,7 @@ async def interact(request: InteractionRequest):
 )
 async def mobile_interact(
     req: Request,
+    background_tasks: BackgroundTasks = None,
     text: Optional[str] = Query(None, description="Texte de la requête pour appels GET ou query params"),
     payload: Optional[InteractionRequest] = None,
 ):
@@ -671,7 +905,7 @@ async def mobile_interact(
         session_id=session_id,
         context=context,
     )
-    res = await interact(interact_req)
+    res = await interact(interact_req, background_tasks=background_tasks)
 
     # Réponse texte brut si demandée (ex: pour être lue directement par le TTS Android)
     accept_header = req.headers.get("accept", "")

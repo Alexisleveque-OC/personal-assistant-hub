@@ -23,13 +23,16 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 * **Rôle :** Consultation du planning annuel dynamique (`repas <année>`), interrogation du carnet de recettes (>1000 recettes), alimentation de la liste de courses via `Liste_Attente` et catégorisation dynamique par rayons.
 * **Statut :** Connecteur `MealsShoppingConnector` finalisé, validé par 128 tests automatisés (Mock + E2E Live).
 
-### B. Moteur Conversationnel LLM (OpenRouter) & Réactivité Temps Réel
-* **Rôle :** Passerelle NLU intelligente et ultra-rapide remplaçant le parseur regex.
+### B. Moteur Conversationnel LLM (Google Gemini) & Réactivité Temps Réel - [🟢 Opérationnel]
+* **Rôle :** Passerelle NLU intelligente, réflexive et ultra-rapide remplaçant la rigidité des expressions régulières.
 * **Fonctionnalités clés :**
-  * Support d'OpenRouter avec priorité aux modèles gratuits (`:free` ex: `google/gemini-2.0-flash-lite:free`, `meta-llama/llama-3-8b`) et bascule automatique (fallback) vers un modèle payant ultra-économique en cas de quota dépassé.
-  * *Function Calling* / Sorties structurées pour mapper directement les intentions vers les connecteurs.
-  * Gestion du dialogue multi-tours naturel (ex: *"Je ne connais pas le papier cuisson dans vos rayons habituels. Dois-je le classer en Épicerie ou en Entretien ?"*).
-  * Optimisation de latence : cache mémoire en RAM au boot du serveur et écritures Google Sheets asynchrones en arrière-plan (`BackgroundTasks`).
+  * Intégration de Google Gemini Flash avec auto-découverte dynamique du dernier modèle stable et gestion de cooldown sur erreur 429.
+  * Structured Outputs (Pydantic) pour mapper précisément les intentions et les paramètres métier.
+  * Gestion du dialogue multi-tours naturel (mémoire de session, clarifications ciblées de rayon, anaphores contextuelles).
+  * Tolérance avancée aux tirets, accents, ponctuations et pluriels dans la recherche de recettes.
+  * Optimisation de latence (< 1-2s) : préchauffage du cache mémoire au boot (`warmup_cache`) et écritures Google Sheets asynchrones en arrière-plan (`BackgroundTasks`).
+  * Repli local déterministe automatique en cas de panne réseau ou de quota dépassé.
+* **Statut :** Finalisé, validé par 208 tests automatisés (Unitaires + E2E) et validé sur smartphone PWA.
 
 ### C. Mémoire Long-Terme & "Second Cerveau" (Notes, Idées & Profil)
 * **Rôle :** Permettre à l'utilisateur de parler librement à son assistant pour décharger son esprit et enrichir sa connaissance personnelle.
@@ -103,12 +106,13 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [x] Pipeline GitHub Actions de déploiement automatique sur chaque MR fusionnée dans `main`
   - [x] Guide de déploiement Cloud pas-à-pas (`docs/GUIDE_DEPLOIEMENT_CLOUD.md`)
 
-- [ ] **Phase 4 : Moteur Conversationnel LLM (Google Gemini & OpenRouter) & Performance (< 1-2s)**
-  - [ ] Client LLM avec auto-découverte du dernier modèle Flash stable (`gemini-2.0-flash`, `gemini-flash-latest`)
-  - [ ] Support d'OpenRouter en fallback
-  - [ ] Dialogue multi-tours & Function Calling (clarification des rayons, confirmation de recettes)
-  - [ ] Cache mémoire RAM au boot du serveur pour les catalogues de données
-  - [ ] Écritures Google Sheets asynchrones en arrière-plan (`BackgroundTasks`) pour retour vocal immédiat
+- [x] **Phase 4 : Moteur Conversationnel LLM (Google Gemini) & Performance (< 1-2s) - (Terminée)**
+  - [x] Client LLM avec auto-découverte du dernier modèle Flash stable (`gemini-3.8-flash`) et cooldown sur 429
+  - [x] Chaîne de repli de résilience et bascule locale transparente
+  - [x] Dialogue multi-tours & Structured Outputs (clarification des rayons, confirmation de recettes)
+  - [x] Cache mémoire RAM au boot du serveur pour les catalogues de données (`warmup_cache`)
+  - [x] Écritures Google Sheets asynchrones en arrière-plan (`BackgroundTasks`) pour retour vocal immédiat
+  - [x] Tolérance avancée aux recettes (tirets, accents, pluriels, nom officiel canonique)
 
 - [ ] **Phase 5 : Mémoire Long-terme & "Second Cerveau"**
   - [ ] Stockage local SQLite pour la boîte à idées et notes libres (catégories, tags, date)

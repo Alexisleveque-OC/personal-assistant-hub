@@ -284,10 +284,46 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Settings Modal ---
+  async function fetchLlmStats() {
+    const statModel = document.getElementById("llm-stat-model");
+    const statRequests = document.getElementById("llm-stat-requests");
+    const statRemaining = document.getElementById("llm-stat-remaining");
+    const statLatency = document.getElementById("llm-stat-latency");
+    const quotaBadge = document.getElementById("llm-quota-badge");
+    if (!statModel) return;
+
+    try {
+      const headers = apiKey ? { "x-api-key": apiKey } : {};
+      const res = await fetch("/api/v1/llm/stats", { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      statModel.textContent = data.model || "Indisponible";
+      statRequests.textContent = `${data.daily_requests} / ${data.max_daily_requests}`;
+      statRemaining.textContent = `${data.remaining_daily_requests} restantes`;
+      statLatency.textContent = data.last_latency_ms ? `${data.last_latency_ms} ms` : "Aucune requête";
+
+      if (quotaBadge) {
+        if (data.quota_exceeded) {
+          quotaBadge.textContent = "Quota atteint";
+          quotaBadge.style.background = "#ef4444";
+        } else if (data.remaining_daily_requests < 100) {
+          quotaBadge.textContent = "Attention";
+          quotaBadge.style.background = "#f59e0b";
+        } else {
+          quotaBadge.textContent = "Actif";
+          quotaBadge.style.background = "#22c55e";
+        }
+      }
+    } catch (e) {
+      console.warn("Impossible de charger les statistiques LLM", e);
+    }
+  }
+
   if (btnSettings) {
     btnSettings.addEventListener("click", () => {
       if (apiKeyInput) apiKeyInput.value = apiKey;
       populateVoiceList();
+      fetchLlmStats();
       if (settingsModal) settingsModal.classList.add("active");
     });
   }

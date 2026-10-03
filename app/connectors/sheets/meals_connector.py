@@ -7,6 +7,7 @@ import logging
 import time
 import json
 import base64
+import difflib
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ from app.connectors.sheets.models import (
     ShoppingItem,
     WaitingListItem,
 )
+from app.core.date_resolver import parse_target_date
 
 
 class MealsConnectorError(Exception):
@@ -93,6 +95,8 @@ class MealsShoppingConnector(BaseConnector):
         self._shopping_cache_time: float = 0.0
         self._week_meals_cache: Optional[List[Dict[str, Any]]] = None
         self._week_meals_cache_time: float = 0.0
+        self._annual_meals_cache: Dict[int, List[List[str]]] = {}
+        self._annual_meals_cache_time: Dict[int, float] = {}
         self._rayons_order: Optional[Dict[str, int]] = None
         self._cache_ttl_seconds: int = 180
 
@@ -104,8 +108,43 @@ class MealsShoppingConnector(BaseConnector):
         if domain in (None, "meals"):
             self._week_meals_cache = None
             self._week_meals_cache_time = 0.0
+            self._annual_meals_cache.clear()
+            self._annual_meals_cache_time.clear()
         if domain in (None, "recipes"):
             self._recipes_cache = None
+
+    def warmup_cache(self) -> Dict[str, Any]:
+        """Préchauffe l'ensemble des catalogues statiques et plannings en mémoire."""
+        stats: Dict[str, Any] = {
+            "rayons_count": 0,
+            "recipes_count": 0,
+            "rayons_order_count": 0,
+            "shopping_loaded": False,
+            "meals_plan_loaded": False,
+        }
+        try:
+            stats["rayons_count"] = len(self._get_rayons_map())
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage rayons : {exc}")
+        try:
+            stats["recipes_count"] = len(self._get_all_recipes())
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage recettes : {exc}")
+        try:
+            stats["rayons_order_count"] = len(self.get_rayons_order())
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage ordre rayons : {exc}")
+        try:
+            sh = self.get_shopping_list()
+            stats["shopping_loaded"] = bool(sh)
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage shopping list : {exc}")
+        try:
+            today_plan = self.get_meal_plan(period="aujourd'hui")
+            stats["meals_plan_loaded"] = bool(today_plan)
+        except Exception as exc:
+            logger.warning(f"Erreur préchauffage planning repas : {exc}")
+        return stats
 
     def get_rayons_order(self) -> Dict[str, int]:
         """Charge et met en cache l'ordre des rayons défini dans l'onglet 'Rayons'."""
@@ -144,12 +183,27 @@ class MealsShoppingConnector(BaseConnector):
 
     @staticmethod
     def _normalize(text: str) -> str:
-        """Normalise une chaîne (minuscules, sans accents, sans espaces superflus)."""
+        """Normalise une chaîne (minuscules, sans accents, sans tirets/ponctuation, sans espaces superflus)."""
         if not text:
             return ""
         normalized = unicodedata.normalize("NFKD", text)
         stripped = "".join(c for c in normalized if not unicodedata.combining(c))
-        return " ".join(stripped.lower().split())
+        cleaned = re.sub(r"[\-–—_'’‘/\\,.;:!?+*&()]+", " ", stripped)
+        return " ".join(cleaned.lower().split())
+
+    @classmethod
+    def _stem_tokens(cls, text: str) -> str:
+        """Produit une version simplifiée sans pluriels simples pour chaque mot."""
+        norm = cls._normalize(text)
+        tokens = []
+        for word in norm.split():
+            if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+                tokens.append(word[:-1])
+            elif len(word) > 3 and word.endswith("x") and word not in ("deux", "doux", "faux"):
+                tokens.append(word[:-1])
+            else:
+                tokens.append(word)
+        return " ".join(tokens)
 
     def get_meal_plan(
         self,
@@ -158,34 +212,28 @@ class MealsShoppingConnector(BaseConnector):
     ) -> DayMealPlan:
         """Récupère le menu prévu pour une date ou une période relative."""
         # 1. Résolution de la date cible
-        today = date.today()
-        if target_date is not None:
-            if isinstance(target_date, str):
-                try:
-                    resolved_date = datetime.strptime(target_date.strip(), "%d/%m/%Y").date()
-                except ValueError:
-                    resolved_date = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
-            else:
-                resolved_date = target_date
-        elif period is not None:
-            period_norm = period.strip().lower()
-            if "demain" in period_norm:
-                resolved_date = today + timedelta(days=1)
-            else:
-                resolved_date = today
-        else:
-            resolved_date = today
+        resolved_date = parse_target_date(target_date, period=period)
 
         year = resolved_date.year
         date_str_target = resolved_date.strftime("%d/%m/%Y")
 
-        # 2. Résolution dynamique de l'onglet annuel
-        available_worksheets = [ws.title for ws in self._spreadsheet.worksheets()]
-        ws_name = resolve_meals_worksheet_name(available_worksheets, year=year)
-        ws = self._spreadsheet.worksheet(ws_name)
+        # 2. Résolution via cache mémoire ou interrogation Google Sheets
+        now = time.time()
+        if (
+            year in getattr(self, "_annual_meals_cache", {})
+            and now - getattr(self, "_annual_meals_cache_time", {}).get(year, 0.0) < getattr(self, "_cache_ttl_seconds", 180)
+        ):
+            rows = self._annual_meals_cache[year]
+            ws_name = f"repas {year}"
+        else:
+            available_worksheets = [ws.title for ws in self._spreadsheet.worksheets()]
+            ws_name = resolve_meals_worksheet_name(available_worksheets, year=year)
+            ws = self._spreadsheet.worksheet(ws_name)
+            rows = ws.get_all_values()
+            self._annual_meals_cache[year] = rows
+            self._annual_meals_cache_time[year] = now
 
         # 3. Recherche de la ligne de date
-        rows = ws.get_all_values()
         for row in rows[1:]:
             if row and row[0].strip() == date_str_target:
                 return DayMealPlan(
@@ -256,13 +304,7 @@ class MealsShoppingConnector(BaseConnector):
         meal_type: str = "soir",
     ) -> DayMealPlan:
         """Modifie le repas prévu pour une date donnée dans le planning annuel."""
-        if isinstance(target_date, str):
-            try:
-                resolved_date = datetime.strptime(target_date.strip(), "%d/%m/%Y").date()
-            except ValueError:
-                resolved_date = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
-        else:
-            resolved_date = target_date
+        resolved_date = parse_target_date(target_date)
 
         year = resolved_date.year
         date_str_target = resolved_date.strftime("%d/%m/%Y")
@@ -405,23 +447,66 @@ class MealsShoppingConnector(BaseConnector):
         return self._recipes_cache
 
     def get_recipe_ingredients(self, recipe_name: str) -> Optional[Recipe]:
-        """Recherche une recette et ses ingrédients dans le catalogue en cache."""
+        """Recherche une recette et ses ingrédients dans le catalogue en cache avec tolérance maximale."""
         query_norm = self._normalize(recipe_name)
         if not query_norm:
             return None
 
+        query_stem = self._stem_tokens(recipe_name)
+        query_compact = query_norm.replace(" ", "")
+
         all_recipes = self._get_all_recipes()
 
-        # 1. Passe 1 : Recherche exacte
+        # 1. Passe 1 : Recherche exacte après normalisation (minuscules, sans accents, sans tirets)
+        # ex: 'croque-monsieur' == 'Croque monsieur'
         for recipe in all_recipes:
             if self._normalize(recipe.name) == query_norm:
                 return recipe
 
-        # 2. Passe 2 : Recherche partielle (ex: 'risotto de quinoa' -> 'Risotto de Quinoa courgette')
+        # 2. Passe 2 : Recherche compacte (en ignorant complètement les espaces et tirets)
+        # ex: 'croquemonsieur' == 'Croque monsieur'
+        for recipe in all_recipes:
+            if self._normalize(recipe.name).replace(" ", "") == query_compact:
+                return recipe
+
+        # 3. Passe 3 : Recherche avec normalisation des pluriels simples (stemming)
+        # ex: 'croque-monsieurs' -> 'Croque monsieur', 'gratin de crozet' -> 'Gratin de crozets'
+        for recipe in all_recipes:
+            if self._stem_tokens(recipe.name) == query_stem:
+                return recipe
+
+        # 4. Passe 4 : Recherche par inclusion / sous-chaîne
+        # ex: 'risotto de quinoa' -> 'Risotto de Quinoa courgette'
         for recipe in all_recipes:
             rec_norm = self._normalize(recipe.name)
             if query_norm in rec_norm or rec_norm in query_norm:
                 return recipe
+
+        # 5. Passe 5 : Recherche par inclusion sur les versions sans pluriels
+        for recipe in all_recipes:
+            rec_stem = self._stem_tokens(recipe.name)
+            if query_stem in rec_stem or rec_stem in query_stem:
+                return recipe
+
+        # 6. Passe 6 : Recherche par ensemble de mots-clés (mots réordonnés ou mots-clés présents)
+        query_words = set(query_norm.split())
+        for recipe in all_recipes:
+            rec_words = set(self._normalize(recipe.name).split())
+            if query_words and (query_words.issubset(rec_words) or rec_words.issubset(query_words)):
+                return recipe
+
+        # 7. Passe 7 : Similarité floue (fuzzy matching difflib) si ratio >= 80%
+        best_match = None
+        best_ratio = 0.0
+        for recipe in all_recipes:
+            rec_norm = self._normalize(recipe.name)
+            ratio = difflib.SequenceMatcher(None, query_norm, rec_norm).ratio()
+            if ratio > best_ratio and ratio >= 0.80:
+                best_ratio = ratio
+                best_match = recipe
+
+        if best_match:
+            return best_match
 
         return None
 
@@ -459,6 +544,8 @@ class MealsShoppingConnector(BaseConnector):
         norm_item = self._normalize(item_name)
         norm_item_clean = re.sub(r"^(?:du|de\s+la|des|le|la|les|l'|un|une|d')\s+", "", norm_item).strip()
         rayons_map = self._get_rayons_map()
+        if not rayons_map:
+            return "Divers", None
 
         if norm_item in rayons_map:
             return rayons_map[norm_item], None
@@ -471,6 +558,42 @@ class MealsShoppingConnector(BaseConnector):
                 return rayon, None
 
         return "Divers", f"Rayon non répertorié pour '{item_name}', classé temporairement en 'Divers'."
+
+    def resolve_rayon(self, item_name: str) -> tuple[str, Optional[str]]:
+        """Expose publiquement la déduction du rayon d'un article et retourne (rayon, warning_si_inconnu)."""
+        return self._resolve_rayon(item_name)
+
+    def get_available_rayons(self) -> List[str]:
+        """Retourne la liste ordonnée des rayons officiels du classeur."""
+        order = self.get_rayons_order()
+        if order:
+            sorted_rayons = sorted(order.items(), key=lambda x: x[1])
+            return [r[0] for r in sorted_rayons]
+        return [
+            "Fruits & Légumes",
+            "Boucherie",
+            "Frais",
+            "Épicerie",
+            "Surgelés",
+            "Entretien",
+            "Hygiène",
+            "Divers",
+        ]
+
+    def suggest_rayons_for_item(self, item_name: str) -> List[str]:
+        """Suggère 2 rayons pertinents pour un article non répertorié."""
+        norm = self._normalize(item_name).lower()
+        if any(w in norm for w in ["papier", "eponge", "sopalin", "lessive", "nettoyant", "sac", "cuisson", "alu"]):
+            return ["Entretien", "Épicerie"]
+        if any(w in norm for w in ["shampoing", "savon", "dentifrice", "coton", "douche", "brosse"]):
+            return ["Hygiène", "Entretien"]
+        if any(w in norm for w in ["poulet", "boeuf", "porc", "steak", "viande", "jambon"]):
+            return ["Boucherie", "Frais"]
+        if any(w in norm for w in ["glace", "surgele", "sorbet", "poelee"]):
+            return ["Surgelés", "Frais"]
+        if any(w in norm for w in ["pomme", "poire", "legume", "fruit", "salade", "carotte", "tomate"]):
+            return ["Fruits & Légumes", "Frais"]
+        return ["Épicerie", "Entretien"]
 
     def ensure_checkbox_validation(self) -> None:
         """Garantit que la colonne A de Liste_Attente (à partir de la ligne 2) possède la validation case à cocher."""
@@ -504,7 +627,11 @@ class MealsShoppingConnector(BaseConnector):
         except Exception:
             pass
 
-    def add_shopping_items(self, items: List[str]) -> tuple[List[WaitingListItem], List[str]]:
+    def add_shopping_items(
+        self,
+        items: List[str],
+        rayons: Optional[Dict[str, str]] = None,
+    ) -> tuple[List[WaitingListItem], List[str]]:
         """Ajoute une liste d'articles dans Liste_Attente avec case à cocher native."""
         today_str = date.today().strftime("%d/%m/%Y")
         ws = self._spreadsheet.worksheet("Liste_Attente")
@@ -522,7 +649,16 @@ class MealsShoppingConnector(BaseConnector):
                 flags=re.IGNORECASE,
             ).strip()
             clean_item = (cleaned[0].upper() + cleaned[1:]) if cleaned else raw_item.strip()
-            rayon, warning = self._resolve_rayon(clean_item)
+            
+            explicit_rayon = (rayons or {}).get(clean_item) or (rayons or {}).get(raw_item.strip())
+            if explicit_rayon:
+                rayon = explicit_rayon
+                warning = None
+                if self._rayons_cache is not None:
+                    self._rayons_cache[self._normalize(clean_item)] = explicit_rayon
+            else:
+                rayon, warning = self._resolve_rayon(clean_item)
+
             if warning:
                 warnings.append(warning)
 
@@ -545,12 +681,23 @@ class MealsShoppingConnector(BaseConnector):
             for row in rows_to_append:
                 ws.append_row(row, value_input_option="USER_ENTERED")
 
-        self.invalidate_cache("shopping")
+        # Mise à jour optimiste du cache mémoire si déjà présent, sinon invalidation
+        if getattr(self, "_shopping_cache", None) is not None:
+            self._shopping_cache.setdefault("waiting_list", []).extend(added_items)
+            self._shopping_cache_time = time.time()
+        else:
+            self.invalidate_cache("shopping")
+
         return added_items, warnings
 
-    def add_shopping_item(self, item: str) -> tuple[WaitingListItem, Optional[str]]:
-        """Ajoute un article unique dans la liste d'attente (Liste_Attente)."""
-        items, warnings = self.add_shopping_items([item])
+    def add_shopping_item(
+        self,
+        item: str,
+        rayon: Optional[str] = None,
+    ) -> tuple[WaitingListItem, Optional[str]]:
+        """Ajoute un article unique dans la liste d'attente (Liste_Attente) avec support optionnel d'un rayon explicite."""
+        rayons_dict = {item: rayon} if rayon else None
+        items, warnings = self.add_shopping_items([item], rayons=rayons_dict)
         warning = warnings[0] if warnings else None
         return items[0], warning
 
