@@ -34,26 +34,39 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   * Repli local déterministe automatique en cas de panne réseau ou de quota dépassé.
 * **Statut :** Finalisé, validé par 208 tests automatisés (Unitaires + E2E) et validé sur smartphone PWA.
 
-### C. Mémoire Long-Terme & "Second Cerveau" (Notes, Idées & Profil)
+### C. Connecteur Sport & Running (Google Sheets & Mini-Coach)
+* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant.
+* **Fonctionnalités clés :**
+  * **Structure Google Sheets Running :** Date, Distance, Temps, Vitesse et Allure (calculs automatiques), Type de séance, Notes/Fractionné, Ressenti dur/10, Météo/10, Statut (Planifié / Réalisé / Repos).
+  * **Calculs de charge & volume :** Synthèse automatique du volume kilométrique et temps par semaine (ISO), allures moyennes, comparaison par rapport aux objectifs.
+  * **Interactions vocales :** Consultation de la séance du jour (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*), enregistrement vocal d'une séance terminée (*« J'ai couru 5 km en 28 minutes »*).
+  * **Passerelle de synchronisation :** Exploration de la synchronisation d'activités (API Decathlon Developers / Strava API).
+
+### D. Mémoire Long-Terme & "Second Cerveau" (Notes, Idées & Profil)
 * **Rôle :** Permettre à l'utilisateur de parler librement à son assistant pour décharger son esprit et enrichir sa connaissance personnelle.
 * **Fonctionnalités clés :**
   * **Boîte à idées / Notes libres :** Capture vocale instantanée de pensées, idées de dev, projets ou mémos stockés dans une base locale structurée (SQLite).
-  * **Profil Utilisateur dynamique (`profile.json`) :** Extraction automatique des préférences (ex: aliments détestés ou favoris, centres d'intérêt tech, objectifs sportifs).
+  * **Profil Utilisateur dynamique (`profile.json`) :** Extraction et persistance des préférences (objectifs sportifs hebdo, allures cibles, aliments favoris/exclus, centres d'intérêt tech).
   * **Injection Persona :** Enrichissement du prompt système pour rendre l'assistant complice, personnalisé et proactif.
 
-### D. Chronique Matinale Audio (Mini-Podcast Quotidien)
-* **Rôle :** Génération quotidienne automatisée (job planifié à 7h30) d'une chronique audio de 2 minutes.
+### E. Connecteurs Organisationnels : Google Agenda & Google Tasks
+* **Google Agenda (Google Calendar API) :**
+  * Consultation des événements et rendez-vous du jour et du lendemain.
+  * Rappels d'échéances et dates importantes à venir.
+* **Google Tasks :**
+  * Consultation et ajout rapide de tâches ou rappels du quotidien à la voix.
+* **Gmail Perso :**
+  * Détection et synthèse des e-mails personnels critiques (suivi de livraison de colis, factures, alertes urgentes).
+
+### F. Chronique Matinale Audio (Mini-Podcast Quotidien Enrichi)
+* **Rôle :** Génération quotidienne automatisée (job planifié à 7h30) d'un briefing audio complet de 2-3 minutes.
 * **Fonctionnalités clés :**
-  * Agrégation modulaire des blocs disponibles : menu du jour (repas), tâches prioritaires, séance de sport, météo et actualités ciblées (flux RSS spécialisés).
-  * Scénarisation du script par le LLM adapté au profil d'Alexis.
-  * Synthèse vocale française ultra-naturelle via Microsoft Edge-TTS (fichiers MP3 sans coût d'API).
-  * Diffusion sur la PWA ou en note vocale sur Telegram.
+  * **Agrégation modulaire 360° :** Météo du jour, événements de l'Agenda, tâches prioritaires du jour (Tasks), séance de sport planifiée (Running), menus déjeuner et dîner (Repas).
+  * **Scénarisation du script par le LLM Gemini Flash :** Ton motivant, complice et personnalisé au profil d'Alexis.
+  * **Synthèse vocale française Edge-TTS :** Génération de MP3 ultra-fluide sans coût d'API.
+  * **Diffusion :** Écoute sur la PWA ou en note vocale Telegram.
 
-### E. Connecteurs Perso : Google Tasks & Gmail Perso
-* **Google Tasks :** Consultation et ajout de tâches ou rappels du quotidien.
-* **Gmail Perso :** Détection et synthèse des e-mails personnels critiques (suivi de livraison de colis, factures, alertes urgentes).
-
-### F. Connecteur Budget (Google Sheets)
+### G. Connecteur Budget (Google Sheets)
 * **Rôle :** Suivi financier sur le classeur Google Sheets dédié.
 * **Intentions associées :** Consultation du solde restant par catégorie, saisie vocale rapide de dépenses avec catégorisation automatique.
 
@@ -114,38 +127,47 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [x] Écritures Google Sheets asynchrones en arrière-plan (`BackgroundTasks`) pour retour vocal immédiat
   - [x] Tolérance avancée aux recettes (tirets, accents, pluriels, nom officiel canonique)
 
-- [ ] **Phase 5 : Mémoire Long-terme & "Second Cerveau"**
+- [ ] **Phase 5 : Module Sport Running & Mini-Coach (Google Sheets & Tracking)**
+  - [ ] Modélisation et validation du classeur Google Sheets Running (séances, formules automatiques allure/vitesse, statut prévus vs réalisés)
+  - [ ] Calculs et tableau de bord de charge & volume par semaine (km totaux, temps cumulé, allure moyenne)
+  - [ ] Connecteur backend `SportConnector` (lecture de la séance du jour/semaine, enregistrement vocal post-séance)
+  - [ ] Intentions NLU (`get_sport_session`, `log_sport_session`, `get_sport_weekly_summary`) avec structured output
+  - [ ] Passerelle de synchronisation d'activités (exploration API Decathlon Developers / Strava)
+  - [ ] Tests unitaires et E2E d'intégration
+
+- [ ] **Phase 6 : Mémoire Long-terme & "Second Cerveau"**
   - [ ] Stockage local SQLite pour la boîte à idées et notes libres (catégories, tags, date)
-  - [ ] Modélisation et persistance du profil utilisateur (`profile.json` : goûts, centres d'intérêt)
+  - [ ] Modélisation et persistance du profil utilisateur (`profile.json` : objectifs sportifs hebdo, préférences, habitudes)
   - [ ] Intention `capture_note` et mise à jour dynamique du persona de l'assistant
 
-- [ ] **Phase 6 : Chronique Matinale Audio (Mini-Podcast Quotidien)**
-  - [ ] Agrégateur modulaire de données du matin (repas, tâches, profil, RSS)
-  - [ ] Prompt de scénarisation de chronique matinale
-  - [ ] Moteur de synthèse vocale locale Edge-TTS (génération de MP3)
-  - [ ] API de distribution (audio pour PWA et déclenchement planifié)
-
-- [ ] **Phase 7 : Connecteurs Perso (Google Tasks & E-mails Gmail)**
+- [ ] **Phase 7 : Connecteurs Organisationnels (Google Agenda & Google Tasks)**
+  - [ ] Intégration Google Calendar API (événements du jour, échéances, dates importantes)
   - [ ] Intégration Google Tasks API (consultation et création de tâches)
   - [ ] Connecteur Gmail (lecture et récapitulatif des notifications importantes)
   - [ ] Tests automatisés dédiés
 
-- [ ] **Phase 8 : Connecteur Budget (Google Sheets)**
+- [ ] **Phase 8 : Chronique Matinale Audio (Mini-Podcast Quotidien Enrichi)**
+  - [ ] Agrégateur modulaire universel du matin (Météo locale, Agenda du jour, Tâches prioritaires, Séance de sport prévue, Menus déjeuner & dîner, Profil)
+  - [ ] Scénarisation dynamique par Gemini Flash
+  - [ ] Moteur de synthèse vocale locale Edge-TTS (génération de MP3)
+  - [ ] API de distribution (audio pour PWA et déclenchement planifié)
+
+- [ ] **Phase 9 : Connecteur Budget (Google Sheets)**
   - [ ] Modélisation des dépenses et catégories sur le classeur financier
   - [ ] Calculs de soldes restants et saisie de dépenses
   - [ ] Tests automatisés dédiés
 
-- [ ] **Phase 9 : Interfaces Vocales & Messageries (Alexa Skill & Bot Telegram)**
+- [ ] **Phase 10 : Interfaces Vocales & Messageries (Alexa Skill & Bot Telegram)**
   - [ ] Webhook FastAPI compatible avec le protocole Amazon Alexa Custom Skill
   - [ ] Routage direct des commandes vocales Alexa vers le moteur central
   - [ ] Passerelle bot Telegram (texte et messages vocaux entrants/sortants)
 
-- [ ] **Phase 10 : Connecteurs Professionnels (Mails Pro, Jira & Trello)**
+- [ ] **Phase 11 : Connecteurs Professionnels (Mails Pro, Jira & Trello)**
   - [ ] Connecteur Jira (lecture des tickets et logging de temps)
   - [ ] Connecteur Trello (lecture et déplacement de cartes)
   - [ ] Connecteur e-mails pro avec isolation stricte des secrets
 
-- [ ] **Phase 11 : Domotique (Prises connectées & Scénarios)**
+- [ ] **Phase 12 : Domotique (Prises connectées & Scénarios)**
   - [ ] Intégration des APIs d'équipements connectés
   - [ ] Intentions de commande et de statut (`toggle_device`, `get_device_status`)
 
