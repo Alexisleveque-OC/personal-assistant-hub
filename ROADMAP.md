@@ -13,8 +13,8 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Modélisation Pydantic du Sheet Sport, configuration & validation de schéma (Schema Drift) | 🟢 Terminé | Validé par l'utilisateur | ✅ 12/12 tests dédiés (220/220 total) au vert |
 | **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | 🟢 Terminé | Validé par l'utilisateur | ✅ 11/11 tests dédiés (231/231 total) au vert |
-| **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | 🟢 Terminé | En attente de validation | ✅ 8/8 tests dédiés (239/239 total) au vert |
-| **Étape 4** | Intégration `/api/v1/interact`, cache RAM & passerelle de synchronisation automatique | ⚪ À faire | En attente | Tests API & BackgroundTasks |
+| **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (239/239 total) au vert |
+| **Étape 4** | Intégration `/api/v1/interact`, cache RAM & passerelle de synchronisation automatique | 🟢 Terminé | En attente de validation | ✅ 6/6 tests dédiés (37/37 sport, 245+ total) au vert |
 | **Étape 5** | Test d'intégration End-to-End (E2E) complet & validation smartphone en conditions réelles | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
 
 ---
@@ -34,7 +34,7 @@
 
 ---
 
-### ⚪ Étape 2 : Connecteur Backend `SportConnector` (TDD Strict)
+### 🟢 Étape 2 : Connecteur Backend `SportConnector` (TDD Strict)
 * **Objectifs :**
   1. Créer `app/connectors/sheets/sport_connector.py` dérivant de `BaseConnector`.
   2. Implémenter les méthodes métier :
@@ -47,7 +47,7 @@
 
 ---
 
-### ⚪ Étape 3 : Intentions NLU Gemini Flash & Cerveau Otis
+### 🟢 Étape 3 : Intentions NLU Gemini Flash & Cerveau Otis
 * **Objectifs :**
   1. Définir les nouvelles intentions dans `app/core/models.py` :
      - `GET_SPORT_SESSION` (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*)
@@ -60,7 +60,7 @@
 
 ---
 
-### ⚪ Étape 4 : Intégration `/api/v1/interact`, Cache & Passerelle de Synchro
+### 🟢 Étape 4 : Intégration `/api/v1/interact`, Cache & Passerelle de Synchro
 * **Objectifs :**
   1. Brancher les intentions sportives dans le routeur principal `/api/v1/interact` et mobile.
   2. Cache mémoire RAM pour les consultations instantanées (< 0.5s).

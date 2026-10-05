@@ -73,6 +73,8 @@ class SportSession(BaseModel):
     denivele_d_plus: Optional[int] = Field(0, ge=0)
     duree_secondes: Optional[int] = Field(None, ge=0)
     ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
+    fc_moyenne: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque moyenne (bpm)")
+    fc_max: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque maximale (bpm)")
     meteo_note: Optional[int] = Field(None, ge=1, le=10, description="Note difficulté météo de 1 à 10")
     notes: Optional[str] = ""
     strava_id: Optional[str] = None
@@ -159,6 +161,8 @@ class SportSessionCreate(BaseModel):
     duree_secondes: int = Field(..., gt=0)
     denivele_d_plus: Optional[int] = Field(0, ge=0)
     ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
+    fc_moyenne: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque moyenne (bpm)")
+    fc_max: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque maximale (bpm)")
     meteo_note: Optional[int] = Field(None, ge=1, le=10)
     notes: Optional[str] = ""
     strava_id: Optional[str] = None

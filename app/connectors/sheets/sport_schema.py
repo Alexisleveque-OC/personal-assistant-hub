@@ -21,6 +21,8 @@ CANONICAL_SEANCES_COLUMNS = [
     "Allure (min/km)",
     "ressenti dur/10",
     "Charge RPE",
+    "FC Moy (bpm)",
+    "FC Max (bpm)",
     "Météo difficile/10",
     "Note",
     "ID Strava",

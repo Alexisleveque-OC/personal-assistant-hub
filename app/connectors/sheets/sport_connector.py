@@ -2,6 +2,7 @@
 from datetime import date, datetime
 import json
 import base64
+import re
 import logging
 from typing import Any, Dict, List, Optional, Union
 
@@ -52,6 +53,24 @@ def _parse_date_robust(val: Any) -> Optional[date]:
             return parsed.date()
         except ValueError:
             continue
+
+    # Dates textuelles françaises (ex: "lun. 28 septembre", "13 septembre 2026")
+    months_map = {
+        "janvier": 1, "février": 2, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
+        "juillet": 7, "août": 8, "aout": 8, "septembre": 9, "octobre": 10, "novembre": 11, "décembre": 12, "decembre": 12,
+    }
+    match = re.search(r"(\d{1,2})\s+([a-zA-Zéû]+)(?:\s+(\d{4}))?", clean_str.lower())
+    if match:
+        day = int(match.group(1))
+        m_name = match.group(2)
+        month = months_map.get(m_name)
+        year = int(match.group(3)) if match.group(3) else datetime.now().year
+        if month:
+            try:
+                return date(year, month, day)
+            except ValueError:
+                pass
+
     return None
 
 
@@ -206,6 +225,8 @@ class SportConnector(BaseConnector):
             d_plus = _safe_int(get_val(row, "Dénivelé D+ (m)", "Dénivelé", "D+")) or 0
             duree_sec = _parse_duration_seconds(get_val(row, "Temps", "Durée"))
             rpe = _safe_int(get_val(row, "ressenti dur/10", "Ressenti"))
+            fc_moy = _safe_int(get_val(row, "FC Moy (bpm)", "FC Moy", "BPM Moy", "Fréquence Cardiaque"))
+            fc_max = _safe_int(get_val(row, "FC Max (bpm)", "FC Max", "BPM Max"))
             meteo = _safe_int(get_val(row, "Météo difficile/10", "Météo"))
             note = get_val(row, "Note", "Notes") or ""
             strava_id = get_val(row, "ID Strava") or None
@@ -225,6 +246,8 @@ class SportConnector(BaseConnector):
                 denivele_d_plus=d_plus,
                 duree_secondes=duree_sec,
                 ressenti_rpe=rpe,
+                fc_moyenne=fc_moy,
+                fc_max=fc_max,
                 meteo_note=meteo,
                 notes=note,
                 strava_id=strava_id,
@@ -291,22 +314,24 @@ class SportConnector(BaseConnector):
             f'=IF(ISBLANK(E{existing_row_idx or len(all_values)+1}); ""; E{existing_row_idx or len(all_values)+1} + (IF(ISBLANK(F{existing_row_idx or len(all_values)+1}); 0; F{existing_row_idx or len(all_values)+1})/100))',
             duration_formatted,
             f'=IF(OR(ISBLANK(E{existing_row_idx or len(all_values)+1}); ISBLANK(H{existing_row_idx or len(all_values)+1}); H{existing_row_idx or len(all_values)+1}=0); ""; E{existing_row_idx or len(all_values)+1}/(H{existing_row_idx or len(all_values)+1}*24))',
-            f'=IF(OR(ISBLANK(E{existing_row_idx or len(all_values)+1}); ISBLANK(H{existing_row_idx or len(all_values)+1}); E{existing_row_idx or len(all_values)+1}=0); ""; TEXT(H{existing_row_idx or len(all_values)+1}/E{existing_row_idx or len(all_values)+1}; "m\'ss") & """/km"")',
+            f'=IF(OR(ISBLANK(E{existing_row_idx or len(all_values)+1}); ISBLANK(H{existing_row_idx or len(all_values)+1}); E{existing_row_idx or len(all_values)+1}=0); ""; TEXT(H{existing_row_idx or len(all_values)+1}/E{existing_row_idx or len(all_values)+1}; "m\'ss") & """/km")',
             session_data.ressenti_rpe or "",
             f'=IF(OR(ISBLANK(H{existing_row_idx or len(all_values)+1}); ISBLANK(K{existing_row_idx or len(all_values)+1})); ""; (H{existing_row_idx or len(all_values)+1}*1440)*K{existing_row_idx or len(all_values)+1})',
+            session_data.fc_moyenne or "",
+            session_data.fc_max or "",
             session_data.meteo_note or "",
             session_data.notes or "",
             session_data.strava_id or "",
         ]
 
         if existing_row_idx:
-            ws.update(range_name=f"A{existing_row_idx}:O{existing_row_idx}", values=[row_payload], value_input_option="USER_ENTERED")
+            ws.update(range_name=f"A{existing_row_idx}:Q{existing_row_idx}", values=[row_payload], value_input_option="USER_ENTERED")
         else:
             if hasattr(ws, "append_row"):
                 ws.append_row(row_payload, value_input_option="USER_ENTERED")
             else:
                 next_row = len(all_values) + 1
-                ws.update(range_name=f"A{next_row}:O{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
+                ws.update(range_name=f"A{next_row}:Q{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
 
         self.invalidate_cache()
 
@@ -319,6 +344,8 @@ class SportConnector(BaseConnector):
             denivele_d_plus=session_data.denivele_d_plus or 0,
             duree_secondes=session_data.duree_secondes,
             ressenti_rpe=session_data.ressenti_rpe,
+            fc_moyenne=session_data.fc_moyenne,
+            fc_max=session_data.fc_max,
             meteo_note=session_data.meteo_note,
             notes=session_data.notes,
             strava_id=session_data.strava_id,
@@ -340,7 +367,7 @@ class SportConnector(BaseConnector):
             plan_data.distance_km_cible or "",
             0,
             f'=IF(ISBLANK(E{len(all_values)+1}); ""; E{len(all_values)+1} + (IF(ISBLANK(F{len(all_values)+1}); 0; F{len(all_values)+1})/100))',
-            "", "", "", "", "", "",
+            "", "", "", "", "", "", "", "",
             plan_data.notes or "",
             "",
         ]
@@ -349,7 +376,7 @@ class SportConnector(BaseConnector):
             ws.append_row(row_payload, value_input_option="USER_ENTERED")
         else:
             next_row = len(all_values) + 1
-            ws.update(range_name=f"A{next_row}:O{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
+            ws.update(range_name=f"A{next_row}:Q{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
 
         self.invalidate_cache()
 
@@ -366,10 +393,12 @@ class SportConnector(BaseConnector):
         self,
         week_num: Optional[int] = None,
         year: Optional[int] = None,
+        semaine: Optional[int] = None,
+        annee: Optional[int] = None,
     ) -> SportWeeklySummary:
         """Récupère ou calcule la synthèse hebdomadaire et le diagnostic sécurité mini-coach."""
-        target_week = week_num or datetime.now().isocalendar()[1]
-        target_year = year or datetime.now().year
+        target_week = week_num or semaine or datetime.now().isocalendar()[1]
+        target_year = year or annee or datetime.now().year
 
         ws_syn = self._get_synthese_worksheet()
         if ws_syn:

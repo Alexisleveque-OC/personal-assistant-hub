@@ -31,6 +31,13 @@ from app.connectors.sheets.meals_connector import (
     DayMealPlanNotFoundError,
     RecipeNotFoundError,
 )
+from app.connectors.sheets.sport_connector import SportConnector
+from app.connectors.sheets.sport_models import (
+    SportSession,
+    SportSessionStatus,
+    SportSessionType,
+    SportWeeklySummary,
+)
 from app.core.date_resolver import parse_target_date
 
 logger = logging.getLogger(__name__)
@@ -38,6 +45,7 @@ logger = logging.getLogger(__name__)
 intent_parser = IntentParser()
 
 _meals_connector: Any = "UNSET"
+_sport_connector: Any = "UNSET"
 
 
 def get_meals_connector() -> Optional[MealsShoppingConnector]:
@@ -58,15 +66,40 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     _meals_connector = connector
 
 
+def get_sport_connector() -> Optional[SportConnector]:
+    """Récupère l'instance active du connecteur sport running ou tente son initialisation."""
+    global _sport_connector
+    if _sport_connector == "UNSET":
+        try:
+            _sport_connector = SportConnector()
+        except Exception as exc:
+            logger.warning(f"Impossible d'initialiser SportConnector : {exc}")
+            _sport_connector = None
+    return _sport_connector
+
+
+def set_sport_connector(connector: Optional[SportConnector]) -> None:
+    """Permet l'injection d'un connecteur sport (mock) pour les tests unitaires et d'intégration."""
+    global _sport_connector
+    _sport_connector = connector
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Cycle de vie FastAPI : préchauffe le cache mémoire en arrière-plan dès le boot."""
+    """Cycle de vie FastAPI : préchauffe les caches mémoire en arrière-plan dès le boot."""
     connector = get_meals_connector()
     if connector and hasattr(connector, "warmup_cache"):
         try:
             asyncio.create_task(asyncio.to_thread(connector.warmup_cache))
         except Exception as exc:
-            logger.warning(f"Impossible de lancer le préchauffage initial du cache : {exc}")
+            logger.warning(f"Impossible de lancer le préchauffage initial du cache repas : {exc}")
+
+    sport_conn = get_sport_connector()
+    if sport_conn and hasattr(sport_conn, "warmup_cache"):
+        try:
+            asyncio.create_task(asyncio.to_thread(sport_conn.warmup_cache))
+        except Exception as exc:
+            logger.warning(f"Impossible de lancer le préchauffage initial du cache sport : {exc}")
     yield
 
 
@@ -182,6 +215,7 @@ async def interact(
         session_ctx.update(request.context)
 
     connector = get_meals_connector()
+    sport_connector = get_sport_connector()
     nlu_service = get_nlu_service()
 
     # Enrichissement du contexte NLU avec la liste des rayons disponibles
@@ -728,6 +762,134 @@ async def interact(
             else:
                 spoken = "Parfait ! Que souhaitez-vous faire d'autre ?"
 
+        case IntentType.GET_SPORT_SESSION:
+            target_date_raw = parsed.parameters.get("target_date")
+            if isinstance(target_date_raw, date):
+                target_d = target_date_raw
+            elif target_date_raw in ("today", "aujourd'hui", None):
+                target_d = date.today()
+            elif target_date_raw == "demain":
+                target_d = date.today() + timedelta(days=1)
+            elif target_date_raw == "hier":
+                target_d = date.today() - timedelta(days=1)
+            else:
+                target_d = parse_target_date(str(target_date_raw))
+
+            if sport_connector:
+                session = sport_connector.get_session(target_d)
+                if session:
+                    data["session"] = session.model_dump()
+                    type_nom = session.type_seance.value if hasattr(session.type_seance, "value") else str(session.type_seance)
+                    dist_str = f"{session.distance_km:.2f}".rstrip("0").rstrip(".").replace(".", ",") if session.distance_km else ""
+                    spoken = f"Pour aujourd'hui, vous avez une séance de {type_nom}"
+                    if dist_str:
+                        spoken += f" de {dist_str} km"
+                    if session.notes:
+                        spoken += f" : {session.notes}"
+                    spoken += "."
+                else:
+                    spoken = "Aucune séance n'est planifiée pour cette date. C'est une journée de repos bien méritée !"
+            else:
+                spoken = "Le carnet d'entraînement sport n'est pas configuré."
+
+        case IntentType.LOG_SPORT_SESSION:
+            dist = float(parsed.parameters.get("distance_km", 0.0))
+            dur_sec = parsed.parameters.get("duration_seconds")
+            if not dur_sec and "duree_minutes" in parsed.parameters:
+                dur_sec = int(parsed.parameters["duree_minutes"]) * 60
+            d_plus = int(parsed.parameters.get("denivele_d_plus", 0))
+            rpe = parsed.parameters.get("ressenti_rpe")
+            raw_date = parsed.parameters.get("target_date")
+            if isinstance(raw_date, date):
+                session_date = raw_date
+            elif raw_date:
+                session_date = parse_target_date(str(raw_date))
+            else:
+                session_date = date.today()
+
+            type_seance = parsed.parameters.get("type_seance", SportSessionType.EF)
+            if isinstance(type_seance, str):
+                try:
+                    type_seance = SportSessionType(type_seance)
+                except ValueError:
+                    type_seance = SportSessionType.EF
+
+            new_session = SportSession(
+                date=session_date,
+                semaine=session_date.isocalendar()[1],
+                statut=SportSessionStatus.REALISE,
+                type_seance=type_seance,
+                distance_km=dist,
+                duree_secondes=dur_sec,
+                denivele_d_plus=d_plus,
+                ressenti_rpe=rpe,
+            )
+            if sport_connector:
+                try:
+                    logged = sport_connector.log_session(new_session)
+                    if logged:
+                        new_session = logged
+                except Exception as exc:
+                    logger.warning(f"Erreur enregistrement séance sport : {exc}")
+
+            data["session"] = new_session.model_dump()
+            dist_disp = str(dist).replace(".", ",")
+            minutes = (dur_sec // 60) if dur_sec else 0
+            allure = new_session.allure_formatted or ""
+            spoken = f"C'est enregistré ! Votre séance de {dist_disp} km en {minutes} minutes"
+            if allure:
+                spoken += f" (allure {allure}/km)"
+            spoken += " a bien été enregistrée dans votre carnet."
+
+        case IntentType.GET_SPORT_WEEKLY_SUMMARY:
+            sem = parsed.parameters.get("semaine")
+            an = parsed.parameters.get("annee")
+            if not sem or not an:
+                iso_cal = date.today().isocalendar()
+                sem = sem or iso_cal[1]
+                an = an or iso_cal[0]
+
+            if sport_connector:
+                summary = sport_connector.get_weekly_summary(semaine=int(sem), annee=int(an))
+                if summary:
+                    data["summary"] = summary.model_dump()
+                    km_effort_disp = str(summary.km_effort_total).replace(".", ",")
+                    spoken = f"Cette semaine, vous totalisez {summary.nb_seances} séances pour un total de {km_effort_disp} km-effort."
+                    if summary.plafond_conseille_s_plus_1:
+                        max_next = str(summary.plafond_conseille_s_plus_1).replace(".", ",")
+                        spoken += f" En respectant la règle des 10%, je vous conseille de ne pas dépasser {max_next} km-effort la semaine prochaine."
+                    elif summary.alerte_securite:
+                        spoken += f" Conseil coach : {summary.alerte_securite}"
+                else:
+                    spoken = "Aucune donnée de course enregistrée pour cette semaine."
+            else:
+                spoken = "Le carnet d'entraînement sport n'est pas configuré."
+
+        case IntentType.PLAN_SPORT_SESSION:
+            t_date_raw = parsed.parameters.get("target_date")
+            day_name = parsed.parameters.get("day_name")
+            if isinstance(t_date_raw, date):
+                t_date = t_date_raw
+            elif t_date_raw or day_name:
+                t_date = parse_target_date(t_date_raw or day_name)
+            else:
+                t_date = date.today() + timedelta(days=1)
+
+            t_type = parsed.parameters.get("type_seance", "EF")
+            dist = parsed.parameters.get("distance_km")
+            notes = parsed.parameters.get("notes")
+
+            if sport_connector:
+                planned = sport_connector.plan_session(
+                    session_date=t_date,
+                    type_seance=t_type,
+                    distance_km=dist,
+                    notes=notes,
+                )
+                data["session"] = planned.model_dump()
+            date_disp = t_date.strftime("%d/%m/%Y")
+            spoken = f"C'est noté ! J'ai planifié une séance de {t_type} pour le {date_disp}."
+
         case IntentType.CHOOSE_RAYON:
             pending = session_ctx.pop("pending_action", None)
             if pending and pending.get("type") == "clarify_shopping_rayon":
@@ -966,5 +1128,86 @@ async def get_service_worker():
         media_type="application/javascript",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
+
+
+# --- Routes Sport & Intégration Strava ---
+
+@app.get(
+    "/api/v1/integrations/strava/webhook",
+    tags=["Strava"],
+)
+async def strava_webhook_challenge(
+    hub_mode: str = Query(..., alias="hub.mode"),
+    hub_challenge: str = Query(..., alias="hub.challenge"),
+    hub_verify_token: str = Query(..., alias="hub.verify_token"),
+):
+    """Validation de l'abonnement webhook Strava (hub.challenge)."""
+    return {"hub.challenge": hub_challenge}
+
+
+@app.post(
+    "/api/v1/integrations/strava/webhook",
+    tags=["Strava"],
+)
+async def strava_webhook_event(
+    request: Request,
+    background_tasks: BackgroundTasks = None,
+):
+    """Réception des événements webhook Strava (ex: activity.created)."""
+    payload = await request.json()
+    logger.info(f"Webhook Strava reçu : {payload}")
+    return {"status": "ok"}
+
+
+@app.post(
+    "/api/v1/sport/sync-activity",
+    tags=["Sport"],
+)
+async def sync_strava_activity(
+    activity: dict,
+    background_tasks: BackgroundTasks = None,
+):
+    """Synchronise une activité Strava (depuis webhook ou polling) vers Google Sheets."""
+    strava_id = str(activity.get("id", ""))
+    name = activity.get("name", "Sortie course")
+    act_type = activity.get("type", "Run")
+    dist_m = float(activity.get("distance", 0.0))
+    dist_km = round(dist_m / 1000.0, 2)
+    moving_time = int(activity.get("moving_time", 0))
+    d_plus = int(activity.get("total_elevation_gain", 0))
+
+    start_date_str = activity.get("start_date", "")
+    if start_date_str:
+        try:
+            dt = datetime.fromisoformat(start_date_str.replace("Z", "+00:00"))
+            act_date = dt.date()
+        except Exception:
+            act_date = date.today()
+    else:
+        act_date = date.today()
+
+    session = SportSession(
+        date=act_date,
+        semaine=act_date.isocalendar()[1],
+        statut=SportSessionStatus.REALISE,
+        type_seance=SportSessionType.EF,
+        distance_km=dist_km,
+        duree_secondes=moving_time,
+        denivele_d_plus=d_plus,
+        notes=f"Sync Strava : {name}",
+        strava_id=strava_id,
+    )
+
+    connector = get_sport_connector()
+    if connector:
+        connector.log_session(session)
+
+    return {
+        "success": True,
+        "message": f"Activité Strava {strava_id} synchronisée",
+        "distance_km": dist_km,
+        "session": session.model_dump(),
+    }
+
 
 

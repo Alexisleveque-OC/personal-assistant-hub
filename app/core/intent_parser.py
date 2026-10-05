@@ -1,5 +1,6 @@
 """Moteur d'analyse et de classification d'intentions en langage naturel."""
 import re
+from datetime import date, timedelta
 from typing import Optional
 from app.core.models import IntentType, ParsedIntent
 from app.core.date_resolver import resolve_date_expression
@@ -586,10 +587,21 @@ class IntentParser:
         # 9. Sport & Running (Mini-Coach Otis)
         # 9.1 Bilan hebdomadaire ("j'en suis à combien de kilomètres cette semaine", "bilan de course")
         if re.search(r"(?:combien\s+de\s+k(?:m|ilomètres?)|bilan\s+(?:de\s+)?(?:course|running|sport)|résumé\s+(?:de\s+)?(?:course|running)|cumul\s+(?:de\s+)?(?:course|running))", cleaned):
+            summary_params: Dict[str, Any] = {}
+            if re.search(r"semaine\s+(?:dernière|passée|précédente)", cleaned):
+                prev_date = date.today() - timedelta(days=7)
+                summary_params["semaine"] = prev_date.isocalendar()[1]
+                summary_params["annee"] = prev_date.isocalendar()[0]
+            else:
+                w_match = re.search(r"semaine\s+([0-9]+)", cleaned)
+                if w_match:
+                    summary_params["semaine"] = int(w_match.group(1))
+                    summary_params["annee"] = date.today().year
+
             return ParsedIntent(
                 intent=IntentType.GET_SPORT_WEEKLY_SUMMARY,
                 confidence=0.92,
-                parameters={},
+                parameters=summary_params,
                 raw_query=text,
             )
 
