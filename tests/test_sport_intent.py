@@ -1,0 +1,95 @@
+"""Tests unitaires (TDD) pour la détection et l'extraction des intentions sportives (Otis)."""
+import pytest
+from app.core.models import IntentType, ParsedIntent
+from app.core.intent_parser import IntentParser
+from app.core.llm.nlu_service import GeminiNLUService, LLMNLUResponse
+
+
+def test_intent_type_contains_sport_intents():
+    """Vérifie la présence des 4 intentions sportives dans IntentType."""
+    assert IntentType.GET_SPORT_SESSION == "get_sport_session"
+    assert IntentType.LOG_SPORT_SESSION == "log_sport_session"
+    assert IntentType.GET_SPORT_WEEKLY_SUMMARY == "get_sport_weekly_summary"
+    assert IntentType.PLAN_SPORT_SESSION == "plan_sport_session"
+
+
+def test_local_parser_detects_get_sport_session_today():
+    """Le parseur local déterministe détecte la consultation de la séance du jour."""
+    parser = IntentParser()
+    parsed = parser.parse("Qu'est-ce que j'ai comme séance aujourd'hui ?")
+
+    assert parsed.intent == IntentType.GET_SPORT_SESSION
+    assert parsed.parameters.get("target_date") in ("today", "aujourd'hui")
+
+
+def test_local_parser_detects_get_sport_session_tomorrow():
+    """Détecte la consultation pour demain."""
+    parser = IntentParser()
+    parsed = parser.parse("C'est quoi ma course de demain ?")
+
+    assert parsed.intent == IntentType.GET_SPORT_SESSION
+    assert parsed.parameters.get("target_date") == "demain"
+
+
+def test_local_parser_detects_log_sport_session():
+    """Extrait les paramètres d'une séance terminée (distance, durée)."""
+    parser = IntentParser()
+    parsed = parser.parse("J'ai couru 8 km en 42 minutes")
+
+    assert parsed.intent == IntentType.LOG_SPORT_SESSION
+    assert parsed.parameters.get("distance_km") == 8.0
+    assert parsed.parameters.get("duration_seconds") == 42 * 60
+
+
+def test_local_parser_detects_log_sport_session_with_d_plus_and_rpe():
+    """Extrait la distance, la durée, le dénivelé et le ressenti."""
+    parser = IntentParser()
+    parsed = parser.parse("J'ai couru 7.5 km en 40 minutes avec 80m de dénivelé, ressenti 6 sur 10")
+
+    assert parsed.intent == IntentType.LOG_SPORT_SESSION
+    assert parsed.parameters.get("distance_km") == 7.5
+    assert parsed.parameters.get("duration_seconds") == 40 * 60
+    assert parsed.parameters.get("denivele_d_plus") == 80
+    assert parsed.parameters.get("ressenti_rpe") == 6
+
+
+def test_local_parser_detects_get_sport_weekly_summary():
+    """Détecte la demande de bilan hebdomadaire ou kilomètres cumulés."""
+    parser = IntentParser()
+    parsed1 = parser.parse("J'en suis à combien de kilomètres cette semaine ?")
+    parsed2 = parser.parse("Quel est mon bilan de course cette semaine ?")
+
+    assert parsed1.intent == IntentType.GET_SPORT_WEEKLY_SUMMARY
+    assert parsed2.intent == IntentType.GET_SPORT_WEEKLY_SUMMARY
+
+
+def test_local_parser_detects_plan_sport_session():
+    """Détecte la planification d'une séance future."""
+    parser = IntentParser()
+    parsed = parser.parse("Planifie-moi un fractionné jeudi")
+
+    assert parsed.intent == IntentType.PLAN_SPORT_SESSION
+    assert parsed.parameters.get("type_seance") == "Fractionné"
+    assert parsed.parameters.get("day_name") == "jeudi"
+
+
+def test_gemini_nlu_response_validates_sport_intent():
+    """Vérifie que LLMNLUResponse accepte les intentions et paramètres sportifs."""
+    response = LLMNLUResponse(
+        intent=IntentType.LOG_SPORT_SESSION,
+        confidence=0.98,
+        parameters={
+            "distance_km": 10.2,
+            "duration_seconds": 3200,
+            "denivele_d_plus": 150,
+            "ressenti_rpe": 7,
+            "type_seance": "Sortie Longue",
+            "notes": "Parcours vallonné",
+        },
+        conversational_reply="Superbe sortie de 10.2 km, Alexis ! Otis a tout consigné dans le journal.",
+    )
+
+    assert response.intent == IntentType.LOG_SPORT_SESSION
+    assert response.parameters["distance_km"] == 10.2
+    assert response.parameters["denivele_d_plus"] == 150
+    assert "Otis" in response.conversational_reply

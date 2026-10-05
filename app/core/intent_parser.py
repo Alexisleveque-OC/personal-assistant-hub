@@ -583,6 +583,75 @@ class IntentParser:
                 raw_query=text,
             )
 
+        # 9. Sport & Running (Mini-Coach Otis)
+        # 9.1 Bilan hebdomadaire ("j'en suis à combien de kilomètres cette semaine", "bilan de course")
+        if re.search(r"(?:combien\s+de\s+k(?:m|ilomètres?)|bilan\s+(?:de\s+)?(?:course|running|sport)|résumé\s+(?:de\s+)?(?:course|running)|cumul\s+(?:de\s+)?(?:course|running))", cleaned):
+            return ParsedIntent(
+                intent=IntentType.GET_SPORT_WEEKLY_SUMMARY,
+                confidence=0.92,
+                parameters={},
+                raw_query=text,
+            )
+
+        # 9.2 Enregistrement d'une course terminée ("j'ai couru 8 km en 42 minutes...")
+        log_match = re.search(
+            r"(?:j[' ]?ai\s+couru|j[' ]?ai\s+fait|note\s+ma\s+séance)\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)\s+(?:en\s+)?([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)",
+            cleaned,
+        )
+        if log_match:
+            dist = float(log_match.group(1).replace(",", "."))
+            duree_val = int(log_match.group(2))
+            duree_sec = duree_val * 60  # minutes en secondes
+            params: Dict[str, Any] = {"distance_km": dist, "duration_seconds": duree_sec}
+
+            # Dénivelé optionnel (ex: "avec 80m de dénivelé", "120 de D+")
+            d_plus_match = re.search(r"(?:avec\s+)?([0-9]+)\s*(?:m|mètres?)?\s*(?:de\s+)?(?:dénivelé|d\+)", cleaned)
+            if d_plus_match:
+                params["denivele_d_plus"] = int(d_plus_match.group(1))
+
+            # Ressenti RPE optionnel (ex: "ressenti 6 sur 10", "ressenti 7/10", "effort 6")
+            rpe_match = re.search(r"ressenti\s*([0-9]+)", cleaned)
+            if rpe_match:
+                params["ressenti_rpe"] = int(rpe_match.group(1))
+
+            return ParsedIntent(
+                intent=IntentType.LOG_SPORT_SESSION,
+                confidence=0.95,
+                parameters=params,
+                raw_query=text,
+            )
+
+        # 9.3 Planification d'une séance future ("planifie-moi un fractionné jeudi...")
+        if re.search(r"(?:planifie|prévois|programme)(?:-moi)?\s+(?:une?\s+)?(?:séance\s+de\s+)?(fractionné|sortie longue|footing|ef|tempo|seuil)", cleaned):
+            plan_match = re.search(r"(fractionné|sortie longue|footing|ef|tempo|seuil)", cleaned)
+            type_raw = plan_match.group(1) if plan_match else "EF"
+            day_match = re.search(r"(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain)", cleaned)
+            day_name = day_match.group(1) if day_match else None
+            return ParsedIntent(
+                intent=IntentType.PLAN_SPORT_SESSION,
+                confidence=0.92,
+                parameters={
+                    "type_seance": type_raw.capitalize(),
+                    "day_name": day_name,
+                },
+                raw_query=text,
+            )
+
+        # 9.4 Consultation de séance ("qu'est-ce que j'ai comme séance aujourd'hui ?", "c'est quoi ma course de demain ?")
+        if re.search(r"(?:séance|course|footing|entraînement|entrainement)\s+(?:d[' ]|de\s+)?(aujourd[' ]?hui|demain|hier|ce soir)", cleaned) or \
+           re.search(r"(?:qu[' ]?est[- ]ce\s+que\s+j[' ]?ai\s+comme\s+séance|c[' ]?est\s+quoi\s+ma\s+course)", cleaned):
+            target_date = "today"
+            if "demain" in cleaned:
+                target_date = "demain"
+            elif "hier" in cleaned:
+                target_date = "hier"
+            return ParsedIntent(
+                intent=IntentType.GET_SPORT_SESSION,
+                confidence=0.92,
+                parameters={"target_date": target_date},
+                raw_query=text,
+            )
+
         # Inconnu
         return ParsedIntent(
             intent=IntentType.UNKNOWN,

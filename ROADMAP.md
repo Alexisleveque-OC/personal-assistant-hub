@@ -12,8 +12,8 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | Modélisation Pydantic du Sheet Sport, configuration & validation de schéma (Schema Drift) | 🟢 Terminé | Validé par l'utilisateur | ✅ 12/12 tests dédiés (220/220 total) au vert |
-| **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | 🟢 Terminé | En attente de validation | ✅ 11/11 tests dédiés (231/231 total) au vert |
-| **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | ⚪ À faire | En attente | Tests unitaires NLU & parsing vocal |
+| **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | 🟢 Terminé | Validé par l'utilisateur | ✅ 11/11 tests dédiés (231/231 total) au vert |
+| **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | 🟢 Terminé | En attente de validation | ✅ 8/8 tests dédiés (239/239 total) au vert |
 | **Étape 4** | Intégration `/api/v1/interact`, cache RAM & passerelle de synchronisation automatique | ⚪ À faire | En attente | Tests API & BackgroundTasks |
 | **Étape 5** | Test d'intégration End-to-End (E2E) complet & validation smartphone en conditions réelles | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
 
