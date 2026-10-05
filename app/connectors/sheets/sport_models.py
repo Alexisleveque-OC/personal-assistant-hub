@@ -1,5 +1,5 @@
 """Modèles de données Pydantic et calculs physiologiques pour le module Sport Running (Otis)."""
-from datetime import date
+from datetime import date as dt_date
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -65,7 +65,7 @@ class SportSession(BaseModel):
     """Représente une séance de course à pied dans l'onglet 'Seances'."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    date: date
+    date: dt_date
     semaine: int = Field(..., description="Numéro de semaine ISO (1-53)")
     statut: SportSessionStatus = SportSessionStatus.PLANIFIE
     type_seance: SportSessionType = SportSessionType.EF
@@ -149,3 +149,26 @@ class SportWeeklySummary(BaseModel):
         """Plafond maximal d'augmentation recommandé pour S+1 (+10% max en Km-Effort)."""
         ref_km_effort = self.km_effort_total if self.km_effort_total > 0 else (self.previous_week_km_effort or 0.0)
         return round(ref_km_effort * 1.10, 1)
+
+
+class SportSessionCreate(BaseModel):
+    """Payload pour enregistrer une séance réalisée."""
+    date: Optional[dt_date] = None
+    type_seance: SportSessionType = SportSessionType.EF
+    distance_km: float = Field(..., gt=0.0)
+    duree_secondes: int = Field(..., gt=0)
+    denivele_d_plus: Optional[int] = Field(0, ge=0)
+    ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
+    meteo_note: Optional[int] = Field(None, ge=1, le=10)
+    notes: Optional[str] = ""
+    strava_id: Optional[str] = None
+
+
+class SportSessionPlan(BaseModel):
+    """Payload pour planifier une séance future."""
+    date: dt_date
+    type_seance: SportSessionType = SportSessionType.EF
+    distance_km_cible: Optional[float] = Field(None, gt=0.0)
+    duree_cible_secondes: Optional[int] = Field(None, gt=0)
+    notes: Optional[str] = ""
+
