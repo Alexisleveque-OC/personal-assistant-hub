@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     google_service_account_info: str = ""
     spreadsheet_meals_shopping_id: str = ""
     spreadsheet_budget_id: str = ""
+    spreadsheet_sport_id: str = ""
 
     # Google Gemini LLM
     gemini_api_key: str = ""

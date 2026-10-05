@@ -1,4 +1,4 @@
-# Roadmap Feature : Cerveau Conversationnel LLM Gemini & Performance (`feat/gemini-llm-brain`)
+# Roadmap Feature : Module Sport Running & Mini-Coach Otis (`feat/sport-running-coach`)
 
 > **Règles d'or (AGENTS.md) :**
 > - Chaque étape doit être validée **manuellement et explicitement par l'utilisateur** avant de passer à la suivante.
@@ -11,92 +11,68 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Configuration Pydantic & Client Gemini avec auto-découverte du dernier modèle Flash | 🟢 Terminé | En attente de validation | ✅ 7/7 tests unitaires + live au vert |
-| **Étape 2** | Extraction d'intentions LLM avec Structured Outputs (Pydantic) & Chaîne de repli | 🟢 Terminé | Validé par l'utilisateur | ✅ 6 tests NLU + 185 tests au vert |
-| **Étape 3** | Dialogue multi-tours & clarifications naturelles (ex: rayon inconnu) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5 tests dédiés + 191 tests au vert |
-| **Étape 4** | Optimisation de latence (< 1-2s) : Cache RAM au boot & Écritures asynchrones | 🟢 Terminé | Validé par l'utilisateur | ✅ 3 tests de latence + 194 tests au vert |
-| **Étape 5** | Branchement dans `/api/v1/interact`, mémoire multi-tours & tolérance recettes | 🟢 Terminé | Validé par l'utilisateur | ✅ 205/205 tests au vert |
-| **Étape 6** | Tests d'intégration End-to-End (E2E) complets & validation finale | 🟢 Terminé | Validé par l'utilisateur | ✅ 3/3 tests E2E (208/208 total) au vert |
+| **Étape 1** | Modélisation Pydantic du Sheet Sport, configuration & validation de schéma (Schema Drift) | 🟢 Terminé | En attente de validation | ✅ 11/11 tests dédiés (219/219 total) au vert |
+| **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | ⚪ À faire | En attente | Tests TDD unitaires (mocks & live) |
+| **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | ⚪ À faire | En attente | Tests unitaires NLU & parsing vocal |
+| **Étape 4** | Intégration `/api/v1/interact`, cache RAM & passerelle de synchronisation automatique | ⚪ À faire | En attente | Tests API & BackgroundTasks |
+| **Étape 5** | Test d'intégration End-to-End (E2E) complet & validation smartphone en conditions réelles | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
 
 ---
 
 ## Détail des Étapes
 
-### 🟢 Étape 1 : Configuration Pydantic & Client Gemini avec Auto-Découverte Dynamique
+### 🟡 Étape 1 : Modélisation Pydantic du Sheet Sport, Configuration & Validation de Schéma
 * **Objectifs :**
-  1. Étendre `app/config.py` avec `gemini_api_key` et `gemini_model` (valeur par défaut `"auto"`).
-  2. Créer `app/core/llm/gemini_client.py` :
-     * Implémenter l'auto-découverte dynamique du dernier modèle `flash` stable via `client.models.list()`.
-     * Filtrer pour exclure les modèles expérimentaux (`-preview`, `-experimental`, `-thinking`) et retenir la version stable la plus élevée (ex: `2.5` > `2.0` > `1.5`).
-     * Mettre en cache le modèle sélectionné au démarrage pour éviter tout appel réseau inutile lors des requêtes vocales.
-     * Fallback de secours résilient en cas d'absence de réseau au boot.
-  3. Tests unitaires dédiés (mocks et cas limites) dans `tests/test_gemini_client.py`.
-* **Résultat validé :** 7/7 tests au vert, modèle auto-découvert en live avec succès (`gemini-3.8-flash`).
-* **Critères de succès :** Tests unitaires à 100% au vert, validation manuelle par l'utilisateur.
+  1. Ajouter `spreadsheet_sport_id: str = ""` dans `app/config.py` et `.env.example`.
+  2. Créer `app/connectors/sheets/sport_models.py` :
+     - Modèle de séance `SportSession` (date, semaine ISO, statut, type, distance, D+, durée, km_effort, vitesse_kmh, allure_minkm, ressenti_rpe, charge_rpe, notes, strava_id).
+     - Modèle de synthèse hebdomadaire `SportWeeklySummary` (semaine, année, nb_seances, km_total, d_plus_total, km_effort_total, duree_totale, allure_moyenne, evolution_charge_pct, alerte_securite, plafond_max_s_plus_1).
+  3. Formule standard du Km-Effort : $\text{Km-Effort} = \text{Distance} + \frac{D^+}{100}$.
+  4. Créer le validateur de schéma `SportSchemaValidator` pour détecter tout dérive de colonnes ou d'onglets (`Seances`, `Synthese_Hebdo`).
+  5. Tests unitaires dans `tests/test_sport_models.py` et `tests/test_sport_schema.py`.
+* **Critères de succès :** 100% des tests de modèles et de schéma au vert, documentation prête pour le classeur Google Sheets d'Alexis.
 
 ---
 
-### 🟢 Étape 2 : Extraction d'Intentions LLM avec Structured Outputs (Pydantic) & Chaîne de Repli
+### ⚪ Étape 2 : Connecteur Backend `SportConnector` (TDD Strict)
 * **Objectifs :**
-  1. Modéliser le schéma de réponse structuré Pydantic (`LLMNLUResponse`) contenant l'intention (`IntentType`), les paramètres typés, le niveau de confiance et la réponse conversationnelle contextuelle.
-  2. Fournir au modèle les définitions des intentions du Hub, les contraintes et le contexte conversationnel (anaphores multi-tours).
-  3. Implémenter une chaîne de repli multi-modèles robuste (`get_candidate_models`) pour basculer automatiquement sur un modèle stable (ex: `gemini-3.6-flash`) si le premier candidat renvoie une erreur 503 ou 404.
-  4. Bascule transparente sur le parseur local déterministe en cas de quota dépassé (garde-fou) ou indisponibilité réseau.
-  5. Tests unitaires et d'intégration validant le parsing naturel, l'extraction de paramètres multiples et la conformité stricte Pydantic.
-* **Résultat validé :** 6 tests unitaires LLM + 185/185 tests au vert dans toute la suite pytest.
-* **Critères de succès :** 100% des intentions reconnues et validées par tests.
+  1. Créer `app/connectors/sheets/sport_connector.py` dérivant de `BaseConnector`.
+  2. Implémenter les méthodes métier :
+     - `get_session(target_date)` : lecture de la séance planifiée ou réalisée du jour/date cible.
+     - `log_session(session_data)` : écriture / mise à jour d'une séance réalisée avec calcul automatique des métriques.
+     - `plan_session(plan_data)` : planification d'une séance future.
+     - `get_weekly_summary(week_num, year)` : lecture / agrégation de la semaine et calcul des indicateurs de sécurité mini-coach.
+  3. Gestion du respect strict de la règle des +10% max et détection des semaines de décharge (Deload).
+* **Critères de succès :** Tests unitaires exhaustifs avec mocks et validation sans régression.
 
 ---
 
-### 🟢 Étape 3 : Dialogue Multi-Tours & Clarifications Naturelles
+### ⚪ Étape 3 : Intentions NLU Gemini Flash & Cerveau Otis
 * **Objectifs :**
-  1. Résoudre le problème du "papier cuisson classé automatiquement en Divers" :
-     * Quand un article a un rayon inconnu ou ambigu, l'assistant pose une question de clarification naturelle (*"Je n'ai pas de rayon pour 'Papier cuisson'. Veux-tu que je le range en Entretien ou en Épicerie ?"*).
-  2. Mémorisation du contexte d'attente (`pending_action` / `clarify_shopping_rayon`) dans la session utilisateur.
-  3. Au tour suivant, traitement de la réponse courte de l'utilisateur (*"En entretien"* ou *"Laisse en divers"* ou *"Annule"*), enregistrement de l'article avec le rayon choisi et mise à jour du cache de rayons.
-  4. Tests de dialogue à 2 tours (acceptation, choix alternatif, divers, annulation, article connu immédiat).
-* **Résultat validé :** 5 tests de clarification dédiés + 191/191 tests au vert dans toute la suite pytest (zéro régression).
-* **Critères de succès :** Scénario multi-tours testé et validé.
+  1. Définir les nouvelles intentions dans `app/core/models.py` :
+     - `GET_SPORT_SESSION` (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*)
+     - `LOG_SPORT_SESSION` (*« J'ai couru 8 km en 42 minutes avec 120m de dénivelé, ressenti 6 sur 10 »*)
+     - `GET_SPORT_WEEKLY_SUMMARY` (*« J'en suis à combien de kilomètres cette semaine ? »*, *« Quel est mon bilan de course ? »*)
+     - `PLAN_SPORT_SESSION` (*« Planifie-moi un fractionné jeudi »*)
+  2. Enrichir le prompt système de Gemini Flash avec l'esprit d'**Otis le scribe** (bienveillant, complice, précis sur les calculs d'allure et protecteur contre les blessures).
+  3. Extraction structurée Pydantic des entités (durée en secondes/minutes, distance en km, D+ en m, RPE 1-10).
+* **Critères de succès :** Suite de tests NLU validant la reconnaissance naturelle sans ambiguïté.
 
 ---
 
-### 🟢 Étape 4 : Optimisation de Latence (< 1 à 2 secondes)
+### ⚪ Étape 4 : Intégration `/api/v1/interact`, Cache & Passerelle de Synchro
 * **Objectifs :**
-  1. Éliminer le goulot d'étranglement des 8-9 secondes :
-     * **Cache RAM persistant au démarrage (`warmup_cache`)** : préchauffage via le cycle `lifespan` FastAPI au boot, chargeant en mémoire catalogues de rayons, recettes, ordre et listes.
-     * **Mise à jour optimiste du cache** : les ajouts d'articles mettent immédiatement à jour `_shopping_cache` en mémoire pour des lectures subséquentes instantanées sans réinterrogation Google Sheets.
-     * **Écritures asynchrones (`BackgroundTasks`)** : intégration dans `/api/v1/interact` et `/api/v1/mobile/interact` permettant d'envoyer la réponse audio instantanément.
-     * **Endpoint dédié** : `/api/v1/cache/warmup` pour préchauffer ou rafraîchir le cache à la demande.
-  2. Tests automatisés vérifiant la rapidité d'exécution (< 0.5s en mémoire) et l'intégrité du cache.
-* **Résultat validé :** 3 tests de performance/latence + 194/194 tests au vert.
-* **Critères de succès :** Temps de traitement mémoire < 0.5s et 100% des tests passés.
+  1. Brancher les intentions sportives dans le routeur principal `/api/v1/interact` et mobile.
+  2. Cache mémoire RAM pour les consultations instantanées (< 0.5s).
+  3. Écritures Google Sheets en arrière-plan (`BackgroundTasks`) pour retour vocal immédiat.
+  4. Mise en place de l'endpoint d'ingestion pour synchronisation (Webhook Strava ou passerelle d'activités).
+* **Critères de succès :** Réponses vocales fluides et mise à jour transparente du Google Sheet.
 
 ---
 
-### 🟢 Étape 5 : Branchement dans `/api/v1/interact`, Mémoire Conversationnelle & Tolérance Recettes
+### ⚪ Étape 5 : Test d'Intégration End-to-End (E2E) & Validation Finale
 * **Objectifs :**
-  1. Intégrer le moteur LLM dans le routeur principal de `/api/v1/interact` avec réponses concises (1-2 phrases).
-  2. Maintenir l'historique conversationnel multi-tours (`history`) dans la session pour préserver le fil du dialogue.
-  3. Gestion robuste des dates relatives (`parse_target_date` pour `"today"`, `"tomorrow"`, `"ce soir"` sans erreur `ValueError`).
-  4. Tolérance avancée aux recettes dans Google Sheets : normalisation des tirets, accents, ponctuations et pluriels dans la recherche (`"croque-monsieur"` $\leftrightarrow$ `"Croque monsieur"`).
-  5. Mise en place d'un fallback automatique en cas de quota dépassé ou indisponibilité réseau.
-* **Résultat validé :** 205/205 tests passés au vert, validé manuellement par l'utilisateur sur sa PWA.
-* **Critères de succès :** Suite complète à 100% au vert et validation manuelle.
-
----
-
-### 🟢 Étape 6 : Tests d'Intégration End-to-End (E2E) & Validation Finale
-* **Objectifs :**
-  1. Écriture d'un test d'intégration complet E2E simulant un utilisateur réel sur la PWA (`tests/test_e2e_gemini_llm_brain.py`).
-  2. Validation de l'enchaînement complet :
-     - Warmup & suivi des quotas LLM (`/api/v1/cache/warmup`, `/api/v1/llm/stats`).
-     - Tour 1 : Réflexion & suggestion de repas conversationnelle.
-     - Tour 2 : Choix dans le fil avec tolérance tiret/espace (`"croque-monsieur"` $\leftrightarrow$ `"Croque monsieur"`).
-     - Tour 3 & 4 : Clarification de rayon ambigu et confirmation de rangement.
-     - Tour 5 : Vérification de planning fluide et concis.
-     - Tour 6 : Anaphore contextuelle d'ingrédients (*« ajoute ses ingrédients »*).
-     - Résilience et bascule transparente si panne API Gemini.
-  3. Validation manuelle sur smartphone en conditions réelles par l'utilisateur.
-  4. Documentation finale et préparation de la fusion vers `develop`.
-* **Résultat automatisé :** ✅ 3/3 tests E2E passés avec succès (208/208 tests au vert sur toute la suite).
-* **Critères de succès :** Validé manuellement par l'utilisateur sur son mobile.
+  1. Écrire le test d'intégration complet `tests/test_e2e_sport_running.py`.
+  2. Valider l'ensemble du flux : consultation matinale $\rightarrow$ course $\rightarrow$ saisie vocale $\rightarrow$ mise à jour du bilan hebdo $\rightarrow$ recommandation de la prochaine séance par Otis.
+  3. Validation manuelle en conditions réelles par l'utilisateur.
+* **Critères de succès :** 100% de la suite de tests au vert (zéro régression) et validation manuelle d'Alexis.
