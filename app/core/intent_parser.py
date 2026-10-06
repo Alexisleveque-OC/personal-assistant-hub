@@ -646,12 +646,12 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 9.2 Renforcement musculaire / PPG sans distance ("j'ai fait 30 minutes de renfo, ressenti 7 sur 10")
+        # 9.2 Renforcement musculaire / PPG sans distance ("j'ai fait 30 minutes de renfo, ressenti 7 sur 10", "log séance de renforcement 30 minutes...")
         renfo_match = re.search(
-            r"(?:j[' ]?ai\s+fait|note\s+ma\s+séance\s+de)\s+([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)\s+(?:de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)",
+            r"(?:j[' ]?ai\s+fait|note|log|enregistre|ajoute)(?:\s+(?:ma|la|une)?\s*séance(?:\s+de)?)?\s+([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)\s+(?:de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)",
             cleaned,
         ) or re.search(
-            r"(?:j[' ]?ai\s+fait|note\s+ma\s+séance)\s+(?:une?\s+séance\s+de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)(?:\s+de\s+([0-9]+)\s*min(?:utes?)?)?",
+            r"(?:j[' ]?ai\s+fait|note|log|enregistre|ajoute)\s+(?:(?:ma|la|une)?\s*séance\s+de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)(?:\s+(?:de\s+)?([0-9]+)\s*min(?:utes?)?)?",
             cleaned,
         )
         if renfo_match:
