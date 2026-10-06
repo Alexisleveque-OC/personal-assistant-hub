@@ -63,6 +63,8 @@ jobs:
           GCP_REGION: ${{ secrets.GCP_REGION }}
           API_KEY: ${{ secrets.API_KEY }}
           SHEET_ID: ${{ secrets.SPREADSHEET_MEALS_SHOPPING_ID }}
+          SPORT_SHEET_ID: ${{ secrets.SPREADSHEET_SPORT_ID }}
+          BUDGET_SHEET_ID: ${{ secrets.SPREADSHEET_BUDGET_ID }}
           GSA_INFO: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -71,6 +73,12 @@ jobs:
 
           # Assembler les variables d'environnement à injecter dans le conteneur Cloud Run
           ENV_VARS="API_KEY=${API_KEY},SPREADSHEET_MEALS_SHOPPING_ID=${SHEET_ID}"
+          if [ -n "$SPORT_SHEET_ID" ]; then
+            ENV_VARS="${ENV_VARS},SPREADSHEET_SPORT_ID=${SPORT_SHEET_ID}"
+          fi
+          if [ -n "$BUDGET_SHEET_ID" ]; then
+            ENV_VARS="${ENV_VARS},SPREADSHEET_BUDGET_ID=${BUDGET_SHEET_ID}"
+          fi
           if [ -n "$GSA_B64" ]; then
             ENV_VARS="${ENV_VARS},GOOGLE_SERVICE_ACCOUNT_INFO=${GSA_B64}"
           fi

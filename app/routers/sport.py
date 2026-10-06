@@ -44,12 +44,13 @@ def get_sport_connector_dep():
     Import différé pour éviter la dépendance circulaire main -> routers.sport -> main
     comme consigné dans la dette technique de SPEC.md.
     """
-    from app.main import get_sport_connector
+    from app.main import get_sport_connector, get_sport_connector_error
     connector = get_sport_connector()
     if not connector:
+        err = get_sport_connector_error() or "vérifiez la variable SPREADSHEET_SPORT_ID et l'accès Google Sheets"
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Connecteur sport non disponible (vérifiez la configuration Google Sheets).",
+            detail=f"Connecteur sport non disponible ({err}).",
         )
     return connector
 

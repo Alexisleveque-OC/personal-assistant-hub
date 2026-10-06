@@ -167,6 +167,9 @@ class SportConnector(BaseConnector):
             else:
                 cred_file = credentials_path or settings.google_service_account_file
                 gc = gspread.service_account(filename=cred_file)
+
+            if not getattr(settings, "spreadsheet_sport_id", None) or not settings.spreadsheet_sport_id.strip():
+                raise ValueError("Variable d'environnement SPREADSHEET_SPORT_ID manquante ou non configurée")
             self._spreadsheet = gc.open_by_key(settings.spreadsheet_sport_id)
 
         self._sessions_cache: Optional[List[SportSession]] = None
