@@ -33,16 +33,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const tabMealToday = document.getElementById("tab-meal-today");
   const tabMealWeek = document.getElementById("tab-meal-week");
 
+  // Sport Elements
+  const sportTodayContainer = document.getElementById("sport-today-container");
+  const sportDashboardContainer = document.getElementById("sport-dashboard-container");
+  const sportCoachBubble = document.getElementById("sport-coach-bubble");
+  const tabSportToday = document.getElementById("tab-sport-today");
+  const tabSportDash = document.getElementById("tab-sport-dash");
+  const sportTodayBadgeDate = document.getElementById("sport-today-badge-date");
+
   // Nav Items
   const navItems = document.querySelectorAll(".nav-item");
   const views = {
     chat: document.getElementById("view-chat"),
     shopping: document.getElementById("view-shopping"),
-    meals: document.getElementById("view-meals")
+    meals: document.getElementById("view-meals"),
+    sport: document.getElementById("view-sport")
   };
 
   // State
   let apiKey = localStorage.getItem("pah_api_key") || "";
+  let currentSportSubview = "today";
+  let currentSportScale = "week";
   let ttsEnabled = localStorage.getItem("pah_tts_enabled") !== "false";
   let selectedVoiceUri = localStorage.getItem("pah_voice_uri") || "";
   let isRecording = false;
@@ -376,6 +387,8 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           fetchMealWeek();
         }
+      } else if (targetView === "sport") {
+        loadSportView();
       }
     });
   });
@@ -957,6 +970,450 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // ==========================================================================
+  // MODULE SPORT RUNNING & DASHBOARD VISUEL (Étape 7)
+  // ==========================================================================
+
+  // Segmented control Sport (Séance du jour vs Tableau de bord)
+  if (tabSportToday && tabSportDash) {
+    tabSportToday.addEventListener("click", () => {
+      tabSportToday.classList.add("active");
+      tabSportDash.classList.remove("active");
+      currentSportSubview = "today";
+      if (sportTodayContainer) sportTodayContainer.style.display = "block";
+      if (sportDashboardContainer) sportDashboardContainer.style.display = "none";
+      fetchSportToday();
+    });
+
+    tabSportDash.addEventListener("click", () => {
+      tabSportDash.classList.add("active");
+      tabSportToday.classList.remove("active");
+      currentSportSubview = "dashboard";
+      if (sportTodayContainer) sportTodayContainer.style.display = "none";
+      if (sportDashboardContainer) sportDashboardContainer.style.display = "block";
+      fetchSportDashboard(currentSportScale);
+    });
+  }
+
+  function loadSportView() {
+    if (currentSportSubview === "today") {
+      fetchSportToday();
+    } else {
+      fetchSportDashboard(currentSportScale);
+    }
+  }
+
+  // --- 1. Séance du jour ---
+  async function fetchSportToday() {
+    if (!sportTodayContainer) return;
+    sportTodayContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement de la séance du jour...</div>';
+
+    const headers = {};
+    if (apiKey) headers["X-API-Key"] = apiKey;
+
+    try {
+      const res = await fetch("/api/v1/sport/today", { headers });
+      if (!res.ok) {
+        if (res.status === 401) {
+          sportTodayContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-rose)">Clé API manquante ou invalide. Renseignez-la dans les Paramètres.</div>';
+          return;
+        }
+        throw new Error("Erreur serveur " + res.status);
+      }
+
+      const data = await res.json();
+
+      // Bulle Conseil Coach Otis
+      renderCoachBubble(data.coach_tip);
+
+      // Date en haut
+      if (sportTodayBadgeDate && data.date) {
+        const dObj = new Date(data.date + "T00:00:00");
+        const options = { weekday: "short", day: "numeric", month: "short" };
+        sportTodayBadgeDate.textContent = dObj.toLocaleDateString("fr-FR", options);
+      }
+
+      // Rendu des séances
+      renderSportToday(data);
+    } catch (err) {
+      sportTodayContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--color-danger)">Impossible de charger la séance du jour (${err.message}).</div>`;
+    }
+  }
+
+  function renderCoachBubble(coachTip) {
+    if (!sportCoachBubble) return;
+    if (!coachTip || !coachTip.message) {
+      sportCoachBubble.style.display = "none";
+      return;
+    }
+
+    const lvl = coachTip.niveau || "info";
+    sportCoachBubble.className = `coach-bubble ${lvl}`;
+    const avatarIcon = lvl === "alerte" ? "⚠️" : (lvl === "vigilance" ? "💡" : "🏃");
+    const titleLabel = lvl === "alerte" ? "Alerte Sécurité Coach Otis" : (lvl === "vigilance" ? "Conseil Vigilance Coach" : "Le Mot du Coach Otis");
+
+    sportCoachBubble.innerHTML = `
+      <div class="coach-avatar">${avatarIcon}</div>
+      <div class="coach-bubble-body">
+        <div class="coach-bubble-title">${titleLabel}</div>
+        <div class="coach-bubble-message">${coachTip.message}</div>
+      </div>
+    `;
+    sportCoachBubble.style.display = "flex";
+  }
+
+  function renderSportToday(data) {
+    const seances = data.seances || [];
+    const comparisons = data.comparisons || [];
+
+    if (seances.length === 0) {
+      sportTodayContainer.innerHTML = `
+        <div class="sport-session-card" style="text-align:center; padding:28px 16px;">
+          <div style="font-size:2.2rem; margin-bottom:8px;">🛋️</div>
+          <h3 style="font-size:1.15rem; font-weight:800; color:var(--color-text); margin-bottom:6px;">Journée de repos</h3>
+          <p style="font-size:0.88rem; color:var(--color-text-secondary); line-height:1.5;">
+            Aucune séance planifiée ou enregistrée aujourd'hui. Laisse ton corps et tes tibias se régénérer !
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = "";
+
+    seances.forEach((s, idx) => {
+      const isRealise = s.statut === "Réalisé";
+      const statusClass = isRealise ? "realise" : (s.statut === "Repos" ? "repos" : "prevu");
+      const statusLabel = s.statut || "Prévu";
+
+      const typeEmoji = s.type_seance === "Renforcement" ? "🏋️" : (s.type_seance === "Fractionné" ? "⚡" : (s.type_seance === "Sortie Longue" ? "🏔️" : "🏃"));
+      const titleLabel = `${typeEmoji} ${s.type_seance || "Course"}`;
+
+      // Trouver la comparaison correspondante
+      const comp = comparisons.find(c => c.current_session.type_seance === s.type_seance);
+
+      html += `
+        <div class="sport-session-card" data-session-idx="${idx}" data-session-date="${s.date}" data-session-type="${s.type_seance}">
+          <div class="sport-card-header">
+            <div class="sport-card-title">${titleLabel}</div>
+            <span class="badge-status ${statusClass}">${statusLabel}</span>
+          </div>
+
+          <!-- Grille Métriques -->
+          <div class="sport-metrics-grid">
+            ${s.distance_km ? `
+              <div class="sport-metric-box">
+                <div class="sport-metric-label">Distance</div>
+                <div class="sport-metric-val">${s.distance_km}<span class="sport-metric-unit"> km</span></div>
+              </div>
+            ` : ""}
+
+            ${s.allure_formatted || s.allure_cible ? `
+              <div class="sport-metric-box">
+                <div class="sport-metric-label">${isRealise ? "Allure" : "Allure Cible"}</div>
+                <div class="sport-metric-val">${s.allure_formatted || s.allure_cible}</div>
+              </div>
+            ` : ""}
+
+            ${s.km_effort ? `
+              <div class="sport-metric-box">
+                <div class="sport-metric-label">Km-Effort</div>
+                <div class="sport-metric-val">${s.km_effort}</div>
+              </div>
+            ` : ""}
+
+            ${s.ressenti_rpe ? `
+              <div class="sport-metric-box">
+                <div class="sport-metric-label">RPE</div>
+                <div class="sport-metric-val" style="color:${getRpeColor(s.ressenti_rpe)}">${s.ressenti_rpe}<span class="sport-metric-unit">/10</span></div>
+              </div>
+            ` : ""}
+
+            ${s.fc_moyenne ? `
+              <div class="sport-metric-box">
+                <div class="sport-metric-label">FC Moy</div>
+                <div class="sport-metric-val">${s.fc_moyenne}<span class="sport-metric-unit"> bpm</span></div>
+              </div>
+            ` : ""}
+          </div>
+
+          <!-- Programme technique -->
+          ${s.programme ? `
+            <div class="sport-details-block">
+              <div class="sport-details-label">Programme</div>
+              <div>${s.programme}</div>
+            </div>
+          ` : ""}
+
+          <!-- Remarques & Sensations -->
+          ${s.remarques ? `
+            <div class="sport-details-block" style="border-left-color:var(--color-accent)">
+              <div class="sport-details-label">Remarques & Sensations</div>
+              <div>${s.remarques}</div>
+            </div>
+          ` : ""}
+
+          <!-- Comparateur vs dernière séance même type -->
+          ${comp && comp.deltas && comp.deltas.length > 0 ? `
+            <div class="sport-comparison-box">
+              <div class="sport-comparison-title">
+                📊 vs Dernière séance (${comp.previous_session.date})
+              </div>
+              <div class="comparison-badges">
+                ${comp.deltas.map(d => {
+                  const arrow = d.trend === "up" ? "↑" : (d.trend === "down" ? "↓" : "=");
+                  const trendClass = d.trend === "up" ? "trend-up" : (d.trend === "down" ? "trend-down" : "trend-stable");
+                  const metricLabel = d.metric === "vitesse_kmh" ? "Vitesse" : (d.metric === "distance_km" ? "Distance" : "Km-Effort");
+                  const sign = d.delta_pct > 0 ? "+" : "";
+                  return `<span class="comp-badge ${trendClass}">${arrow} ${metricLabel} ${sign}${d.delta_pct}%</span>`;
+                }).join("")}
+              </div>
+            </div>
+          ` : ""}
+
+          <!-- Formulaire de feedback tactile (RPE + Remarques/Douleurs) -->
+          <div class="sport-feedback-section">
+            <div class="sport-feedback-title">
+              <span>Ressenti d'effort & Notes</span>
+              <span id="rpe-feedback-label-${idx}" style="font-size:0.78rem; font-weight:700; color:var(--text-muted);">
+                ${s.ressenti_rpe ? `Note actuelle : ${s.ressenti_rpe}/10` : "Non renseigné"}
+              </span>
+            </div>
+
+            <!-- Pastilles RPE 1 à 10 -->
+            <div class="rpe-scale-container" data-idx="${idx}">
+              ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(val => `
+                <button type="button" class="rpe-pill-btn ${s.ressenti_rpe === val ? "selected" : ""}" data-rpe="${val}">
+                  ${val}
+                </button>
+              `).join("")}
+            </div>
+
+            <!-- Champ texte libre (Sensations, alertes périostite) -->
+            <textarea class="sport-notes-textarea" id="sport-notes-${idx}" placeholder="Notes de sensations, douleurs tibias, météo..." rows="2"></textarea>
+
+            <button type="button" class="sport-btn-save" id="btn-save-sport-${idx}">
+              💾 Enregistrer mon ressenti
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    sportTodayContainer.innerHTML = html;
+
+    // Attacher les écouteurs sur chaque carte
+    seances.forEach((s, idx) => {
+      attachSportFeedbackHandlers(idx, s);
+    });
+  }
+
+  function getRpeColor(rpe) {
+    if (rpe <= 4) return "#2e7d32";
+    if (rpe <= 7) return "#f57c00";
+    return "#d32f2f";
+  }
+
+  function attachSportFeedbackHandlers(idx, session) {
+    const card = document.querySelector(`.sport-session-card[data-session-idx="${idx}"]`);
+    if (!card) return;
+
+    let selectedRpe = session.ressenti_rpe || null;
+    const rpeButtons = card.querySelectorAll(".rpe-pill-btn");
+    const feedbackLabel = document.getElementById(`rpe-feedback-label-${idx}`);
+    const notesInput = document.getElementById(`sport-notes-${idx}`);
+    const saveBtn = document.getElementById(`btn-save-sport-${idx}`);
+
+    rpeButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const val = parseInt(btn.getAttribute("data-rpe"), 10);
+        selectedRpe = val;
+        rpeButtons.forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        if (feedbackLabel) {
+          const desc = val <= 4 ? "Facile" : (val <= 7 ? "Soutenu" : "Très dur / Limite");
+          feedbackLabel.textContent = `Sélectionné : ${val}/10 (${desc})`;
+          feedbackLabel.style.color = getRpeColor(val);
+        }
+      });
+    });
+
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        const textVal = notesInput ? notesInput.value.trim() : "";
+        if (!selectedRpe && !textVal) {
+          alert("Veuillez choisir une note RPE ou saisir une remarque.");
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "⏳ Enregistrement...";
+
+        const payload = {
+          target_type: session.type_seance,
+        };
+        if (selectedRpe) payload.ressenti_rpe = selectedRpe;
+        if (textVal) {
+          payload.remarques = textVal;
+          payload.append_remarques = true;
+        }
+
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) headers["X-API-Key"] = apiKey;
+
+        try {
+          const res = await fetch(`/api/v1/sport/session/${session.date}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            throw new Error("Erreur de sauvegarde");
+          }
+
+          saveBtn.textContent = "✅ Enregistré avec succès !";
+          saveBtn.style.background = "var(--color-success)";
+
+          setTimeout(() => {
+            fetchSportToday();
+          }, 900);
+        } catch (err) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "❌ Échec. Réessayer";
+          saveBtn.style.background = "var(--color-danger)";
+        }
+      });
+    }
+  }
+
+  // --- 2. Dashboard multi-échelles (Sous-étape 7.3) ---
+  async function fetchSportDashboard(scale = "week") {
+    if (!sportDashboardContainer) return;
+    sportDashboardContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement du tableau de bord...</div>';
+
+    const headers = {};
+    if (apiKey) headers["X-API-Key"] = apiKey;
+
+    try {
+      const res = await fetch(`/api/v1/sport/dashboard?scale=${scale}`, { headers });
+      if (!res.ok) {
+        throw new Error("Erreur " + res.status);
+      }
+      const data = await res.json();
+      renderSportDashboard(data);
+    } catch (err) {
+      sportDashboardContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--color-danger)">Impossible de charger le tableau de bord (${err.message}).</div>`;
+    }
+  }
+
+  function renderSportDashboard(data) {
+    const totals = data.totals || {};
+    const series = data.series || [];
+
+    let html = `
+      <!-- Sélecteur d'échelle -->
+      <div class="dash-scale-switcher">
+        <button class="dash-scale-btn ${data.scale === "week" ? "active" : ""}" data-scale="week">Semaine</button>
+        <button class="dash-scale-btn ${data.scale === "month" ? "active" : ""}" data-scale="month">Mois</button>
+        <button class="dash-scale-btn ${data.scale === "year" ? "active" : ""}" data-scale="year">Année</button>
+      </div>
+
+      <div style="font-size:0.95rem; font-weight:800; color:var(--color-text); margin-bottom:12px;">
+        ${data.label}
+      </div>
+
+      <!-- Grille KPI -->
+      <div class="dash-kpi-grid">
+        <div class="dash-kpi-card">
+          <div class="dash-kpi-title">Volume Total</div>
+          <div class="dash-kpi-val">${totals.km_effort || 0} <span style="font-size:0.8rem; font-weight:600;">km-effort</span></div>
+          <div class="dash-kpi-sub">${totals.distance_km || 0} km · ${totals.nb_seances || 0} séances (${totals.nb_renfo || 0} renfo)</div>
+        </div>
+
+        <div class="dash-kpi-card">
+          <div class="dash-kpi-title">Allure Moyenne</div>
+          <div class="dash-kpi-val">${totals.allure_formatted || "-"}</div>
+          <div class="dash-kpi-sub">${totals.vitesse_kmh ? totals.vitesse_kmh + " km/h" : "Hors renfo"}</div>
+        </div>
+
+        <div class="dash-kpi-card">
+          <div class="dash-kpi-title">Charge RPE</div>
+          <div class="dash-kpi-val">${totals.charge_rpe || 0}</div>
+          <div class="dash-kpi-sub">Charge interne cumulée</div>
+        </div>
+
+        <div class="dash-kpi-card">
+          <div class="dash-kpi-title">Sécurité & Plafond</div>
+          <div class="dash-kpi-val" style="font-size:1.05rem;">${data.plafond_km_effort ? data.plafond_km_effort + " km-eff max" : "Normal"}</div>
+          <div class="dash-kpi-sub">${data.alerte_securite || "Progression suivie"}</div>
+        </div>
+      </div>
+
+      <!-- Graphique SVG Volume -->
+      <div class="dash-chart-card">
+        <div class="dash-chart-header">
+          <div class="dash-chart-title">Évolution Volume (Km-Effort)</div>
+        </div>
+        <div class="svg-chart-wrapper">
+          ${renderSvgBarChart(series, data.plafond_km_effort)}
+        </div>
+      </div>
+    `;
+
+    sportDashboardContainer.innerHTML = html;
+
+    // Attacher les clics sur les boutons d'échelle
+    sportDashboardContainer.querySelectorAll(".dash-scale-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const sc = btn.getAttribute("data-scale");
+        currentSportScale = sc;
+        fetchSportDashboard(sc);
+      });
+    });
+  }
+
+  function renderSvgBarChart(series, plafond) {
+    if (!series || series.length === 0) {
+      return '<div style="text-align:center; padding:20px; color:var(--text-muted)">Aucune donnée de série</div>';
+    }
+
+    const maxVal = Math.max(...series.map(s => s.km_effort || 0), plafond || 0, 10);
+    const chartHeight = 130;
+    const barWidth = 24;
+    const gap = 12;
+    const totalWidth = series.length * (barWidth + gap) + 20;
+
+    let svg = `<svg viewBox="0 0 ${totalWidth} ${chartHeight + 28}" style="width:100%; min-width:${totalWidth}px; height:${chartHeight + 28}px;">`;
+
+    // Ligne repère plafond si semaine
+    if (plafond && maxVal > 0) {
+      const yPlafond = chartHeight - (plafond / maxVal) * (chartHeight - 20);
+      svg += `
+        <line x1="0" y1="${yPlafond}" x2="${totalWidth}" y2="${yPlafond}" stroke="#d32f2f" stroke-dasharray="4 4" stroke-width="1.5" opacity="0.75" />
+        <text x="6" y="${yPlafond - 4}" fill="#d32f2f" font-size="9" font-weight="700">Plafond +10% (${plafond} km-eff)</text>
+      `;
+    }
+
+    series.forEach((pt, i) => {
+      const x = 10 + i * (barWidth + gap);
+      const val = pt.km_effort || 0;
+      const barH = maxVal > 0 ? (val / maxVal) * (chartHeight - 24) : 0;
+      const y = chartHeight - barH;
+      const fill = pt.is_current ? "var(--color-primary)" : "var(--color-accent-soft)";
+      const stroke = pt.is_current ? "var(--color-primary-hover)" : "var(--color-accent)";
+
+      svg += `
+        <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="1" />
+        <text x="${x + barWidth / 2}" y="${y - 4}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--color-text)">${val > 0 ? val : ""}</text>
+        <text x="${x + barWidth / 2}" y="${chartHeight + 16}" text-anchor="middle" font-size="10" font-weight="${pt.is_current ? "800" : "500"}" fill="${pt.is_current ? "var(--color-primary)" : "var(--color-text-secondary)"}">${pt.label}</text>
+      `;
+    });
+
+    svg += '</svg>';
+    return svg;
+  }
+
   // Handling URL action param (shortcuts)
   const urlParams = new URLSearchParams(window.location.search);
   const actionParam = urlParams.get("action");
@@ -964,5 +1421,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector('.nav-item[data-view="shopping"]').click();
   } else if (actionParam === "meal_today") {
     document.querySelector('.nav-item[data-view="meals"]').click();
+  } else if (actionParam === "sport_today") {
+    document.querySelector('.nav-item[data-view="sport"]').click();
   }
 });
+

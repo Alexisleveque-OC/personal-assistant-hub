@@ -22,6 +22,11 @@ def test_get_app_returns_200_html():
     assert 'id="shopping-list-container"' in html
     assert 'id="meal-container"' in html
     assert 'id="btn-clear-bought"' in html
+    assert 'id="view-sport"' in html
+    assert 'data-view="sport"' in html
+    assert 'id="sport-today-container"' in html
+    assert 'id="sport-dashboard-container"' in html
+    assert 'id="sport-coach-bubble"' in html
 
 
 def test_get_manifest_json():

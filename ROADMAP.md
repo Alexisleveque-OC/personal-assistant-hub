@@ -17,7 +17,7 @@
 | **Étape 4** | Intégration `/api/v1/interact`, passerelle de synchronisation, colonnes BPM & import réel des 9 GPX | 🟢 Terminé | Validé par l'utilisateur | ✅ 6/6 tests dédiés (37/37 sport, 245+ total) au vert |
 | **Étape 5** | Renforcement Musculaire (Renfo/PPG) & Réajustement vocal a posteriori (RPE / Douleur Périostite) | 🟢 Terminé | Validé par l'utilisateur | ✅ 14/14 tests dédiés (51/51 sport, 259/259 total) au vert |
 | **Étape 6** | Cerveau LLM Otis : Analyse fine d'historique & Planification hebdomadaire proactive (gestion périostite) | 🟢 Terminé | En cours de validation | ✅ 27/27 tests dédiés (78/78 sport, 286/286 total) au vert |
-| **Étape 7** | Interface Graphique PWA Running & Dashboard Visuel (Séance du jour, jauges, multi-échelles) | ⚪ À faire | En attente | Tests de routes PWA & UI |
+| **Étape 7** | Interface Graphique PWA Running & Dashboard Visuel (Séance du jour, jauges, multi-échelles) | 🟢 Terminé | En cours de validation | ✅ 25/25 tests dédiés (114/114 sport, 322/322 total) au vert |
 | **Étape 8** | Gamification, Anecdotes Insolites & Badges de Dopamine (PWA & Chronique Matinale) | ⚪ À faire | En attente | Tests unitaires modèles, règles & dopamine |
 | **Étape 9** | Test d'intégration End-to-End (E2E) complet & Validation finale | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
 
@@ -86,22 +86,25 @@
 
 ---
 
-### ⚪ Étape 7 : Interface Graphique PWA Running & Dashboard Visuel
-* **Objectifs :**
-  1. **Vue interactive "Séance du Jour" (Prévu / Réalisé) :**
+### 🟢 Étape 7 : Interface Graphique PWA Running & Dashboard Visuel
+* **Objectifs réalisés :**
+  1. **Vue interactive "Séance du Jour" (Prévu / Réalisé / Repos) :**
      - Affichage de la séance planifiée ou réalisée avec badge de statut.
-     - Saisie manuelle directe (sans parler) : note RPE (curseur/boutons 1-10) et champ texte pour ajouter des remarques ou signaler une douleur de périostite.
+     - Saisie manuelle tactile directe (sans parler) : sélecteur de pastilles RPE 1 à 10 aux couleurs dynamiques (vert -> ambre -> rouge) et zone de saisie pour notes, sensations ou alertes périostite. Envoi instantané via `PATCH /api/v1/sport/session/{date}`.
   2. **Récapitulatif & Comparateur de Séance :**
      - Badges de couleurs parlantes comparant la séance du jour à la dernière séance du même type (Fractionné, EF, Sortie Longue) : vitesse, distance, km-effort.
   3. **Tableau de Bord & Évolution Multi-Échelles :**
-     - **Semaine :** distance cumulée, km-effort, allure moy, charge RPE, comparaison par rapport à la moyenne des autres semaines et plafond sécurité.
-     - **Mois :** récapitulatif mensuel et volume accumulé.
-     - **Année :** vue macro et progression globale de la saison.
-  4. **Graphiques Visuels & Couleurs Parlantes :**
-     - Petits graphiques élégants et dynamiques (barres/courbes SVG/Canvas natifs réactifs) pour visualiser le volume et les allures au fil des semaines.
+     - **Semaine :** distance cumulée, km-effort, allure moy (hors renfo), charge RPE, comparaison par rapport à la moyenne des autres semaines et plafond sécurité (+10%).
+     - **Mois :** récapitulatif mensuel et séries découpées par semaines ISO.
+     - **Année :** vue macro et progression globale de la saison par mois.
+  4. **Graphiques Visuels Dynamiques (SVG Natif) :**
+     - Barres de volume hebdomadaire avec ligne repère en pointillés rouges marquant le plafond de sécurité +10%.
   5. **Conseil & Alerte Périostite du Coach Otis :**
-     - Bulle conseil bienveillante adaptée au plan de la semaine.
-* **Critères de succès :** Interface fluide, dynamique, visuellement percutante ("qui claque"), parfaitement utilisable au doigt sur smartphone.
+     - Bulle conseil bienveillante adaptée au plan de la semaine (info, vigilance, alerte) avec cache journalier et fallback résilient.
+  6. **Router modulaire FastAPI :**
+     - Nouveau router `app/routers/sport.py` (`/today`, `/session/{date}`, `/dashboard`) avec dépendance d'authentification API key.
+* **Critères de succès :** Interface fluide, dynamique, visuellement percutante, parfaitement utilisable au doigt sur smartphone (Service Worker mis à jour en `v5`), 25 tests dédiés au vert, 322/322 tests du projet au vert.
+* **Statut :** 🟢 Validé & opérationnel.
 
 ---
 

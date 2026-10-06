@@ -123,6 +123,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.routers.sport import router as sport_router
+app.include_router(sport_router)
+
 _SESSIONS: dict[str, dict] = {}
 
 

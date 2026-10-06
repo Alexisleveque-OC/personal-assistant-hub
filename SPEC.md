@@ -189,5 +189,9 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
      * Déplacer la logique métier des branches `case IntentType.*` dans des handlers spécialisés (`meals_handler`, `sport_handler`, `tasks_handler`, etc.) afin que les contrôleurs HTTP restent ultra-légers.
   3. **`app/main.py` épuré (< 80 lignes) :**
      * Rôle unique : assemblage de l'application FastAPI, middlewares (CORS), cycle de vie (`lifespan`) et inclusion des routeurs (`app.include_router(...)`).
+  4. **Extraction des factories de connecteurs (suppression de l'import circulaire) :**
+     * **Constat :** `get_sport_connector()` / `set_sport_connector()` et `get_meals_connector()` / `set_meals_connector()` (singletons globaux) vivent dans `app/main.py`. Tout router qui en dépend (ex : `routers/sport.py`, introduit à l'Étape 7 du module Sport) doit aujourd'hui les importer en **différé** (`from app import main` à l'intérieur de la dépendance FastAPI) pour éviter le cycle `main → routers.sport → main`.
+     * **Correction cible :** déplacer ces factories dans un module dédié (ex : `app/core/dependencies.py`), les exposer comme dépendances FastAPI (`Depends(get_sport_connector)`), et remplacer dans les tests `set_*_connector()` par `app.dependency_overrides`. Conserver temporairement des ré-exports dans `app/main.py` pour la rétrocompatibilité des tests existants, puis les retirer.
+     * **Critère de succès :** plus aucun import différé de `app.main` dans `app/routers/`, suite de tests 100 % verte.
 
 

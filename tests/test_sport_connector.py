@@ -543,5 +543,111 @@ def test_sport_connector_get_weekly_summary_multicriteria(mock_sport_spreadsheet
     assert summary.vitesse_kmh is not None
 
 
+SEANCES_HEADERS_18 = [
+    "Date", "Semaine", "Statut", "Type de séance", "Distance (km)",
+    "Dénivelé D+ (m)", "Km-Effort", "Temps", "Vitesse (km/h)",
+    "Allure (min/km)", "ressenti dur/10", "Charge RPE", "FC Moy (bpm)",
+    "FC Max (bpm)", "Météo difficile/10", "Programme", "Remarques", "ID Strava",
+]
+
+
+def _build_seances_only_connector(rows: list[list]) -> SportConnector:
+    """Connecteur mocké avec un unique onglet 'Séance' (pas de Synthese_Hebdo)."""
+    ws = create_mock_worksheet("Séance", [SEANCES_HEADERS_18, *rows])
+    sh = MagicMock()
+    sh.worksheets.return_value = [ws]
+    sh.worksheet.return_value = ws
+    return SportConnector(spreadsheet=sh)
+
+
+def _realise_row(d: date, distance: str, temps: str) -> list:
+    return [
+        d.strftime("%d/%m/%Y"), str(d.isocalendar()[1]), "Réalisé", "EF", distance,
+        "0", distance, temps, "", "", "5", "", "", "", "", "", "", "",
+    ]
+
+
+def test_sport_connector_week_sessions_uses_iso_year_across_new_year():
+    """La semaine ISO 1 de 2026 commence le lundi 29/12/2025 : ses séances de décembre doivent être incluses."""
+    monday_w1 = date.fromisocalendar(2026, 1, 1)
+    assert monday_w1.year == 2025  # Pré-condition du scénario
+    connector = _build_seances_only_connector([_realise_row(monday_w1 + timedelta(days=1), "5.0", "00:30:00")])
+
+    sessions = connector.get_week_sessions(1, 2026)
+
+    assert len(sessions) == 1
+    assert sessions[0].date == monday_w1 + timedelta(days=1)
+
+
+def test_sport_connector_weekly_summary_previous_week_wraps_to_previous_iso_year():
+    """En semaine 1, la semaine S-1 est la dernière semaine ISO de l'année précédente (et non une 'semaine 0')."""
+    monday_w1 = date.fromisocalendar(2026, 1, 1)
+    last_week_prev_year = monday_w1 - timedelta(days=7)
+    connector = _build_seances_only_connector([
+        _realise_row(last_week_prev_year, "8.0", "00:48:00"),
+        _realise_row(monday_w1 + timedelta(days=2), "6.0", "00:36:00"),
+    ])
+
+    summary = connector.get_weekly_summary(week_num=1, year=2026)
+
+    assert summary.km_total == 6.0
+    assert summary.previous_week_km_effort == 8.0
+    assert summary.previous_week_vitesse_kmh == 10.0
+    assert summary.evolution_volume_pct == -25.0
+
+
+def _row(d: date, statut: str, type_seance: str, distance: str = "", temps: str = "", remarques: str = "") -> list:
+    return [
+        d.strftime("%d/%m/%Y"), str(d.isocalendar()[1]), statut, type_seance, distance,
+        "0", distance, temps, "", "", "", "", "", "", "", "", remarques, "",
+    ]
+
+
+def test_sport_connector_get_all_sessions_public_accessor():
+    """Le dashboard a besoin de l'historique complet via une méthode publique (copie défensive)."""
+    d = date(2026, 10, 5)
+    connector = _build_seances_only_connector([
+        _row(d, "Réalisé", "EF", "5.0", "00:30:00"),
+        _row(d + timedelta(days=1), "Prévu", "Renforcement"),
+    ])
+
+    sessions = connector.get_all_sessions()
+
+    assert [s.type_seance for s in sessions] == [SportSessionType.EF, SportSessionType.RENFORCEMENT]
+    sessions.clear()
+    assert len(connector.get_all_sessions()) == 2  # Le cache interne n'est pas altéré
+
+
+def test_sport_connector_update_session_targets_type_when_two_sessions_same_day():
+    """Avec Renfo + EF le même jour, target_type permet de modifier la bonne ligne."""
+    d = date(2026, 10, 6)
+    connector = _build_seances_only_connector([
+        _row(d, "Réalisé", "Renforcement", "", "00:30:00", "Renfo ok"),
+        _row(d, "Réalisé", "EF", "5.0", "00:32:00", "Footing"),
+    ])
+
+    updated = connector.update_session(
+        d, SportSessionUpdate(ressenti_rpe=6, remarques="tibia sensible", append_remarques=True),
+        target_type=SportSessionType.EF,
+    )
+
+    assert updated.type_seance == SportSessionType.EF
+    assert updated.ressenti_rpe == 6
+    assert updated.remarques == "Footing | tibia sensible"
+    sessions = connector.get_all_sessions()
+    renfo = next(s for s in sessions if s.type_seance == SportSessionType.RENFORCEMENT)
+    assert renfo.remarques == "Renfo ok"
+    assert renfo.ressenti_rpe is None
+
+
+def test_sport_connector_update_session_unknown_target_type_raises_explicit_error():
+    """Fail-fast : type introuvable à cette date -> message listant les types disponibles."""
+    d = date(2026, 10, 6)
+    connector = _build_seances_only_connector([_row(d, "Réalisé", "EF", "5.0", "00:30:00")])
+
+    with pytest.raises(ValueError, match=r"Fractionné.*EF"):
+        connector.update_session(d, SportSessionUpdate(ressenti_rpe=5), target_type=SportSessionType.FRACTIONNE)
+
+
 
 

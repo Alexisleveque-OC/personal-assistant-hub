@@ -351,5 +351,96 @@ class SportWeeklyPlanProposal(BaseModel):
     spoken_summary: str = Field(..., description="Résumé oral concis et complice pour la voix d'Otis")
 
 
+class DashboardScale(str, Enum):
+    """Échelle temporelle du tableau de bord."""
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
+class MetricTrend(str, Enum):
+    """Tendance d'évolution d'une métrique sportive."""
+    UP = "up"
+    DOWN = "down"
+    STABLE = "stable"
+
+
+class CoachTipLevel(str, Enum):
+    """Niveau de criticité du conseil coach."""
+    INFO = "info"
+    VIGILANCE = "vigilance"
+    ALERTE = "alerte"
+
+
+class SportCoachTip(BaseModel):
+    """Bulle conseil du Coach Otis pour le dashboard."""
+    message: str = Field(..., description="Message de conseil concis et bienveillant")
+    niveau: CoachTipLevel = CoachTipLevel.INFO
+    source: str = Field(default="otis", description="'otis' (LLM) ou 'regles' (fallback déterministe)")
+    fallback_reason: Optional[str] = Field(default=None, description="Raison du fallback si applicable")
+
+
+class SessionMetricDelta(BaseModel):
+    """Comparaison d'une métrique spécifique par rapport à la séance de référence."""
+    metric: str
+    current: Optional[float] = None
+    previous: Optional[float] = None
+    delta_pct: Optional[float] = None
+    trend: MetricTrend = MetricTrend.STABLE
+
+
+class SportSessionComparison(BaseModel):
+    """Résultat de comparaison entre la séance courante et la précédente du même type."""
+    current_session: SportSession
+    previous_session: SportSession
+    deltas: List[SessionMetricDelta] = Field(default_factory=list)
+
+
+class PeriodTotals(BaseModel):
+    """Cumuls et totaux sur une période donnée (semaine, mois, année)."""
+    nb_seances: int = 0
+    nb_renfo: int = 0
+    nb_prevues: int = 0
+    distance_km: float = 0.0
+    km_effort: float = 0.0
+    duree_secondes: int = 0
+    charge_rpe: int = 0
+    vitesse_kmh: Optional[float] = None
+    allure_formatted: Optional[str] = None
+
+
+class PeriodSeriesPoint(BaseModel):
+    """Point de donnée dans une série temporelle (pour graphiques SVG/Canvas)."""
+    label: str = Field(..., description="Libellé du point (ex: S41, oct., etc.)")
+    km_effort: float = 0.0
+    distance_km: float = 0.0
+    duree_secondes: int = 0
+    vitesse_kmh: Optional[float] = None
+    charge_rpe: int = 0
+    is_current: bool = False
+
+
+class SportPeriodDashboard(BaseModel):
+    """Données complètes du tableau de bord pour une échelle donnée."""
+    scale: DashboardScale
+    label: str
+    start_date: dt_date
+    end_date: dt_date
+    totals: PeriodTotals
+    series: List[PeriodSeriesPoint] = Field(default_factory=list)
+    plafond_km_effort: Optional[float] = None
+    alerte_securite: Optional[str] = None
+    moyenne_km_effort_reference: Optional[float] = None
+    ecart_moyenne_pct: Optional[float] = None
+
+
+class SportTodayResponse(BaseModel):
+    """Réponse de l'endpoint /api/v1/sport/today."""
+    date: dt_date
+    seances: List[SportSession] = Field(default_factory=list)
+    comparisons: List[SportSessionComparison] = Field(default_factory=list)
+    coach_tip: SportCoachTip
+
+
 
 

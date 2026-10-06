@@ -1,6 +1,6 @@
 
 """Connecteur Google Sheets pour le suivi de course à pied et Mini-Coach (SportConnector)."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import base64
 import re
@@ -127,6 +127,17 @@ def _safe_int(val: Any) -> Optional[int]:
         return int(round(float(str(val).replace(",", ".").strip())))
     except ValueError:
         return None
+
+
+def _normalize_session_type(raw: str) -> SportSessionType:
+    """Convertit le libellé brut du Sheet en type de séance (même règle que la lecture des séances)."""
+    clean = (raw or "").strip()
+    if clean.lower() in ("renfo", "renforcement", "ppg", "musculation"):
+        return SportSessionType.RENFORCEMENT
+    try:
+        return SportSessionType(clean)
+    except ValueError:
+        return SportSessionType.EF
 
 
 class SportConnector(BaseConnector):
@@ -293,6 +304,10 @@ class SportConnector(BaseConnector):
         self._cache_time = now
         return sessions
 
+    def get_all_sessions(self) -> List[SportSession]:
+        """Retourne l'historique complet des séances (copie défensive du cache, pour le dashboard)."""
+        return list(self._get_all_sessions())
+
     def get_session(self, target_date: Optional[Union[date, str]] = None) -> Optional[SportSession]:
         """Récupère la séance planifiée ou réalisée pour une date cible."""
         if target_date is None:
@@ -312,7 +327,8 @@ class SportConnector(BaseConnector):
         """Récupère l'ensemble des séances d'une semaine ISO."""
         target_year = year or datetime.now().year
         sessions = self._get_all_sessions()
-        return [s for s in sessions if s.semaine == week_num and s.date.year == target_year]
+        # Année ISO (et non calendaire) : la semaine 1 peut commencer fin décembre de l'année précédente
+        return [s for s in sessions if s.semaine == week_num and s.date.isocalendar()[0] == target_year]
 
     def log_session(self, session_data: SportSessionCreate) -> SportSession:
         """Enregistre ou met à jour une séance terminée."""
@@ -687,8 +703,13 @@ class SportConnector(BaseConnector):
         self,
         target_date: Union[date, str],
         update_data: Union[SportSessionUpdate, Dict[str, Any]],
+        target_type: Optional[SportSessionType] = None,
     ) -> SportSession:
-        """Modifie a posteriori une séance existante (RPE, notes de douleur/périostite, ressenti)."""
+        """Modifie a posteriori une séance existante (RPE, notes de douleur/périostite, ressenti).
+
+        `target_type` permet de cibler la bonne ligne lorsque plusieurs séances partagent la même date
+        (ex : Renfo + EF). Sans `target_type`, la première séance de la date est modifiée.
+        """
         if isinstance(target_date, str):
             resolved_date = parse_target_date(target_date)
         else:
@@ -707,15 +728,29 @@ class SportConnector(BaseConnector):
         headers = all_values[0]
         header_indices = {h.strip().lower(): i for i, h in enumerate(headers)}
 
+        type_idx = header_indices.get("type de séance")
+        if type_idx is None:
+            type_idx = header_indices.get("type", 3)
+        types_on_date: List[str] = []
+
         target_row_idx = None
         current_row = None
         for i, row in enumerate(all_values[1:], start=2):
             if row and len(row) > 0 and _parse_date_robust(row[0]) == resolved_date:
+                row_type_raw = row[type_idx].strip() if type_idx < len(row) else ""
+                types_on_date.append(row_type_raw)
+                if target_type is not None and _normalize_session_type(row_type_raw) != target_type:
+                    continue
                 target_row_idx = i
                 current_row = list(row)
                 break
 
         if not target_row_idx or not current_row:
+            if target_type is not None and types_on_date:
+                raise ValueError(
+                    f"Aucune séance de type '{target_type.value}' le {resolved_date}. "
+                    f"Types disponibles à cette date : {types_on_date}."
+                )
             raise ValueError(f"Aucune séance trouvée pour la date {resolved_date}.")
 
         # S'assurer que current_row a au moins 18 éléments pour accueillir Programme et Remarques
@@ -871,7 +906,10 @@ class SportConnector(BaseConnector):
         duree_course_sec = sum(s.duree_secondes or 0 for s in running_sessions)
 
         # Semaine précédente (S-1) calculée depuis les séances (vitesse calculée sur les courses)
-        prev_sessions = [s for s in self.get_week_sessions(target_week - 1, target_year) if s.statut == SportSessionStatus.REALISE]
+        # Calcul par date pour gérer le passage d'année ISO (S1 -> S52/S53 de l'année précédente)
+        prev_iso = (date.fromisocalendar(target_year, target_week, 1) - timedelta(days=7)).isocalendar()
+        prev_week, prev_year = prev_iso[1], prev_iso[0]
+        prev_sessions = [s for s in self.get_week_sessions(prev_week, prev_year) if s.statut == SportSessionStatus.REALISE]
         prev_running = [
             s for s in prev_sessions
             if s.type_seance != SportSessionType.RENFORCEMENT and (s.distance_km or 0) > 0
@@ -905,7 +943,7 @@ class SportConnector(BaseConnector):
 
                     # Récupérer S-1 depuis Synthese_Hebdo si disponible
                     for prev_r in rows[1:]:
-                        if len(prev_r) >= 6 and _safe_int(prev_r[0]) == target_week - 1 and _safe_int(prev_r[1]) == target_year:
+                        if len(prev_r) >= 6 and _safe_int(prev_r[0]) == prev_week and _safe_int(prev_r[1]) == prev_year:
                             prev_km_effort = _safe_float(prev_r[5]) or prev_km_effort
                             if "vitesse moyenne" in header_map and header_map["vitesse moyenne"] < len(prev_r):
                                 prev_vitesse = _safe_float(prev_r[header_map["vitesse moyenne"]]) or prev_vitesse
