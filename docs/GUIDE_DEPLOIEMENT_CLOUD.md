@@ -33,9 +33,15 @@ Pour que le serveur Cloud puisse dialoguer avec votre Google Sheets sans risquer
 | Nom du Secret | Description | Exemple de valeur |
 | :--- | :--- | :--- |
 | `API_KEY` | Clé d'API secrète pour verrouiller l'accès mobile | `votre_cle_secrete_1234` |
-| `SPREADSHEET_MEALS_SHOPPING_ID` | Identifiant de votre classeur Google Sheets (visible dans l'URL de votre sheet) | `1a2b3c4d5e_EXEMPLE_ID_CLASSEUR_VOTRE_SHEET` |
+| `SPREADSHEET_MEALS_SHOPPING_ID` | Identifiant du classeur Repas & Courses (visible dans l'URL de votre sheet) | `1a2b3c4d5e_EXEMPLE_ID_CLASSEUR_VOTRE_SHEET` |
+| `SPREADSHEET_SPORT_ID` | Identifiant du classeur Sport Running / Otis (partagé avec le Service Account) | `1f2g3h4i5j_EXEMPLE_ID_CLASSEUR_SPORT` |
+| `SPREADSHEET_BUDGET_ID` | Identifiant du classeur Budget Mensuel (optionnel) | `1k2l3m4n5o_EXEMPLE_ID_CLASSEUR_BUDGET` |
 | `GOOGLE_SERVICE_ACCOUNT_INFO` | Contenu intégral de votre fichier `credentials.json` | `{"type": "service_account", ...}` |
 | `GEMINI_API_KEY` | Clé d'API Google AI Studio pour le moteur conversationnel Gemini Flash | `AIzaSy...` |
+
+> [!IMPORTANT]
+> **Partage Google Sheets obligatoire :**
+> Vos classeurs Google Sheets (`SPREADSHEET_MEALS_SHOPPING_ID`, `SPREADSHEET_SPORT_ID`, etc.) doivent impérativement être **partagés en Éditeur** avec l'adresse email de votre compte de service Google (le champ `"client_email"` présent dans votre `credentials.json` / `GOOGLE_SERVICE_ACCOUNT_INFO`).
 
 > [!TIP]
 > **Astuce pour `GOOGLE_SERVICE_ACCOUNT_INFO` :**
@@ -95,8 +101,10 @@ Si vous souhaitez la solution la plus rapide sans configurer les rôles IAM de G
    * **Instance Type :** `Free`
 5. Dans la section **Environment Variables**, ajoutez :
    * `API_KEY` : Votre clé secrète.
-   * `SPREADSHEET_MEALS_SHOPPING_ID` : L'ID de votre Google Sheet.
+   * `SPREADSHEET_MEALS_SHOPPING_ID` : L'ID de votre Google Sheet repas/courses.
+   * `SPREADSHEET_SPORT_ID` : L'ID de votre Google Sheet sport running.
    * `GOOGLE_SERVICE_ACCOUNT_INFO` : Le contenu de votre `credentials.json`.
+   * `GEMINI_API_KEY` : Votre clé Gemini (optionnel).
 6. Cliquez sur **Create Web Service**.
 7. Dans les paramètres Render (**Settings**), copiez votre **Deploy Hook URL** et ajoutez-le dans vos secrets GitHub sous le nom :
    * `RENDER_DEPLOY_HOOK`

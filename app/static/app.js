@@ -1024,7 +1024,9 @@ document.addEventListener("DOMContentLoaded", () => {
           sportTodayContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-rose)">Clé API manquante ou invalide. Renseignez-la dans les Paramètres.</div>';
           return;
         }
-        throw new Error("Erreur serveur " + res.status);
+        const errJson = await res.json().catch(() => null);
+        const detailMsg = errJson && errJson.detail ? errJson.detail : ("Erreur serveur " + res.status);
+        throw new Error(detailMsg);
       }
 
       const data = await res.json();
@@ -1318,7 +1320,9 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch(`/api/v1/sport/dashboard?scale=${scale}`, { headers });
       if (!res.ok) {
-        throw new Error("Erreur " + res.status);
+        const errJson = await res.json().catch(() => null);
+        const detailMsg = errJson && errJson.detail ? errJson.detail : ("Erreur serveur " + res.status);
+        throw new Error(detailMsg);
       }
       const data = await res.json();
       renderSportDashboard(data);
@@ -1445,7 +1449,9 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch("/api/v1/sport/gamification", { headers });
       if (!res.ok) {
-        throw new Error("Erreur " + res.status);
+        const errJson = await res.json().catch(() => null);
+        const detailMsg = errJson && errJson.detail ? errJson.detail : ("Erreur serveur " + res.status);
+        throw new Error(detailMsg);
       }
       const data = await res.json();
       renderSportGamification(data);

@@ -70,22 +70,36 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     _meals_connector = connector
 
 
+_sport_connector_error: Optional[str] = None
+
+
+def get_sport_connector_error() -> Optional[str]:
+    """Retourne la dernière erreur d'initialisation du connecteur sport."""
+    return _sport_connector_error
+
+
 def get_sport_connector() -> Optional[SportConnector]:
     """Récupère l'instance active du connecteur sport running ou tente son initialisation."""
-    global _sport_connector
+    global _sport_connector, _sport_connector_error
     if _sport_connector == "UNSET":
         try:
+            if not getattr(settings, "spreadsheet_sport_id", None) or not settings.spreadsheet_sport_id.strip():
+                raise ValueError("Variable d'environnement SPREADSHEET_SPORT_ID manquante ou non configurée.")
             _sport_connector = SportConnector()
+            _sport_connector_error = None
         except Exception as exc:
             logger.warning(f"Impossible d'initialiser SportConnector : {exc}")
             _sport_connector = None
+            _sport_connector_error = str(exc)
     return _sport_connector
 
 
 def set_sport_connector(connector: Optional[SportConnector]) -> None:
     """Permet l'injection d'un connecteur sport (mock) pour les tests unitaires et d'intégration."""
-    global _sport_connector
+    global _sport_connector, _sport_connector_error
     _sport_connector = connector
+    if connector is None:
+        _sport_connector_error = "Connecteur non initialisé ou mock désactivé"
 
 
 @asynccontextmanager
