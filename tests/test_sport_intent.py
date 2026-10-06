@@ -106,6 +106,13 @@ def test_local_parser_detects_log_renforcement_session():
     assert parsed.parameters.get("duration_seconds") == 30 * 60
     assert parsed.parameters.get("ressenti_rpe") == 7
 
+    # Formulation vocale alternative ("log", "renforcement 30 minutes", gainage, fessiers)
+    parsed_log = parser.parse("Log séance de renforcement 30 minutes gainage et fessiers ressenti 6")
+    assert parsed_log.intent == IntentType.LOG_SPORT_SESSION
+    assert parsed_log.parameters.get("type_seance") == "Renforcement"
+    assert parsed_log.parameters.get("duration_seconds") == 30 * 60
+    assert parsed_log.parameters.get("ressenti_rpe") == 6
+
 
 def test_local_parser_detects_update_sport_session_rpe_and_note():
     """Détecte la modification du ressenti RPE et de la note pour cause de périostite."""
