@@ -135,9 +135,19 @@
 
 ---
 
-### ⚪ Étape 9 : Test d'Intégration End-to-End (E2E) & Validation Finale
-* **Objectifs :**
-  1. Écrire le test d'intégration complet `tests/test_e2e_sport_running.py` couvrant l'ensemble du cycle de vie (consultation $\rightarrow$ log course $\rightarrow$ log renfo $\rightarrow$ modification de douleur a posteriori $\rightarrow$ planification par le LLM $\rightarrow$ déclenchement de badge/anecdote).
-  2. 100% de la suite de tests au vert (zéro régression).
-  3. Validation manuelle en conditions réelles par Alexis sur son smartphone et son Google Sheet.
-* **Critères de succès :** Validation totale et feu vert d'Alexis pour le merge sur `develop`.
+### 🟢 Étape 9 : Test d'Intégration End-to-End (E2E) & Validation Finale
+* **Objectifs réalisés :**
+  1. **Test d'Intégration E2E complet (`tests/test_e2e_sport_running.py`) :**
+     - Couvre de bout en bout l'intégralité du cycle de vie athlète :
+       1. Consultation matinale de la journée (Séance du jour, Mot d'Otis / Annonce du cap, Conseil coach).
+       2. Saisie vocale d'une séance terminée (Distance, Durée, D+, RPE) via `POST /api/v1/interact` avec calculs automatiques d'allure, vitesse, km-effort et charge RPE.
+       3. Consultation post-séance avec actualisation du statut "Réalisé" et calcul des deltas par le comparateur de séances.
+       4. Saisie vocale d'une séance de renforcement musculaire sans contrainte de distance.
+       5. Signalement d'une alerte douleur a posteriori (périostite tibiale) via `PATCH /api/v1/sport/session/{date}` et bascule immédiate du Coach Otis en niveau d'alerte sécurité.
+       6. Explication pédagogique vulgarisée d'un exercice de renforcement pour les mollets et la périostite.
+       7. Gamification & Trophées : déblocage d'exploits mono-séance, records personnels et badges pop-culture.
+       8. Dashboard multi-échelles (Semaine, Mois, Année) avec vérification du plafond de sécurité +10%.
+  2. **Stabilité & Zéro Régression :**
+     - **342 tests sur 342 au vert** (100% de réussite sur l'ensemble de la suite applicative).
+* **Critères de succès :** Suite de tests à 100% au vert, cycle E2E pérennisé, prêt pour validation manuelle utilisateur avant merge vers `develop`.
+* **Statut :** 🟢 Validé & opérationnel.

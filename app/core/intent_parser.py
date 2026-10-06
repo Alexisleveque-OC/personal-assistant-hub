@@ -755,7 +755,7 @@ class IntentParser:
         # (ex: "comment je fais l'exercice de mollets sur une marche ?", "explique-moi l'exercice pour le mollet bas", "comment faire le pont fessier ?")
         is_explain_query = bool(
             re.search(r"(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?|c[' ]est\s+quoi)\s+(?:l[' ]exercice|l[' ]exos?|le\s+mouvement|l[' ]étirement|l[' ]etirement|le\s+renfo)\b", cleaned) or
-            (re.search(r"\b(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?)\b", cleaned) and any(w in cleaned for w in ["mollet", "fessier", "gainage", "planche", "renfo", "étirer", "etirer", "étirement", "etirement"]))
+            (re.search(r"\b(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?)\b", cleaned) and any(w in cleaned for w in ["mollet", "fessier", "gainage", "planche", "fente", "squat", "chaise", "renfo", "étirer", "etirer", "étirement", "etirement"]))
         )
         if is_explain_query:
             ex_target = re.sub(r"^(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?|c[' ]est\s+quoi)\s+", "", cleaned).strip()
