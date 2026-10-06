@@ -90,6 +90,7 @@ def test_get_sport_today_success(mock_sport_backend):
     assert "coach_tip" in data
     assert data["coach_tip"]["message"] != ""
     assert data["coach_tip"]["niveau"] in ("info", "vigilance", "alerte")
+    assert "daily_spotlight" in data
 
 
 def test_patch_sport_session_success(mock_sport_backend):

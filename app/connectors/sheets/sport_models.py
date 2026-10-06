@@ -440,7 +440,77 @@ class SportTodayResponse(BaseModel):
     seances: List[SportSession] = Field(default_factory=list)
     comparisons: List[SportSessionComparison] = Field(default_factory=list)
     coach_tip: SportCoachTip
+    daily_spotlight: Optional[str] = Field(default=None, description="Le Mot d'Otis / Annonce du jour")
 
 
+# --- Gamification, Badges de Dopamine & Anecdotes Insolites (Étape 8) ---
+
+class BadgeCategory(str, Enum):
+    """Catégorie d'accomplissement pour les badges."""
+    DISTANCE = "distance"
+    DENIVELE = "denivele"
+    MONO_SESSION = "mono_session"
+    REGULARITE = "regularite"
+    TEMPS = "temps"
+    RECORD = "record"
+    POP_CULTURE = "pop_culture"
+    SECRET = "secret"
+    ABSURDE = "absurde"
 
 
+class SportBadge(BaseModel):
+    """Badge de réussite ou d'accomplissement régulier."""
+    id: str
+    title: str
+    description: str
+    icon: str
+    category: BadgeCategory
+    is_unlocked: bool = False
+    is_secret: bool = False
+    unlocked_at: Optional[str] = None
+    current_value: float = 0.0
+    target_value: Optional[float] = None
+    unit: Optional[str] = None
+    progress_pct: int = 0
+    rarity: str = "bronze"  # bronze, argent, or, diamant, mythique
+
+
+class SportFunFact(BaseModel):
+    """Anecdote insolite ou équivalence fun (géographique, verticale, énergétique, cosmique)."""
+    id: str
+    title: str
+    text: str
+    icon: str
+    category: str  # geo, vertical, energy, cosmique, culture_g
+
+
+class PersonalRecord(BaseModel):
+    """Record personnel (PR) détecté sur l'historique."""
+    record_type: str
+    title: str
+    value: float
+    formatted_value: str
+    date: Optional[dt_date] = None
+    session_type: Optional[str] = None
+
+
+class ImminentMilestone(BaseModel):
+    """Palier imminent (dose de motivation pour le jour J ou la chronique matinale)."""
+    badge_id: str
+    title: str
+    remaining: float
+    unit: str
+    message: str
+
+
+class SportGamificationSummary(BaseModel):
+    """Synthèse complète de gamification pour la PWA et la Chronique Matinale."""
+    badges: List[SportBadge] = Field(default_factory=list)
+    unlocked_count: int = 0
+    total_badges: int = 0
+    personal_records: List[PersonalRecord] = Field(default_factory=list)
+    fun_facts: List[SportFunFact] = Field(default_factory=list)
+    imminent_milestones: List[ImminentMilestone] = Field(default_factory=list)
+    announcements: List[str] = Field(default_factory=list, description="Annonces marquantes et jalons majeurs")
+    daily_spotlight: Optional[str] = Field(default=None, description="Annonce du jour d'Otis (ex: Aujourd'hui on passe le cap des 100 km !)")
+    next_target_message: Optional[str] = None

@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/static/style.css?v=7.1" />
+  <link rel="stylesheet" href="/static/style.css?v=8.3" />
 </head>
 <body>
 
@@ -191,6 +191,7 @@
       <div class="segmented-control" id="sport-segmented">
         <button class="seg-btn active" id="tab-sport-today" data-subview="today">Séance du jour</button>
         <button class="seg-btn" id="tab-sport-dash" data-subview="dashboard">Tableau de bord</button>
+        <button class="seg-btn" id="tab-sport-gamification" data-subview="gamification">Trophées & Fun 🏆</button>
       </div>
 
       <!-- Bulle Conseil Coach Otis -->
@@ -203,6 +204,11 @@
 
       <!-- Subview: Tableau de bord & Multi-échelles -->
       <div id="sport-dashboard-container" style="display:none;">
+        <!-- Dynamically filled by app.js -->
+      </div>
+
+      <!-- Subview: Trophées, Badges & Anecdotes Fun -->
+      <div id="sport-gamification-container" style="display:none;">
         <!-- Dynamically filled by app.js -->
       </div>
     </section>
@@ -285,6 +291,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=7.1"></script>
+  <script src="/static/app.js?v=8.3"></script>
 </body>
 </html>

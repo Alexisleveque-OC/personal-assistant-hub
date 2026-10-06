@@ -39,6 +39,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const sportCoachBubble = document.getElementById("sport-coach-bubble");
   const tabSportToday = document.getElementById("tab-sport-today");
   const tabSportDash = document.getElementById("tab-sport-dash");
+  const tabSportGamification = document.getElementById("tab-sport-gamification");
+  const sportGamificationContainer = document.getElementById("sport-gamification-container");
   const sportTodayBadgeDate = document.getElementById("sport-today-badge-date");
 
   // Nav Items
@@ -974,33 +976,37 @@ document.addEventListener("DOMContentLoaded", () => {
   // MODULE SPORT RUNNING & DASHBOARD VISUEL (Étape 7)
   // ==========================================================================
 
-  // Segmented control Sport (Séance du jour vs Tableau de bord)
-  if (tabSportToday && tabSportDash) {
-    tabSportToday.addEventListener("click", () => {
-      tabSportToday.classList.add("active");
-      tabSportDash.classList.remove("active");
-      currentSportSubview = "today";
-      if (sportTodayContainer) sportTodayContainer.style.display = "block";
-      if (sportDashboardContainer) sportDashboardContainer.style.display = "none";
-      fetchSportToday();
-    });
+  // Segmented control Sport (Séance du jour vs Tableau de bord vs Trophées)
+  function switchSportSubview(subview) {
+    currentSportSubview = subview;
+    if (tabSportToday) tabSportToday.classList.toggle("active", subview === "today");
+    if (tabSportDash) tabSportDash.classList.toggle("active", subview === "dashboard");
+    if (tabSportGamification) tabSportGamification.classList.toggle("active", subview === "gamification");
 
-    tabSportDash.addEventListener("click", () => {
-      tabSportDash.classList.add("active");
-      tabSportToday.classList.remove("active");
-      currentSportSubview = "dashboard";
-      if (sportTodayContainer) sportTodayContainer.style.display = "none";
-      if (sportDashboardContainer) sportDashboardContainer.style.display = "block";
+    if (sportTodayContainer) sportTodayContainer.style.display = subview === "today" ? "block" : "none";
+    if (sportDashboardContainer) sportDashboardContainer.style.display = subview === "dashboard" ? "block" : "none";
+    if (sportGamificationContainer) sportGamificationContainer.style.display = subview === "gamification" ? "block" : "none";
+
+    // Gérer l'affichage de la bulle coach
+    if (sportCoachBubble && subview === "gamification") {
+      sportCoachBubble.style.display = "none";
+    }
+
+    if (subview === "today") {
+      fetchSportToday();
+    } else if (subview === "dashboard") {
       fetchSportDashboard(currentSportScale);
-    });
+    } else if (subview === "gamification") {
+      fetchSportGamification();
+    }
   }
 
+  if (tabSportToday) tabSportToday.addEventListener("click", () => switchSportSubview("today"));
+  if (tabSportDash) tabSportDash.addEventListener("click", () => switchSportSubview("dashboard"));
+  if (tabSportGamification) tabSportGamification.addEventListener("click", () => switchSportSubview("gamification"));
+
   function loadSportView() {
-    if (currentSportSubview === "today") {
-      fetchSportToday();
-    } else {
-      fetchSportDashboard(currentSportScale);
-    }
+    switchSportSubview(currentSportSubview);
   }
 
   // --- 1. Séance du jour ---
@@ -1066,8 +1072,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const seances = data.seances || [];
     const comparisons = data.comparisons || [];
 
+    let spotlightHtml = "";
+    if (data.daily_spotlight) {
+      spotlightHtml = `
+        <div class="daily-spotlight-card">
+          <div class="daily-spotlight-icon">🎙️</div>
+          <div class="daily-spotlight-content">
+            <div class="daily-spotlight-title">Le Mot d'Otis · Annonce du Jour</div>
+            <div class="daily-spotlight-text">${data.daily_spotlight}</div>
+          </div>
+        </div>
+      `;
+    }
+
     if (seances.length === 0) {
       sportTodayContainer.innerHTML = `
+        ${spotlightHtml}
         <div class="sport-session-card" style="text-align:center; padding:28px 16px;">
           <div style="font-size:2.2rem; margin-bottom:8px;">🛋️</div>
           <h3 style="font-size:1.15rem; font-weight:800; color:var(--color-text); margin-bottom:6px;">Journée de repos</h3>
@@ -1079,7 +1099,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    let html = "";
+    let html = spotlightHtml;
 
     seances.forEach((s, idx) => {
       const isRealise = s.statut === "Réalisé";
@@ -1414,6 +1434,181 @@ document.addEventListener("DOMContentLoaded", () => {
     return svg;
   }
 
+  // --- 3. Gamification & Badges de Dopamine (Sous-étape 8.3) ---
+  async function fetchSportGamification() {
+    if (!sportGamificationContainer) return;
+    sportGamificationContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement des trophées et anecdotes...</div>';
+
+    const headers = {};
+    if (apiKey) headers["X-API-Key"] = apiKey;
+
+    try {
+      const res = await fetch("/api/v1/sport/gamification", { headers });
+      if (!res.ok) {
+        throw new Error("Erreur " + res.status);
+      }
+      const data = await res.json();
+      renderSportGamification(data);
+    } catch (err) {
+      sportGamificationContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--color-danger)">Impossible de charger les trophées (${err.message}).</div>`;
+    }
+  }
+
+  function renderSportGamification(data) {
+    if (!sportGamificationContainer) return;
+    const badges = data.badges || [];
+    const prs = data.personal_records || [];
+    const facts = data.fun_facts || [];
+    const imminent = data.imminent_milestones || [];
+
+    let html = `
+      <!-- En-tête Trophées -->
+      <div class="gamification-header-card">
+        <div class="gamification-trophy-counter">
+          <div class="gamification-trophy-icon">🏆</div>
+          <div>
+            <div class="gamification-trophy-text">${data.unlocked_count} / ${data.total_badges} Trophées</div>
+            <div class="gamification-trophy-sub">Accomplissements & Paliers réguliers</div>
+          </div>
+        </div>
+        <div style="font-size:0.85rem; font-weight:800; color:var(--color-primary);">
+          ${Math.round((data.unlocked_count / (data.total_badges || 1)) * 100)}% accompli
+        </div>
+      </div>
+    `;
+
+    // Annonces marquantes ("OMG", Marathons cumulés, D+ colossal)
+    const announcements = data.announcements || [];
+    if (announcements && announcements.length > 0) {
+      html += `
+        <div class="announcements-container">
+          ${announcements.map(ann => `
+            <div class="announcement-pill">
+              <span>${ann}</span>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    // Défi imminent si existant
+    if (imminent && imminent.length > 0) {
+      const imm = imminent[0];
+      html += `
+        <div class="milestone-banner">
+          <div class="milestone-banner-icon">🎯</div>
+          <div class="milestone-banner-content">
+            <div class="milestone-banner-title">Palier Imminent</div>
+            <div class="milestone-banner-text">${imm.message}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Records Personnels (PR)
+    if (prs && prs.length > 0) {
+      html += `
+        <div style="font-size:0.88rem; font-weight:800; color:var(--color-text); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+          <span>⚡ Records Personnels (PR)</span>
+        </div>
+        <div class="pr-grid">
+          ${prs.map(pr => `
+            <div class="pr-card">
+              <div class="pr-card-badge">${pr.title}</div>
+              <div class="pr-card-val">${pr.formatted_value}</div>
+              <div class="pr-card-sub">${pr.date ? pr.date : "-"}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    // Anecdotes & Équivalences Insolites
+    if (facts && facts.length > 0) {
+      html += `
+        <div style="font-size:0.88rem; font-weight:800; color:var(--color-text); margin:18px 0 8px 0; display:flex; align-items:center; gap:6px;">
+          <span>💡 Équivalences Insolites & Fun</span>
+        </div>
+        <div class="fun-facts-container">
+          ${facts.map(f => `
+            <div class="fun-fact-card">
+              <div class="fun-fact-icon">${f.icon}</div>
+              <div class="fun-fact-body">
+                <div class="fun-fact-title">${f.title}</div>
+                <div class="fun-fact-text">${f.text}</div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    // Groupement des badges par catégorie
+    const catLabels = {
+      mono_session: "⚡ Exploits en Une Séance (Distance & Durée)",
+      pop_culture: "🧙 Pop-Culture & Clins d'Œil (Otis, LOTR, Roshar)",
+      distance: "🏃 Paliers de Distance Réguliers",
+      denivele: "⛰️ Paliers Dénivelé (D+)",
+      temps: "⏱️ Volume de Pratique & Épopée Horaires",
+      regularite: "🛡️ Constance, Renfo & Éléments",
+      secret: "🕵️ Badges Secrets & Easter Eggs",
+      absurde: "🚀 L'Infini & l'Absurde",
+    };
+
+    const categories = [
+      "mono_session",
+      "pop_culture",
+      "distance",
+      "denivele",
+      "temps",
+      "regularite",
+      "secret",
+      "absurde",
+    ];
+
+    categories.forEach(cat => {
+      const catBadges = badges.filter(b => b.category === cat);
+      if (catBadges.length === 0) return;
+
+      html += `
+        <div class="badge-category-title">${catLabels[cat] || cat}</div>
+        <div class="badges-grid">
+          ${catBadges.map(b => {
+            const isSecretLocked = b.is_secret && !b.is_unlocked;
+            const itemClass = b.is_unlocked ? "unlocked" : (isSecretLocked ? "secret-locked" : "locked");
+            const rarityClass = `rarity-${b.rarity || "bronze"}`;
+
+            return `
+              <div class="badge-item ${itemClass}">
+                <span class="badge-rarity-pill ${rarityClass}">${b.rarity}</span>
+                <div class="badge-icon-wrap">${b.icon}</div>
+                <div class="badge-title">${b.title}</div>
+                <div class="badge-desc">${b.description}</div>
+
+                ${b.is_unlocked ? `
+                  <div class="badge-tag-unlocked">Débloqué ✅</div>
+                ` : `
+                  ${!isSecretLocked && b.target_value ? `
+                    <div class="badge-progress-wrap">
+                      <div class="badge-progress-bar">
+                        <div class="badge-progress-fill" style="width:${b.progress_pct}%"></div>
+                      </div>
+                      <div class="badge-progress-label">${b.current_value} / ${b.target_value} ${b.unit || ""} (${b.progress_pct}%)</div>
+                    </div>
+                  ` : `
+                    <div style="font-size:0.68rem; font-weight:700; color:var(--text-muted); margin-top:auto;">Mystère 🔒</div>
+                  `}
+                `}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    });
+
+    sportGamificationContainer.innerHTML = html;
+  }
+
   // Handling URL action param (shortcuts)
   const urlParams = new URLSearchParams(window.location.search);
   const actionParam = urlParams.get("action");
@@ -1423,6 +1618,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector('.nav-item[data-view="meals"]').click();
   } else if (actionParam === "sport_today") {
     document.querySelector('.nav-item[data-view="sport"]').click();
+  } else if (actionParam === "sport_gamification") {
+    document.querySelector('.nav-item[data-view="sport"]').click();
+    if (tabSportGamification) tabSportGamification.click();
   }
 });
 

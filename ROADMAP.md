@@ -108,23 +108,30 @@
 
 ---
 
-### ⚪ Étape 8 : Gamification, Anecdotes Insolites & Badges de Dopamine (PWA & Chronique Matinale)
-* **Objectifs :**
-  1. **Générateur d'Anecdotes Insolites & Culture G Running :**
-     - Moteur de conversion d'efforts cumulés (mensuels et annuels) en équivalences rigolotes et mémorables :
-       - *Équivalences géographiques :* "Cette année tu as couru 61 km, tu aurais pu rallier Annecy à Genève d'une seule traite !"
-       - *Équivalences verticales (D+) :* "1 000 m grimpés ce mois-ci : c'est 3 fois la Tour Eiffel ou le col du Galibier !"
-       - *Fun & Culture G :* faits insolites sur la vitesse, l'énergie dépensée, ou l'histoire de la course à pied.
-  2. **Badges & Système de Réussite (Doses de Dopamine bien dosées) :**
-     - Déclenchement d'accomplissements significatifs sans spam :
-       - *Paliers de distance :* Premier marathon cumulé (42.2 km), Centurion (100 km), 500 km, Cap des 1 000 km.
-       - *Paliers d'heures de sport :* 24h, 50h, 100h de pratique active.
-       - *Records personnels (PR) :* Meilleure allure moyenne sur 5 km, plus longue sortie en distance, régularité mensuelle.
-       - *Badges de résilience :* "Guerrier" (séance sous météo difficile), "Métronome" (4 semaines sans rater de séance).
-  3. **Intégration Double :**
-     - Affichage dans le récap PWA (carte trophées et badge débloqué).
-     - Exposition des anecdotes pour injection future dans la *Chronique Matinale* vocale (cf `SPEC.md`).
-* **Critères de succès :** Modèles de badges et d'anecdotes typés, détection automatique des nouveaux records/paliers lors du calcul des synthèses, tests unitaires dédiés.
+### 🟢 Étape 8 : Gamification, Badges de Dopamine, Pop-Culture & Annonce du Jour (PWA & Coach Otis)
+* **Objectifs réalisés :**
+  1. **Annonce du Jour Dynamique & Fin de Séance (`daily_spotlight`) :**
+     - Détection contextuelle si une séance prévue aujourd'hui (ou tout juste réalisée) franchit un cap de 100 km ou un jalon majeur (*« Aujourd'hui, avec ta séance de X km prévue, on passe le cap des Y km ! C'est génial, donne tout ! »*).
+     - Priorisation intelligente : séance du jour $\rightarrow$ palier imminent $\rightarrow$ annonces OMG $\rightarrow$ anecdotes insolites.
+  2. **Exploits en Une Séance (Mono-Session) :**
+     - Distance d'une traite : 10 km, 15 km, Semi-marathon (21.1 km), Le Mur des Trente (30 km), L'Épreuve d'Athènes (42.2 km), et l'ultra absurde "Le Cent-Bornard Fou" (100 km).
+     - Durée ininterrompue : 1h, 1h15, 1h30, Sortie Royale (2h), Guerrier du Long Cours (3h), et le défi sans sommeil "La Ronde des 24 Heures".
+  3. **Régularité & Progression Évolutive :**
+     - *Renforcement musculaire :* 5, 10, 25, 50, 75 et jusqu'à 100 séances ("Titan du Renforcement").
+     - *Météo difficile :* 1, 5, 10 et 20 séances sous la pluie, le vent ou la tempête ("Guerrier Immortel des Éléments").
+     - *Grand Chelem Hebdo :* 7 séances de sport dans la même semaine (7/7).
+     - *Discipline de Fer :* au moins 4 séances par semaine pendant 8 semaines consécutives.
+     - *Volumes horaires convertis en jours :* 96h (4 jours pleins), 240h (10 jours), 480h (20 jours), 960h (40 jours), 1920h (80 jours - Le Tour du Monde).
+  4. **Pop-Culture & Easter Eggs (Otis, Le Seigneur des Anneaux, Brandon Sanderson) :**
+     - *Astérix & Obélix : Mission Cléopâtre (Otis) :* "Pas de Bonne ou Mauvaise Situation 📜", "Pas de Pierres, Pas de Construction ! 🏛️", "Un Lion Mort dans le Désert 🦁", "Le Scribe d'Alexandrie ✍️", "Deuxième Porte à Gauche 🚪", "Itinéris ne Capte Plus 📵".
+     - *Le Seigneur des Anneaux (LOTR) :* "Road to Mordor 🌋" (2 850 km - trajet de Frodon), "Le Deuxième Petit-Déjeuner 🥐", "En Route pour Fondcombe 🧝" (135 km), "Vous Ne Passerez Pas ! 🧙", "L'Anneau Unique 💍", "Pas un Orque en Vue 🌫️".
+     - *Brandon Sanderson (Les Archives de Roshar) :* "Pont Quatre (Bridge Four) 🪵" (RPE 9-10), "Au Cœur de la Haute-Tempête ⚡", "Marcheur du Vent (Windrunner) 💨", "Danseur de Pierre (Stoneward) 🪨", "Les Idéaux des Radiants 🛡️", "Infusion de Fulgurance 💎", "Le Spren de la Douleur 👹".
+     - *Secrets & Insolites :* "Le Déneigéré ❄️", "Le Pi Runner 🥧", "Chrono d'Orfèvre ⏱️", "Objectif Lune 🚀".
+  5. **Interface PWA Premium (Sous-onglet Trophées & Fun 🏆) :**
+     - Carte interactive du Mot d'Otis / Annonce du jour en tête d'onglet.
+     - Organisation en sections claires : Exploits Mono-Séance, Pop-Culture & Clins d'Œil, Paliers Réguliers, Volume Horaires, Constance & Éléments, Secrets et Absurde.
+* **Critères de succès :** Modèles typés Pydantic v2, 16 tests unitaires et d'API dédiés au vert, suite globale à 341 tests au vert.
+* **Statut :** 🟢 Validé & opérationnel.
 
 ---
 

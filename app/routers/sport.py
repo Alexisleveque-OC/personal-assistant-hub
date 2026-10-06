@@ -10,6 +10,7 @@ from app.core.security import verify_api_key
 from app.connectors.sheets.sport_models import (
     DashboardScale,
     SportCoachTip,
+    SportGamificationSummary,
     SportPeriodDashboard,
     SportSession,
     SportSessionStatus,
@@ -22,6 +23,7 @@ from app.core.sport_dashboard_service import (
     aggregate_period,
     compare_with_previous,
 )
+from app.core.sport_gamification_service import SportGamificationService
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,7 @@ router = APIRouter(
 
 # Instance singleton du provider de conseils avec mise en cache
 _coach_tip_provider = CoachTipProvider()
+_gamification_service = SportGamificationService()
 
 
 def get_sport_connector_dep():
@@ -133,11 +136,15 @@ async def get_sport_today(
         llm_caller=_call_gemini_coach_tip,
     )
 
+    # Mot d'Otis / Annonce du jour (caps franchis, paliers imminents, dopamine)
+    gam_summary = _gamification_service.compute_summary(all_sessions, reference_date=target_date)
+
     return SportTodayResponse(
         date=target_date,
         seances=today_sessions,
         comparisons=comparisons,
         coach_tip=tip,
+        daily_spotlight=gam_summary.daily_spotlight,
     )
 
 
@@ -194,3 +201,17 @@ async def get_sport_dashboard(
     target_date = date_param or date.today()
     all_sessions = connector.get_all_sessions()
     return aggregate_period(all_sessions, scale, target_date)
+
+
+@router.get(
+    "/gamification",
+    response_model=SportGamificationSummary,
+    summary="Synthèse de gamification, badges de dopamine, records et anecdotes insolites",
+)
+async def get_sport_gamification(
+    connector=Depends(get_sport_connector_dep),
+):
+    """Calcule et retourne la liste des badges, paliers réguliers, PRs et anecdotes pour Otis."""
+    all_sessions = connector.get_all_sessions()
+    service = SportGamificationService()
+    return service.compute_summary(all_sessions)
