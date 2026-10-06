@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.connectors.sheets.sport_models import (
     SportSession,
+    SportSessionCreate,
     SportSessionStatus,
     SportSessionType,
     SportWeeklySummary,
@@ -121,3 +122,76 @@ def test_sport_weekly_summary_excessive_progression_alert():
 
     assert summary.evolution_charge_pct > 15.0
     assert "Risque Blessure" in summary.alerte_securite
+
+
+def test_sport_session_renforcement_model():
+    """Vérifie la modélisation d'une séance de renforcement musculaire sans distance."""
+    session = SportSession(
+        date=date(2026, 10, 7),
+        semaine=41,
+        statut=SportSessionStatus.REALISE,
+        type_seance=SportSessionType.RENFORCEMENT,
+        distance_km=None,
+        denivele_d_plus=0,
+        duree_secondes=35 * 60,  # 35 min
+        ressenti_rpe=7,
+        notes="Gainage, fentes, étirements mollets/tibias périostite",
+    )
+
+    assert session.type_seance == SportSessionType.RENFORCEMENT
+    assert session.type_seance.value == "Renforcement"
+    assert session.distance_km is None
+    assert session.km_effort is None or session.km_effort == 0.0
+    assert session.vitesse_kmh is None
+    assert session.allure_formatted is None
+    # 35 min * 7 = 245 de charge RPE
+    assert session.charge_rpe == 245
+
+
+def test_sport_session_create_accepts_optional_distance_for_renforcement():
+    """SportSessionCreate doit accepter une séance de renfo sans distance obligatoire."""
+    create_payload = SportSessionCreate(
+        date=date(2026, 10, 7),
+        type_seance=SportSessionType.RENFORCEMENT,
+        duree_secondes=30 * 60,
+        ressenti_rpe=6,
+        notes="PPG mollets",
+    )
+    assert create_payload.distance_km is None or create_payload.distance_km == 0.0
+    assert create_payload.type_seance == SportSessionType.RENFORCEMENT
+
+
+def test_sport_weekly_summary_with_charge_rpe_total():
+    """Vérifie que la synthèse hebdomadaire cumule la charge RPE de la semaine."""
+    summary = SportWeeklySummary(
+        semaine=41,
+        annee=2026,
+        nb_seances=3,
+        km_total=18.5,
+        d_plus_total=120,
+        km_effort_total=19.7,
+        duree_secondes=6300,
+        charge_rpe_totale=520,
+        previous_week_km_effort=18.0,
+    )
+    assert summary.charge_rpe_totale == 520
+
+
+def test_sport_session_programme_and_remarques_distinction():
+    """Vérifie la séparation stricte entre Programme (technique) et Remarques (douleurs/sensations)."""
+    session = SportSession(
+        date=date(2026, 10, 8),
+        semaine=41,
+        statut=SportSessionStatus.REALISE,
+        type_seance=SportSessionType.FRACTIONNE,
+        distance_km=6.5,
+        duree_secondes=35 * 60,
+        ressenti_rpe=8,
+        programme="2km échauffement + 6x400m à 4'15/km + 1km récup",
+        remarques="Excellentes sensations sur les 4 premiers blocs, légère raideur mollet à la fin",
+    )
+    assert session.programme == "2km échauffement + 6x400m à 4'15/km + 1km récup"
+    assert session.remarques == "Excellentes sensations sur les 4 premiers blocs, légère raideur mollet à la fin"
+    assert "mollet" in session.notes or "6x400m" in session.notes
+
+

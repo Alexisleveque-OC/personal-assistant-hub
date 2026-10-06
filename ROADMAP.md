@@ -15,7 +15,7 @@
 | **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | 🟢 Terminé | Validé par l'utilisateur | ✅ 11/11 tests dédiés (231/231 total) au vert |
 | **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (239/239 total) au vert |
 | **Étape 4** | Intégration `/api/v1/interact`, passerelle de synchronisation, colonnes BPM & import réel des 9 GPX | 🟢 Terminé | Validé par l'utilisateur | ✅ 6/6 tests dédiés (37/37 sport, 245+ total) au vert |
-| **Étape 5** | Renforcement Musculaire (Renfo/PPG) & Réajustement vocal a posteriori (RPE / Douleur Périostite) | ⚪ À faire | En attente | Tests unitaires & NLU (TDD strict) |
+| **Étape 5** | Renforcement Musculaire (Renfo/PPG) & Réajustement vocal a posteriori (RPE / Douleur Périostite) | 🟢 Terminé | En attente de validation utilisateur | ✅ 14/14 tests dédiés (51/51 sport, 259/259 total) au vert |
 | **Étape 6** | Cerveau LLM Otis : Analyse fine d'historique & Planification hebdomadaire proactive (gestion périostite) | ⚪ À faire | En attente | Tests LLM structured outputs & TDD |
 | **Étape 7** | Interface Graphique PWA Running (Dashboard, jauges charge, ajout rapide course/renfo) | ⚪ À faire | En attente | Tests de routes PWA & UI |
 | **Étape 8** | Test d'intégration End-to-End (E2E) complet & Validation smartphone en conditions réelles | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
@@ -59,14 +59,14 @@
 
 ---
 
-### ⚪ Étape 5 : Renforcement Musculaire & Réajustement Vocal a posteriori (RPE / Périostite)
+### 🟢 Étape 5 : Renforcement Musculaire & Réajustement Vocal a posteriori (RPE / Périostite)
 * **Objectifs :**
   1. Support du type de séance `Renforcement` (`Renfo`) : pas de distance kilométrique forcée, mais comptabilisation de la durée et de la Charge RPE ($\text{Durée} \times \text{RPE}$) dans le cumul hebdomadaire.
   2. Méthode métier `update_session(target_date, ...)` dans `SportConnector` permettant de modifier le RPE, le ressenti ou d'ajouter une note de douleur sur une séance passée.
   3. Intention vocale `UPDATE_SPORT_SESSION` :
      - *« Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite »*
      - *« Otis, ajoute une note sur ma course de dimanche : douleur au tibia à J+2 »*
-* **Critères de succès :** Tests unitaires validant la modification a posteriori et la mise à jour immédiate du Google Sheet et de la charge RPE.
+* **Statut :** 🟢 Implémenté en TDD strict avec séparation des colonnes `Programme` (col P) et `Remarques` (col Q) + rétro-compatibilité 17 colonnes (53/53 tests sport, 262/262 tests globaux à 100% au vert). En attente de validation manuelle par Alexis.
 
 ---
 

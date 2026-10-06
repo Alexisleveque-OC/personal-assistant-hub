@@ -54,19 +54,25 @@ Liste des intentions disponibles :
 10. Sport & Running (Mini-Coach Otis) :
    - get_sport_session : consulter la séance de running prévue ou réalisée (ex: "Qu'est-ce que j'ai comme séance aujourd'hui ?", "C'est quoi ma course de demain ?").
      Paramètres optionnels : "target_date" (today, demain, hier, ou date JJ/MM/AAAA), "period".
-   - log_sport_session : enregistrer vocalement une séance terminée (ex: "J'ai couru 8 km en 42 minutes avec 120m de dénivelé, ressenti 6 sur 10").
+   - log_sport_session : enregistrer vocalement une séance terminée (ex: "J'ai couru 8 km en 42 minutes avec 120m de dénivelé, ressenti 6 sur 10", "J'ai fait 30 minutes de renfo, ressenti 7").
      Paramètres :
-     - "distance_km" : float (ex: 8.0, 7.5, 10.2).
-     - "duration_seconds" : int (convertis la durée orale en secondes totales, ex: 42 min -> 2520, 1h05 -> 3900).
+     - "distance_km" : float (ex: 8.0, 7.5, 10.2). Optionnel pour le renforcement musculaire.
+     - "duration_seconds" : int (convertis la durée orale en secondes totales, ex: 42 min -> 2520, 30 min -> 1800).
      - "denivele_d_plus" : int en mètres (ex: 120, 80) si précisé.
-     - "type_seance" : "EF", "Fractionné", "Sortie Longue", "Tempo", "Récup".
+     - "type_seance" : "EF", "Fractionné", "Sortie Longue", "Tempo", "Récup", "Renforcement".
      - "ressenti_rpe" : int de 1 à 10 (effort perçu).
      - "meteo_note" : int de 1 à 10 (difficulté météo si mentionnée).
-     - "notes" : texte libre ou détails fractionné.
+     - "notes" : texte libre ou détails fractionné/renfo.
      - "target_date" : date de la séance si elle a eu lieu hier ou un autre jour.
+   - update_sport_session : modifier a posteriori le ressenti (RPE), ajuster ou ajouter une note de douleur/périostite sur une séance passée (ex: "Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite", "Otis, ajoute une note sur ma course de dimanche : douleur au tibia à J+2", "Change le RPE d'hier à 8").
+     Paramètres :
+     - "target_date" : date ou jour ciblé (ex: "dimanche", "hier", "2026-10-04").
+     - "ressenti_rpe" : int de 1 à 10 si mentionné.
+     - "notes" : note ou commentaire sur la douleur / périostite / ressenti.
+     - "append_notes" : true si l'utilisateur demande d'ajouter ou compléter une note existante.
    - get_sport_weekly_summary : consulter le bilan hebdomadaire et les conseils de sécurité d'Otis (ex: "J'en suis à combien de kilomètres cette semaine ?", "Quel est mon bilan de running ?", "Combien je peux courir la semaine prochaine ?").
      Paramètres : "week_num" (int), "year" (int).
-   - plan_sport_session : planifier une future séance (ex: "Planifie-moi un fractionné jeudi", "Prévois 12 km dimanche").
+   - plan_sport_session : planifier une future séance (ex: "Planifie-moi un fractionné jeudi", "Prévois 12 km dimanche", "Prévois 30 minutes de renfo vendredi").
      Paramètres : "target_date", "day_name", "type_seance", "distance_km", "notes".
 
 11. get_budget_balance : solde financier. Paramètre : "category" (courses, loisir, general).
@@ -132,6 +138,7 @@ GEMINI_JSON_SCHEMA = {
                 "ressenti_rpe": {"type": "INTEGER"},
                 "meteo_note": {"type": "INTEGER"},
                 "notes": {"type": "STRING"},
+                "append_notes": {"type": "BOOLEAN"},
                 "week_num": {"type": "INTEGER"},
                 "year": {"type": "INTEGER"},
             },

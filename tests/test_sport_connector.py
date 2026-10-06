@@ -7,6 +7,7 @@ from app.connectors.sheets.sport_models import (
     SportSession,
     SportSessionCreate,
     SportSessionPlan,
+    SportSessionUpdate,
     SportSessionStatus,
     SportSessionType,
     SportWeeklySummary,
@@ -218,6 +219,80 @@ async def test_sport_connector_execute_action(mock_sport_spreadsheet):
     assert res_summary["found"] is True
     assert res_summary["summary"]["km_total"] == 10.13
 
+    # 3. Action update_session
+    yesterday = date(2026, 10, 5)
+    res_update = await connector.execute_action("update_session", {
+        "target_date": yesterday.strftime("%d/%m/%Y"),
+        "ressenti_rpe": 8,
+        "notes": "Légère gêne tibia",
+        "append_notes": True,
+    })
+    assert res_update["success"] is True
+    assert res_update["session"]["ressenti_rpe"] == 8
+    assert "Légère gêne tibia" in res_update["session"]["notes"]
+
+
+def test_sport_connector_log_session_renforcement(mock_sport_spreadsheet):
+    """Vérifie l'enregistrement d'une séance de renforcement musculaire sans distance."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    session_create = SportSessionCreate(
+        date=date(2026, 10, 7),
+        type_seance=SportSessionType.RENFORCEMENT,
+        distance_km=None,
+        duree_secondes=30 * 60,  # 30 min
+        ressenti_rpe=6,
+        notes="Gainage et renforcement mollets/tibias",
+    )
+
+    logged = connector.log_session(session_create)
+
+    assert logged.type_seance == SportSessionType.RENFORCEMENT
+    assert logged.distance_km is None
+    assert logged.charge_rpe == 180  # 30 * 6
+    assert logged.statut == SportSessionStatus.REALISE
+    ws_seances = mock_sport_spreadsheet.worksheet("Séance")
+    assert ws_seances.append_row.called or ws_seances.update.called
+
+
+def test_sport_connector_update_session_rpe_and_notes(mock_sport_spreadsheet):
+    """Vérifie la mise à jour du RPE et de la note de douleur sur une séance passée."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    yesterday = date(2026, 10, 5)
+
+    update_payload = SportSessionUpdate(
+        ressenti_rpe=9,
+        notes="douleur périostite tibia J+2",
+        append_notes=True,
+    )
+
+    updated = connector.update_session(yesterday, update_payload)
+
+    assert updated.date == yesterday
+    assert updated.ressenti_rpe == 9
+    # Séance d'hier = 36 min -> 36 * 9 = 324 de charge RPE
+    assert updated.charge_rpe == 324
+    assert "douleur périostite tibia J+2" in updated.notes
+    assert "Footing tranquille" in updated.notes
+
+    ws_seances = mock_sport_spreadsheet.worksheet("Séance")
+    assert ws_seances.update.called
+
+
+def test_sport_connector_update_session_not_found_raises_error(mock_sport_spreadsheet):
+    """Tenter de mettre à jour une séance à une date inexistante lève une exception claire."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    with pytest.raises(ValueError, match="Aucune séance"):
+        connector.update_session(date(2025, 1, 1), SportSessionUpdate(ressenti_rpe=7))
+
+
+def test_sport_connector_weekly_summary_includes_charge_rpe(mock_sport_spreadsheet):
+    """Vérifie que la synthèse hebdomadaire inclut la charge RPE cumulée."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    # Semaine 41 : séance d'hier (36 min, RPE 5 -> 180)
+    summary = connector.get_weekly_summary(week_num=41, year=2026)
+    assert summary.semaine == 41
+    assert summary.charge_rpe_totale >= 180
+
 
 @pytest.mark.skipif(not settings.spreadsheet_sport_id, reason="SPREADSHEET_SPORT_ID non configuré")
 def test_live_sport_connector_read_real_sheet():
@@ -231,4 +306,45 @@ def test_live_sport_connector_read_real_sheet():
     summary = connector.get_weekly_summary(week_num=40, year=2026)
     assert summary.semaine == 40
     assert summary.km_total >= 10.0
+
+
+def test_sport_connector_with_programme_and_remarques_columns():
+    """Vérifie le fonctionnement de SportConnector avec les colonnes séparées Programme et Remarques."""
+    seances_headers_18 = [
+        "Date", "Semaine", "Statut", "Type de séance", "Distance (km)",
+        "Dénivelé D+ (m)", "Km-Effort", "Temps", "Vitesse (km/h)",
+        "Allure (min/km)", "ressenti dur/10", "Charge RPE", "FC Moy (bpm)",
+        "FC Max (bpm)", "Météo difficile/10", "Programme", "Remarques", "ID Strava"
+    ]
+    target_date = date(2026, 10, 8)
+    records = [
+        seances_headers_18,
+        [
+            target_date.strftime("%d/%m/%Y"), "41", "Réalisé", "Fractionné", "6.2",
+            "50", "6.7", "00:32:00", "11.6",
+            "05:10", "7", "224", "155", "178", "2",
+            "5x300m à 4'30/km", "Bonne séance, mollets un peu raides", "999888777"
+        ],
+    ]
+    ws = create_mock_worksheet("Séance", records)
+    sh = MagicMock()
+    sh.worksheets.return_value = [ws]
+    sh.worksheet.return_value = ws
+
+    connector = SportConnector(spreadsheet=sh)
+    session = connector.get_session(target_date)
+
+    assert session is not None
+    assert session.programme == "5x300m à 4'30/km"
+    assert session.remarques == "Bonne séance, mollets un peu raides"
+
+    # Mise à jour ciblée des Remarques (ex: douleur tibia à J+1)
+    updated = connector.update_session(target_date, SportSessionUpdate(
+        remarques="douleur tibia post-séance",
+        append_remarques=True,
+    ))
+    assert updated.programme == "5x300m à 4'30/km"  # Le programme reste intact !
+    assert "douleur tibia post-séance" in updated.remarques
+    assert "Bonne séance" in updated.remarques
+
 

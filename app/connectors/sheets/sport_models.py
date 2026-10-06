@@ -1,8 +1,8 @@
 """Modèles de données Pydantic et calculs physiologiques pour le module Sport Running (Otis)."""
 from datetime import date as dt_date
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from typing import Any, Optional
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 class SportSessionStatus(str, Enum):
@@ -20,6 +20,7 @@ class SportSessionType(str, Enum):
     SORTIE_LONGUE = "Sortie Longue"
     TEMPO = "Tempo"
     RECUP = "Récup"
+    RENFORCEMENT = "Renforcement"
 
 
 def calculate_km_effort(distance_km: Optional[float], denivele_d_plus: Optional[int]) -> Optional[float]:
@@ -76,8 +77,20 @@ class SportSession(BaseModel):
     fc_moyenne: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque moyenne (bpm)")
     fc_max: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque maximale (bpm)")
     meteo_note: Optional[int] = Field(None, ge=1, le=10, description="Note difficulté météo de 1 à 10")
+    programme: Optional[str] = Field(default="", description="Contenu technique : blocs fractionné, exercices renfo/kiné")
+    remarques: Optional[str] = Field(default="", description="Bilan subjectif : sensations, alertes périostite, notes libres")
     notes: Optional[str] = ""
     strava_id: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_programme_remarques_notes(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("notes") and not data.get("remarques"):
+                data["remarques"] = data["notes"]
+            elif data.get("remarques") and not data.get("notes"):
+                data["notes"] = data["remarques"]
+        return data
 
     @computed_field
     @property
@@ -116,6 +129,8 @@ class SportWeeklySummary(BaseModel):
     d_plus_total: int = 0
     km_effort_total: float = 0.0
     duree_secondes: int = 0
+    charge_rpe_totale: int = 0
+    nb_renfo: int = 0
     previous_week_km_effort: Optional[float] = None
 
     @computed_field
@@ -157,15 +172,54 @@ class SportSessionCreate(BaseModel):
     """Payload pour enregistrer une séance réalisée."""
     date: Optional[dt_date] = None
     type_seance: SportSessionType = SportSessionType.EF
-    distance_km: float = Field(..., gt=0.0)
+    distance_km: Optional[float] = Field(None, ge=0.0)
     duree_secondes: int = Field(..., gt=0)
     denivele_d_plus: Optional[int] = Field(0, ge=0)
     ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
     fc_moyenne: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque moyenne (bpm)")
     fc_max: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque maximale (bpm)")
     meteo_note: Optional[int] = Field(None, ge=1, le=10)
+    programme: Optional[str] = ""
+    remarques: Optional[str] = ""
     notes: Optional[str] = ""
     strava_id: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_notes_create(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("notes") and not data.get("remarques"):
+                data["remarques"] = data["notes"]
+            elif data.get("remarques") and not data.get("notes"):
+                data["notes"] = data["remarques"]
+        return data
+
+
+class SportSessionUpdate(BaseModel):
+    """Payload pour modifier une séance passée (RPE, notes de douleur, ressenti)."""
+    ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
+    programme: Optional[str] = None
+    remarques: Optional[str] = None
+    notes: Optional[str] = None
+    append_remarques: bool = False
+    append_notes: bool = False
+    type_seance: Optional[SportSessionType] = None
+    distance_km: Optional[float] = Field(None, ge=0.0)
+    denivele_d_plus: Optional[int] = Field(None, ge=0)
+    duree_secondes: Optional[int] = Field(None, ge=0)
+    fc_moyenne: Optional[int] = Field(None, ge=30, le=250)
+    fc_max: Optional[int] = Field(None, ge=30, le=250)
+    meteo_note: Optional[int] = Field(None, ge=1, le=10)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_notes_update(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("notes") is not None and data.get("remarques") is None:
+                data["remarques"] = data["notes"]
+            if data.get("append_notes") and not data.get("append_remarques"):
+                data["append_remarques"] = True
+        return data
 
 
 class SportSessionPlan(BaseModel):
@@ -174,5 +228,17 @@ class SportSessionPlan(BaseModel):
     type_seance: SportSessionType = SportSessionType.EF
     distance_km_cible: Optional[float] = Field(None, gt=0.0)
     duree_cible_secondes: Optional[int] = Field(None, gt=0)
+    programme: Optional[str] = ""
+    remarques: Optional[str] = ""
     notes: Optional[str] = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_notes_plan(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("notes") and not data.get("programme"):
+                data["programme"] = data["notes"]
+        return data
+
+
 

@@ -6,11 +6,12 @@ from app.core.llm.nlu_service import GeminiNLUService, LLMNLUResponse
 
 
 def test_intent_type_contains_sport_intents():
-    """Vérifie la présence des 4 intentions sportives dans IntentType."""
+    """Vérifie la présence des intentions sportives dans IntentType."""
     assert IntentType.GET_SPORT_SESSION == "get_sport_session"
     assert IntentType.LOG_SPORT_SESSION == "log_sport_session"
     assert IntentType.GET_SPORT_WEEKLY_SUMMARY == "get_sport_weekly_summary"
     assert IntentType.PLAN_SPORT_SESSION == "plan_sport_session"
+    assert IntentType.UPDATE_SPORT_SESSION == "update_sport_session"
 
 
 def test_local_parser_detects_get_sport_session_today():
@@ -93,3 +94,52 @@ def test_gemini_nlu_response_validates_sport_intent():
     assert response.parameters["distance_km"] == 10.2
     assert response.parameters["denivele_d_plus"] == 150
     assert "Otis" in response.conversational_reply
+
+
+def test_local_parser_detects_log_renforcement_session():
+    """Détecte l'enregistrement d'une séance de renforcement musculaire sans kilomètres."""
+    parser = IntentParser()
+    parsed = parser.parse("J'ai fait 30 minutes de renfo, ressenti 7 sur 10")
+
+    assert parsed.intent == IntentType.LOG_SPORT_SESSION
+    assert parsed.parameters.get("type_seance") == "Renforcement"
+    assert parsed.parameters.get("duration_seconds") == 30 * 60
+    assert parsed.parameters.get("ressenti_rpe") == 7
+
+
+def test_local_parser_detects_update_sport_session_rpe_and_note():
+    """Détecte la modification du ressenti RPE et de la note pour cause de périostite."""
+    parser = IntentParser()
+    parsed = parser.parse("Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite")
+
+    assert parsed.intent == IntentType.UPDATE_SPORT_SESSION
+    assert parsed.parameters.get("target_date") == "dimanche"
+    assert parsed.parameters.get("ressenti_rpe") == 9
+    assert "périostite" in parsed.parameters.get("notes", "").lower()
+
+
+def test_local_parser_detects_update_sport_session_note_only():
+    """Détecte l'ajout d'une note de douleur post-séance."""
+    parser = IntentParser()
+    parsed = parser.parse("Otis, ajoute une note sur ma course de dimanche : douleur au tibia à J+2")
+
+    assert parsed.intent == IntentType.UPDATE_SPORT_SESSION
+    assert parsed.parameters.get("target_date") == "dimanche"
+    assert "douleur au tibia" in parsed.parameters.get("notes", "").lower()
+
+
+def test_gemini_nlu_response_validates_update_sport_session():
+    """Vérifie que LLMNLUResponse valide l'intention UPDATE_SPORT_SESSION."""
+    response = LLMNLUResponse(
+        intent=IntentType.UPDATE_SPORT_SESSION,
+        confidence=0.95,
+        parameters={
+            "target_date": "dimanche",
+            "ressenti_rpe": 9,
+            "notes": "douleur vive périostite tibia droit",
+        },
+        conversational_reply="C'est bien noté Alexis, j'ai passé le ressenti de dimanche à 9. Repos et glace recommandés pour ta périostite.",
+    )
+    assert response.intent == IntentType.UPDATE_SPORT_SESSION
+    assert response.parameters["ressenti_rpe"] == 9
+

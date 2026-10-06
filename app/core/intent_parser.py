@@ -605,7 +605,81 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 9.2 Enregistrement d'une course terminée ("j'ai couru 8 km en 42 minutes...")
+        # 9.1 bis Réajustement ou modification a posteriori d'une séance passée
+        # (ex: "modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite",
+        #      "ajoute une note sur ma course de dimanche : douleur au tibia à J+2",
+        #      "change le rpe de ma séance d'hier à 8")
+        if re.search(r"(?:modifie|change|réajuste|mets\s+à\s+jour)\s+(?:le\s+ressenti|le\s+rpe|la\s+note|ma\s+séance|ma\s+course)", cleaned) or \
+           re.search(r"ajoute\s+une\s+note\s+(?:sur|à)\s+ma\s+(?:course|séance)", cleaned):
+            update_params: Dict[str, Any] = {}
+
+            # Date cible
+            date_match = re.search(r"\b(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|hier|avant-hier|aujourd[' ]?hui)\b", cleaned)
+            if date_match:
+                update_params["target_date"] = date_match.group(1).replace(" ", "")
+            else:
+                num_date_match = re.search(r"\b([0-9]{1,2}/[0-9]{1,2}(?:/[0-9]{2,4})?|[0-9]{4}-[0-9]{2}-[0-9]{2})\b", cleaned)
+                if num_date_match:
+                    update_params["target_date"] = num_date_match.group(1)
+
+            # RPE / Ressenti
+            rpe_match = re.search(r"(?:ressenti|rpe).*?\b(?:à|de)\s*([0-9]+)", cleaned) or re.search(r"(?:ressenti|rpe)\s*([0-9]+)", cleaned)
+            if rpe_match:
+                update_params["ressenti_rpe"] = int(rpe_match.group(1))
+
+
+            # Notes / Douleur / Périostite
+            if ":" in text:
+                note_part = text.split(":", 1)[1].strip()
+                if note_part:
+                    update_params["notes"] = note_part
+            elif "à cause de" in cleaned:
+                update_params["notes"] = "à cause de " + cleaned.split("à cause de", 1)[1].strip()
+            elif "douleur" in cleaned:
+                d_idx = cleaned.find("douleur")
+                update_params["notes"] = cleaned[d_idx:].strip()
+
+            return ParsedIntent(
+                intent=IntentType.UPDATE_SPORT_SESSION,
+                confidence=0.95,
+                parameters=update_params,
+                raw_query=text,
+            )
+
+        # 9.2 Renforcement musculaire / PPG sans distance ("j'ai fait 30 minutes de renfo, ressenti 7 sur 10")
+        renfo_match = re.search(
+            r"(?:j[' ]?ai\s+fait|note\s+ma\s+séance\s+de)\s+([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)\s+(?:de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)",
+            cleaned,
+        ) or re.search(
+            r"(?:j[' ]?ai\s+fait|note\s+ma\s+séance)\s+(?:une?\s+séance\s+de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)(?:\s+de\s+([0-9]+)\s*min(?:utes?)?)?",
+            cleaned,
+        )
+        if renfo_match:
+            duree_val = None
+            if renfo_match.group(1) and renfo_match.group(1).isdigit():
+                duree_val = int(renfo_match.group(1))
+            elif len(renfo_match.groups()) > 1 and renfo_match.group(2) and renfo_match.group(2).isdigit():
+                duree_val = int(renfo_match.group(2))
+
+            dur_sec = (duree_val * 60) if duree_val else 1800
+            params: Dict[str, Any] = {
+                "type_seance": "Renforcement",
+                "duration_seconds": dur_sec,
+                "distance_km": None,
+                "notes": "Renforcement musculaire",
+            }
+            rpe_match = re.search(r"ressenti\s*([0-9]+)", cleaned)
+            if rpe_match:
+                params["ressenti_rpe"] = int(rpe_match.group(1))
+
+            return ParsedIntent(
+                intent=IntentType.LOG_SPORT_SESSION,
+                confidence=0.95,
+                parameters=params,
+                raw_query=text,
+            )
+
+        # 9.3 Enregistrement d'une course terminée ("j'ai couru 8 km en 42 minutes...")
         log_match = re.search(
             r"(?:j[' ]?ai\s+couru|j[' ]?ai\s+fait|note\s+ma\s+séance)\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)\s+(?:en\s+)?([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)",
             cleaned,
@@ -632,6 +706,7 @@ class IntentParser:
                 parameters=params,
                 raw_query=text,
             )
+
 
         # 9.3 Planification d'une séance future ("planifie-moi un fractionné jeudi...")
         if re.search(r"(?:planifie|prévois|programme)(?:-moi)?\s+(?:une?\s+)?(?:séance\s+de\s+)?(fractionné|sortie longue|footing|ef|tempo|seuil)", cleaned):

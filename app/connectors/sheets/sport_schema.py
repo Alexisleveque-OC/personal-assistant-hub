@@ -24,7 +24,8 @@ CANONICAL_SEANCES_COLUMNS = [
     "FC Moy (bpm)",
     "FC Max (bpm)",
     "Météo difficile/10",
-    "Note",
+    "Programme",
+    "Remarques",
     "ID Strava",
 ]
 
@@ -139,9 +140,19 @@ class SportSchemaValidator:
             actual_norm = [normalize_name(h) for h in actual_headers]
 
             missing_cols = []
+            has_programme = any(normalize_name(a) in actual_norm for a in ["Programme", "Detail Seance", "Exercices", "Contenu"])
+            has_remarques = any(normalize_name(a) in actual_norm for a in ["Remarques", "Remarque", "Note", "Notes"])
+
             for col in CANONICAL_SEANCES_COLUMNS:
-                if normalize_name(col) not in actual_norm:
-                    missing_cols.append(col)
+                if col == "Programme":
+                    if not has_programme and not has_remarques:
+                        missing_cols.append("Programme")
+                elif col == "Remarques":
+                    if not has_remarques:
+                        missing_cols.append("Remarques")
+                else:
+                    if normalize_name(col) not in actual_norm:
+                        missing_cols.append(col)
 
             if missing_cols:
                 msg = f"Colonnes obligatoires manquantes dans '{seances_title}' : {missing_cols}"

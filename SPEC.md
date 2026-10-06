@@ -35,12 +35,12 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 * **Statut :** Finalisé, validé par 208 tests automatisés (Unitaires + E2E) et validé sur smartphone PWA.
 
 ### C. Connecteur Sport & Running (Google Sheets & Mini-Coach)
-* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant.
+* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant et protecteur contre les blessures (périostite).
 * **Fonctionnalités clés :**
-  * **Structure Google Sheets Running :** Date, Distance, Temps, Vitesse et Allure (calculs automatiques), Type de séance, Notes/Fractionné, Ressenti dur/10, Météo/10, Statut (Planifié / Réalisé / Repos).
-  * **Calculs de charge & volume :** Synthèse automatique du volume kilométrique et temps par semaine (ISO), allures moyennes, comparaison par rapport aux objectifs.
-  * **Interactions vocales :** Consultation de la séance du jour (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*), enregistrement vocal d'une séance terminée (*« J'ai couru 5 km en 28 minutes »*).
-  * **Passerelle de synchronisation :** Exploration de la synchronisation d'activités (API Decathlon Developers / Strava API).
+  * **Structure Google Sheets Running (18 colonnes) :** Date, Semaine, Statut (Planifié / Réalisé / Repos), Type de séance (EF, Fractionné, Sortie Longue, Seuil, Renforcement), Distance (km), Dénivelé D+ (m), Km-Effort, Temps, Vitesse (km/h), Allure (min/km), Ressenti dur/10, Charge RPE, FC Moy (bpm), FC Max (bpm), Météo difficile/10, Programme (fractionné, PPG, kiné), Remarques (sensations, périostite, notes libres), ID Strava.
+  * **Calculs de charge & volume :** Synthèse automatique du volume kilométrique, temps cumulé, Charge RPE ($\text{Durée} \times \text{RPE}$), nb séances de renfo, alerte sécurité (+10% max) et plafond conseillé pour S+1.
+  * **Interactions vocales :** Consultation de séance (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*), enregistrement vocal d'une course ou séance de renfo (*« J'ai fait 30 min de renfo, ressenti 7 sur 10 »*), réajustement a posteriori (*« Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite »*).
+  * **Passerelle de synchronisation :** Synchronisation automatique Strava via webhooks (`/api/v1/integrations/strava/webhook`) et ingestion d'activités.
 
 ### D. Mémoire Long-Terme & "Second Cerveau" (Notes, Idées & Profil)
 * **Rôle :** Permettre à l'utilisateur de parler librement à son assistant pour décharger son esprit et enrichir sa connaissance personnelle.

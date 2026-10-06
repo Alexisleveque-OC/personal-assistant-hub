@@ -34,6 +34,9 @@ from app.connectors.sheets.meals_connector import (
 from app.connectors.sheets.sport_connector import SportConnector
 from app.connectors.sheets.sport_models import (
     SportSession,
+    SportSessionCreate,
+    SportSessionPlan,
+    SportSessionUpdate,
     SportSessionStatus,
     SportSessionType,
     SportWeeklySummary,
@@ -784,8 +787,11 @@ async def interact(
                     spoken = f"Pour aujourd'hui, vous avez une séance de {type_nom}"
                     if dist_str:
                         spoken += f" de {dist_str} km"
-                    if session.notes:
-                        spoken += f" : {session.notes}"
+                    details = session.programme or session.notes
+                    if details:
+                        spoken += f" : {details}"
+                    if session.remarques and session.remarques != details:
+                        spoken += f" (Remarques : {session.remarques})"
                     spoken += "."
                 else:
                     spoken = "Aucune séance n'est planifiée pour cette date. C'est une journée de repos bien méritée !"
@@ -793,7 +799,8 @@ async def interact(
                 spoken = "Le carnet d'entraînement sport n'est pas configuré."
 
         case IntentType.LOG_SPORT_SESSION:
-            dist = float(parsed.parameters.get("distance_km", 0.0))
+            raw_dist = parsed.parameters.get("distance_km")
+            dist = float(raw_dist) if raw_dist is not None else None
             dur_sec = parsed.parameters.get("duration_seconds")
             if not dur_sec and "duree_minutes" in parsed.parameters:
                 dur_sec = int(parsed.parameters["duree_minutes"]) * 60
@@ -807,39 +814,132 @@ async def interact(
             else:
                 session_date = date.today()
 
-            type_seance = parsed.parameters.get("type_seance", SportSessionType.EF)
-            if isinstance(type_seance, str):
-                try:
-                    type_seance = SportSessionType(type_seance)
-                except ValueError:
-                    type_seance = SportSessionType.EF
+            type_seance_param = parsed.parameters.get("type_seance", SportSessionType.EF)
+            if isinstance(type_seance_param, str):
+                if type_seance_param.lower() in ("renfo", "renforcement", "ppg", "musculation"):
+                    type_seance = SportSessionType.RENFORCEMENT
+                else:
+                    try:
+                        type_seance = SportSessionType(type_seance_param)
+                    except ValueError:
+                        type_seance = SportSessionType.EF
+            else:
+                type_seance = type_seance_param
 
-            new_session = SportSession(
+            prog = parsed.parameters.get("programme")
+            rem = parsed.parameters.get("remarques")
+            notes = parsed.parameters.get("notes", "")
+            if not prog and notes and type_seance == SportSessionType.RENFORCEMENT:
+                prog = notes
+            elif not rem and notes:
+                rem = notes
+
+            session_create = SportSessionCreate(
                 date=session_date,
-                semaine=session_date.isocalendar()[1],
-                statut=SportSessionStatus.REALISE,
                 type_seance=type_seance,
                 distance_km=dist,
-                duree_secondes=dur_sec,
+                duree_secondes=dur_sec or 1800,
                 denivele_d_plus=d_plus,
                 ressenti_rpe=rpe,
+                programme=prog or "",
+                remarques=rem or "",
+                notes=notes,
             )
+
+            new_session = None
             if sport_connector:
                 try:
-                    logged = sport_connector.log_session(new_session)
-                    if logged:
-                        new_session = logged
+                    new_session = sport_connector.log_session(session_create)
                 except Exception as exc:
                     logger.warning(f"Erreur enregistrement séance sport : {exc}")
 
+            if not new_session:
+                new_session = SportSession(
+                    date=session_date,
+                    semaine=session_date.isocalendar()[1],
+                    statut=SportSessionStatus.REALISE,
+                    type_seance=type_seance,
+                    distance_km=dist,
+                    duree_secondes=dur_sec or 1800,
+                    denivele_d_plus=d_plus,
+                    ressenti_rpe=rpe,
+                    programme=prog or "",
+                    remarques=rem or "",
+                    notes=notes,
+                )
+
             data["session"] = new_session.model_dump()
-            dist_disp = str(dist).replace(".", ",")
-            minutes = (dur_sec // 60) if dur_sec else 0
-            allure = new_session.allure_formatted or ""
-            spoken = f"C'est enregistré ! Votre séance de {dist_disp} km en {minutes} minutes"
-            if allure:
-                spoken += f" (allure {allure}/km)"
-            spoken += " a bien été enregistrée dans votre carnet."
+            minutes = ((dur_sec or 1800) // 60)
+            if type_seance == SportSessionType.RENFORCEMENT or dist is None:
+                charge_txt = f" (charge RPE de {new_session.charge_rpe})" if new_session.charge_rpe else ""
+                spoken = f"C'est enregistré ! Votre séance de renforcement musculaire de {minutes} minutes{charge_txt} a bien été ajoutée au carnet."
+            else:
+                dist_disp = str(dist).replace(".", ",")
+                allure = new_session.allure_formatted or ""
+                spoken = f"C'est enregistré ! Votre séance de {dist_disp} km en {minutes} minutes"
+                if allure:
+                    spoken += f" (allure {allure}/km)"
+                spoken += " a bien été enregistrée dans votre carnet."
+
+        case IntentType.UPDATE_SPORT_SESSION:
+            raw_date = parsed.parameters.get("target_date")
+            if isinstance(raw_date, date):
+                target_d = raw_date
+            elif raw_date in ("today", "aujourd'hui", None):
+                target_d = date.today()
+            elif raw_date == "demain":
+                target_d = date.today() + timedelta(days=1)
+            elif raw_date == "hier":
+                target_d = date.today() - timedelta(days=1)
+            elif raw_date:
+                target_d = parse_target_date(str(raw_date))
+            else:
+                target_d = date.today()
+
+            rpe = parsed.parameters.get("ressenti_rpe")
+            prog = parsed.parameters.get("programme")
+            rem = parsed.parameters.get("remarques")
+            notes = parsed.parameters.get("notes")
+            append_rem = parsed.parameters.get("append_remarques", parsed.parameters.get("append_notes", True))
+
+            if sport_connector:
+                update_payload = SportSessionUpdate(
+                    ressenti_rpe=rpe,
+                    programme=prog,
+                    remarques=rem,
+                    notes=notes,
+                    append_remarques=append_rem,
+                    append_notes=append_rem,
+                )
+                try:
+                    updated = sport_connector.update_session(target_d, update_payload)
+                    data["session"] = updated.model_dump()
+                    date_disp = target_d.strftime("%d/%m")
+                    charge = updated.charge_rpe
+
+                    spoken_parts = [f"C'est noté Alexis. J'ai mis à jour ta séance du {date_disp}"]
+                    if rpe is not None:
+                        spoken_parts.append(f"avec un ressenti de {rpe}/10")
+                        if charge:
+                            spoken_parts.append(f"(charge réévaluée à {charge})")
+                    elif rem or notes:
+                        spoken_parts.append(f"avec la note : {rem or notes}")
+                    elif prog:
+                        spoken_parts.append(f"avec le programme : {prog}")
+                    spoken = " ".join(spoken_parts) + "."
+
+                    # Bienveillance & prévention périostite / blessure
+                    feedback_text = (rem or notes or "").lower()
+                    if "périostite" in feedback_text or "tibia" in feedback_text or "douleur" in feedback_text or (rpe and rpe >= 8):
+                        spoken += " Attention à ta périostite : applique du froid, masse la zone et privilégie le repos et les sols souples."
+                    else:
+                        spoken += " Pense à bien récupérer !"
+                except Exception as exc:
+                    logger.warning(f"Erreur mise à jour séance sport : {exc}")
+                    spoken = f"Désolé Alexis, je n'ai pas pu modifier la séance : {exc}"
+            else:
+                spoken = "Le carnet d'entraînement sport n'est pas configuré."
+
 
         case IntentType.GET_SPORT_WEEKLY_SUMMARY:
             sem = parsed.parameters.get("semaine")
