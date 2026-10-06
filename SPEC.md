@@ -35,12 +35,12 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 * **Statut :** Finalisé, validé par 208 tests automatisés (Unitaires + E2E) et validé sur smartphone PWA.
 
 ### C. Connecteur Sport & Running (Google Sheets & Mini-Coach)
-* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant.
+* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant et protecteur contre les blessures (périostite).
 * **Fonctionnalités clés :**
-  * **Structure Google Sheets Running :** Date, Distance, Temps, Vitesse et Allure (calculs automatiques), Type de séance, Notes/Fractionné, Ressenti dur/10, Météo/10, Statut (Planifié / Réalisé / Repos).
-  * **Calculs de charge & volume :** Synthèse automatique du volume kilométrique et temps par semaine (ISO), allures moyennes, comparaison par rapport aux objectifs.
-  * **Interactions vocales :** Consultation de la séance du jour (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*), enregistrement vocal d'une séance terminée (*« J'ai couru 5 km en 28 minutes »*).
-  * **Passerelle de synchronisation :** Exploration de la synchronisation d'activités (API Decathlon Developers / Strava API).
+  * **Structure Google Sheets Running (18 colonnes) :** Date, Semaine, Statut (Planifié / Réalisé / Repos), Type de séance (EF, Fractionné, Sortie Longue, Seuil, Renforcement), Distance (km), Dénivelé D+ (m), Km-Effort, Temps, Vitesse (km/h), Allure (min/km), Ressenti dur/10, Charge RPE, FC Moy (bpm), FC Max (bpm), Météo difficile/10, Programme (fractionné, PPG, kiné), Remarques (sensations, périostite, notes libres), ID Strava.
+  * **Calculs de charge & volume :** Synthèse automatique du volume kilométrique, temps cumulé, Charge RPE ($\text{Durée} \times \text{RPE}$), nb séances de renfo, alerte sécurité (+10% max) et plafond conseillé pour S+1.
+  * **Interactions vocales :** Consultation de séance (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*), enregistrement vocal d'une course ou séance de renfo (*« J'ai fait 30 min de renfo, ressenti 7 sur 10 »*), réajustement a posteriori (*« Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite »*).
+  * **Passerelle de synchronisation :** Synchronisation automatique Strava via webhooks (`/api/v1/integrations/strava/webhook`) et ingestion d'activités.
 
 ### D. Mémoire Long-Terme & "Second Cerveau" (Notes, Idées & Profil)
 * **Rôle :** Permettre à l'utilisateur de parler librement à son assistant pour décharger son esprit et enrichir sa connaissance personnelle.
@@ -170,4 +170,28 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 - [ ] **Phase 12 : Domotique (Prises connectées & Scénarios)**
   - [ ] Intégration des APIs d'équipements connectés
   - [ ] Intentions de commande et de statut (`toggle_device`, `get_device_status`)
+
+---
+
+## 4. Dette Technique & Refactoring Architectural (Planifié)
+
+### Refactoring Modulaire de `app/main.py` (> 1200 lignes)
+* **Constat :** `app/main.py` centralise actuellement la configuration FastAPI, les routes système, l'adaptateur mobile, le grand bloc d'aiguillage des intentions (`match parsed.intent`), les endpoints repas, sport, webhooks et la PWA. Cette concentration nuit à la lisibilité et à la maintenabilité.
+* **Architecture cible (Clean Architecture & FastAPI Routers) :**
+  1. **Découpage en APIRouters dédiés (`app/routers/`) :**
+     * `routers/system.py` : routes de santé (`/health`, `/`), métriques LLM, préchauffage cache.
+     * `routers/interact.py` : point d'entrée universel `/api/v1/interact` et analyse NLU `/api/v1/intent/parse`.
+     * `routers/mobile.py` : adaptateur Android HTTP Shortcuts `/api/v1/mobile/interact`.
+     * `routers/meals.py` : endpoints planning repas et ingrédients (`/api/v1/meals/*`).
+     * `routers/sport.py` : synchronisation d'activités, webhooks et futur dashboard running (`/api/v1/sport/*`).
+     * `routers/pwa.py` : routes statiques PWA (`/app`, `/manifest.json`, `/sw.js`).
+  2. **Extraction du Dispatcher d'Intentions (`app/core/dispatcher.py`) :**
+     * Déplacer la logique métier des branches `case IntentType.*` dans des handlers spécialisés (`meals_handler`, `sport_handler`, `tasks_handler`, etc.) afin que les contrôleurs HTTP restent ultra-légers.
+  3. **`app/main.py` épuré (< 80 lignes) :**
+     * Rôle unique : assemblage de l'application FastAPI, middlewares (CORS), cycle de vie (`lifespan`) et inclusion des routeurs (`app.include_router(...)`).
+  4. **Extraction des factories de connecteurs (suppression de l'import circulaire) :**
+     * **Constat :** `get_sport_connector()` / `set_sport_connector()` et `get_meals_connector()` / `set_meals_connector()` (singletons globaux) vivent dans `app/main.py`. Tout router qui en dépend (ex : `routers/sport.py`, introduit à l'Étape 7 du module Sport) doit aujourd'hui les importer en **différé** (`from app import main` à l'intérieur de la dépendance FastAPI) pour éviter le cycle `main → routers.sport → main`.
+     * **Correction cible :** déplacer ces factories dans un module dédié (ex : `app/core/dependencies.py`), les exposer comme dépendances FastAPI (`Depends(get_sport_connector)`), et remplacer dans les tests `set_*_connector()` par `app.dependency_overrides`. Conserver temporairement des ré-exports dans `app/main.py` pour la rétrocompatibilité des tests existants, puis les retirer.
+     * **Critère de succès :** plus aucun import différé de `app.main` dans `app/routers/`, suite de tests 100 % verte.
+
 

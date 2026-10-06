@@ -20,6 +20,15 @@ class IntentType(str, Enum):
     GET_BUDGET_BALANCE = "get_budget_balance"
     LOG_EXPENSE = "log_expense"
 
+    # Sport & Running (Google Sheet 3 - Mini-Coach Otis)
+    GET_SPORT_SESSION = "get_sport_session"
+    LOG_SPORT_SESSION = "log_sport_session"
+    GET_SPORT_WEEKLY_SUMMARY = "get_sport_weekly_summary"
+    PLAN_SPORT_SESSION = "plan_sport_session"
+    UPDATE_SPORT_SESSION = "update_sport_session"
+    PLAN_WEEKLY_TRAINING = "plan_weekly_training"
+    EXPLAIN_SPORT_EXERCISE = "explain_sport_exercise"
+
     # Google Tasks
     ADD_TASK = "add_task"
     LIST_TASKS = "list_tasks"
