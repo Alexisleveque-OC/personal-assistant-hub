@@ -26,6 +26,8 @@ class IntentType(str, Enum):
     GET_SPORT_WEEKLY_SUMMARY = "get_sport_weekly_summary"
     PLAN_SPORT_SESSION = "plan_sport_session"
     UPDATE_SPORT_SESSION = "update_sport_session"
+    PLAN_WEEKLY_TRAINING = "plan_weekly_training"
+    EXPLAIN_SPORT_EXERCISE = "explain_sport_exercise"
 
     # Google Tasks
     ADD_TASK = "add_task"

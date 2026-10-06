@@ -42,6 +42,7 @@ from app.connectors.sheets.sport_models import (
     SportWeeklySummary,
 )
 from app.core.date_resolver import parse_target_date
+from app.core.sport_coach_service import SportCoachService
 
 logger = logging.getLogger(__name__)
 
@@ -814,7 +815,7 @@ async def interact(
             else:
                 session_date = date.today()
 
-            type_seance_param = parsed.parameters.get("type_seance", SportSessionType.EF)
+            type_seance_param = parsed.parameters.get("type_seance")
             if isinstance(type_seance_param, str):
                 if type_seance_param.lower() in ("renfo", "renforcement", "ppg", "musculation"):
                     type_seance = SportSessionType.RENFORCEMENT
@@ -823,12 +824,37 @@ async def interact(
                         type_seance = SportSessionType(type_seance_param)
                     except ValueError:
                         type_seance = SportSessionType.EF
-            else:
+            elif isinstance(type_seance_param, SportSessionType):
                 type_seance = type_seance_param
+            else:
+                type_seance = SportSessionType.EF
 
             prog = parsed.parameters.get("programme")
             rem = parsed.parameters.get("remarques")
             notes = parsed.parameters.get("notes", "")
+
+            # Si confirmation directe d'une séance planifiée ("j'ai fait ma séance") ou aucun paramètre spécifié,
+            # récupérer la séance planifiée du jour pour enrichir les paramètres
+            is_validating_planned = bool(parsed.parameters.get("validate_planned"))
+            planned_session = None
+            if sport_connector and (is_validating_planned or (dist is None and not dur_sec and type_seance == SportSessionType.EF)):
+                try:
+                    candidate = sport_connector.get_session(session_date)
+                    if candidate and candidate.statut == SportSessionStatus.PLANIFIE:
+                        planned_session = candidate
+                except Exception:
+                    planned_session = None
+
+            if planned_session:
+                if "type_seance" not in parsed.parameters and planned_session.type_seance:
+                    type_seance = planned_session.type_seance
+                if dist is None and planned_session.distance_km and type_seance != SportSessionType.RENFORCEMENT:
+                    dist = planned_session.distance_km
+                if not dur_sec and planned_session.duree_secondes:
+                    dur_sec = planned_session.duree_secondes
+                if not prog and planned_session.programme:
+                    prog = planned_session.programme
+
             if not prog and notes and type_seance == SportSessionType.RENFORCEMENT:
                 prog = notes
             elif not rem and notes:
@@ -870,7 +896,14 @@ async def interact(
 
             data["session"] = new_session.model_dump()
             minutes = ((dur_sec or 1800) // 60)
-            if type_seance == SportSessionType.RENFORCEMENT or dist is None:
+            if is_validating_planned and planned_session:
+                dist_str = f" de {str(dist).replace('.', ',')} km" if dist else ""
+                spoken = f"Super ! J'ai validé votre séance prévue ({new_session.type_seance.value}{dist_str}) comme Réalisée dans votre carnet."
+                if rpe:
+                    spoken += f" Ressenti noté à {rpe}/10."
+                else:
+                    spoken += " Quel était votre ressenti sur 10 ?"
+            elif type_seance == SportSessionType.RENFORCEMENT or dist is None:
                 charge_txt = f" (charge RPE de {new_session.charge_rpe})" if new_session.charge_rpe else ""
                 spoken = f"C'est enregistré ! Votre séance de renforcement musculaire de {minutes} minutes{charge_txt} a bien été ajoutée au carnet."
             else:
@@ -989,6 +1022,52 @@ async def interact(
                 data["session"] = planned.model_dump()
             date_disp = t_date.strftime("%d/%m/%Y")
             spoken = f"C'est noté ! J'ai planifié une séance de {t_type} pour le {date_disp}."
+
+        case IntentType.PLAN_WEEKLY_TRAINING:
+            if not sport_connector:
+                spoken = "Le carnet d'entraînement sport n'est pas configuré."
+            else:
+                coach_service = SportCoachService(connector=sport_connector)
+                try:
+                    target_w = parsed.parameters.get("semaine") or parsed.parameters.get("week_num")
+                    target_y = parsed.parameters.get("annee") or parsed.parameters.get("year")
+                    plan_proposal = await coach_service.plan_weekly_training(
+                        query=request.query,
+                        target_week=int(target_w) if target_w else None,
+                        target_year=int(target_y) if target_y else None,
+                    )
+                    data["weekly_plan"] = plan_proposal.model_dump()
+
+                    # Insertion groupée (batch) des séances planifiées avec statut "Prévu"
+                    plan_items = [
+                        SportSessionPlan(
+                            date=s_prop.date_seance,
+                            type_seance=s_prop.type_seance,
+                            distance_km_cible=s_prop.distance_km,
+                            allure_cible=s_prop.allure_cible,
+                            vitesse_cible=s_prop.vitesse_cible,
+                            programme=s_prop.programme or "",
+                            remarques=s_prop.remarques_coach or "",
+                        )
+                        for s_prop in plan_proposal.seances
+                        if s_prop.date_seance
+                    ]
+                    inserted_objs = sport_connector.plan_weekly_sessions(plan_items)
+                    data["inserted_sessions"] = [s.model_dump() for s in inserted_objs]
+
+                    spoken = plan_proposal.spoken_summary
+                    if inserted_objs:
+                        spoken += f" J'ai inséré les {len(inserted_objs)} séances prévues dans votre carnet d'entraînement."
+                except Exception as exc:
+                    logger.error(f"Erreur génération plan hebdomadaire sport : {exc}")
+                    spoken = f"Impossible de générer votre plan d'entraînement : {exc}"
+
+        case IntentType.EXPLAIN_SPORT_EXERCISE:
+            ex_target = parsed.parameters.get("exercise", request.query)
+            coach_service = SportCoachService(connector=sport_connector) if sport_connector else SportCoachService(connector=None)
+            spoken = coach_service.explain_exercise(ex_target)
+            data["exercise"] = ex_target
+            data["explanation"] = spoken
 
         case IntentType.CHOOSE_RAYON:
             pending = session_ctx.pop("pending_action", None)
@@ -1300,7 +1379,9 @@ async def sync_strava_activity(
 
     connector = get_sport_connector()
     if connector:
-        connector.log_session(session)
+        saved = connector.log_session(session)
+        if saved:
+            session = saved
 
     return {
         "success": True,

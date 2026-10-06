@@ -43,6 +43,25 @@ EXPECTED_SYNTHESE_HEBDO_HEADERS = [
     "Plafond Conseillé S+1",
 ]
 
+SYNTHESE_HEBDO_EXTENDED_HEADERS = [
+    "Semaine",
+    "Année",
+    "Nb Séances",
+    "Km Totaux",
+    "D+ Total",
+    "Km-Effort Total",
+    "Durée Totale",
+    "Allure Moyenne",
+    "Vitesse Moyenne",
+    "Charge RPE",
+    "Évol Volume (%)",
+    "Évol Vitesse (%)",
+    "Évol RPE (%)",
+    "Progression Générale (%)",
+    "Alerte Sécurité",
+    "Plafond Conseillé S+1",
+]
+
 
 class SportSchemaError(Exception):
     """Erreur de base pour toute anomalie de structure du Google Sheet Sport."""
@@ -181,8 +200,11 @@ class SportSchemaValidator:
             actual_headers_syn = headers_by_worksheet.get(synthese_title, [])
             actual_norm_syn = [normalize_name(h) for h in actual_headers_syn]
 
+            is_extended = any("progression generale" in h or "charge rpe" in h for h in actual_norm_syn)
+            target_expected = SYNTHESE_HEBDO_EXTENDED_HEADERS if is_extended else EXPECTED_SYNTHESE_HEBDO_HEADERS
+
             missing_cols_syn = []
-            for col in EXPECTED_SYNTHESE_HEBDO_HEADERS:
+            for col in target_expected:
                 if normalize_name(col) not in actual_norm_syn:
                     missing_cols_syn.append(col)
 
@@ -195,7 +217,7 @@ class SportSchemaValidator:
                         sheet_name=synthese_title,
                         missing_columns=missing_cols_syn,
                         actual_columns=actual_headers_syn,
-                        expected_columns=EXPECTED_SYNTHESE_HEBDO_HEADERS,
+                        expected_columns=target_expected,
                     )
 
         return report

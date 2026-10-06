@@ -4,8 +4,10 @@ import pytest
 from pydantic import ValidationError
 
 from app.connectors.sheets.sport_models import (
+    SportPlannedSessionProposal,
     SportSession,
     SportSessionCreate,
+    SportSessionPlan,
     SportSessionStatus,
     SportSessionType,
     SportWeeklySummary,
@@ -193,5 +195,76 @@ def test_sport_session_programme_and_remarques_distinction():
     assert session.programme == "2km échauffement + 6x400m à 4'15/km + 1km récup"
     assert session.remarques == "Excellentes sensations sur les 4 premiers blocs, légère raideur mollet à la fin"
     assert "mollet" in session.notes or "6x400m" in session.notes
+
+
+def test_sport_planned_session_proposal_has_target_pace_and_speed():
+    """Vérifie que la proposition de séance intègre allure cible ET vitesse cible avec tolérance (+/-)."""
+    proposal = SportPlannedSessionProposal(
+        jour="Jeudi",
+        date_seance=date(2026, 10, 8),
+        type_seance=SportSessionType.EF,
+        distance_km=4.5,
+        duree_minutes=30,
+        allure_cible="06:30/km (+/- 15s)",
+        vitesse_cible="9.2 km/h (+/- 0.4 km/h)",
+        programme="Endurance fondamentale en aisance respiratoire",
+        remarques_coach="Privilégier le sous-bois pour les périostites",
+    )
+    assert proposal.allure_cible == "06:30/km (+/- 15s)"
+    assert proposal.vitesse_cible == "9.2 km/h (+/- 0.4 km/h)"
+
+    plan = SportSessionPlan(
+        date=proposal.date_seance,
+        type_seance=proposal.type_seance,
+        distance_km_cible=proposal.distance_km,
+        allure_cible=proposal.allure_cible,
+        vitesse_cible=proposal.vitesse_cible,
+        programme=proposal.programme,
+    )
+    assert plan.allure_cible == "06:30/km (+/- 15s)"
+    assert plan.vitesse_cible == "9.2 km/h (+/- 0.4 km/h)"
+
+
+def test_sport_weekly_summary_multicriteria_progression_s39_s40():
+    """Vérifie le calcul multicritère (Volume + Vitesse + Charge RPE) et la Progression Générale.
+
+    Scénario réel Alexis :
+    - S39 : 19.81 km, 21.33 km-effort, 02:47:03 (10023s) -> vit 7.11 km/h, Charge RPE 858
+    - S40 : 20.42 km, 21.72 km-effort, 02:45:05 (9905s)  -> vit 7.42 km/h, Charge RPE 1154
+    """
+    summary_s40 = SportWeeklySummary(
+        semaine=40,
+        annee=2026,
+        nb_seances=4,
+        km_total=20.42,
+        d_plus_total=130,
+        km_effort_total=21.72,
+        duree_secondes=9905,  # 02:45:05
+        charge_rpe_totale=1154,
+        nb_renfo=1,
+        previous_week_km_effort=21.33,
+        previous_week_vitesse_kmh=7.11,
+        previous_week_charge_rpe=858,
+    )
+
+    # 1. Évolution Volume : (21.72 - 21.33) / 21.33 = +1.8%
+    assert pytest.approx(summary_s40.evolution_volume_pct, 0.1) == 1.8
+
+    # 2. Vitesse S40 : 20.42 / (9905/3600) = 7.42 km/h
+    assert pytest.approx(summary_s40.vitesse_kmh, 0.05) == 7.42
+
+    # 3. Évolution Vitesse : (7.42 - 7.11) / 7.11 = +4.4%
+    assert pytest.approx(summary_s40.evolution_vitesse_pct, 0.2) == 4.4
+
+    # 4. Évolution RPE : (1154 - 858) / 858 = +34.5%
+    assert pytest.approx(summary_s40.evolution_rpe_pct, 0.2) == 34.5
+
+    # 5. Progression Générale : moyenne(1.8, 4.4, 34.5) = +13.6% (ou ~13.5%)
+    assert pytest.approx(summary_s40.progression_generale_pct, 0.3) == 13.6
+
+    # 6. Alerte Sécurité : Ne doit PAS dire 'Progression Saine' (+1.8%) mais signaler la surcharge RPE / vigilance
+    assert "Surcharge RPE" in summary_s40.alerte_securite or "Vigilance" in summary_s40.alerte_securite or "Risque Blessure" in summary_s40.alerte_securite
+    assert "Progression Saine" not in summary_s40.alerte_securite
+
 
 

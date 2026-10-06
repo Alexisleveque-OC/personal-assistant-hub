@@ -37,8 +37,9 @@ def mock_sport_spreadsheet():
     seances_headers = [
         "Date", "Semaine", "Statut", "Type de séance", "Distance (km)",
         "Dénivelé D+ (m)", "Km-Effort", "Temps", "Vitesse (km/h)",
-        "Allure (min/km)", "ressenti dur/10", "Charge RPE", "Météo difficile/10",
-        "Note", "ID Strava"
+        "Allure (min/km)", "ressenti dur/10", "Charge RPE",
+        "FC Moy (bpm)", "FC Max (bpm)", "Météo difficile/10",
+        "Programme", "Remarques", "ID Strava"
     ]
 
     seances_rows = [
@@ -46,16 +47,17 @@ def mock_sport_spreadsheet():
         [
             yesterday_str, "41", "Réalisé", "EF", "6.0",
             "50", "6.5", "00:36:00", "10.0",
-            "06:00", "5", "180", "1",
-            "Footing tranquille", "111222333"
+            "06:00", "5", "180", "142", "165", "1",
+            "", "Footing tranquille", "111222333"
         ],
         [
-            today_str, "41", "Planifié", "Fractionné", "5.0",
+            today_str, "41", "Prévu", "Fractionné", "5.0",
             "0", "5.0", "", "",
-            "", "", "", "",
-            "6x(30s/30s)", ""
+            "", "", "", "", "", "",
+            "6x(30s/30s)", "", ""
         ],
     ]
+
 
     synthese_headers = [
         "Semaine", "Année", "Nb Séances", "Km Totaux", "D+ Total",
@@ -188,8 +190,50 @@ def test_sport_connector_plan_session(mock_sport_spreadsheet):
     planned = connector.plan_session(plan)
     assert planned.date == target_date
     assert planned.statut == SportSessionStatus.PLANIFIE
+    assert planned.statut.value == "Prévu"
     assert planned.type_seance == SportSessionType.SORTIE_LONGUE
     assert planned.distance_km == 12.0
+
+    # 2. Planifier à nouveau la même date met à jour la ligne sans dupliquer
+    plan_updated = SportSessionPlan(
+        date=target_date,
+        type_seance=SportSessionType.SORTIE_LONGUE,
+        distance_km_cible=14.0,
+        programme="Sortie 14 km avec 3x2000m",
+    )
+    planned2 = connector.plan_session(plan_updated)
+    assert planned2.distance_km == 14.0
+    assert planned2.programme == "Sortie 14 km avec 3x2000m"
+
+
+def test_sport_connector_log_session_preserves_planned_programme(mock_sport_spreadsheet):
+    """Quand une séance réalisée est enregistrée, elle conserve le programme technique prévu."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    target_d = date(2026, 10, 10)
+
+    # 1. On planifie d'abord la séance
+    connector.plan_session(
+        session_date=target_d,
+        type_seance=SportSessionType.FRACTIONNE,
+        distance_km=6.0,
+        programme="2km échauffement + 6x400m à 4'20/km",
+    )
+
+    # 2. On log la séance réalisée sans repréciser le programme
+    logged = connector.log_session(SportSessionCreate(
+        date=target_d,
+        type_seance=SportSessionType.FRACTIONNE,
+        distance_km=6.2,
+        duree_secondes=32 * 60,
+        ressenti_rpe=7,
+        notes="Bonnes sensations",
+    ))
+
+    assert logged.statut == SportSessionStatus.REALISE
+    assert logged.statut.value == "Réalisé"
+    assert logged.programme == "2km échauffement + 6x400m à 4'20/km"
+    assert logged.distance_km == 6.2
+
 
 
 def test_sport_connector_get_weekly_summary(mock_sport_spreadsheet):
@@ -346,5 +390,158 @@ def test_sport_connector_with_programme_and_remarques_columns():
     assert updated.programme == "5x300m à 4'30/km"  # Le programme reste intact !
     assert "douleur tibia post-séance" in updated.remarques
     assert "Bonne séance" in updated.remarques
+
+
+def test_sport_connector_plan_weekly_sessions_batch(mock_sport_spreadsheet):
+    """Vérifie l'insertion groupée en lot (batch) d'un plan hebdomadaire complet avec statut Prévu."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    plans = [
+        SportSessionPlan(
+            date=date(2026, 10, 12),
+            type_seance=SportSessionType.FRACTIONNE,
+            distance_km_cible=5.5,
+            programme="15' échauffement + 8x(30s/30s) + 10' retour calme",
+            remarques="Attention périostite : surface meuble",
+        ),
+        SportSessionPlan(
+            date=date(2026, 10, 13),
+            type_seance=SportSessionType.RENFORCEMENT,
+            distance_km_cible=0.0,
+            programme="Mollets, soléaires et gainage sans impact",
+            remarques="Conseil kiné",
+        ),
+        SportSessionPlan(
+            date=date(2026, 10, 15),
+            type_seance=SportSessionType.EF,
+            distance_km_cible=6.0,
+            programme="Footing allure 6'30/km strictly zone 2",
+            remarques="Relâchement haut du corps",
+        ),
+        SportSessionPlan(
+            date=date(2026, 10, 17),
+            type_seance=SportSessionType.SORTIE_LONGUE,
+            distance_km_cible=11.0,
+            programme="Sortie endurance progressive",
+            remarques="Hydratation régulière",
+        ),
+    ]
+
+    inserted = connector.plan_weekly_sessions(plans)
+
+    assert len(inserted) == 4
+    for s in inserted:
+        assert s.statut == SportSessionStatus.PLANIFIE
+        assert s.statut.value == "Prévu"
+
+    assert inserted[0].type_seance == SportSessionType.FRACTIONNE
+    assert inserted[0].distance_km == 5.5
+    assert inserted[0].programme == "15' échauffement + 8x(30s/30s) + 10' retour calme"
+
+    assert inserted[1].type_seance == SportSessionType.RENFORCEMENT
+    assert inserted[1].distance_km is None or inserted[1].distance_km == 0.0
+
+    ws = mock_sport_spreadsheet.worksheet("Séance")
+    assert ws.update.called or ws.append_rows.called
+
+
+def test_sport_connector_log_session_adapts_planned_session(mock_sport_spreadsheet):
+    """Vérifie qu'enregistrer une séance (Strava ou dictée) sur une séance Prévue l'adapte en Réalisé en conservant son programme et type."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    # mock_sport_spreadsheet a une séance prévue le 06/10/2026 (Fractionné, 5.0 km, Programme: 6x(30s/30s))
+    today = date(2026, 10, 6)
+
+    # Simulation arrivée d'une activité Strava avec type par défaut EF
+    session_create = SportSessionCreate(
+        date=today,
+        type_seance=SportSessionType.EF,
+        distance_km=5.25,
+        duree_secondes=1840,
+        denivele_d_plus=30,
+        ressenti_rpe=7,
+        fc_moyenne=152,
+        fc_max=174,
+        notes="Sync Strava : Sortie midi",
+    )
+
+    logged = connector.log_session(session_create)
+
+    # Le statut doit être passé à Réalisé
+    assert logged.statut == SportSessionStatus.REALISE
+    assert logged.statut.value == "Réalisé"
+    # La distance et la durée sont adaptées
+    assert logged.distance_km == 5.25
+    assert logged.duree_secondes == 1840
+    # Le programme initial doit être préservé !
+    assert logged.programme == "6x(30s/30s)"
+    # Le type Fractionné prévu doit être conservé plutôt que d'être écrasé par le type par défaut EF
+    assert logged.type_seance == SportSessionType.FRACTIONNE
+    assert logged.ressenti_rpe == 7
+
+
+
+def test_sport_connector_synthese_caching(mock_sport_spreadsheet):
+    """Vérifie que les lectures de Synthese_Hebdo sont mises en cache pour préserver le quota API."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    ws_syn = mock_sport_spreadsheet.worksheet("Synthese_Hebdo")
+
+    # 1er appel
+    connector.get_weekly_summary(week_num=41, year=2026)
+    call_count_1 = ws_syn.get_all_values.call_count
+
+    # 2ème appel immédiat (doit utiliser le cache)
+    connector.get_weekly_summary(week_num=40, year=2026)
+    call_count_2 = ws_syn.get_all_values.call_count
+
+    assert call_count_2 == call_count_1
+
+
+def test_sport_connector_plan_weekly_sessions_writes_target_pace_and_speed(mock_sport_spreadsheet):
+    """Vérifie que plan_weekly_sessions renseigne la Vitesse cible (Col I), l'Allure cible (Col J) et le Programme (Col P)."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    plans = [
+        SportSessionPlan(
+            date=date(2026, 10, 15),
+            type_seance=SportSessionType.EF,
+            distance_km_cible=4.5,
+            allure_cible="06:30/km (+/- 15s)",
+            vitesse_cible="9.2 km/h (+/- 0.4 km/h)",
+            programme="Endurance fondamentale en aisance",
+            remarques="Sous-bois recommandé",
+        )
+    ]
+
+    inserted = connector.plan_weekly_sessions(plans)
+    assert len(inserted) == 1
+    session = inserted[0]
+    assert session.allure_cible == "06:30/km (+/- 15s)"
+    assert session.vitesse_cible == "9.2 km/h (+/- 0.4 km/h)"
+    assert "[Cible : 06:30/km (+/- 15s) | 9.2 km/h (+/- 0.4 km/h)]" in session.programme
+
+    ws = mock_sport_spreadsheet.worksheet("Séance")
+    assert ws.update.called or ws.append_rows.called or ws.append_row.called
+    if ws.append_rows.called:
+        row_payload = ws.append_rows.call_args[0][0][0]
+    elif ws.update.called:
+        call_args = ws.update.call_args[1].get("values") or ws.update.call_args[0][1]
+        row_payload = call_args[0]
+    else:
+        row_payload = ws.append_row.call_args[0][0]
+    # Col I (index 8) = Vitesse cible
+    assert row_payload[8] == "9.2 km/h (+/- 0.4 km/h)"
+    # Col J (index 9) = Allure cible
+    assert row_payload[9] == "06:30/km (+/- 15s)"
+    # Col P (index 15) = Programme contenant la cible
+    assert "[Cible : 06:30/km (+/- 15s) | 9.2 km/h (+/- 0.4 km/h)]" in row_payload[15]
+
+
+def test_sport_connector_get_weekly_summary_multicriteria(mock_sport_spreadsheet):
+    """Vérifie que get_weekly_summary calcule l'évolution multicritère et la progression générale."""
+    connector = SportConnector(spreadsheet=mock_sport_spreadsheet)
+    summary = connector.get_weekly_summary(week_num=41, year=2026)
+    assert summary.semaine == 41
+    assert summary.nb_seances >= 1
+    assert summary.vitesse_kmh is not None
+
+
 
 

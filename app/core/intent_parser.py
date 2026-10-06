@@ -341,7 +341,7 @@ class IntentParser:
             command_cleaned,
             re.IGNORECASE,
         )
-        if set_meal_match and not re.search(r"\b(?:ingr[ée]dient|liste\s+(?:de\s+|des\s+)?courses?)\b", command_cleaned):
+        if set_meal_match and not re.search(r"\b(?:ingr[ée]dient|liste\s+(?:de\s+|des\s+)?courses?|semaine|s[ée]ance|course|running|sport|fractionn[ée]|renfo)\b", command_cleaned, re.IGNORECASE):
             raw_payload = set_meal_match.group(1).strip()
             resolved = resolve_date_expression(raw_payload)
             meal_candidate = resolved.cleaned_query if resolved.cleaned_query else raw_payload
@@ -707,6 +707,90 @@ class IntentParser:
                 raw_query=text,
             )
 
+        # 9.3 bis Confirmation / validation d'une séance ("j'ai fait ma séance d'aujourd'hui", "j'ai fait mon fractionné", "j'ai fait ça...")
+        confirm_seance_match = re.search(
+            r"(?:j[' ]?ai\s+fait|j[' ]?ai\s+terminé|valide|coche)\s+(?:ma|la|mon)?\s*(?:séance|seance|sortie|footing|fractionné|fractionne|course|entrainement|entraînement|renfo|renforcement|ça)(?:\s+(?:d[' ]aujourd[' ]hui|d[' ]hier|prévue|prevue))?",
+            cleaned,
+        ) or re.search(r"^j[' ]?ai\s+fait\s+ça\b", cleaned)
+        if confirm_seance_match:
+            params: Dict[str, Any] = {"validate_planned": True}
+            if "hier" in cleaned:
+                params["target_date"] = "hier"
+            else:
+                params["target_date"] = "today"
+
+            if any(w in cleaned for w in ["fractionné", "fractionne"]):
+                params["type_seance"] = "Fractionné"
+            elif any(w in cleaned for w in ["renfo", "renforcement", "ppg"]):
+                params["type_seance"] = "Renforcement"
+            elif any(w in cleaned for w in ["sortie longue"]):
+                params["type_seance"] = "Sortie Longue"
+            elif any(w in cleaned for w in ["ef", "footing"]):
+                params["type_seance"] = "EF"
+
+            # Distance optionnelle (ex: "j'ai fait ma sortie de 5.5 km")
+            dist_m = re.search(r"([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)", cleaned)
+            if dist_m:
+                params["distance_km"] = float(dist_m.group(1).replace(",", "."))
+
+            # Durée optionnelle (ex: "en 32 minutes")
+            dur_m = re.search(r"(?:en\s+)?([0-9]+)\s*(?:min(?:utes?)?)", cleaned)
+            if dur_m:
+                params["duration_seconds"] = int(dur_m.group(1)) * 60
+
+            # Ressenti RPE optionnel (ex: "ressenti 7")
+            rpe_match = re.search(r"ressenti\s*([0-9]+)", cleaned)
+            if rpe_match:
+                params["ressenti_rpe"] = int(rpe_match.group(1))
+
+            return ParsedIntent(
+                intent=IntentType.LOG_SPORT_SESSION,
+                confidence=0.95,
+                parameters=params,
+                raw_query=text,
+            )
+
+
+        # 9.2 ter Explication pédagogique d'un exercice de renforcement ou d'étirement
+        # (ex: "comment je fais l'exercice de mollets sur une marche ?", "explique-moi l'exercice pour le mollet bas", "comment faire le pont fessier ?")
+        is_explain_query = bool(
+            re.search(r"(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?|c[' ]est\s+quoi)\s+(?:l[' ]exercice|l[' ]exos?|le\s+mouvement|l[' ]étirement|l[' ]etirement|le\s+renfo)\b", cleaned) or
+            (re.search(r"\b(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?)\b", cleaned) and any(w in cleaned for w in ["mollet", "fessier", "gainage", "planche", "renfo", "étirer", "etirer", "étirement", "etirement"]))
+        )
+        if is_explain_query:
+            ex_target = re.sub(r"^(?:comment\s+(?:je\s+fais?|on\s+fait|faire|s[' ]étirer|s[' ]etirer)|explique(?:-moi)?|c[' ]est\s+quoi)\s+", "", cleaned).strip()
+            ex_target = re.sub(r"^(?:l[' ]exercice|l[' ]exos?|le\s+mouvement|l[' ]étirement|l[' ]etirement)\s+(?:de\s+|du\s+|pour\s+|sur\s+)?", "", ex_target).strip()
+            ex_target = re.sub(r"^(?:le|la|les|l'|du|de\s+la|des|un|une)\s+", "", ex_target).strip()
+            ex_target = re.sub(r"[?!.,;]+$", "", ex_target).strip()
+            return ParsedIntent(
+                intent=IntentType.EXPLAIN_SPORT_EXERCISE,
+                confidence=0.95,
+                parameters={"exercise": ex_target or cleaned},
+                raw_query=text,
+            )
+
+        # 9.2 bis Planification proactive de la semaine entière (Étape 6)
+        # (ex: "prévois-moi ma semaine d'entraînement", "que me conseilles-tu cette semaine ?", "planifie ma semaine de running")
+        if re.search(r"(?:planifie|prévois|programme|propose)(?:-moi)?\s+(?:ma\s+semaine|la\s+semaine|mes\s+séances\s+de\s+la\s+semaine)", cleaned) or \
+           re.search(r"(?:que\s+me\s+conseilles?[- ]tu|quels?\s+séances?)\s+(?:cette\s+semaine|pour\s+la\s+semaine)", cleaned) or \
+           re.search(r"(?:prévois|planifie|programme)(?:-moi)?\s+une\s+semaine\s+(?:allégée|de\s+repos|normale|d[' ]entraînement)", cleaned):
+            week_plan_params: Dict[str, Any] = {}
+            if any(w in cleaned for w in ["repos", "allégée", "allegee", "décharge", "decharge", "deload"]):
+                week_plan_params["is_deload"] = True
+            if "semaine prochaine" in cleaned:
+                next_iso = (date.today() + timedelta(days=7)).isocalendar()
+                week_plan_params["semaine"] = next_iso[1]
+                week_plan_params["annee"] = next_iso[0]
+            w_match = re.search(r"semaine\s+([0-9]+)", cleaned)
+            if w_match:
+                week_plan_params["semaine"] = int(w_match.group(1))
+
+            return ParsedIntent(
+                intent=IntentType.PLAN_WEEKLY_TRAINING,
+                confidence=0.95,
+                parameters=week_plan_params,
+                raw_query=text,
+            )
 
         # 9.3 Planification d'une séance future ("planifie-moi un fractionné jeudi...")
         if re.search(r"(?:planifie|prévois|programme)(?:-moi)?\s+(?:une?\s+)?(?:séance\s+de\s+)?(fractionné|sortie longue|footing|ef|tempo|seuil)", cleaned):

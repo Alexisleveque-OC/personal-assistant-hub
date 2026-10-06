@@ -15,10 +15,11 @@
 | **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | 🟢 Terminé | Validé par l'utilisateur | ✅ 11/11 tests dédiés (231/231 total) au vert |
 | **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (239/239 total) au vert |
 | **Étape 4** | Intégration `/api/v1/interact`, passerelle de synchronisation, colonnes BPM & import réel des 9 GPX | 🟢 Terminé | Validé par l'utilisateur | ✅ 6/6 tests dédiés (37/37 sport, 245+ total) au vert |
-| **Étape 5** | Renforcement Musculaire (Renfo/PPG) & Réajustement vocal a posteriori (RPE / Douleur Périostite) | 🟢 Terminé | En attente de validation utilisateur | ✅ 14/14 tests dédiés (51/51 sport, 259/259 total) au vert |
-| **Étape 6** | Cerveau LLM Otis : Analyse fine d'historique & Planification hebdomadaire proactive (gestion périostite) | ⚪ À faire | En attente | Tests LLM structured outputs & TDD |
-| **Étape 7** | Interface Graphique PWA Running (Dashboard, jauges charge, ajout rapide course/renfo) | ⚪ À faire | En attente | Tests de routes PWA & UI |
-| **Étape 8** | Test d'intégration End-to-End (E2E) complet & Validation smartphone en conditions réelles | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
+| **Étape 5** | Renforcement Musculaire (Renfo/PPG) & Réajustement vocal a posteriori (RPE / Douleur Périostite) | 🟢 Terminé | Validé par l'utilisateur | ✅ 14/14 tests dédiés (51/51 sport, 259/259 total) au vert |
+| **Étape 6** | Cerveau LLM Otis : Analyse fine d'historique & Planification hebdomadaire proactive (gestion périostite) | 🟢 Terminé | En cours de validation | ✅ 27/27 tests dédiés (78/78 sport, 286/286 total) au vert |
+| **Étape 7** | Interface Graphique PWA Running & Dashboard Visuel (Séance du jour, jauges, multi-échelles) | ⚪ À faire | En attente | Tests de routes PWA & UI |
+| **Étape 8** | Gamification, Anecdotes Insolites & Badges de Dopamine (PWA & Chronique Matinale) | ⚪ À faire | En attente | Tests unitaires modèles, règles & dopamine |
+| **Étape 9** | Test d'intégration End-to-End (E2E) complet & Validation finale | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
 
 ---
 
@@ -66,36 +67,67 @@
   3. Intention vocale `UPDATE_SPORT_SESSION` :
      - *« Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite »*
      - *« Otis, ajoute une note sur ma course de dimanche : douleur au tibia à J+2 »*
-* **Statut :** 🟢 Implémenté en TDD strict avec séparation des colonnes `Programme` (col P) et `Remarques` (col Q) + rétro-compatibilité 17 colonnes (53/53 tests sport, 262/262 tests globaux à 100% au vert). En attente de validation manuelle par Alexis.
+* **Statut :** 🟢 Validé et commité (`6082066`).
 
 ---
 
-### ⚪ Étape 6 : Cerveau LLM Otis : Analyse fine d'historique & Planification Hebdomadaire Proactive
+### 🟢 Étape 6 : Cerveau LLM Otis : Analyse fine d'historique & Planification Hebdomadaire Proactive
 * **Objectifs :**
   1. Connecter le LLM Gemini à l'historique complet des 4 dernières semaines et au contexte physiologique d'Alexis (antécédent de périostite, besoin de décharge post-compétition).
   2. Nouvelle intention `PLAN_WEEKLY_TRAINING` (*« Otis, prévois-moi ma semaine d'entraînement »*, *« Que me conseilles-tu cette semaine ? »*).
   3. Génération d'un plan hebdomadaire équilibré et personnalisé :
      - Alternance intelligente course / renforcement musculaire ciblé.
+     - Prescription complète et chirurgicale pour le renfo (exercices précis, séries, reps, tempo 3s, repos) pour être 100% autonome sans kiné.
      - Prise en compte de la périostite : conseils de terrains souples/herbe, étirements, limitation des chocs.
-     - Gestion des semaines de décharge (Deload post-course) sans brider le plafond des semaines futures.
-* **Critères de succès :** Tests de génération de plans pertinents et cohérents avec la physiologie d'Alexis.
+     - Gestion des semaines de décharge (Deload) déclenchées à l'écoute des signaux réels (RPE >= 8, surcharges, douleurs tibias) et non par une règle mécanique rigide.
+     - Cohérence des allures physiologiques : alignement de l'Endurance Fondamentale (EF) et de la Sortie Longue (SL) sur la Zone 2 d'aisance respiratoire (+/- marge de progression), avec durées strictes (30-35 min en EF, ~1h en SL).
+* **Critères de succès :** Tests de génération de plans pertinents et cohérents avec la physiologie d'Alexis, insertion réelle en lot des séances "Prévu" dans Google Sheets, affichage clair de l'allure ET de la vitesse cibles (+/-) dans les colonnes I, J et P, calcul multicritère de la synthèse hebdomadaire (Volume, Vitesse, Charge RPE et Progression Générale) excluant le renfo pour le calcul de vitesse de course, 78/78 tests sport au vert, 286/286 tests globaux au vert.
+* **Statut :** 🟢 Validé & opérationnel.
 
 ---
 
-### ⚪ Étape 7 : Interface Graphique PWA Running
+### ⚪ Étape 7 : Interface Graphique PWA Running & Dashboard Visuel
 * **Objectifs :**
-  1. Vue dédiée Running dans la PWA (`app/static/index.html`) avec design moderne et soigné.
-  2. Tableau de bord hebdomadaire (Km-Effort, Allure moy, Charge RPE, Alerte Sécurité, Plafond conseillé).
-  3. Historique interactif des séances (Course et Renfo).
-  4. Formulaire d'ajout rapide (Course ou Renforcement) en complément de la voix.
-  5. Affichage du conseil de la semaine d'Otis.
-* **Critères de succès :** Interface fluide, responsive et agréable sur smartphone.
+  1. **Vue interactive "Séance du Jour" (Prévu / Réalisé) :**
+     - Affichage de la séance planifiée ou réalisée avec badge de statut.
+     - Saisie manuelle directe (sans parler) : note RPE (curseur/boutons 1-10) et champ texte pour ajouter des remarques ou signaler une douleur de périostite.
+  2. **Récapitulatif & Comparateur de Séance :**
+     - Badges de couleurs parlantes comparant la séance du jour à la dernière séance du même type (Fractionné, EF, Sortie Longue) : vitesse, distance, km-effort.
+  3. **Tableau de Bord & Évolution Multi-Échelles :**
+     - **Semaine :** distance cumulée, km-effort, allure moy, charge RPE, comparaison par rapport à la moyenne des autres semaines et plafond sécurité.
+     - **Mois :** récapitulatif mensuel et volume accumulé.
+     - **Année :** vue macro et progression globale de la saison.
+  4. **Graphiques Visuels & Couleurs Parlantes :**
+     - Petits graphiques élégants et dynamiques (barres/courbes SVG/Canvas natifs réactifs) pour visualiser le volume et les allures au fil des semaines.
+  5. **Conseil & Alerte Périostite du Coach Otis :**
+     - Bulle conseil bienveillante adaptée au plan de la semaine.
+* **Critères de succès :** Interface fluide, dynamique, visuellement percutante ("qui claque"), parfaitement utilisable au doigt sur smartphone.
 
 ---
 
-### ⚪ Étape 8 : Test d'Intégration End-to-End (E2E) & Validation Finale
+### ⚪ Étape 8 : Gamification, Anecdotes Insolites & Badges de Dopamine (PWA & Chronique Matinale)
 * **Objectifs :**
-  1. Écrire le test d'intégration complet `tests/test_e2e_sport_running.py` couvrant l'ensemble du cycle de vie (consultation $\rightarrow$ log course $\rightarrow$ log renfo $\rightarrow$ modification de douleur a posteriori $\rightarrow$ planification par le LLM).
+  1. **Générateur d'Anecdotes Insolites & Culture G Running :**
+     - Moteur de conversion d'efforts cumulés (mensuels et annuels) en équivalences rigolotes et mémorables :
+       - *Équivalences géographiques :* "Cette année tu as couru 61 km, tu aurais pu rallier Annecy à Genève d'une seule traite !"
+       - *Équivalences verticales (D+) :* "1 000 m grimpés ce mois-ci : c'est 3 fois la Tour Eiffel ou le col du Galibier !"
+       - *Fun & Culture G :* faits insolites sur la vitesse, l'énergie dépensée, ou l'histoire de la course à pied.
+  2. **Badges & Système de Réussite (Doses de Dopamine bien dosées) :**
+     - Déclenchement d'accomplissements significatifs sans spam :
+       - *Paliers de distance :* Premier marathon cumulé (42.2 km), Centurion (100 km), 500 km, Cap des 1 000 km.
+       - *Paliers d'heures de sport :* 24h, 50h, 100h de pratique active.
+       - *Records personnels (PR) :* Meilleure allure moyenne sur 5 km, plus longue sortie en distance, régularité mensuelle.
+       - *Badges de résilience :* "Guerrier" (séance sous météo difficile), "Métronome" (4 semaines sans rater de séance).
+  3. **Intégration Double :**
+     - Affichage dans le récap PWA (carte trophées et badge débloqué).
+     - Exposition des anecdotes pour injection future dans la *Chronique Matinale* vocale (cf `SPEC.md`).
+* **Critères de succès :** Modèles de badges et d'anecdotes typés, détection automatique des nouveaux records/paliers lors du calcul des synthèses, tests unitaires dédiés.
+
+---
+
+### ⚪ Étape 9 : Test d'Intégration End-to-End (E2E) & Validation Finale
+* **Objectifs :**
+  1. Écrire le test d'intégration complet `tests/test_e2e_sport_running.py` couvrant l'ensemble du cycle de vie (consultation $\rightarrow$ log course $\rightarrow$ log renfo $\rightarrow$ modification de douleur a posteriori $\rightarrow$ planification par le LLM $\rightarrow$ déclenchement de badge/anecdote).
   2. 100% de la suite de tests au vert (zéro régression).
   3. Validation manuelle en conditions réelles par Alexis sur son smartphone et son Google Sheet.
 * **Critères de succès :** Validation totale et feu vert d'Alexis pour le merge sur `develop`.

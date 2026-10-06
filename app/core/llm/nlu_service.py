@@ -74,6 +74,8 @@ Liste des intentions disponibles :
      Paramètres : "week_num" (int), "year" (int).
    - plan_sport_session : planifier une future séance (ex: "Planifie-moi un fractionné jeudi", "Prévois 12 km dimanche", "Prévois 30 minutes de renfo vendredi").
      Paramètres : "target_date", "day_name", "type_seance", "distance_km", "notes".
+   - plan_weekly_training : générer proactivement le plan d'entraînement pour toute la semaine (ex: "Otis, prévois-moi ma semaine d'entraînement", "Que me conseilles-tu cette semaine ?", "Planifie ma semaine de running", "Otis, je voudrais faire 15 km samedi, prévois ma semaine", "Prévois une semaine de repos").
+     Paramètres : "week_num" (int), "year" (int), "is_deload" (bool), "user_wishes" (string).
 
 11. get_budget_balance : solde financier. Paramètre : "category" (courses, loisir, general).
 12. log_expense : enregistrer une dépense. Paramètres : "amount" (float), "category".
@@ -141,6 +143,8 @@ GEMINI_JSON_SCHEMA = {
                 "append_notes": {"type": "BOOLEAN"},
                 "week_num": {"type": "INTEGER"},
                 "year": {"type": "INTEGER"},
+                "is_deload": {"type": "BOOLEAN"},
+                "user_wishes": {"type": "STRING"},
             },
         },
         "conversational_reply": {"type": "STRING"},

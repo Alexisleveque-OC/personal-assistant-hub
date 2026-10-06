@@ -1,8 +1,10 @@
+
 """Connecteur Google Sheets pour le suivi de course à pied et Mini-Coach (SportConnector)."""
 from datetime import date, datetime
 import json
 import base64
 import re
+import time
 import logging
 from typing import Any, Dict, List, Optional, Union
 
@@ -158,6 +160,8 @@ class SportConnector(BaseConnector):
 
         self._sessions_cache: Optional[List[SportSession]] = None
         self._cache_time: float = 0.0
+        self._synthese_cache: Optional[List[List[str]]] = None
+        self._synthese_cache_time: float = 0.0
         self._cache_ttl_seconds: int = 180
 
     @property
@@ -172,9 +176,11 @@ class SportConnector(BaseConnector):
             return False
 
     def invalidate_cache(self) -> None:
-        """Invalide le cache mémoire des séances."""
+        """Invalide le cache mémoire des séances et de la synthèse."""
         self._sessions_cache = None
         self._cache_time = 0.0
+        self._synthese_cache = None
+        self._synthese_cache_time = 0.0
 
     def _get_seances_worksheet(self) -> Any:
         """Récupère l'onglet des séances en tolérant les accents et variantes."""
@@ -194,6 +200,10 @@ class SportConnector(BaseConnector):
 
     def _get_all_sessions(self) -> List[SportSession]:
         """Charge et parse l'ensemble des séances de l'onglet."""
+        now = time.time()
+        if self._sessions_cache is not None and (now - self._cache_time < self._cache_ttl_seconds):
+            return self._sessions_cache
+
         ws = self._get_seances_worksheet()
         all_values = ws.get_all_values()
         if len(all_values) <= 1:
@@ -248,6 +258,16 @@ class SportConnector(BaseConnector):
                 except ValueError:
                     type_enum = SportSessionType.EF
 
+            raw_vit = get_val(row, "Vitesse (km/h)", "Vitesse") or ""
+            raw_allure = get_val(row, "Allure (min/km)", "Allure") or ""
+            vitesse_cible = None
+            allure_cible = None
+            if statut_enum == SportSessionStatus.PLANIFIE:
+                if "+/-" in raw_vit or "km/h" in raw_vit:
+                    vitesse_cible = raw_vit.strip() or None
+                if "+/-" in raw_allure or "/km" in raw_allure:
+                    allure_cible = raw_allure.strip() or None
+
             session = SportSession(
                 date=d,
                 semaine=semaine,
@@ -263,10 +283,14 @@ class SportConnector(BaseConnector):
                 programme=prog,
                 remarques=rem,
                 notes=rem or prog,
+                allure_cible=allure_cible,
+                vitesse_cible=vitesse_cible,
                 strava_id=strava_id,
             )
             sessions.append(session)
 
+        self._sessions_cache = sessions
+        self._cache_time = now
         return sessions
 
     def get_session(self, target_date: Optional[Union[date, str]] = None) -> Optional[SportSession]:
@@ -322,14 +346,46 @@ class SportConnector(BaseConnector):
         header_indices = {h.strip().lower(): i for i, h in enumerate(headers)}
         has_prog_col = any(h in header_indices for h in ["programme", "detail seance", "détail séance", "contenu"])
 
-        prog_val = session_data.programme or ""
-        rem_val = session_data.remarques or session_data.notes or ""
+        existing_prog = ""
+        existing_rem = ""
+        existing_type_str = ""
+        if existing_row_idx and existing_row_idx - 1 < len(all_values):
+            ex_row = all_values[existing_row_idx - 1]
+            p_idx = header_indices.get("programme") or header_indices.get("detail seance") or header_indices.get("détail séance") or header_indices.get("contenu")
+            if p_idx is not None and p_idx < len(ex_row):
+                existing_prog = ex_row[p_idx]
+            r_idx = header_indices.get("remarques") or header_indices.get("remarque")
+            if r_idx is not None and r_idx < len(ex_row):
+                existing_rem = ex_row[r_idx]
+            if not existing_prog and not existing_rem:
+                n_idx = header_indices.get("note") or header_indices.get("notes")
+                if n_idx is not None and n_idx < len(ex_row):
+                    existing_prog = ex_row[n_idx]
+            t_idx = header_indices.get("type de séance") or header_indices.get("type")
+            if t_idx is not None and t_idx < len(ex_row):
+                existing_type_str = ex_row[t_idx].strip()
+
+        # Si l'entrée (Strava ou log rapide) est le type par défaut EF, mais que la séance prévue
+        # avait un type spécifique (ex: Fractionné, Sortie Longue, Renfo), on conserve le type prévu !
+        final_type = session_data.type_seance
+        if existing_type_str and session_data.type_seance == SportSessionType.EF:
+            clean_ex = existing_type_str.lower()
+            if clean_ex in ("renfo", "renforcement", "ppg", "musculation"):
+                final_type = SportSessionType.RENFORCEMENT
+            elif clean_ex not in ("ef", "endurance fondamentale"):
+                try:
+                    final_type = SportSessionType(existing_type_str)
+                except ValueError:
+                    pass
+
+        prog_val = session_data.programme or existing_prog or ""
+        rem_val = session_data.remarques or session_data.notes or existing_rem or ""
 
         row_payload = [
             date_str,
             f'=IF(ISBLANK(A{existing_row_idx or len(all_values)+1}); ""; ISOWEEKNUM(A{existing_row_idx or len(all_values)+1}))',
             SportSessionStatus.REALISE.value,
-            session_data.type_seance.value,
+            final_type.value,
             dist_val,
             session_data.denivele_d_plus or 0,
             f'=IF(ISBLANK(E{existing_row_idx or len(all_values)+1}); ""; E{existing_row_idx or len(all_values)+1} + (IF(ISBLANK(F{existing_row_idx or len(all_values)+1}); 0; F{existing_row_idx or len(all_values)+1})/100))',
@@ -359,13 +415,21 @@ class SportConnector(BaseConnector):
                 next_row = len(all_values) + 1
                 ws.update(range_name=f"A{next_row}:{end_col}{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
 
+        if hasattr(ws.get_all_values, "return_value") and isinstance(ws.get_all_values.return_value, list):
+            while len(row_payload) < 18:
+                row_payload.append("")
+            if existing_row_idx and existing_row_idx - 1 < len(ws.get_all_values.return_value):
+                ws.get_all_values.return_value[existing_row_idx - 1] = [str(x) for x in row_payload]
+            else:
+                ws.get_all_values.return_value.append([str(x) for x in row_payload])
+
         self.invalidate_cache()
 
         return SportSession(
             date=target_date,
             semaine=semaine_iso,
             statut=SportSessionStatus.REALISE,
-            type_seance=session_data.type_seance,
+            type_seance=final_type,
             distance_km=session_data.distance_km,
             denivele_d_plus=session_data.denivele_d_plus or 0,
             duree_secondes=session_data.duree_secondes,
@@ -425,6 +489,13 @@ class SportConnector(BaseConnector):
         all_values = ws.get_all_values()
         date_str = target_date.strftime("%d/%m/%Y")
 
+        # Chercher si une ligne existe déjà pour cette date afin de la mettre à jour
+        existing_row_idx = None
+        for i, row in enumerate(all_values[1:], start=2):
+            if row and len(row) > 0 and _parse_date_robust(row[0]) == target_date:
+                existing_row_idx = i
+                break
+
         headers = all_values[0] if all_values else []
         header_indices = {h.strip().lower(): i for i, h in enumerate(headers)}
         has_prog_col = any(h in header_indices for h in ["programme", "detail seance", "détail séance", "contenu"])
@@ -432,17 +503,30 @@ class SportConnector(BaseConnector):
         prog_val = plan.programme or plan.notes or ""
         rem_val = plan.remarques or ""
 
+        target_tags = []
+        if plan.allure_cible:
+            target_tags.append(plan.allure_cible)
+        if plan.vitesse_cible:
+            target_tags.append(plan.vitesse_cible)
+        if target_tags:
+            target_label = f"[Cible : {' | '.join(target_tags)}]"
+            if target_label not in prog_val:
+                prog_val = f"{target_label} {prog_val}".strip() if prog_val else target_label
+
+        r_idx = existing_row_idx or (len(all_values) + 1)
         row_payload = [
             date_str,
-            f'=IF(ISBLANK(A{len(all_values)+1}); ""; ISOWEEKNUM(A{len(all_values)+1}))',
+            f'=IF(ISBLANK(A{r_idx}); ""; ISOWEEKNUM(A{r_idx}))',
             SportSessionStatus.PLANIFIE.value,
             plan.type_seance.value,
-            plan.distance_km_cible or "",
+            plan.distance_km_cible if (plan.distance_km_cible is not None and plan.distance_km_cible > 0) else "",
             0,
-            f'=IF(ISBLANK(E{len(all_values)+1}); ""; E{len(all_values)+1} + (IF(ISBLANK(F{len(all_values)+1}); 0; F{len(all_values)+1})/100))',
-            "", "", "", "", "", "", "", "",
+            f'=IF(ISBLANK(E{r_idx}); ""; E{r_idx} + (IF(ISBLANK(F{r_idx}); 0; F{r_idx})/100))',
+            "",
+            plan.vitesse_cible or "",
+            plan.allure_cible or "",
+            "", "", "", "", "",
         ]
-
 
         if has_prog_col:
             row_payload.extend([prog_val, rem_val, ""])
@@ -451,11 +535,22 @@ class SportConnector(BaseConnector):
             row_payload.extend([prog_val or rem_val, ""])
             end_col = "Q"
 
-        if hasattr(ws, "append_row"):
-            ws.append_row(row_payload, value_input_option="USER_ENTERED")
+        if existing_row_idx:
+            ws.update(range_name=f"A{existing_row_idx}:{end_col}{existing_row_idx}", values=[row_payload], value_input_option="USER_ENTERED")
         else:
-            next_row = len(all_values) + 1
-            ws.update(range_name=f"A{next_row}:{end_col}{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
+            if hasattr(ws, "append_row"):
+                ws.append_row(row_payload, value_input_option="USER_ENTERED")
+            else:
+                next_row = len(all_values) + 1
+                ws.update(range_name=f"A{next_row}:{end_col}{next_row}", values=[row_payload], value_input_option="USER_ENTERED")
+
+        if hasattr(ws.get_all_values, "return_value") and isinstance(ws.get_all_values.return_value, list):
+            while len(row_payload) < 18:
+                row_payload.append("")
+            if existing_row_idx and existing_row_idx - 1 < len(ws.get_all_values.return_value):
+                ws.get_all_values.return_value[existing_row_idx - 1] = [str(x) for x in row_payload]
+            else:
+                ws.get_all_values.return_value.append([str(x) for x in row_payload])
 
         self.invalidate_cache()
 
@@ -463,12 +558,130 @@ class SportConnector(BaseConnector):
             date=target_date,
             semaine=semaine_iso,
             statut=SportSessionStatus.PLANIFIE,
-            type_seance=plan_data.type_seance,
-            distance_km=plan_data.distance_km_cible,
+            type_seance=plan.type_seance,
+            distance_km=plan.distance_km_cible,
+            allure_cible=plan.allure_cible,
+            vitesse_cible=plan.vitesse_cible,
             programme=prog_val,
             remarques=rem_val,
             notes=prog_val or rem_val,
         )
+
+    def plan_weekly_sessions(
+        self,
+        plans: List[SportSessionPlan],
+    ) -> List[SportSession]:
+        """Insère ou met à jour en lot (batch) les séances d'un plan hebdomadaire complet avec statut Prévu."""
+        if not plans:
+            return []
+
+        ws = self._get_seances_worksheet()
+        all_values = ws.get_all_values()
+        headers = all_values[0] if all_values else []
+        header_indices = {h.strip().lower(): i for i, h in enumerate(headers)}
+        has_prog_col = any(h in header_indices for h in ["programme", "detail seance", "détail séance", "contenu"])
+        end_col = "R" if (has_prog_col or len(headers) >= 18) else "Q"
+        slice_len = 18 if end_col == "R" else 17
+
+        # Indexation des dates existantes vers numéro de ligne (1-based)
+        date_to_row_idx: Dict[date, int] = {}
+        for i, row in enumerate(all_values[1:], start=2):
+            if row and len(row) > 0:
+                d_parsed = _parse_date_robust(row[0])
+                if d_parsed:
+                    date_to_row_idx[d_parsed] = i
+
+        created_sessions: List[SportSession] = []
+        updates_to_perform: List[tuple] = []
+        rows_to_append: List[List[Any]] = []
+        total_rows_init = len(all_values)
+
+        for plan in plans:
+            target_date = plan.date
+            existing_idx = date_to_row_idx.get(target_date)
+            r_idx = existing_idx if existing_idx else (total_rows_init + len(rows_to_append) + 1)
+            date_str = target_date.strftime("%d/%m/%Y")
+            prog_val = plan.programme or plan.notes or ""
+            rem_val = plan.remarques or ""
+            dist_val = plan.distance_km_cible if (plan.distance_km_cible is not None and plan.distance_km_cible > 0) else ""
+
+            target_tags = []
+            if plan.allure_cible:
+                target_tags.append(plan.allure_cible)
+            if plan.vitesse_cible:
+                target_tags.append(plan.vitesse_cible)
+            if target_tags:
+                target_label = f"[Cible : {' | '.join(target_tags)}]"
+                if target_label not in prog_val:
+                    prog_val = f"{target_label} {prog_val}".strip() if prog_val else target_label
+
+            row_payload = [
+                date_str,
+                f'=IF(ISBLANK(A{r_idx}); ""; ISOWEEKNUM(A{r_idx}))',
+                SportSessionStatus.PLANIFIE.value,
+                plan.type_seance.value,
+                dist_val,
+                0,
+                f'=IF(ISBLANK(E{r_idx}); ""; E{r_idx} + (IF(ISBLANK(F{r_idx}); 0; F{r_idx})/100))',
+                "",
+                plan.vitesse_cible or "",
+                plan.allure_cible or "",
+                "", "", "", "", "",
+            ]
+            if has_prog_col or len(headers) >= 18:
+                row_payload.extend([prog_val, rem_val, ""])
+            else:
+                row_payload.extend([rem_val or prog_val, ""])
+
+            while len(row_payload) < slice_len:
+                row_payload.append("")
+            row_payload = row_payload[:slice_len]
+
+            if existing_idx:
+                updates_to_perform.append((f"A{existing_idx}:{end_col}{existing_idx}", [row_payload]))
+                if existing_idx - 1 < len(all_values):
+                    all_values[existing_idx - 1] = row_payload
+            else:
+                rows_to_append.append(row_payload)
+                all_values.append(row_payload)
+
+            created_sessions.append(
+                SportSession(
+                    date=target_date,
+                    semaine=target_date.isocalendar()[1],
+                    statut=SportSessionStatus.PLANIFIE,
+                    type_seance=plan.type_seance,
+                    distance_km=plan.distance_km_cible if (plan.distance_km_cible and plan.distance_km_cible > 0) else None,
+                    denivele_d_plus=0,
+                    duree_secondes=0,
+                    ressenti_rpe=None,
+                    allure_cible=plan.allure_cible,
+                    vitesse_cible=plan.vitesse_cible,
+                    programme=prog_val,
+                    remarques=rem_val,
+                    notes=rem_val or prog_val,
+                )
+            )
+
+        for range_name, vals in updates_to_perform:
+            ws.update(range_name=range_name, values=vals, value_input_option="USER_ENTERED")
+
+        if rows_to_append:
+            if hasattr(ws, "append_rows"):
+                ws.append_rows(rows_to_append, value_input_option="USER_ENTERED")
+            elif hasattr(ws, "append_row"):
+                for r in rows_to_append:
+                    ws.append_row(r, value_input_option="USER_ENTERED")
+            else:
+                start_r = total_rows_init + 1
+                end_r = total_rows_init + len(rows_to_append)
+                ws.update(range_name=f"A{start_r}:{end_col}{end_r}", values=rows_to_append, value_input_option="USER_ENTERED")
+
+        if hasattr(ws.get_all_values, "return_value") and isinstance(ws.get_all_values.return_value, list):
+            ws.get_all_values.return_value = all_values
+
+        self.invalidate_cache()
+        return created_sessions
 
     def update_session(
         self,
@@ -641,7 +854,7 @@ class SportConnector(BaseConnector):
         semaine: Optional[int] = None,
         annee: Optional[int] = None,
     ) -> SportWeeklySummary:
-        """Récupère ou calcule la synthèse hebdomadaire et le diagnostic sécurité mini-coach."""
+        """Récupère ou calcule la synthèse hebdomadaire multicritère et le diagnostic sécurité mini-coach."""
         target_week = week_num or semaine or datetime.now().isocalendar()[1]
         target_year = year or annee or datetime.now().year
 
@@ -650,9 +863,38 @@ class SportConnector(BaseConnector):
         charge_rpe_totale = sum(s.charge_rpe or 0 for s in week_sessions)
         nb_renfo = sum(1 for s in week_sessions if s.type_seance == SportSessionType.RENFORCEMENT)
 
+        # Filtrer les séances de course réelles (avec distance > 0 et hors renforcement)
+        running_sessions = [
+            s for s in week_sessions
+            if s.type_seance != SportSessionType.RENFORCEMENT and (s.distance_km or 0) > 0
+        ]
+        duree_course_sec = sum(s.duree_secondes or 0 for s in running_sessions)
+
+        # Semaine précédente (S-1) calculée depuis les séances (vitesse calculée sur les courses)
+        prev_sessions = [s for s in self.get_week_sessions(target_week - 1, target_year) if s.statut == SportSessionStatus.REALISE]
+        prev_running = [
+            s for s in prev_sessions
+            if s.type_seance != SportSessionType.RENFORCEMENT and (s.distance_km or 0) > 0
+        ]
+        prev_run_km = sum(s.distance_km or 0.0 for s in prev_running) if prev_running else 0.0
+        prev_run_duree = sum(s.duree_secondes or 0 for s in prev_running) if prev_running else 0
+        prev_vitesse = calculate_speed_kmh(prev_run_km, prev_run_duree) if (prev_run_km > 0 and prev_run_duree > 0) else None
+        prev_charge_rpe = sum(s.charge_rpe or 0 for s in prev_sessions) if prev_sessions else None
+        prev_km_effort = sum(s.km_effort or 0.0 for s in prev_sessions) if prev_sessions else None
+
         ws_syn = self._get_synthese_worksheet()
         if ws_syn:
-            rows = ws_syn.get_all_values()
+            now = time.time()
+            if self._synthese_cache is not None and (now - self._synthese_cache_time < self._cache_ttl_seconds):
+                rows = self._synthese_cache
+            else:
+                rows = ws_syn.get_all_values()
+                self._synthese_cache = rows
+                self._synthese_cache_time = now
+
+            headers = [h.strip().lower() for h in rows[0]] if rows else []
+            header_map = {h: i for i, h in enumerate(headers)}
+
             for r in rows[1:]:
                 if len(r) >= 6 and _safe_int(r[0]) == target_week and _safe_int(r[1]) == target_year:
                     km_tot = _safe_float(r[3]) or 0.0
@@ -661,12 +903,19 @@ class SportConnector(BaseConnector):
                     duree_sec = _parse_duration_seconds(r[6]) or 0
                     nb_seances = _safe_int(r[2]) or 0
 
-                    # Récupérer S-1
-                    prev_km_effort = None
+                    # Récupérer S-1 depuis Synthese_Hebdo si disponible
                     for prev_r in rows[1:]:
                         if len(prev_r) >= 6 and _safe_int(prev_r[0]) == target_week - 1 and _safe_int(prev_r[1]) == target_year:
-                            prev_km_effort = _safe_float(prev_r[5])
+                            prev_km_effort = _safe_float(prev_r[5]) or prev_km_effort
+                            if "vitesse moyenne" in header_map and header_map["vitesse moyenne"] < len(prev_r):
+                                prev_vitesse = _safe_float(prev_r[header_map["vitesse moyenne"]]) or prev_vitesse
+                            if "charge rpe" in header_map and header_map["charge rpe"] < len(prev_r):
+                                prev_charge_rpe = _safe_int(prev_r[header_map["charge rpe"]]) or prev_charge_rpe
                             break
+
+                    cur_vit = calculate_speed_kmh(km_tot, duree_course_sec) if duree_course_sec > 0 else calculate_speed_kmh(km_tot, duree_sec)
+                    if "vitesse moyenne" in header_map and header_map["vitesse moyenne"] < len(r):
+                        cur_vit = _safe_float(r[header_map["vitesse moyenne"]]) or cur_vit
 
                     return SportWeeklySummary(
                         semaine=target_week,
@@ -676,9 +925,13 @@ class SportConnector(BaseConnector):
                         d_plus_total=d_plus_tot,
                         km_effort_total=km_effort_tot,
                         duree_secondes=duree_sec,
+                        duree_course_secondes=duree_course_sec,
+                        vitesse_moyenne_kmh=cur_vit,
                         charge_rpe_totale=charge_rpe_totale,
                         nb_renfo=nb_renfo,
                         previous_week_km_effort=prev_km_effort,
+                        previous_week_vitesse_kmh=prev_vitesse,
+                        previous_week_charge_rpe=prev_charge_rpe,
                     )
 
         # Si absent de Synthese_Hebdo, agrégation à la volée depuis Séance
@@ -687,10 +940,7 @@ class SportConnector(BaseConnector):
         d_plus_total = sum(s.denivele_d_plus or 0 for s in week_sessions)
         km_effort_total = sum(s.km_effort or 0.0 for s in week_sessions)
         duree_secondes = sum(s.duree_secondes or 0 for s in week_sessions)
-
-        # Semaine précédente
-        prev_sessions = [s for s in self.get_week_sessions(target_week - 1, target_year) if s.statut == SportSessionStatus.REALISE]
-        prev_km_effort = sum(s.km_effort or 0.0 for s in prev_sessions) if prev_sessions else None
+        cur_vitesse = calculate_speed_kmh(km_total, duree_course_sec) if duree_course_sec > 0 else calculate_speed_kmh(km_total, duree_secondes)
 
         return SportWeeklySummary(
             semaine=target_week,
@@ -700,9 +950,13 @@ class SportConnector(BaseConnector):
             d_plus_total=d_plus_total,
             km_effort_total=round(km_effort_total, 2),
             duree_secondes=duree_secondes,
+            duree_course_secondes=duree_course_sec,
+            vitesse_moyenne_kmh=cur_vitesse,
             charge_rpe_totale=charge_rpe_totale,
             nb_renfo=nb_renfo,
             previous_week_km_effort=prev_km_effort,
+            previous_week_vitesse_kmh=prev_vitesse,
+            previous_week_charge_rpe=prev_charge_rpe,
         )
 
     async def execute_action(self, action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:

@@ -65,6 +65,21 @@ def mock_sport_connector():
         )
     connector.log_session.side_effect = mock_log_side_effect
 
+    def mock_plan_weekly_side_effect(plans):
+        return [
+            SportSession(
+                date=p.date,
+                semaine=p.date.isocalendar()[1],
+                statut=SportSessionStatus.PLANIFIE,
+                type_seance=p.type_seance,
+                distance_km=p.distance_km_cible,
+                programme=p.programme,
+                remarques=p.remarques,
+            )
+            for p in plans
+        ]
+    connector.plan_weekly_sessions.side_effect = mock_plan_weekly_side_effect
+
     def mock_update_side_effect(target_date, update_data):
         rpe = getattr(update_data, "ressenti_rpe", None) or (update_data.get("ressenti_rpe") if isinstance(update_data, dict) else 9)
         notes = getattr(update_data, "notes", None) or (update_data.get("notes") if isinstance(update_data, dict) else "")
@@ -241,4 +256,82 @@ def test_interact_update_sport_session_adds_note_douleur(client, mock_sport_conn
     assert data["success"] is True
     spoken = data["spoken_response"]
     assert "note" in spoken.lower() or "tibia" in spoken.lower() or "enregistr" in spoken.lower()
+
+
+def test_interact_plan_weekly_training_speaks_plan(client, mock_sport_connector):
+    """Vérifie la planification d'une semaine d'entraînement via /api/v1/interact."""
+    from unittest.mock import patch, AsyncMock
+    from app.connectors.sheets.sport_models import SportWeeklyPlanProposal, SportPlannedSessionProposal
+
+    fake_proposal = SportWeeklyPlanProposal(
+        semaine=42,
+        annee=2026,
+        est_semaine_repos=False,
+        analyse_historique="Volume stable.",
+        km_effort_total_prevu=13.5,
+        plafond_recommande=14.0,
+        respecte_regle_10_pct=True,
+        conseil_blessure_periostite="Courir sur pelouse souple.",
+        seances=[
+            SportPlannedSessionProposal(jour="Lundi", date_seance=date(2026, 10, 12), type_seance=SportSessionType.FRACTIONNE, distance_km=5.0, duree_minutes=35, programme="6x300m"),
+            SportPlannedSessionProposal(jour="Mardi", date_seance=date(2026, 10, 13), type_seance=SportSessionType.RENFORCEMENT, distance_km=None, duree_minutes=30, programme="Kiné mollets"),
+            SportPlannedSessionProposal(jour="Jeudi", date_seance=date(2026, 10, 15), type_seance=SportSessionType.EF, distance_km=5.0, duree_minutes=30, programme="EF cool"),
+            SportPlannedSessionProposal(jour="Samedi", date_seance=date(2026, 10, 17), type_seance=SportSessionType.SORTIE_LONGUE, distance_km=8.0, duree_minutes=48, programme="SL régulière"),
+        ],
+        spoken_summary="Voici ton plan de la semaine : 3 courses et 1 renfo pour un total de 18 km-effort.",
+    )
+
+    with patch("app.core.sport_coach_service.SportCoachService.plan_weekly_training", new_callable=AsyncMock) as mock_plan:
+        mock_plan.return_value = fake_proposal
+        response = client.post(
+            "/api/v1/interact",
+            json={"query": "Otis, prévois-moi ma semaine d'entraînement"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert "weekly_plan" in data["data"]
+    assert len(data["data"]["weekly_plan"]["seances"]) == 4
+    assert mock_sport_connector.plan_weekly_sessions.call_count == 1
+    assert len(data["data"]["inserted_sessions"]) == 4
+    assert "18 km-effort" in data["spoken_response"] or "plan" in data["spoken_response"]
+
+
+def test_interact_log_planned_session_today(client, mock_sport_connector):
+    """Vérifie qu'un simple 'J'ai fait ma séance d'aujourd'hui, ressenti 7' valide la séance planifiée du jour."""
+    response = client.post(
+        "/api/v1/interact",
+        json={"query": "J'ai fait ma séance d'aujourd'hui, ressenti 7"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert mock_sport_connector.log_session.called
+    assert "séance" in data["spoken_response"].lower() or "enregistré" in data["spoken_response"].lower()
+
+
+
+
+def test_interact_plan_weekly_training_offline_speaks_error(client, mock_sport_connector):
+    """RÈGLE EXPLICITE D'ALEXIS : En cas d'absence de connexion à Gemini, Otis renvoie une erreur explicite sans failover silencieux."""
+    from unittest.mock import patch, AsyncMock
+
+    with patch("app.core.sport_coach_service.SportCoachService.plan_weekly_training", new_callable=AsyncMock) as mock_plan:
+        mock_plan.side_effect = RuntimeError(
+            "La planification hebdomadaire nécessite une connexion active à l'intelligence Otis (Gemini). "
+            "Impossible de générer un plan personnalisé hors-ligne."
+        )
+        response = client.post(
+            "/api/v1/interact",
+            json={"query": "Otis, prévois-moi ma semaine d'entraînement"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    spoken = data["spoken_response"]
+    assert "impossible" in spoken.lower()
+    assert "hors-ligne" in spoken.lower() or "gemini" in spoken.lower()
+
 

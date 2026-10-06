@@ -143,3 +143,55 @@ def test_gemini_nlu_response_validates_update_sport_session():
     assert response.intent == IntentType.UPDATE_SPORT_SESSION
     assert response.parameters["ressenti_rpe"] == 9
 
+
+def test_local_parser_detects_plan_weekly_training():
+    """Détecte la demande de planification hebdomadaire globale."""
+    parser = IntentParser()
+    parsed = parser.parse("Otis, prévois-moi ma semaine d'entraînement")
+
+    assert parsed.intent == IntentType.PLAN_WEEKLY_TRAINING
+    assert parsed.confidence >= 0.90
+
+
+def test_local_parser_detects_plan_weekly_training_deload():
+    """Détecte la demande de semaine allégée ou de repos."""
+    parser = IntentParser()
+    parsed = parser.parse("Prévois une semaine de repos")
+
+    assert parsed.intent == IntentType.PLAN_WEEKLY_TRAINING
+    assert parsed.parameters.get("is_deload") is True
+
+
+def test_gemini_nlu_response_validates_plan_weekly_training():
+    """Vérifie que LLMNLUResponse valide l'intention PLAN_WEEKLY_TRAINING."""
+    response = LLMNLUResponse(
+        intent=IntentType.PLAN_WEEKLY_TRAINING,
+        confidence=0.98,
+        parameters={"user_wishes": "15 km samedi", "is_deload": False},
+        conversational_reply="Je prépare ton plan personnalisé en analysant tes 4 dernières semaines.",
+    )
+    assert response.intent == IntentType.PLAN_WEEKLY_TRAINING
+    assert response.parameters["user_wishes"] == "15 km samedi"
+
+
+def test_local_parser_detects_log_planned_session_confirmation():
+    """Détecte la confirmation de réalisation d'une séance prévue (ex: 'J'ai fait ma séance d'aujourd'hui', 'J'ai fait mon fractionné')."""
+    parser = IntentParser()
+
+    p1 = parser.parse("J'ai fait ma séance d'aujourd'hui")
+    assert p1.intent == IntentType.LOG_SPORT_SESSION
+    assert p1.parameters.get("target_date") in ("today", "aujourd'hui")
+
+    p2 = parser.parse("J'ai fait ma séance")
+    assert p2.intent == IntentType.LOG_SPORT_SESSION
+
+    p3 = parser.parse("J'ai fait mon fractionné")
+    assert p3.intent == IntentType.LOG_SPORT_SESSION
+    assert p3.parameters.get("type_seance") == "Fractionné"
+
+    p4 = parser.parse("J'ai fait ça, ressenti 7")
+    assert p4.intent == IntentType.LOG_SPORT_SESSION
+    assert p4.parameters.get("ressenti_rpe") == 7
+
+
+
