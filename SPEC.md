@@ -171,3 +171,23 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [ ] Intégration des APIs d'équipements connectés
   - [ ] Intentions de commande et de statut (`toggle_device`, `get_device_status`)
 
+---
+
+## 4. Dette Technique & Refactoring Architectural (Planifié)
+
+### Refactoring Modulaire de `app/main.py` (> 1200 lignes)
+* **Constat :** `app/main.py` centralise actuellement la configuration FastAPI, les routes système, l'adaptateur mobile, le grand bloc d'aiguillage des intentions (`match parsed.intent`), les endpoints repas, sport, webhooks et la PWA. Cette concentration nuit à la lisibilité et à la maintenabilité.
+* **Architecture cible (Clean Architecture & FastAPI Routers) :**
+  1. **Découpage en APIRouters dédiés (`app/routers/`) :**
+     * `routers/system.py` : routes de santé (`/health`, `/`), métriques LLM, préchauffage cache.
+     * `routers/interact.py` : point d'entrée universel `/api/v1/interact` et analyse NLU `/api/v1/intent/parse`.
+     * `routers/mobile.py` : adaptateur Android HTTP Shortcuts `/api/v1/mobile/interact`.
+     * `routers/meals.py` : endpoints planning repas et ingrédients (`/api/v1/meals/*`).
+     * `routers/sport.py` : synchronisation d'activités, webhooks et futur dashboard running (`/api/v1/sport/*`).
+     * `routers/pwa.py` : routes statiques PWA (`/app`, `/manifest.json`, `/sw.js`).
+  2. **Extraction du Dispatcher d'Intentions (`app/core/dispatcher.py`) :**
+     * Déplacer la logique métier des branches `case IntentType.*` dans des handlers spécialisés (`meals_handler`, `sport_handler`, `tasks_handler`, etc.) afin que les contrôleurs HTTP restent ultra-légers.
+  3. **`app/main.py` épuré (< 80 lignes) :**
+     * Rôle unique : assemblage de l'application FastAPI, middlewares (CORS), cycle de vie (`lifespan`) et inclusion des routeurs (`app.include_router(...)`).
+
+
