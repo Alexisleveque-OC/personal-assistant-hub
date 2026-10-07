@@ -18,6 +18,8 @@ class SportSessionType(str, Enum):
     EF = "EF"  # Endurance Fondamentale
     FRACTIONNE = "Fractionné"
     SORTIE_LONGUE = "Sortie Longue"
+    COURSE = "Course"
+    VITESSE = "Vitesse"
     TEMPO = "Tempo"
     RECUP = "Récup"
     RENFORCEMENT = "Renforcement"
@@ -514,3 +516,23 @@ class SportGamificationSummary(BaseModel):
     announcements: List[str] = Field(default_factory=list, description="Annonces marquantes et jalons majeurs")
     daily_spotlight: Optional[str] = Field(default=None, description="Annonce du jour d'Otis (ex: Aujourd'hui on passe le cap des 100 km !)")
     next_target_message: Optional[str] = None
+
+
+# --- Modèles de réponses d'historique (Étape 2) ---
+
+class SportSessionsListResponse(BaseModel):
+    """Réponse paginée pour l'historique complet des séances de course et renforcement."""
+    sessions: List[SportSession] = Field(default_factory=list, description="Liste des séances triées")
+    total: int = Field(0, description="Nombre total de séances correspondant aux filtres")
+
+
+class SportWeeklySummaryWithSessions(BaseModel):
+    """Synthèse hebdomadaire accompagnée de ses séances détaillées."""
+    summary: SportWeeklySummary = Field(..., description="Données agrégées de la semaine")
+    seances: List[SportSession] = Field(default_factory=list, description="Séances composant cette semaine")
+
+
+class SportSummariesListResponse(BaseModel):
+    """Réponse pour l'historique des semaines d'entraînement."""
+    summaries: List[SportWeeklySummaryWithSessions] = Field(default_factory=list, description="Liste des synthèses hebdomadaires")
+    total: int = Field(0, description="Nombre total de semaines disponibles")

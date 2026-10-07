@@ -264,8 +264,23 @@ class SportConnector(BaseConnector):
 
             statut_enum = SportSessionStatus.REALISE if "réalisé" in statut_str.lower() else SportSessionStatus.PLANIFIE
             type_clean = type_str.strip()
-            if type_clean.lower() in ("renfo", "renforcement", "ppg", "musculation"):
+            type_lower = type_clean.lower()
+            if type_lower in ("renfo", "renforcement", "ppg", "musculation"):
                 type_enum = SportSessionType.RENFORCEMENT
+            elif type_lower in ("fractionné", "fractionne"):
+                type_enum = SportSessionType.FRACTIONNE
+            elif type_lower in ("sortie longue", "sortie_longue"):
+                type_enum = SportSessionType.SORTIE_LONGUE
+            elif type_lower in ("course", "running"):
+                type_enum = SportSessionType.COURSE
+            elif type_lower == "vitesse":
+                type_enum = SportSessionType.VITESSE
+            elif type_lower == "tempo":
+                type_enum = SportSessionType.TEMPO
+            elif type_lower in ("récup", "recup"):
+                type_enum = SportSessionType.RECUP
+            elif type_lower in ("ef", "endurance fondamentale"):
+                type_enum = SportSessionType.EF
             else:
                 try:
                     type_enum = SportSessionType(type_clean)
@@ -999,6 +1014,56 @@ class SportConnector(BaseConnector):
             previous_week_vitesse_kmh=prev_vitesse,
             previous_week_charge_rpe=prev_charge_rpe,
         )
+
+    def get_all_summaries(self, year: Optional[int] = None) -> List[SportWeeklySummary]:
+        """Retourne la liste de toutes les synthèses hebdomadaires ordonnées chronologiquement de façon décroissante."""
+        ws_syn = self._get_synthese_worksheet()
+        summaries: List[SportWeeklySummary] = []
+        weeks_seen = set()
+
+        if ws_syn:
+            now = time.time()
+            if self._synthese_cache is not None and (now - self._synthese_cache_time < self._cache_ttl_seconds):
+                rows = self._synthese_cache
+            else:
+                rows = ws_syn.get_all_values()
+                self._synthese_cache = rows
+                self._synthese_cache_time = now
+
+            if len(rows) > 1:
+                pairs = []
+                for r in rows[1:]:
+                    if len(r) >= 2:
+                        w = _safe_int(r[0])
+                        y = _safe_int(r[1])
+                        if w is not None and y is not None:
+                            if year is not None and y != year:
+                                continue
+                            if (w, y) not in weeks_seen:
+                                weeks_seen.add((w, y))
+                                pairs.append((y, w))
+                pairs.sort(reverse=True)
+                for y, w in pairs:
+                    summaries.append(self.get_weekly_summary(week_num=w, year=y))
+                return summaries
+
+        # Fallback si pas de Synthese_Hebdo ou onglet vide : calcul dynamique depuis les séances
+        all_sessions = self.get_all_sessions()
+        pairs = []
+        for s in all_sessions:
+            iso_year, iso_week, _ = s.date.isocalendar()
+            w = s.semaine or iso_week
+            y = iso_year
+            if year is not None and y != year:
+                continue
+            if (w, y) not in weeks_seen:
+                weeks_seen.add((w, y))
+                pairs.append((y, w))
+
+        pairs.sort(reverse=True)
+        for y, w in pairs:
+            summaries.append(self.get_weekly_summary(week_num=w, year=y))
+        return summaries
 
     async def execute_action(self, action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Exécute une action standardisée sur le connecteur sport."""

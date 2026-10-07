@@ -4,34 +4,49 @@ import {
   fetchSportTodayData,
   fetchSportDashboardData,
   fetchSportGamificationData,
+  fetchSportSessionsData,
+  fetchSportSummariesData,
   patchSportSession,
 } from "../api.js";
 
 const sportTodayContainer = document.getElementById("sport-today-container");
+const sportSessionsContainer = document.getElementById("sport-sessions-container");
+const sportSummariesContainer = document.getElementById("sport-summaries-container");
 const sportDashboardContainer = document.getElementById("sport-dashboard-container");
+const sportGamificationContainer = document.getElementById("sport-gamification-container");
 const sportCoachBubble = document.getElementById("sport-coach-bubble");
+
 const tabSportToday = document.getElementById("tab-sport-today");
+const tabSportSessions = document.getElementById("tab-sport-sessions");
+const tabSportSummaries = document.getElementById("tab-sport-summaries");
 const tabSportDash = document.getElementById("tab-sport-dash");
 const tabSportGamification = document.getElementById("tab-sport-gamification");
-const sportGamificationContainer = document.getElementById("sport-gamification-container");
 const sportTodayBadgeDate = document.getElementById("sport-today-badge-date");
 
 export function switchSportSubview(subview) {
   state.currentSportSubview = subview;
   if (tabSportToday) tabSportToday.classList.toggle("active", subview === "today");
+  if (tabSportSessions) tabSportSessions.classList.toggle("active", subview === "sessions");
+  if (tabSportSummaries) tabSportSummaries.classList.toggle("active", subview === "summaries");
   if (tabSportDash) tabSportDash.classList.toggle("active", subview === "dashboard");
   if (tabSportGamification) tabSportGamification.classList.toggle("active", subview === "gamification");
 
   if (sportTodayContainer) sportTodayContainer.style.display = subview === "today" ? "block" : "none";
+  if (sportSessionsContainer) sportSessionsContainer.style.display = subview === "sessions" ? "block" : "none";
+  if (sportSummariesContainer) sportSummariesContainer.style.display = subview === "summaries" ? "block" : "none";
   if (sportDashboardContainer) sportDashboardContainer.style.display = subview === "dashboard" ? "block" : "none";
   if (sportGamificationContainer) sportGamificationContainer.style.display = subview === "gamification" ? "block" : "none";
 
-  if (sportCoachBubble && subview === "gamification") {
-    sportCoachBubble.style.display = "none";
+  if (sportCoachBubble) {
+    sportCoachBubble.style.display = (subview === "today") ? "flex" : "none";
   }
 
   if (subview === "today") {
     fetchSportToday();
+  } else if (subview === "sessions") {
+    fetchSportSessions();
+  } else if (subview === "summaries") {
+    fetchSportSummaries();
   } else if (subview === "dashboard") {
     fetchSportDashboard(state.currentSportScale);
   } else if (subview === "gamification") {
@@ -571,8 +586,444 @@ export function renderSportGamification(data) {
   sportGamificationContainer.innerHTML = html;
 }
 
+// ==========================================================================
+// HISTORIQUE CHRONOLOGIQUE DES SÉANCES (Étape 3)
+// ==========================================================================
+
+export function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) {
+    return `${h}h${m < 10 ? "0" + m : m}min`;
+  }
+  return `${m} min${s > 0 ? " " + s + "s" : ""}`;
+}
+
+export function formatDateFr(dateStr) {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+export function getTypeClass(typeSeance) {
+  if (!typeSeance) return "type-ef";
+  const clean = typeSeance.toLowerCase();
+  if (clean.includes("vitesse")) return "type-vitesse";
+  if (clean.includes("fractionn")) return "type-fractionne";
+  if (clean.includes("longue")) return "type-sortie-longue";
+  if (clean.includes("course")) return "type-course";
+  if (clean.includes("renfo") || clean.includes("musculation") || clean.includes("ppg")) return "type-renforcement";
+  if (clean.includes("recup") || clean.includes("récup")) return "type-recup";
+  if (clean.includes("tempo")) return "type-tempo";
+  return "type-ef";
+}
+
+export function getTypeEmoji(typeSeance) {
+  if (!typeSeance) return "🏃";
+  const clean = typeSeance.toLowerCase();
+  if (clean.includes("vitesse")) return "🚀";
+  if (clean.includes("course")) return "👟";
+  if (clean.includes("renfo") || clean.includes("musculation") || clean.includes("ppg")) return "🏋️";
+  if (clean.includes("fractionn")) return "⚡";
+  if (clean.includes("longue")) return "🏔️";
+  if (clean.includes("tempo")) return "🔥";
+  if (clean.includes("recup") || clean.includes("récup")) return "🌱";
+  return "🏃";
+}
+
+export function hasPainAlert(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("périostite") ||
+    lower.includes("periostite") ||
+    lower.includes("douleur") ||
+    lower.includes("mal") ||
+    lower.includes("tibia") ||
+    lower.includes("mollet") ||
+    lower.includes("gêne") ||
+    lower.includes("gene") ||
+    lower.includes("tension")
+  );
+}
+
+let cachedSessionsList = [];
+let currentFilterType = "all";
+let currentFilterStatus = "all";
+
+export async function fetchSportSessions() {
+  if (!sportSessionsContainer) return;
+  sportSessionsContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement de l\'historique des séances...</div>';
+
+  try {
+    const res = await fetchSportSessionsData({ order: "desc", limit: 200 });
+    cachedSessionsList = res.sessions || [];
+    renderSportSessionsView();
+  } catch (err) {
+    sportSessionsContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--color-danger)">Impossible de charger l'historique (${err.message}).</div>`;
+  }
+}
+
+export function renderSportSessionsView() {
+  if (!sportSessionsContainer) return;
+
+  const filtered = cachedSessionsList.filter(s => {
+    if (currentFilterStatus !== "all" && s.statut !== currentFilterStatus) {
+      return false;
+    }
+    if (currentFilterType !== "all" && s.type_seance !== currentFilterType) {
+      return false;
+    }
+    return true;
+  });
+
+  const typeOptions = [
+    { id: "all", label: "Tous types" },
+    { id: "EF", label: "🏃 EF" },
+    { id: "Sortie Longue", label: "🏔️ Sortie Longue" },
+    { id: "Fractionné", label: "⚡ Fractionné" },
+    { id: "Renforcement", label: "🏋️ Renfo" },
+    { id: "Course", label: "👟 Course" },
+    { id: "Vitesse", label: "🚀 Vitesse" },
+    { id: "Tempo", label: "🔥 Tempo" },
+    { id: "Récup", label: "🌱 Récup" },
+  ];
+
+  const statusOptions = [
+    { id: "all", label: "Tous statuts" },
+    { id: "Réalisé", label: "✅ Réalisé" },
+    { id: "Prévu", label: "📅 Prévu" },
+  ];
+
+  let html = `
+    <!-- Filtres Rapides -->
+    <div style="margin-bottom: 12px;">
+      <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:6px;">Type de séance</div>
+      <div class="sport-filter-bar" id="session-type-filter-bar">
+        ${typeOptions.map(opt => `
+          <button type="button" class="sport-filter-pill ${currentFilterType === opt.id ? "active" : ""}" data-filter-type="${opt.id}">
+            ${opt.label}
+          </button>
+        `).join("")}
+      </div>
+
+      <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:6px;">Statut</div>
+      <div class="sport-filter-bar" id="session-status-filter-bar">
+        ${statusOptions.map(opt => `
+          <button type="button" class="sport-filter-pill ${currentFilterStatus === opt.id ? "active" : ""}" data-filter-status="${opt.id}">
+            ${opt.label}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+
+    <!-- Compteur -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:0.82rem; color:var(--color-text-secondary); font-weight:700;">
+      <span>${filtered.length} séance${filtered.length > 1 ? "s" : ""} trouvée${filtered.length > 1 ? "s" : ""}</span>
+      <span style="font-size:0.75rem; color:var(--color-text-muted);">Tri antichronologique</span>
+    </div>
+  `;
+
+  if (filtered.length === 0) {
+    html += `
+      <div class="sport-session-card" style="text-align:center; padding:30px 16px;">
+        <div style="font-size:2rem; margin-bottom:8px;">🔍</div>
+        <p style="color:var(--color-text-secondary);">Aucune séance ne correspond aux filtres sélectionnés.</p>
+      </div>
+    `;
+    sportSessionsContainer.innerHTML = html;
+    attachSessionsFiltersHandlers();
+    return;
+  }
+
+  html += filtered.map((s, idx) => {
+    const isRealise = s.statut === "Réalisé";
+    const statusClass = isRealise ? "realise" : (s.statut === "Repos" ? "repos" : "prevu");
+    const statusLabel = s.statut || "Prévu";
+    const typeCls = getTypeClass(s.type_seance);
+    const typeEmoji = getTypeEmoji(s.type_seance);
+    const dateFormatted = formatDateFr(s.date);
+
+    const mainMetric = s.distance_km ? `${s.distance_km} km` : (s.duree_secondes ? formatDuration(s.duree_secondes) : "");
+    const paceFormatted = s.allure_formatted || s.allure_cible || null;
+    const isPainAlert = hasPainAlert(s.remarques) || hasPainAlert(s.notes);
+
+    return `
+      <div class="session-accordion-card" data-session-idx="${idx}" data-session-date="${s.date}" data-session-type="${s.type_seance}">
+        <div class="session-accordion-header">
+          <div class="session-header-left">
+            <div class="session-date-badge">${dateFormatted}</div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:4px; flex-wrap:wrap;">
+              <span class="session-type-pill ${typeCls}">${typeEmoji} ${s.type_seance || "Course"}</span>
+              <span style="font-size:0.75rem; color:var(--color-text-muted); font-weight:600;">Semaine ${s.semaine}</span>
+              <span class="badge-status ${statusClass}" style="font-size:0.68rem; padding:1px 6px;">${statusLabel}</span>
+              ${isPainAlert ? '<span style="font-size:0.72rem; padding:1px 6px; border-radius:6px; background:rgba(239, 68, 68, 0.2); color:#ef4444; font-weight:800;">⚠️ Tibia/Douleur</span>' : ''}
+            </div>
+          </div>
+          <div class="session-header-right">
+            ${mainMetric ? `<span class="session-key-metric">${mainMetric}</span>` : ""}
+            <div class="session-chevron">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="session-accordion-body" style="display:none;">
+          <div class="sport-metrics-grid" style="margin-top:12px;">
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Distance</div>
+              <div class="sport-metric-val">${s.distance_km ? s.distance_km : "-"}<span class="sport-metric-unit">${s.distance_km ? " km" : ""}</span></div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Durée</div>
+              <div class="sport-metric-val" style="font-size:0.95rem;">${formatDuration(s.duree_secondes) || "-"}</div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">${isRealise ? "Allure Moy" : "Allure Cible"}</div>
+              <div class="sport-metric-val" style="font-size:0.95rem;">${paceFormatted || "-"}</div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Vitesse</div>
+              <div class="sport-metric-val">${s.vitesse_kmh ? s.vitesse_kmh : (s.vitesse_cible || "-")}<span class="sport-metric-unit">${s.vitesse_kmh ? " km/h" : ""}</span></div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">D+</div>
+              <div class="sport-metric-val">${s.denivele_d_plus ? "+" + s.denivele_d_plus : "0"}<span class="sport-metric-unit"> m</span></div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Km-Effort</div>
+              <div class="sport-metric-val">${s.km_effort || "-"}</div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">RPE</div>
+              <div class="sport-metric-val" style="color:${s.ressenti_rpe ? getRpeColor(s.ressenti_rpe) : 'inherit'}">
+                ${s.ressenti_rpe ? s.ressenti_rpe : "-"}<span class="sport-metric-unit">${s.ressenti_rpe ? "/10" : ""}</span>
+              </div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">FC Moy / Max</div>
+              <div class="sport-metric-val" style="font-size:0.88rem;">${s.fc_moyenne ? s.fc_moyenne + " bpm" : "-"}${s.fc_max ? "<span style='font-size:0.75rem; color:var(--color-text-muted)'> / " + s.fc_max + "</span>" : ""}</div>
+            </div>
+          </div>
+
+          ${s.programme ? `
+            <div class="sport-details-block">
+              <div class="sport-details-label">Programme Technique</div>
+              <div>${s.programme}</div>
+            </div>
+          ` : ""}
+
+          ${s.remarques ? `
+            <div class="sport-details-block" style="border-left-color:${isPainAlert ? '#dc2626' : 'var(--color-accent)'}; ${isPainAlert ? 'background:rgba(239, 68, 68, 0.05);' : ''}">
+              <div class="sport-details-label" style="${isPainAlert ? 'color:#dc2626;' : ''}">
+                ${isPainAlert ? '⚠️ Remarques & Sensations (Vigilance Périostite)' : 'Remarques & Sensations'}
+              </div>
+              <div>${s.remarques}</div>
+            </div>
+          ` : ""}
+
+          ${s.strava_id ? `
+            <div style="font-size:0.72rem; color:var(--color-text-muted); text-align:right; margin-top:6px;">
+              🔗 Synchronisé depuis Strava (#${s.strava_id})
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  sportSessionsContainer.innerHTML = html;
+  attachSessionsFiltersHandlers();
+  attachAccordionToggles(sportSessionsContainer, ".session-accordion-card", ".session-accordion-header", ".session-accordion-body");
+}
+
+function attachSessionsFiltersHandlers() {
+  const typeBar = document.getElementById("session-type-filter-bar");
+  if (typeBar) {
+    typeBar.querySelectorAll(".sport-filter-pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currentFilterType = btn.getAttribute("data-filter-type");
+        renderSportSessionsView();
+      });
+    });
+  }
+
+  const statusBar = document.getElementById("session-status-filter-bar");
+  if (statusBar) {
+    statusBar.querySelectorAll(".sport-filter-pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currentFilterStatus = btn.getAttribute("data-filter-status");
+        renderSportSessionsView();
+      });
+    });
+  }
+}
+
+// ==========================================================================
+// HISTORIQUE DES SEMAINES & SYNTHÈSE (Étape 4)
+// ==========================================================================
+
+export async function fetchSportSummaries() {
+  if (!sportSummariesContainer) return;
+  sportSummariesContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement des synthèses hebdomadaires...</div>';
+
+  try {
+    const res = await fetchSportSummariesData({ order: "desc", include_sessions: true });
+    renderSportSummariesView(res.summaries || []);
+  } catch (err) {
+    sportSummariesContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--color-danger)">Impossible de charger les synthèses (${err.message}).</div>`;
+  }
+}
+
+export function renderSportSummariesView(summaries) {
+  if (!sportSummariesContainer) return;
+
+  if (!summaries || summaries.length === 0) {
+    sportSummariesContainer.innerHTML = `
+      <div class="sport-session-card" style="text-align:center; padding:30px 16px;">
+        <div style="font-size:2rem; margin-bottom:8px;">📅</div>
+        <p style="color:var(--color-text-secondary);">Aucune synthèse de semaine trouvée dans le Google Sheet.</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div style="margin-bottom:14px;">
+      <h3 style="font-size:1.05rem; font-weight:800; color:var(--color-text); margin-bottom:4px;">Synthèses Hebdomadaires</h3>
+      <p style="font-size:0.82rem; color:var(--color-text-secondary); line-height:1.4;">
+        Bilan d'entraînement, volume, charge RPE et diagnostic de progression du coach Otis. Dépliez chaque semaine pour voir ses séances.
+      </p>
+    </div>
+  `;
+
+  html += summaries.map((item, sIdx) => {
+    const sum = item.summary;
+    const seances = item.seances || [];
+
+    const alerte = sum.alerte_securite || "";
+    let safetyCls = "neutre";
+    if (alerte.includes("Blessure") || alerte.includes("Risque")) safetyCls = "risque";
+    else if (alerte.includes("Vigilance")) safetyCls = "vigilance";
+    else if (alerte.includes("Saine")) safetyCls = "saine";
+
+    return `
+      <div class="summary-accordion-card">
+        <div class="summary-accordion-header">
+          <div class="summary-header-row">
+            <div class="summary-title">
+              <span>📅 Semaine ${sum.semaine}</span>
+              <span style="font-size:0.8rem; font-weight:600; color:var(--color-text-muted);">(${sum.annee})</span>
+              <span class="badge-safety ${safetyCls}">${alerte || "Suivi normal"}</span>
+            </div>
+            <div class="summary-chevron">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <div class="summary-metrics-strip">
+            <div class="summary-metric-item"><strong>${sum.km_total} km</strong></div>
+            <div class="summary-metric-item">⛰️ +${sum.d_plus_total} m</div>
+            <div class="summary-metric-item">⚡ <strong>${sum.km_effort_total}</strong> km-e</div>
+            <div class="summary-metric-item">⏱️ ${sum.allure_moyenne_formatted || "-"}</div>
+            <div class="summary-metric-item">🔥 RPE ${sum.charge_rpe_totale}</div>
+            <div class="summary-metric-item">🏃 ${sum.nb_seances} séance${sum.nb_seances > 1 ? "s" : ""}</div>
+          </div>
+        </div>
+
+        <div class="summary-accordion-body" style="display:none;">
+          <div style="background:var(--color-surface); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:12px; border:1px solid var(--color-border); font-size:0.82rem; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <div>
+              <span style="color:var(--color-text-muted);">Évolution Volume (Km-Effort) :</span>
+              <strong>${sum.evolution_volume_pct !== null && sum.evolution_volume_pct !== undefined ? (sum.evolution_volume_pct > 0 ? "+" : "") + sum.evolution_volume_pct + "%" : "1ère semaine"}</strong>
+            </div>
+            <div>
+              <span style="color:var(--color-text-muted);">Plafond S+1 conseillé :</span>
+              <strong>${sum.plafond_conseille_s_plus_1 || "-"} km-effort</strong>
+            </div>
+          </div>
+
+          <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:8px;">
+            Séances de la Semaine (${seances.length})
+          </div>
+
+          ${seances.length === 0 ? `
+            <div style="font-size:0.82rem; color:var(--color-text-muted); padding:8px 0;">Aucune séance détaillée enregistrée pour cette semaine.</div>
+          ` : `
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              ${seances.map(s => {
+                const typeCls = getTypeClass(s.type_seance);
+                const typeEmoji = getTypeEmoji(s.type_seance);
+                const isRealise = s.statut === "Réalisé";
+                const dateFr = formatDateFr(s.date);
+                return `
+                  <div style="background:var(--color-surface); border-radius:8px; border:1px solid var(--color-border); padding:8px 10px; font-size:0.82rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-weight:700;">${dateFr}</span>
+                        <span class="session-type-pill ${typeCls}" style="font-size:0.68rem; padding:1px 6px;">${typeEmoji} ${s.type_seance}</span>
+                      </div>
+                      <span class="badge-status ${isRealise ? "realise" : "prevu"}" style="font-size:0.65rem; padding:1px 5px;">${s.statut}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; color:var(--color-text-secondary); font-size:0.78rem;">
+                      <span>
+                        ${s.distance_km ? `<strong>${s.distance_km} km</strong> · ` : ""}
+                        ${s.duree_secondes ? formatDuration(s.duree_secondes) + " · " : ""}
+                        ${s.allure_formatted ? s.allure_formatted + "/km" : ""}
+                      </span>
+                      <span>${s.ressenti_rpe ? `<strong style="color:${getRpeColor(s.ressenti_rpe)}">RPE ${s.ressenti_rpe}/10</strong>` : ""}</span>
+                    </div>
+                    ${s.programme ? `<div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px; font-style:italic;">${s.programme}</div>` : ""}
+                    ${s.remarques ? `<div style="font-size:0.75rem; color:var(--color-accent); margin-top:2px;">💬 ${s.remarques}</div>` : ""}
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          `}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  sportSummariesContainer.innerHTML = html;
+  attachAccordionToggles(sportSummariesContainer, ".summary-accordion-card", ".summary-accordion-header", ".summary-accordion-body");
+}
+
+function attachAccordionToggles(container, cardSelector, headerSelector, bodySelector) {
+  const cards = container.querySelectorAll(cardSelector);
+  cards.forEach(card => {
+    const header = card.querySelector(headerSelector);
+    const body = card.querySelector(bodySelector);
+    if (header && body) {
+      header.addEventListener("click", () => {
+        const isOpen = card.classList.toggle("open");
+        body.style.display = isOpen ? "block" : "none";
+      });
+    }
+  });
+}
+
 export function initSportView() {
   if (tabSportToday) tabSportToday.addEventListener("click", () => switchSportSubview("today"));
+  if (tabSportSessions) tabSportSessions.addEventListener("click", () => switchSportSubview("sessions"));
+  if (tabSportSummaries) tabSportSummaries.addEventListener("click", () => switchSportSubview("summaries"));
   if (tabSportDash) tabSportDash.addEventListener("click", () => switchSportSubview("dashboard"));
   if (tabSportGamification) tabSportGamification.addEventListener("click", () => switchSportSubview("gamification"));
 }
