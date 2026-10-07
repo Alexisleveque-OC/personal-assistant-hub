@@ -1,4 +1,4 @@
-# Roadmap Feature : Module Sport Running & Mini-Coach Otis (`feat/sport-running-coach`)
+# Roadmap Feature : Phase 5 ter - Retours d'Expérience Utilisateur (Sport & Courses) (`feat/ux-sport-shopping`)
 
 > **Règles d'or (AGENTS.md) :**
 > - Chaque étape doit être validée **manuellement et explicitement par l'utilisateur** avant de passer à la suivante.
@@ -11,143 +11,63 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | Modélisation Pydantic du Sheet Sport, configuration & validation de schéma (Schema Drift) | 🟢 Terminé | Validé par l'utilisateur | ✅ 12/12 tests dédiés (220/220 total) au vert |
-| **Étape 2** | Connecteur Backend `SportConnector` (lecture séance, calculs Km-Effort, synthèse hebdo & alerte +10%) | 🟢 Terminé | Validé par l'utilisateur | ✅ 11/11 tests dédiés (231/231 total) au vert |
-| **Étape 3** | Intentions NLU Gemini Flash & réponses vocales Otis complices (Structured Outputs) | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (239/239 total) au vert |
-| **Étape 4** | Intégration `/api/v1/interact`, passerelle de synchronisation, colonnes BPM & import réel des 9 GPX | 🟢 Terminé | Validé par l'utilisateur | ✅ 6/6 tests dédiés (37/37 sport, 245+ total) au vert |
-| **Étape 5** | Renforcement Musculaire (Renfo/PPG) & Réajustement vocal a posteriori (RPE / Douleur Périostite) | 🟢 Terminé | Validé par l'utilisateur | ✅ 14/14 tests dédiés (51/51 sport, 259/259 total) au vert |
-| **Étape 6** | Cerveau LLM Otis : Analyse fine d'historique & Planification hebdomadaire proactive (gestion périostite) | 🟢 Terminé | En cours de validation | ✅ 27/27 tests dédiés (78/78 sport, 286/286 total) au vert |
-| **Étape 7** | Interface Graphique PWA Running & Dashboard Visuel (Séance du jour, jauges, multi-échelles) | 🟢 Terminé | En cours de validation | ✅ 25/25 tests dédiés (114/114 sport, 322/322 total) au vert |
-| **Étape 8** | Gamification, Anecdotes Insolites & Badges de Dopamine (PWA & Chronique Matinale) | ⚪ À faire | En attente | Tests unitaires modèles, règles & dopamine |
-| **Étape 9** | Test d'intégration End-to-End (E2E) complet & Validation finale | ⚪ À faire | En attente | Test E2E complet (100% au vert) |
+| **Étape 1** | **Courses :** Synchronisation directe en lot dans Google Sheets (Cette semaine & Liste d'attente) sur "J'ai fini" + bouton Reset | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (346/346 total) au vert |
+| **Étape 2** | **Sport Backend :** Endpoints d'historique des séances et de synthèses de semaines (`/sessions` & `/summaries`) en TDD strict | 🟡 En cours | En attente | En cours de rédaction des tests |
+| **Étape 3** | **Sport Frontend :** Vue chronologique des séances avec résumé concis et accordéon de détail complet (PWA) | ⚪ À faire | En attente | Tests d'affichage & composants |
+| **Étape 4** | **Sport Frontend :** Vue historique et synthèse des semaines avec accordéon des séances composantes (PWA) | ⚪ À faire | En attente | Tests d'affichage & agrégations |
+| **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette finale** | ⚪ À faire | En attente | Suite complète (100% au vert) |
 
 ---
 
 ## Détail des Étapes
 
-### 🟢 Étape 1 : Modélisation Pydantic du Sheet Sport, Configuration & Validation de Schéma
-* **Objectifs :**
-  1. Configuration `spreadsheet_sport_id` et modèles Pydantic (`SportSession`, `SportWeeklySummary`).
-  2. Formule standard du Km-Effort : $\text{Km-Effort} = \text{Distance} + \frac{D^+}{100}$.
-  3. Validateur de schéma `SportSchemaValidator` (tolérance aux dérives).
-* **Statut :** Validé et commité (`de03944`).
-
----
-
-### 🟢 Étape 2 : Connecteur Backend `SportConnector` (TDD Strict)
-* **Objectifs :**
-  1. Implémentation du connecteur `SportConnector` (`get_session`, `log_session`, `plan_session`, `get_weekly_summary`).
-  2. Respect de la règle des +10% max et gestion de cache RAM.
-* **Statut :** Validé et commité (`f8bf73e`).
-
----
-
-### 🟢 Étape 3 : Intentions NLU Gemini Flash & Cerveau Otis
-* **Objectifs :**
-  1. Définition des intentions `GET_SPORT_SESSION`, `LOG_SPORT_SESSION`, `GET_SPORT_WEEKLY_SUMMARY`, `PLAN_SPORT_SESSION`.
-  2. Prompt persona Otis le scribe complice et protecteur contre les blessures.
-* **Statut :** Validé et commité (`241ffd7`).
-
----
-
-### 🟢 Étape 4 : Intégration `/api/v1/interact`, Passerelle de Synchro, Cardio BPM & Import Réel
-* **Objectifs :**
-  1. Brancher les intentions sportives dans `/api/v1/interact` (avec support de la semaine courante et des semaines passées).
-  2. Endpoints d'ingestion et de webhook Strava (`/api/v1/sport/sync-activity`).
-  3. Colonnes BPM (`FC Moy (bpm)`, `FC Max (bpm)`) intégrées dans le Google Sheet.
-  4. Importation des 9 vraies séances réelles d'Alexis depuis ses fichiers GPX avec mise à jour automatique de la synthèse hebdomadaire sur 4 semaines (S37 à S40).
-* **Statut :** Validé et commité (`a03d275`).
-
----
-
-### 🟢 Étape 5 : Renforcement Musculaire & Réajustement Vocal a posteriori (RPE / Périostite)
-* **Objectifs :**
-  1. Support du type de séance `Renforcement` (`Renfo`) : pas de distance kilométrique forcée, mais comptabilisation de la durée et de la Charge RPE ($\text{Durée} \times \text{RPE}$) dans le cumul hebdomadaire.
-  2. Méthode métier `update_session(target_date, ...)` dans `SportConnector` permettant de modifier le RPE, le ressenti ou d'ajouter une note de douleur sur une séance passée.
-  3. Intention vocale `UPDATE_SPORT_SESSION` :
-     - *« Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite »*
-     - *« Otis, ajoute une note sur ma course de dimanche : douleur au tibia à J+2 »*
-* **Statut :** 🟢 Validé et commité (`6082066`).
-
----
-
-### 🟢 Étape 6 : Cerveau LLM Otis : Analyse fine d'historique & Planification Hebdomadaire Proactive
-* **Objectifs :**
-  1. Connecter le LLM Gemini à l'historique complet des 4 dernières semaines et au contexte physiologique d'Alexis (antécédent de périostite, besoin de décharge post-compétition).
-  2. Nouvelle intention `PLAN_WEEKLY_TRAINING` (*« Otis, prévois-moi ma semaine d'entraînement »*, *« Que me conseilles-tu cette semaine ? »*).
-  3. Génération d'un plan hebdomadaire équilibré et personnalisé :
-     - Alternance intelligente course / renforcement musculaire ciblé.
-     - Prescription complète et chirurgicale pour le renfo (exercices précis, séries, reps, tempo 3s, repos) pour être 100% autonome sans kiné.
-     - Prise en compte de la périostite : conseils de terrains souples/herbe, étirements, limitation des chocs.
-     - Gestion des semaines de décharge (Deload) déclenchées à l'écoute des signaux réels (RPE >= 8, surcharges, douleurs tibias) et non par une règle mécanique rigide.
-     - Cohérence des allures physiologiques : alignement de l'Endurance Fondamentale (EF) et de la Sortie Longue (SL) sur la Zone 2 d'aisance respiratoire (+/- marge de progression), avec durées strictes (30-35 min en EF, ~1h en SL).
-* **Critères de succès :** Tests de génération de plans pertinents et cohérents avec la physiologie d'Alexis, insertion réelle en lot des séances "Prévu" dans Google Sheets, affichage clair de l'allure ET de la vitesse cibles (+/-) dans les colonnes I, J et P, calcul multicritère de la synthèse hebdomadaire (Volume, Vitesse, Charge RPE et Progression Générale) excluant le renfo pour le calcul de vitesse de course, 78/78 tests sport au vert, 286/286 tests globaux au vert.
-* **Statut :** 🟢 Validé & opérationnel.
-
----
-
-### 🟢 Étape 7 : Interface Graphique PWA Running & Dashboard Visuel
+### 🟢 Étape 1 : Courses : Synchronisation Directe Google Sheets sur "J'ai fini" & Réinitialisation
 * **Objectifs réalisés :**
-  1. **Vue interactive "Séance du Jour" (Prévu / Réalisé / Repos) :**
-     - Affichage de la séance planifiée ou réalisée avec badge de statut.
-     - Saisie manuelle tactile directe (sans parler) : sélecteur de pastilles RPE 1 à 10 aux couleurs dynamiques (vert -> ambre -> rouge) et zone de saisie pour notes, sensations ou alertes périostite. Envoi instantané via `PATCH /api/v1/sport/session/{date}`.
-  2. **Récapitulatif & Comparateur de Séance :**
-     - Badges de couleurs parlantes comparant la séance du jour à la dernière séance du même type (Fractionné, EF, Sortie Longue) : vitesse, distance, km-effort.
-  3. **Tableau de Bord & Évolution Multi-Échelles :**
-     - **Semaine :** distance cumulée, km-effort, allure moy (hors renfo), charge RPE, comparaison par rapport à la moyenne des autres semaines et plafond sécurité (+10%).
-     - **Mois :** récapitulatif mensuel et séries découpées par semaines ISO.
-     - **Année :** vue macro et progression globale de la saison par mois.
-  4. **Graphiques Visuels Dynamiques (SVG Natif) :**
-     - Barres de volume hebdomadaire avec ligne repère en pointillés rouges marquant le plafond de sécurité +10%.
-  5. **Conseil & Alerte Périostite du Coach Otis :**
-     - Bulle conseil bienveillante adaptée au plan de la semaine (info, vigilance, alerte) avec cache journalier et fallback résilient.
-  6. **Router modulaire FastAPI :**
-     - Nouveau router `app/routers/sport.py` (`/today`, `/session/{date}`, `/dashboard`) avec dépendance d'authentification API key.
-* **Critères de succès :** Interface fluide, dynamique, visuellement percutante, parfaitement utilisable au doigt sur smartphone (Service Worker mis à jour en `v5`), 25 tests dédiés au vert, 322/322 tests du projet au vert.
-* **Statut :** 🟢 Validé & opérationnel.
+  1. **Source de Vérité Google Sheets (Adieu reset artificiel du lundi) :** Respect du cycle de courses d'Alexis (démarrant le samedi). Aucune purge arbitraire par semaine ISO. C'est l'état réel des cases du Google Sheet qui fait autorité.
+  2. **Synchronisation en Lot (Batch) sur *"🏁 J'ai fini !"* :**
+     - Durant les courses : les cases sont cochées tactilement et instantanément en mémoire/UI (0 requête API, 0 latence, quotas préservés).
+     - Au clic sur *"🏁 J'ai fini !"* : un seul appel API groupé (`POST /api/v1/meals/shopping/complete`) transmet tous les articles cochés.
+     - **`Cette semaine` :** les cases correspondantes passent à `TRUE` dans le Sheet via `batch_update`.
+     - **`Liste_Attente` :** les articles achetés sont également passés à `TRUE` dans le Sheet (`mark_shopping_items_bought`).
+     - Feedback visuel clair : badge vert *"✅ Synchronisé dans votre Google Sheet (Cette semaine & Liste d'attente)"*.
+  3. **Bouton de Réinitialisation Explicite :** Bouton *"🔄 Réinitialiser"* sur l'onglet "Cette semaine" qui passe toutes les cases à `FALSE` dans le Google Sheet (`POST /api/v1/meals/shopping/reset`) et purge le cache pour démarrer une nouvelle semaine vierge.
+  4. **Tests automatisés :** 4 tests unitaires dédiés dans `tests/test_shopping_week_reset.py`, 346/346 tests du projet au vert.
+  5. **Mise à jour PWA :** Service Worker incrémenté en `v11`.
+* **Statut :** 🟢 Validé techniquement, prêt pour confirmation utilisateur.
 
 ---
 
-### 🟢 Étape 8 : Gamification, Badges de Dopamine, Pop-Culture & Annonce du Jour (PWA & Coach Otis)
-* **Objectifs réalisés :**
-  1. **Annonce du Jour Dynamique & Fin de Séance (`daily_spotlight`) :**
-     - Détection contextuelle si une séance prévue aujourd'hui (ou tout juste réalisée) franchit un cap de 100 km ou un jalon majeur (*« Aujourd'hui, avec ta séance de X km prévue, on passe le cap des Y km ! C'est génial, donne tout ! »*).
-     - Priorisation intelligente : séance du jour $\rightarrow$ palier imminent $\rightarrow$ annonces OMG $\rightarrow$ anecdotes insolites.
-  2. **Exploits en Une Séance (Mono-Session) :**
-     - Distance d'une traite : 10 km, 15 km, Semi-marathon (21.1 km), Le Mur des Trente (30 km), L'Épreuve d'Athènes (42.2 km), et l'ultra absurde "Le Cent-Bornard Fou" (100 km).
-     - Durée ininterrompue : 1h, 1h15, 1h30, Sortie Royale (2h), Guerrier du Long Cours (3h), et le défi sans sommeil "La Ronde des 24 Heures".
-  3. **Régularité & Progression Évolutive :**
-     - *Renforcement musculaire :* 5, 10, 25, 50, 75 et jusqu'à 100 séances ("Titan du Renforcement").
-     - *Météo difficile :* 1, 5, 10 et 20 séances sous la pluie, le vent ou la tempête ("Guerrier Immortel des Éléments").
-     - *Grand Chelem Hebdo :* 7 séances de sport dans la même semaine (7/7).
-     - *Discipline de Fer :* au moins 4 séances par semaine pendant 8 semaines consécutives.
-     - *Volumes horaires convertis en jours :* 96h (4 jours pleins), 240h (10 jours), 480h (20 jours), 960h (40 jours), 1920h (80 jours - Le Tour du Monde).
-  4. **Pop-Culture & Easter Eggs (Otis, Le Seigneur des Anneaux, Brandon Sanderson) :**
-     - *Astérix & Obélix : Mission Cléopâtre (Otis) :* "Pas de Bonne ou Mauvaise Situation 📜", "Pas de Pierres, Pas de Construction ! 🏛️", "Un Lion Mort dans le Désert 🦁", "Le Scribe d'Alexandrie ✍️", "Deuxième Porte à Gauche 🚪", "Itinéris ne Capte Plus 📵".
-     - *Le Seigneur des Anneaux (LOTR) :* "Road to Mordor 🌋" (2 850 km - trajet de Frodon), "Le Deuxième Petit-Déjeuner 🥐", "En Route pour Fondcombe 🧝" (135 km), "Vous Ne Passerez Pas ! 🧙", "L'Anneau Unique 💍", "Pas un Orque en Vue 🌫️".
-     - *Brandon Sanderson (Les Archives de Roshar) :* "Pont Quatre (Bridge Four) 🪵" (RPE 9-10), "Au Cœur de la Haute-Tempête ⚡", "Marcheur du Vent (Windrunner) 💨", "Danseur de Pierre (Stoneward) 🪨", "Les Idéaux des Radiants 🛡️", "Infusion de Fulgurance 💎", "Le Spren de la Douleur 👹".
-     - *Secrets & Insolites :* "Le Déneigéré ❄️", "Le Pi Runner 🥧", "Chrono d'Orfèvre ⏱️", "Objectif Lune 🚀".
-  5. **Interface PWA Premium (Sous-onglet Trophées & Fun 🏆) :**
-     - Carte interactive du Mot d'Otis / Annonce du jour en tête d'onglet.
-     - Organisation en sections claires : Exploits Mono-Séance, Pop-Culture & Clins d'Œil, Paliers Réguliers, Volume Horaires, Constance & Éléments, Secrets et Absurde.
-* **Critères de succès :** Modèles typés Pydantic v2, 16 tests unitaires et d'API dédiés au vert, suite globale à 341 tests au vert.
-* **Statut :** 🟢 Validé & opérationnel.
+### ⚪ Étape 2 : Sport Backend : Endpoints d'Historique des Séances & des Semaines
+* **Objectifs :**
+  1. Endpoint `GET /api/v1/sport/sessions` : liste chronologique des séances (passées et prévues) avec tri antéchronologique par défaut (ou paramétrable), filtres optionnels par statut (`Réalisé`, `Prévu`, `Repos`), type de séance et plage de dates.
+  2. Endpoint `GET /api/v1/sport/summaries` : liste de toutes les synthèses hebdomadaires (`SportWeeklySummary`) ordonnées par semaine (avec volume km, D+, allure moy, charge RPE cumulée, alerte sécurité).
+  3. Association / imbrication optionnelle des séances de chaque semaine pour permettre un affichage fluide en accordéon.
+  4. TDD strict avec mocks et validation de contrat Pydantic.
+* **Statut :** En attente de l'Étape 1.
 
 ---
 
-### 🟢 Étape 9 : Test d'Intégration End-to-End (E2E) & Validation Finale
-* **Objectifs réalisés :**
-  1. **Test d'Intégration E2E complet (`tests/test_e2e_sport_running.py`) :**
-     - Couvre de bout en bout l'intégralité du cycle de vie athlète :
-       1. Consultation matinale de la journée (Séance du jour, Mot d'Otis / Annonce du cap, Conseil coach).
-       2. Saisie vocale d'une séance terminée (Distance, Durée, D+, RPE) via `POST /api/v1/interact` avec calculs automatiques d'allure, vitesse, km-effort et charge RPE.
-       3. Consultation post-séance avec actualisation du statut "Réalisé" et calcul des deltas par le comparateur de séances.
-       4. Saisie vocale d'une séance de renforcement musculaire sans contrainte de distance.
-       5. Signalement d'une alerte douleur a posteriori (périostite tibiale) via `PATCH /api/v1/sport/session/{date}` et bascule immédiate du Coach Otis en niveau d'alerte sécurité.
-       6. Explication pédagogique vulgarisée d'un exercice de renforcement pour les mollets et la périostite.
-       7. Gamification & Trophées : déblocage d'exploits mono-séance, records personnels et badges pop-culture.
-       8. Dashboard multi-échelles (Semaine, Mois, Année) avec vérification du plafond de sécurité +10%.
-  2. **Stabilité & Zéro Régression :**
-     - **342 tests sur 342 au vert** (100% de réussite sur l'ensemble de la suite applicative).
-* **Critères de succès :** Suite de tests à 100% au vert, cycle E2E pérennisé, prêt pour validation manuelle utilisateur avant merge vers `develop`.
-* **Statut :** 🟢 Validé & opérationnel.
+### ⚪ Étape 3 : Sport Frontend : Vue Chronologique des Séances avec Accordéon de Détail
+* **Objectifs :**
+  1. Nouveau sous-onglet ou section dédiée dans l'onglet Sport : "Historique des Séances".
+  2. Cartes de séances élégantes avec statut, date, type (badge de couleur), distance/durée et allure ou programme.
+  3. Dépliage au clic (accordéon CSS/JS fluide) affichant la vue détaillée complète : distance, durée, allure, dénivelé D+, Km-Effort, ressenti RPE, FC moyenne/max, météo, programme et remarques/périostite.
+* **Statut :** En attente de l'Étape 2.
+
+---
+
+### ⚪ Étape 4 : Sport Frontend : Vue Historique & Synthèse des Semaines
+* **Objectifs :**
+  1. Vue sous-onglet ou section : "Historique des Semaines".
+  2. Cartes synthétiques par semaine affichant les totaux clés (volume total, D+, allure moyenne, charge RPE cumulée, badge d'alerte sécurité).
+  3. Accordéon interactif pour déplier la liste détaillée des séances ayant composé cette semaine.
+* **Statut :** En attente de l'Étape 3.
+
+---
+
+### ⚪ Étape 5 : Test d'Intégration End-to-End (E2E) & Recette Finale
+* **Objectifs :**
+  1. Écriture d'un test d'intégration E2E automatisé validant le cycle complet : réinitialisation des courses d'une semaine sur l'autre, consultation de l'historique des séances passées/futures, consultation des synthèses hebdomadaires et dépliage des détails.
+  2. Vérification de non-régression sur les 342+ tests existants (100% au vert).
+  3. Invitation à la recette manuelle sur smartphone/PWA et validation finale par l'utilisateur.
+* **Statut :** En attente.

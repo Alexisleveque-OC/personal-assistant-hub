@@ -1,9 +1,10 @@
 // Vue Liste de Courses (Cette semaine / Liste d'attente / Rayons)
-import { state, getStoredCheckedItems, setStoredCheckedItems } from "../config.js";
+import { state, getStoredCheckedItems, setStoredCheckedItems, clearStoredCheckedItems } from "../config.js";
 import { speak } from "../speech.js";
-import { postInteract } from "../api.js";
+import { postInteract, resetShoppingList, postShoppingComplete } from "../api.js";
 
 const shoppingListContainer = document.getElementById("shopping-list-container");
+const btnResetShopping = document.getElementById("btn-reset-shopping");
 const btnClearBought = document.getElementById("btn-clear-bought");
 const btnCheckCompletion = document.getElementById("btn-check-completion");
 const completionBanner = document.getElementById("shopping-completion-banner");
@@ -168,14 +169,6 @@ export function renderShoppingItems() {
       } else {
         const target = state.cachedShoppingData.waiting_list.find((it) => it.item === itemName);
         if (target) target.is_bought = isNowChecked;
-
-        if (isNowChecked) {
-          try {
-            await postInteract(`J'ai acheté ${itemName}`);
-          } catch (e) {
-            console.warn("Failed to mark bought:", e);
-          }
-        }
       }
     });
   });
@@ -186,9 +179,36 @@ export function renderShoppingItems() {
   }
 }
 
-export function checkShoppingCompletion() {
+export async function checkShoppingCompletion() {
   const storedChecked = getStoredCheckedItems();
   const isWaiting = state.currentShoppingSubview === "liste-attente";
+
+  // Articles cochés dans Cette semaine et Liste d'attente
+  const checkedCurrent = (state.cachedShoppingData.current_week_items || [])
+    .filter((it) => it.checked || storedChecked.includes(it.name))
+    .map((it) => it.name);
+
+  const checkedWaiting = (state.cachedShoppingData.waiting_list || [])
+    .filter((it) => it.is_bought)
+    .map((it) => it.item);
+
+  // Synchronisation groupée vers Google Sheets (Cette semaine + Liste d'attente)
+  let syncSuccess = false;
+  if (checkedCurrent.length > 0 || checkedWaiting.length > 0) {
+    try {
+      await postShoppingComplete({
+        current_week_items: checkedCurrent,
+        waiting_items: checkedWaiting,
+      });
+      syncSuccess = true;
+      clearStoredCheckedItems();
+      (state.cachedShoppingData.current_week_items || []).forEach((it) => {
+        if (checkedCurrent.includes(it.name)) it.checked = true;
+      });
+    } catch (err) {
+      console.warn("Échec de synchronisation Google Sheets:", err);
+    }
+  }
 
   let remaining = [];
   if (isWaiting) {
@@ -202,13 +222,17 @@ export function checkShoppingCompletion() {
   }
 
   if (completionBanner) {
+    const syncBadge = syncSuccess ? "<div style='margin-top:6px; font-size:0.85rem; color:#4ade80; font-weight:600;'>✅ Synchronisé dans votre Google Sheet (Cette semaine & Liste d'attente)</div>" : "";
     if (remaining.length === 0) {
       completionBanner.className = "completion-banner success";
       completionBanner.innerHTML = `
-        <span>🎉 <strong>Félicitations !</strong> Vous avez tout pris dans votre liste. Vos courses sont complètes !</span>
+        <div>
+          <span>🎉 <strong>Félicitations !</strong> Vous avez tout pris dans votre liste. Vos courses sont complètes !</span>
+          ${syncBadge}
+        </div>
       `;
       completionBanner.style.display = "block";
-      speak("Félicitations, vous avez tout pris ! Votre liste de courses est complète.");
+      speak("Félicitations, vous avez tout pris ! Vos courses sont complètes et enregistrées dans le Google Sheet.");
     } else {
       completionBanner.className = "completion-banner warning";
       completionBanner.innerHTML = `
@@ -217,6 +241,7 @@ export function checkShoppingCompletion() {
           <div style="margin-top:6px; font-size:0.85rem; display:flex; flex-wrap:wrap; gap:4px;">
             ${remaining.map((it) => `<span style="background:rgba(0,0,0,0.25); padding:2px 7px; border-radius:4px; font-weight:600;">${it}</span>`).join("")}
           </div>
+          ${syncBadge}
         </div>
       `;
       completionBanner.style.display = "block";
@@ -233,6 +258,7 @@ export function initShoppingView() {
       tabCetteSemaine.classList.add("active");
       tabListeAttente.classList.remove("active");
       if (btnClearBought) btnClearBought.style.display = "none";
+      if (btnResetShopping) btnResetShopping.style.display = "inline-block";
       renderShoppingItems();
     });
 
@@ -241,12 +267,34 @@ export function initShoppingView() {
       tabListeAttente.classList.add("active");
       tabCetteSemaine.classList.remove("active");
       if (btnClearBought) btnClearBought.style.display = "block";
+      if (btnResetShopping) btnResetShopping.style.display = "none";
       renderShoppingItems();
     });
   }
 
   if (btnCheckCompletion) {
     btnCheckCompletion.addEventListener("click", checkShoppingCompletion);
+  }
+
+  if (btnResetShopping) {
+    btnResetShopping.addEventListener("click", async () => {
+      if (!confirm("Voulez-vous réinitialiser tous les articles cochés pour cette semaine ?")) return;
+      try {
+        clearStoredCheckedItems();
+        if (state.cachedShoppingData.current_week_items) {
+          state.cachedShoppingData.current_week_items.forEach((it) => {
+            it.checked = false;
+          });
+        }
+        if (completionBanner) completionBanner.style.display = "none";
+        renderShoppingItems();
+        await resetShoppingList();
+        speak("La liste de courses de la semaine a été réinitialisée.");
+        await fetchShoppingList();
+      } catch (err) {
+        alert("Erreur lors de la réinitialisation : " + err.message);
+      }
+    });
   }
 
   if (btnClearBought) {

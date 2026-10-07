@@ -74,3 +74,24 @@ export async function patchSportSession(dateStr, payload) {
   if (!res.ok) throw new Error("Échec de la sauvegarde");
   return await res.json();
 }
+
+export async function resetShoppingList() {
+  const res = await fetch("/api/v1/meals/shopping/reset", {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Erreur lors de la réinitialisation " + res.status);
+  return await res.json();
+}
+
+export async function postShoppingComplete(payload) {
+  const res = await fetch("/api/v1/meals/shopping/complete", {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Erreur lors de la synchronisation de fin de courses " + res.status);
+  return await res.json();
+}
+
+
