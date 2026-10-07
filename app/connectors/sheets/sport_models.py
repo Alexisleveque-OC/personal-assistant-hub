@@ -18,6 +18,8 @@ class SportSessionType(str, Enum):
     EF = "EF"  # Endurance Fondamentale
     FRACTIONNE = "Fractionné"
     SORTIE_LONGUE = "Sortie Longue"
+    COURSE = "Course"
+    VITESSE = "Vitesse"
     TEMPO = "Tempo"
     RECUP = "Récup"
     RENFORCEMENT = "Renforcement"

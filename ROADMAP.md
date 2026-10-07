@@ -12,9 +12,9 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Courses :** Synchronisation directe en lot dans Google Sheets (Cette semaine & Liste d'attente) sur "J'ai fini" + bouton Reset | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (346/346 total) au vert |
-| **Étape 2** | **Sport Backend :** Endpoints d'historique des séances et de synthèses de semaines (`/sessions` & `/summaries`) en TDD strict | 🟢 Terminé | En attente de validation utilisateur | ✅ 4/4 tests dédiés (350/350 total) au vert |
-| **Étape 3** | **Sport Frontend :** Vue chronologique des séances avec résumé concis et accordéon de détail complet (PWA) | ⚪ À faire | En attente | Tests d'affichage & composants |
-| **Étape 4** | **Sport Frontend :** Vue historique et synthèse des semaines avec accordéon des séances composantes (PWA) | ⚪ À faire | En attente | Tests d'affichage & agrégations |
+| **Étape 2** | **Sport Backend :** Endpoints d'historique des séances et de synthèses de semaines (`/sessions` & `/summaries`) en TDD strict | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (350/350 total) au vert |
+| **Étape 3** | **Sport Frontend :** Vue chronologique des séances avec résumé concis et accordéon de détail complet (PWA) | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 350/350 tests (0 régression) |
+| **Étape 4** | **Sport Frontend :** Vue historique et synthèse des semaines avec accordéon des séances composantes (PWA) | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 350/350 tests (0 régression) |
 | **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette finale** | ⚪ À faire | En attente | Suite complète (100% au vert) |
 
 ---
@@ -52,31 +52,36 @@
      - Fallback autonome depuis l'historique complet des séances si l'onglet est absent ou vide.
   4. **Modèles Pydantic stricts :** `SportSessionsListResponse`, `SportWeeklySummaryWithSessions`, `SportSummariesListResponse`.
   5. **TDD strict :** 4/4 tests unitaires dédiés dans `tests/test_sport_history_endpoints.py`, 350/350 tests du projet au vert (0 régression).
-* **Statut :** 🟢 Validé techniquement, prêt pour revue/validation utilisateur.
+* **Statut :** 🟢 Validé par l'utilisateur et commité (`b8c31d7`).
 
 ---
 
-### ⚪ Étape 3 : Sport Frontend : Vue Chronologique des Séances avec Accordéon de Détail
-* **Objectifs :**
-  1. Nouveau sous-onglet ou section dédiée dans l'onglet Sport : "Historique des Séances".
-  2. Cartes de séances élégantes avec statut, date, type (badge de couleur), distance/durée et allure ou programme.
-  3. Dépliage au clic (accordéon CSS/JS fluide) affichant la vue détaillée complète : distance, durée, allure, dénivelé D+, Km-Effort, ressenti RPE, FC moyenne/max, météo, programme et remarques/périostite.
-* **Statut :** En attente de l'Étape 2.
+### 🟢 Étape 3 : Sport Frontend : Vue Chronologique des Séances avec Accordéon de Détail
+* **Objectifs réalisés :**
+  1. **Sous-onglet dédié "Séances" :** Intégré dans le sélecteur horizontal ergonomique (`Aujourd'hui` | `Séances` | `Semaines` | `Dashboard` | `Trophées 🏆`).
+  2. **Filtres interactifs par pills :** Filtrage instantané en mémoire par type de séance (`Tous`, `EF`, `Fractionné`, `Sortie Longue`, `Renfo`, `Tempo`, `Récup`) et par statut (`Tous`, `Réalisé`, `Prévu`).
+  3. **Cartes avec accordéon animé (au clic) :**
+     - **Header résumé :** Date en français, pastille de type colorée avec emoji, semaine ISO, badge statut (`Réalisé` vert, `Prévu` bleu), métrique principale (km ou durée) et chevron animé.
+     - **Détails dépliables :** Grille métrique (Distance, Durée, Allure moyenne / Allure cible, Vitesse, Dénivelé D+, Km-Effort, RPE avec pastille colorée fail-fast, FC Moy / Max bpm, Note météo), encadré "Programme Technique" et encadré "Remarques & Sensations" avec mise en avant automatique des alertes tibias/douleurs.
+* **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 ---
 
-### ⚪ Étape 4 : Sport Frontend : Vue Historique & Synthèse des Semaines
-* **Objectifs :**
-  1. Vue sous-onglet ou section : "Historique des Semaines".
-  2. Cartes synthétiques par semaine affichant les totaux clés (volume total, D+, allure moyenne, charge RPE cumulée, badge d'alerte sécurité).
-  3. Accordéon interactif pour déplier la liste détaillée des séances ayant composé cette semaine.
-* **Statut :** En attente de l'Étape 3.
+### 🟢 Étape 4 : Sport Frontend : Vue Historique & Synthèse des Semaines
+* **Objectifs réalisés :**
+  1. **Sous-onglet dédié "Semaines" :** Cartes synthétiques par semaine affichant les totaux clés.
+  2. **Header de semaine :** Libellé Semaine XX (Année), badge d'alerte sécurité Otis (`🟢 Progression Saine`, `🟡 Vigilance`, `🔴 Risque Blessure`), métriques clés (Km total, D+ total, Km-effort, Allure moyenne, Charge RPE, Nombre de séances).
+  3. **Accordéon interactif dépliable :**
+     - Indicateurs d'évolution de charge (Volume Km-Effort vs S-1, Plafond S+1 conseillé).
+     - Liste détaillée des séances composant chaque semaine sous forme de mini-cartes lisibles (date, type, distance, durée, allure, RPE, programme, remarques).
+  4. **PWA :** Service Worker incrémenté en `v12` pour mise à jour immédiate du cache client.
+* **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 ---
 
 ### ⚪ Étape 5 : Test d'Intégration End-to-End (E2E) & Recette Finale
 * **Objectifs :**
   1. Écriture d'un test d'intégration E2E automatisé validant le cycle complet : réinitialisation des courses d'une semaine sur l'autre, consultation de l'historique des séances passées/futures, consultation des synthèses hebdomadaires et dépliage des détails.
-  2. Vérification de non-régression sur les 342+ tests existants (100% au vert).
-  3. Invitation à la recette manuelle sur smartphone/PWA et validation finale par l'utilisateur.
-* **Statut :** En attente.
+  2. Vérification de non-régression sur les 350+ tests existants (100% au vert).
+  3. Validation finale par l'utilisateur.
+* **Statut :** En attente de la recette utilisateur sur les étapes 3 et 4.

@@ -190,9 +190,11 @@
 
       <!-- Segmented Sport Switcher -->
       <div class="segmented-control" id="sport-segmented">
-        <button class="seg-btn active" id="tab-sport-today" data-subview="today">Séance du jour</button>
-        <button class="seg-btn" id="tab-sport-dash" data-subview="dashboard">Tableau de bord</button>
-        <button class="seg-btn" id="tab-sport-gamification" data-subview="gamification">Trophées & Fun 🏆</button>
+        <button class="seg-btn active" id="tab-sport-today" data-subview="today">Aujourd'hui</button>
+        <button class="seg-btn" id="tab-sport-sessions" data-subview="sessions">Séances</button>
+        <button class="seg-btn" id="tab-sport-summaries" data-subview="summaries">Semaines</button>
+        <button class="seg-btn" id="tab-sport-dash" data-subview="dashboard">Dashboard</button>
+        <button class="seg-btn" id="tab-sport-gamification" data-subview="gamification">Trophées 🏆</button>
       </div>
 
       <!-- Bulle Conseil Coach Otis -->
@@ -200,17 +202,27 @@
 
       <!-- Subview: Séance du jour -->
       <div id="sport-today-container">
-        <!-- Dynamically filled by app.js -->
+        <!-- Dynamically filled by sport_view.js -->
+      </div>
+
+      <!-- Subview: Historique des Séances avec accordéon -->
+      <div id="sport-sessions-container" style="display:none;">
+        <!-- Dynamically filled by sport_view.js -->
+      </div>
+
+      <!-- Subview: Historique des Semaines avec accordéon -->
+      <div id="sport-summaries-container" style="display:none;">
+        <!-- Dynamically filled by sport_view.js -->
       </div>
 
       <!-- Subview: Tableau de bord & Multi-échelles -->
       <div id="sport-dashboard-container" style="display:none;">
-        <!-- Dynamically filled by app.js -->
+        <!-- Dynamically filled by sport_view.js -->
       </div>
 
       <!-- Subview: Trophées, Badges & Anecdotes Fun -->
       <div id="sport-gamification-container" style="display:none;">
-        <!-- Dynamically filled by app.js -->
+        <!-- Dynamically filled by sport_view.js -->
       </div>
     </section>
 

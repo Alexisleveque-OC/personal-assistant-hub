@@ -264,8 +264,23 @@ class SportConnector(BaseConnector):
 
             statut_enum = SportSessionStatus.REALISE if "réalisé" in statut_str.lower() else SportSessionStatus.PLANIFIE
             type_clean = type_str.strip()
-            if type_clean.lower() in ("renfo", "renforcement", "ppg", "musculation"):
+            type_lower = type_clean.lower()
+            if type_lower in ("renfo", "renforcement", "ppg", "musculation"):
                 type_enum = SportSessionType.RENFORCEMENT
+            elif type_lower in ("fractionné", "fractionne"):
+                type_enum = SportSessionType.FRACTIONNE
+            elif type_lower in ("sortie longue", "sortie_longue"):
+                type_enum = SportSessionType.SORTIE_LONGUE
+            elif type_lower in ("course", "running"):
+                type_enum = SportSessionType.COURSE
+            elif type_lower == "vitesse":
+                type_enum = SportSessionType.VITESSE
+            elif type_lower == "tempo":
+                type_enum = SportSessionType.TEMPO
+            elif type_lower in ("récup", "recup"):
+                type_enum = SportSessionType.RECUP
+            elif type_lower in ("ef", "endurance fondamentale"):
+                type_enum = SportSessionType.EF
             else:
                 try:
                     type_enum = SportSessionType(type_clean)
