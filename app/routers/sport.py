@@ -1,9 +1,9 @@
 """Router FastAPI pour les fonctionnalités et le Dashboard Sport Running (Étape 7.1)."""
-from datetime import date
+from datetime import date, datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 
 from app.config import settings
 from app.core.security import verify_api_key
@@ -13,10 +13,13 @@ from app.connectors.sheets.sport_models import (
     SportGamificationSummary,
     SportPeriodDashboard,
     SportSession,
+    SportSessionsListResponse,
     SportSessionStatus,
     SportSessionType,
     SportSessionUpdate,
+    SportSummariesListResponse,
     SportTodayResponse,
+    SportWeeklySummaryWithSessions,
 )
 from app.core.sport_dashboard_service import (
     CoachTipProvider,
@@ -24,6 +27,8 @@ from app.core.sport_dashboard_service import (
     compare_with_previous,
 )
 from app.core.sport_gamification_service import SportGamificationService
+
+from app.core.dependencies import get_sport_connector, get_sport_connector_error
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +44,7 @@ _gamification_service = SportGamificationService()
 
 
 def get_sport_connector_dep():
-    """Dépendance FastAPI pour obtenir le SportConnector actif.
-
-    Import différé pour éviter la dépendance circulaire main -> routers.sport -> main
-    comme consigné dans la dette technique de SPEC.md.
-    """
-    from app.main import get_sport_connector, get_sport_connector_error
+    """Dépendance FastAPI pour obtenir le SportConnector actif."""
     connector = get_sport_connector()
     if not connector:
         err = get_sport_connector_error() or "vérifiez la variable SPREADSHEET_SPORT_ID et l'accès Google Sheets"
@@ -149,6 +149,79 @@ async def get_sport_today(
     )
 
 
+@router.get("/sessions", response_model=SportSessionsListResponse)
+async def get_sport_sessions(
+    order: str = Query("desc", description="Ordre de tri par date : 'desc' (antichronologique) ou 'asc'"),
+    statut: Optional[str] = Query(None, description="Filtrer par statut (ex: Réalisé, Prévu)"),
+    type_seance: Optional[str] = Query(None, description="Filtrer par type de séance (ex: EF, Fractionné, Renforcement)"),
+    limit: int = Query(100, ge=1, le=500, description="Limite pour la pagination"),
+    offset: int = Query(0, ge=0, description="Offset pour la pagination"),
+    connector=Depends(get_sport_connector_dep),
+):
+    """Retourne la liste des séances avec tri chronologique / antichronologique et filtres."""
+    all_sessions = connector.get_all_sessions()
+
+    filtered = []
+    for s in all_sessions:
+        if statut:
+            target_st = statut.strip().lower()
+            current_st = s.statut.value.lower() if hasattr(s.statut, "value") else str(s.statut).lower()
+            if target_st != current_st:
+                continue
+
+        if type_seance:
+            target_tp = type_seance.strip().lower()
+            current_tp = s.type_seance.value.lower() if hasattr(s.type_seance, "value") else str(s.type_seance).lower()
+            if target_tp != current_tp:
+                continue
+
+        filtered.append(s)
+
+    # Tri par date
+    is_desc = order.strip().lower() != "asc"
+    filtered.sort(key=lambda s: s.date, reverse=is_desc)
+
+    total = len(filtered)
+    paginated = filtered[offset : offset + limit]
+
+    return SportSessionsListResponse(
+        sessions=paginated,
+        total=total,
+    )
+
+
+@router.get("/summaries", response_model=SportSummariesListResponse)
+async def get_sport_summaries(
+    annee: Optional[int] = Query(None, description="Filtrer par année"),
+    include_sessions: bool = Query(True, description="Inclure les séances détaillées rattachées à la semaine"),
+    order: str = Query("desc", description="Ordre de tri : 'desc' ou 'asc'"),
+    limit: int = Query(52, ge=1, le=200, description="Limite de pagination"),
+    offset: int = Query(0, ge=0, description="Offset de pagination"),
+    connector=Depends(get_sport_connector_dep),
+):
+    """Retourne l'historique des synthèses hebdomadaires avec option d'imbrication des séances."""
+    raw_summaries = connector.get_all_summaries(year=annee)
+
+    is_desc = order.strip().lower() != "asc"
+    raw_summaries.sort(key=lambda item: (item.annee, item.semaine), reverse=is_desc)
+
+    total = len(raw_summaries)
+    paginated = raw_summaries[offset : offset + limit]
+
+    results: List[SportWeeklySummaryWithSessions] = []
+    for summary in paginated:
+        seances = []
+        if include_sessions:
+            seances = connector.get_week_sessions(summary.semaine, summary.annee)
+            seances.sort(key=lambda s: s.date)
+        results.append(SportWeeklySummaryWithSessions(summary=summary, seances=seances))
+
+    return SportSummariesListResponse(
+        summaries=results,
+        total=total,
+    )
+
+
 @router.patch("/session/{target_date}")
 async def patch_sport_session(
     target_date: date,
@@ -216,3 +289,56 @@ async def get_sport_gamification(
     all_sessions = connector.get_all_sessions()
     service = SportGamificationService()
     return service.compute_summary(all_sessions)
+
+
+@router.post(
+    "/sync-activity",
+    summary="Synchronise une activité Strava vers Google Sheets",
+)
+async def sync_strava_activity(
+    activity: dict,
+    background_tasks: BackgroundTasks = None,
+    connector=Depends(get_sport_connector_dep),
+):
+    """Synchronise une activité Strava (depuis webhook ou polling) vers Google Sheets."""
+    strava_id = str(activity.get("id", ""))
+    name = activity.get("name", "Sortie course")
+    act_type = activity.get("type", "Run")
+    dist_m = float(activity.get("distance", 0.0))
+    dist_km = round(dist_m / 1000.0, 2)
+    moving_time = int(activity.get("moving_time", 0))
+    d_plus = int(activity.get("total_elevation_gain", 0))
+
+    start_date_str = activity.get("start_date", "")
+    if start_date_str:
+        try:
+            dt = datetime.fromisoformat(start_date_str.replace("Z", "+00:00"))
+            act_date = dt.date()
+        except Exception:
+            act_date = date.today()
+    else:
+        act_date = date.today()
+
+    session = SportSession(
+        date=act_date,
+        semaine=act_date.isocalendar()[1],
+        statut=SportSessionStatus.REALISE,
+        type_seance=SportSessionType.EF,
+        distance_km=dist_km,
+        duree_secondes=moving_time,
+        denivele_d_plus=d_plus,
+        notes=f"Sync Strava : {name}",
+        strava_id=strava_id,
+    )
+
+    if connector:
+        saved = connector.log_session(session)
+        if saved:
+            session = saved
+
+    return {
+        "success": True,
+        "message": f"Activité Strava {strava_id} synchronisée",
+        "distance_km": dist_km,
+        "session": session.model_dump(),
+    }

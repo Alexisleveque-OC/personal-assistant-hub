@@ -1,8 +1,15 @@
-const CACHE_NAME = "pah-pwa-cache-v8";
+const CACHE_NAME = "pah-pwa-cache-v14";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
   "/static/app.js",
+  "/static/js/config.js",
+  "/static/js/api.js",
+  "/static/js/speech.js",
+  "/static/js/views/chat_view.js",
+  "/static/js/views/shopping_view.js",
+  "/static/js/views/meals_view.js",
+  "/static/js/views/sport_view.js",
   "/static/manifest.json",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",

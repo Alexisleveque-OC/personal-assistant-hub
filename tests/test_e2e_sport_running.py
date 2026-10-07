@@ -134,7 +134,7 @@ class InMemorySportStore:
 @pytest.fixture
 def e2e_sport_store(monkeypatch):
     """Prépare un historique représentatif de 3 semaines pour tester l'intégralité du flow."""
-    ref_today = date(2026, 10, 6)
+    ref_today = date.today()
 
     # Mock rapide du conseil LLM pour éviter les timeouts réseau pendant la validation
     async def mock_coach_tip(context):
@@ -164,8 +164,8 @@ def e2e_sport_store(monkeypatch):
     # Semaine 40 : 1 séance précédente du même type (pour alimenter le comparateur)
     s40_prev_ef = SportSession(date=date(2026, 9, 29), semaine=40, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.EF, distance_km=9.0, duree_secondes=3100, denivele_d_plus=60, ressenti_rpe=5, remarques="Bonne aisance")
 
-    # Séance planifiée pour aujourd'hui (2026-10-06)
-    s_today_planned = SportSession(date=ref_today, semaine=41, statut=SportSessionStatus.PLANIFIE, type_seance=SportSessionType.EF, distance_km=10.5, duree_secondes=3600, notes="Footing d'EF régulier en endurance fondamentale")
+    # Séance planifiée pour aujourd'hui
+    s_today_planned = SportSession(date=ref_today, semaine=ref_today.isocalendar()[1], statut=SportSessionStatus.PLANIFIE, type_seance=SportSessionType.EF, distance_km=10.5, duree_secondes=3600, notes="Footing d'EF régulier en endurance fondamentale")
 
     initial = [s39_1, s39_2, s39_3, s39_4, s40_prev_ef, s_today_planned]
     store = InMemorySportStore(initial)
@@ -184,7 +184,7 @@ def e2e_sport_store(monkeypatch):
 
 def test_complete_e2e_running_and_coach_otis_lifecycle(e2e_sport_store):
     """Scénario d'intégration E2E complet validant l'ensemble du cycle de vie Sport Running."""
-    today = date(2026, 10, 6)
+    today = date.today()
 
     # -------------------------------------------------------------------------
     # 1. Consultation initiale de la journée (Page Séance du Jour & Mot d'Otis)
