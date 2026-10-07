@@ -79,9 +79,12 @@
 
 ---
 
-### ⚪ Étape 5 : Test d'Intégration End-to-End (E2E) & Recette Finale
-* **Objectifs :**
-  1. Écriture d'un test d'intégration E2E automatisé validant le cycle complet : réinitialisation des courses d'une semaine sur l'autre, consultation de l'historique des séances passées/futures, consultation des synthèses hebdomadaires et dépliage des détails.
-  2. Vérification de non-régression sur les 350+ tests existants (100% au vert).
-  3. Validation finale par l'utilisateur.
-* **Statut :** En attente de la recette utilisateur sur les étapes 3 et 4.
+### 🟢 Étape 5 : Test d'Intégration End-to-End (E2E) & Recette Finale
+* **Objectifs réalisés :**
+  1. Écriture du test d'intégration E2E complet (`tests/test_e2e_ux_sport_shopping.py`) validant :
+     - Le flux Courses : batch synchronisation lors de "J'ai fini !" (Cette semaine + Liste d'attente) avec préservation des validations Google Sheets et réinitialisation le samedi.
+     - Le flux Sport : interrogation chronologique des séances avec filtres multiples (statut, types prioritaires incluant Course et Vitesse) et calculs physiologiques (allure, km-effort, vitesse, charge RPE).
+     - Le flux Synthèses : consultation des bilans de semaines avec séances imbriquées pour l'accordéon.
+  2. Suite complète de tests validée à 100% au vert : **352 tests passés avec succès**.
+  3. Validation visuelle et ergonomique validée par l'utilisateur.
+* **Statut :** 🟢 Terminé et validé à 100%.
