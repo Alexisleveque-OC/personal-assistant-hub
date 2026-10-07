@@ -13,10 +13,13 @@ from app.connectors.sheets.sport_models import (
     SportGamificationSummary,
     SportPeriodDashboard,
     SportSession,
+    SportSessionsListResponse,
     SportSessionStatus,
     SportSessionType,
     SportSessionUpdate,
+    SportSummariesListResponse,
     SportTodayResponse,
+    SportWeeklySummaryWithSessions,
 )
 from app.core.sport_dashboard_service import (
     CoachTipProvider,
@@ -143,6 +146,79 @@ async def get_sport_today(
         comparisons=comparisons,
         coach_tip=tip,
         daily_spotlight=gam_summary.daily_spotlight,
+    )
+
+
+@router.get("/sessions", response_model=SportSessionsListResponse)
+async def get_sport_sessions(
+    order: str = Query("desc", description="Ordre de tri par date : 'desc' (antichronologique) ou 'asc'"),
+    statut: Optional[str] = Query(None, description="Filtrer par statut (ex: Réalisé, Prévu)"),
+    type_seance: Optional[str] = Query(None, description="Filtrer par type de séance (ex: EF, Fractionné, Renforcement)"),
+    limit: int = Query(100, ge=1, le=500, description="Limite pour la pagination"),
+    offset: int = Query(0, ge=0, description="Offset pour la pagination"),
+    connector=Depends(get_sport_connector_dep),
+):
+    """Retourne la liste des séances avec tri chronologique / antichronologique et filtres."""
+    all_sessions = connector.get_all_sessions()
+
+    filtered = []
+    for s in all_sessions:
+        if statut:
+            target_st = statut.strip().lower()
+            current_st = s.statut.value.lower() if hasattr(s.statut, "value") else str(s.statut).lower()
+            if target_st != current_st:
+                continue
+
+        if type_seance:
+            target_tp = type_seance.strip().lower()
+            current_tp = s.type_seance.value.lower() if hasattr(s.type_seance, "value") else str(s.type_seance).lower()
+            if target_tp != current_tp:
+                continue
+
+        filtered.append(s)
+
+    # Tri par date
+    is_desc = order.strip().lower() != "asc"
+    filtered.sort(key=lambda s: s.date, reverse=is_desc)
+
+    total = len(filtered)
+    paginated = filtered[offset : offset + limit]
+
+    return SportSessionsListResponse(
+        sessions=paginated,
+        total=total,
+    )
+
+
+@router.get("/summaries", response_model=SportSummariesListResponse)
+async def get_sport_summaries(
+    annee: Optional[int] = Query(None, description="Filtrer par année"),
+    include_sessions: bool = Query(True, description="Inclure les séances détaillées rattachées à la semaine"),
+    order: str = Query("desc", description="Ordre de tri : 'desc' ou 'asc'"),
+    limit: int = Query(52, ge=1, le=200, description="Limite de pagination"),
+    offset: int = Query(0, ge=0, description="Offset de pagination"),
+    connector=Depends(get_sport_connector_dep),
+):
+    """Retourne l'historique des synthèses hebdomadaires avec option d'imbrication des séances."""
+    raw_summaries = connector.get_all_summaries(year=annee)
+
+    is_desc = order.strip().lower() != "asc"
+    raw_summaries.sort(key=lambda item: (item.annee, item.semaine), reverse=is_desc)
+
+    total = len(raw_summaries)
+    paginated = raw_summaries[offset : offset + limit]
+
+    results: List[SportWeeklySummaryWithSessions] = []
+    for summary in paginated:
+        seances = []
+        if include_sessions:
+            seances = connector.get_week_sessions(summary.semaine, summary.annee)
+            seances.sort(key=lambda s: s.date)
+        results.append(SportWeeklySummaryWithSessions(summary=summary, seances=seances))
+
+    return SportSummariesListResponse(
+        summaries=results,
+        total=total,
     )
 
 

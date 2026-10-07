@@ -12,7 +12,7 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Courses :** Synchronisation directe en lot dans Google Sheets (Cette semaine & Liste d'attente) sur "J'ai fini" + bouton Reset | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (346/346 total) au vert |
-| **Étape 2** | **Sport Backend :** Endpoints d'historique des séances et de synthèses de semaines (`/sessions` & `/summaries`) en TDD strict | 🟡 En cours | En attente | En cours de rédaction des tests |
+| **Étape 2** | **Sport Backend :** Endpoints d'historique des séances et de synthèses de semaines (`/sessions` & `/summaries`) en TDD strict | 🟢 Terminé | En attente de validation utilisateur | ✅ 4/4 tests dédiés (350/350 total) au vert |
 | **Étape 3** | **Sport Frontend :** Vue chronologique des séances avec résumé concis et accordéon de détail complet (PWA) | ⚪ À faire | En attente | Tests d'affichage & composants |
 | **Étape 4** | **Sport Frontend :** Vue historique et synthèse des semaines avec accordéon des séances composantes (PWA) | ⚪ À faire | En attente | Tests d'affichage & agrégations |
 | **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette finale** | ⚪ À faire | En attente | Suite complète (100% au vert) |
@@ -27,23 +27,32 @@
   2. **Synchronisation en Lot (Batch) sur *"🏁 J'ai fini !"* :**
      - Durant les courses : les cases sont cochées tactilement et instantanément en mémoire/UI (0 requête API, 0 latence, quotas préservés).
      - Au clic sur *"🏁 J'ai fini !"* : un seul appel API groupé (`POST /api/v1/meals/shopping/complete`) transmet tous les articles cochés.
-     - **`Cette semaine` :** les cases correspondantes passent à `TRUE` dans le Sheet via `batch_update`.
+     - **`Cette semaine` :** les cases correspondantes passent à `TRUE` dans le Sheet via `batch_update` avec `value_input_option="USER_ENTERED"` préservant la règle de validation checkbox.
      - **`Liste_Attente` :** les articles achetés sont également passés à `TRUE` dans le Sheet (`mark_shopping_items_bought`).
      - Feedback visuel clair : badge vert *"✅ Synchronisé dans votre Google Sheet (Cette semaine & Liste d'attente)"*.
   3. **Bouton de Réinitialisation Explicite :** Bouton *"🔄 Réinitialiser"* sur l'onglet "Cette semaine" qui passe toutes les cases à `FALSE` dans le Google Sheet (`POST /api/v1/meals/shopping/reset`) et purge le cache pour démarrer une nouvelle semaine vierge.
   4. **Tests automatisés :** 4 tests unitaires dédiés dans `tests/test_shopping_week_reset.py`, 346/346 tests du projet au vert.
   5. **Mise à jour PWA :** Service Worker incrémenté en `v11`.
-* **Statut :** 🟢 Validé techniquement, prêt pour confirmation utilisateur.
+* **Statut :** 🟢 Validé par l'utilisateur et commité (`f1def49`).
 
 ---
 
-### ⚪ Étape 2 : Sport Backend : Endpoints d'Historique des Séances & des Semaines
-* **Objectifs :**
-  1. Endpoint `GET /api/v1/sport/sessions` : liste chronologique des séances (passées et prévues) avec tri antéchronologique par défaut (ou paramétrable), filtres optionnels par statut (`Réalisé`, `Prévu`, `Repos`), type de séance et plage de dates.
-  2. Endpoint `GET /api/v1/sport/summaries` : liste de toutes les synthèses hebdomadaires (`SportWeeklySummary`) ordonnées par semaine (avec volume km, D+, allure moy, charge RPE cumulée, alerte sécurité).
-  3. Association / imbrication optionnelle des séances de chaque semaine pour permettre un affichage fluide en accordéon.
-  4. TDD strict avec mocks et validation de contrat Pydantic.
-* **Statut :** En attente de l'Étape 1.
+### 🟢 Étape 2 : Sport Backend : Endpoints d'Historique des Séances & des Semaines
+* **Objectifs réalisés :**
+  1. **Endpoint `GET /api/v1/sport/sessions` :**
+     - Récupération de l'historique complet avec tri antichronologique par défaut (`order=desc|asc`).
+     - Filtres optionnels insensibles à la casse : `statut` (ex: `Réalisé`, `Prévu`, `Repos`), `type_seance` (ex: `EF`, `Fractionné`, `Renforcement`).
+     - Pagination intégrée (`limit`, `offset`) et comptage `total`.
+  2. **Endpoint `GET /api/v1/sport/summaries` :**
+     - Récupération des synthèses de semaines (`Synthese_Hebdo` ou fallback dynamique par séances).
+     - Paramètre `include_sessions=True` pour imbriquer directement la liste des séances de chaque semaine (indispensable pour l'accordéon frontend sans requêtes multiples en cascade).
+     - Filtres par `annee`, tri paramétrable et pagination.
+  3. **Méthode connecteur `SportConnector.get_all_summaries` :**
+     - Extraction depuis le cache/feuille `Synthese_Hebdo` avec tri chronologique descendant.
+     - Fallback autonome depuis l'historique complet des séances si l'onglet est absent ou vide.
+  4. **Modèles Pydantic stricts :** `SportSessionsListResponse`, `SportWeeklySummaryWithSessions`, `SportSummariesListResponse`.
+  5. **TDD strict :** 4/4 tests unitaires dédiés dans `tests/test_sport_history_endpoints.py`, 350/350 tests du projet au vert (0 régression).
+* **Statut :** 🟢 Validé techniquement, prêt pour revue/validation utilisateur.
 
 ---
 
