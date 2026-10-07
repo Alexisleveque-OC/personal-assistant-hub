@@ -127,13 +127,37 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [x] Écritures Google Sheets asynchrones en arrière-plan (`BackgroundTasks`) pour retour vocal immédiat
   - [x] Tolérance avancée aux recettes (tirets, accents, pluriels, nom officiel canonique)
 
-- [ ] **Phase 5 : Module Sport Running & Mini-Coach (Google Sheets & Tracking)**
-  - [ ] Modélisation et validation du classeur Google Sheets Running (séances, formules automatiques allure/vitesse, statut prévus vs réalisés)
-  - [ ] Calculs et tableau de bord de charge & volume par semaine (km totaux, temps cumulé, allure moyenne)
-  - [ ] Connecteur backend `SportConnector` (lecture de la séance du jour/semaine, enregistrement vocal post-séance)
-  - [ ] Intentions NLU (`get_sport_session`, `log_sport_session`, `get_sport_weekly_summary`) avec structured output
-  - [ ] Passerelle de synchronisation d'activités (exploration API Decathlon Developers / Strava)
-  - [ ] Tests unitaires et E2E d'intégration
+- [x] **Phase 5 : Module Sport Running & Mini-Coach Otis (Google Sheets & Tracking) - (Terminée)**
+  - [x] Modélisation et validation du classeur Google Sheets Running (séances, formules automatiques allure/vitesse, statut prévus vs réalisés, Km-Effort)
+  - [x] Calculs et tableau de bord de charge & volume par semaine (km totaux, temps cumulé, allure moyenne, Charge RPE, alerte sécurité +10%)
+  - [x] Connecteur backend `SportConnector` (lecture de la séance du jour/semaine, enregistrement vocal post-séance, mise à jour RPE/notes)
+  - [x] Cerveau LLM Otis : analyse fine d'historique sur 4 semaines, conseils personnalisés et planification hebdomadaire proactive
+  - [x] Interface PWA Running : dashboard visuel multi-échelles (Semaine/Mois/Année), jauges SVG, pop-up RPE tactile et comparateur de séances
+  - [x] Gamification dopaminée : badges de pop-culture (Astérix, Le Seigneur des Anneaux, Brandon Sanderson), exploits mono-séance et records
+  - [x] Passerelle de synchronisation webhooks Strava (`/api/v1/integrations/strava/webhook`, `/api/v1/sport/sync-activity`)
+  - [x] Test d'intégration End-to-End (`test_complete_e2e_running_and_coach_otis_lifecycle`) et 342 tests automatisés à 100% au vert
+
+- [x] **Phase 5 bis : Refactoring Modulaire Architectural (Terminée)**
+  - [x] Étude comparative et pédagogique (FastAPI Domain-First vs Symfony MVC, tokens et maintenabilité)
+  - [x] Extraction des dépendances et singletons dans `app/core/dependencies.py` (élimination des imports circulaires)
+  - [x] Découpage en sous-routeurs FastAPI (`routers/system.py`, `routers/pwa.py`, `routers/meals.py`, `routers/mobile.py`, `routers/sport.py`, `routers/strava.py`)
+  - [x] Extraction des handlers d'intentions (`handlers/meals_handler.py`, `handlers/sport_handler.py`, `handlers/assistant_handler.py`) pour alléger `/api/v1/interact`
+  - [x] `app/main.py` ultra-épuré (< 85 lignes)
+  - [x] Découpage modulaire des vues PWA front-end en modules ES6 (`app/static/js/views/*`, `app/static/app.js` < 200 lignes)
+  - [x] Maintien permanent de 100% des tests au vert (342 tests) et tableau comparatif Avant/Après
+
+- [ ] **Phase 5 ter : Retours d'Expérience Utilisateur (Sport & Courses) - (À traiter dans un chat dédié)**
+  - [ ] **Sport - Historique des séances passées & prévues :**
+    - Création d'une vue chronologique visuelle des séances (au lieu de devoir consulter le Google Sheet ou une app externe).
+    - Affichage d'un résumé concis par carte de séance.
+    - Clic/dépliage sur une séance pour afficher sa vue détaillée complète (distance, durée, allure, dénivelé, km-effort, RPE, remarques).
+  - [ ] **Sport - Historique & Synthèse des semaines :**
+    - Résumé visuel de chaque semaine (volume kilométrique total, D+, allure moyenne, charge RPE cumulée).
+    - Clic/dépliage sur une semaine pour afficher le détail approfondi et la liste des séances qui ont composé la semaine.
+  - [ ] **Courses - Réinitialisation des articles cochés d'une semaine sur l'autre :**
+    - Corriger la persistance indésirable des produits déjà achetés (restant cochés la semaine suivante).
+    - Mécanisme de réinitialisation explicite (bouton "Reset la liste" sur la PWA) ou automatique lors du démarrage d'une nouvelle session de courses.
+    - Purge propre du cache mémoire et synchronisation avec Google Sheets.
 
 - [ ] **Phase 6 : Mémoire Long-terme & "Second Cerveau"**
   - [ ] Stockage local SQLite pour la boîte à idées et notes libres (catégories, tags, date)

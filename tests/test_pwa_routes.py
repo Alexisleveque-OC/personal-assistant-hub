@@ -59,11 +59,24 @@ def test_get_static_assets():
     assert "text/css" in res_css.headers.get("content-type", "")
     assert "--bg-main" in res_css.text
 
-    # JS
+    # JS Root & Modules
     res_js = client.get("/static/app.js")
     assert res_js.status_code == 200
     assert "javascript" in res_js.headers.get("content-type", "")
     assert "SpeechRecognition" in res_js.text
+
+    for module_path in (
+        "/static/js/config.js",
+        "/static/js/api.js",
+        "/static/js/speech.js",
+        "/static/js/views/chat_view.js",
+        "/static/js/views/shopping_view.js",
+        "/static/js/views/meals_view.js",
+        "/static/js/views/sport_view.js",
+    ):
+        res_mod = client.get(module_path)
+        assert res_mod.status_code == 200, f"Module {module_path} not found"
+        assert "javascript" in res_mod.headers.get("content-type", "")
 
     # SVG Icon
     res_svg = client.get("/static/icons/icon.svg")

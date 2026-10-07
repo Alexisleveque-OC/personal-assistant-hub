@@ -1,9 +1,9 @@
 """Router FastAPI pour les fonctionnalités et le Dashboard Sport Running (Étape 7.1)."""
-from datetime import date
+from datetime import date, datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 
 from app.config import settings
 from app.core.security import verify_api_key
@@ -25,6 +25,8 @@ from app.core.sport_dashboard_service import (
 )
 from app.core.sport_gamification_service import SportGamificationService
 
+from app.core.dependencies import get_sport_connector, get_sport_connector_error
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
@@ -39,12 +41,7 @@ _gamification_service = SportGamificationService()
 
 
 def get_sport_connector_dep():
-    """Dépendance FastAPI pour obtenir le SportConnector actif.
-
-    Import différé pour éviter la dépendance circulaire main -> routers.sport -> main
-    comme consigné dans la dette technique de SPEC.md.
-    """
-    from app.main import get_sport_connector, get_sport_connector_error
+    """Dépendance FastAPI pour obtenir le SportConnector actif."""
     connector = get_sport_connector()
     if not connector:
         err = get_sport_connector_error() or "vérifiez la variable SPREADSHEET_SPORT_ID et l'accès Google Sheets"
@@ -216,3 +213,56 @@ async def get_sport_gamification(
     all_sessions = connector.get_all_sessions()
     service = SportGamificationService()
     return service.compute_summary(all_sessions)
+
+
+@router.post(
+    "/sync-activity",
+    summary="Synchronise une activité Strava vers Google Sheets",
+)
+async def sync_strava_activity(
+    activity: dict,
+    background_tasks: BackgroundTasks = None,
+    connector=Depends(get_sport_connector_dep),
+):
+    """Synchronise une activité Strava (depuis webhook ou polling) vers Google Sheets."""
+    strava_id = str(activity.get("id", ""))
+    name = activity.get("name", "Sortie course")
+    act_type = activity.get("type", "Run")
+    dist_m = float(activity.get("distance", 0.0))
+    dist_km = round(dist_m / 1000.0, 2)
+    moving_time = int(activity.get("moving_time", 0))
+    d_plus = int(activity.get("total_elevation_gain", 0))
+
+    start_date_str = activity.get("start_date", "")
+    if start_date_str:
+        try:
+            dt = datetime.fromisoformat(start_date_str.replace("Z", "+00:00"))
+            act_date = dt.date()
+        except Exception:
+            act_date = date.today()
+    else:
+        act_date = date.today()
+
+    session = SportSession(
+        date=act_date,
+        semaine=act_date.isocalendar()[1],
+        statut=SportSessionStatus.REALISE,
+        type_seance=SportSessionType.EF,
+        distance_km=dist_km,
+        duree_secondes=moving_time,
+        denivele_d_plus=d_plus,
+        notes=f"Sync Strava : {name}",
+        strava_id=strava_id,
+    )
+
+    if connector:
+        saved = connector.log_session(session)
+        if saved:
+            session = saved
+
+    return {
+        "success": True,
+        "message": f"Activité Strava {strava_id} synchronisée",
+        "distance_km": dist_km,
+        "session": session.model_dump(),
+    }
