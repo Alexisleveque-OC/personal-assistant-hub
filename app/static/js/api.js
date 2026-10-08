@@ -209,4 +209,27 @@ export async function postConversationFeedback(logId, payload) {
   return await res.json();
 }
 
+export async function uploadSecondBrainImage(imageFile, { caption = null, category_override = null } = {}) {
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  if (caption) formData.append("caption", caption);
+  if (category_override) formData.append("category_override", category_override);
+
+  const headers = {};
+  if (state.apiKey) {
+    headers["X-API-Key"] = state.apiKey;
+  }
+
+  const res = await fetch("/api/v1/second-brain/notes/image", {
+    method: "POST",
+    headers: headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || ("Erreur analyse image : " + res.status));
+  }
+  return await res.json();
+}
+
 

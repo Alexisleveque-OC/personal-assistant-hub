@@ -238,10 +238,19 @@
     <section id="view-second-brain" class="view-panel">
       <div class="shopping-header">
         <h2 class="section-title">Second Cerveau</h2>
-        <button id="btn-add-note-inline" class="btn-action-small" title="Ajouter une note manuellement">
-          ➕ Ajouter
-        </button>
+        <div style="display:flex; gap:8px;">
+          <input type="file" id="file-brain-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+          <button id="btn-upload-image-inline" class="btn-action-small" title="Envoyer une capture d'écran ou photo (ou Ctrl+V)">
+            📷 Capture / Photo
+          </button>
+          <button id="btn-add-note-inline" class="btn-action-small" title="Ajouter une note manuellement">
+            ➕ Ajouter
+          </button>
+        </div>
       </div>
+
+      <!-- Bannière de Statut Analyse Gemini Vision -->
+      <div id="brain-image-status-banner" class="completion-banner" style="display:none; margin-bottom:12px;"></div>
 
       <!-- Segmented Brain Switcher -->
       <div class="segmented-control" id="brain-segmented">

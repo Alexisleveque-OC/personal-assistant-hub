@@ -141,21 +141,25 @@
 
 ---
 
-### ⚪ Étape 8 : Ingestion Multimodale Visuelle & Second Cerveau (Screenshots / Photos Gemini Vision)
-* **Objectifs :**
-  1. **Endpoint d'analyse visuelle `/api/v1/second-brain/notes/image` :**
-     - Réception d'images et captures d'écran (PNG, JPEG, WebP) avec champ optionnel `category_hint` ou `note_text`.
-     - Traitement multimodal natif via Gemini Vision (`inlineData`).
-  2. **Extraction contextuelle et classification autonome :**
-     - Détection du type de contenu :
-       - Screenshot de bug / code / console -> note classifiée en `bug_report`.
-       - Screenshot d'hôtel / destination / billet -> note classifiée en `voyage` ou `vacances`.
-       - Screenshot de feature / maquette / repo -> note classifiée en `dev_idea`.
-       - Screenshot de plat / recette -> note classifiée en `cuisine`.
-     - Extraction d'une synthèse courte et pertinente sans forcer l'utilisateur à décrire manuellement.
-  3. **Persistance directe en base SQLite (`second_brain_notes`) :**
-     - Stockage de la note enrichie avec tags et référence.
-  4. **TDD strict :** tests unitaires et mocks de l'analyse d'image.
+### ✅ Étape 8 : Ingestion Multimodale Visuelle & Second Cerveau (Screenshots / Photos Gemini Vision)
+* **Objectifs validés :**
+  1. **Service multimodal Gemini Vision ([app/core/vision/vision_service.py](file:///home/alexis/CODE/personal-assistant-hub/app/core/vision/vision_service.py)) :**
+     - Traitement direct d'images (PNG, JPEG, WebP) avec envoi base64 `inlineData` à Gemini Flash.
+     - Structured Output JSON (`SecondBrainImageAnalysisResult`) : extraction autonome d'un titre, résumé textuel/visuel, tags et suggestions d'actions.
+     - Classification automatique dans le bon segment : `bug_report` (exceptions, stacktraces, bugs UI), `voyage`/`vacances` (hôtels, billets, Booking), `dev_idea` (code, maquettes, repos), `cuisine` (recettes, cartes), `task` (factures, devoirs), etc.
+     - Mode de secours heuristique local en cas d'indisponibilité ou absence de clé.
+  2. **Endpoint REST dédié `POST /api/v1/second-brain/notes/image` ([app/routers/second_brain.py](file:///home/alexis/CODE/personal-assistant-hub/app/routers/second_brain.py)) :**
+     - Support multipart/form-data avec validation MIME type et taille.
+     - Persistance immédiate en base SQLite (`second_brain_notes`) avec tags.
+     - Traçabilité complète dans `conversation_logs` pour l'auditabilité.
+     - Prise en charge d'un `caption` optionnel et d'un `category_override`.
+  3. **Interface PWA (Mobile & Desktop) :**
+     - Bouton « 📷 Capture / Photo » ouvrant le sélecteur d'image ou l'appareil photo mobile.
+     - **Interception du coller (Ctrl+V)** : coller directement une capture d'écran depuis le presse-papier déclenche immédiatement l'analyse et l'enregistrement.
+     - Bannière de statut dynamique avec retour visuel immédiat.
+  4. **TDD strict :** 5/5 tests au vert dans `tests/test_second_brain_image_vision.py`.
+  5. **Zéro régression :** 385/385 tests du projet à 100% au vert.
+* **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 ---
 

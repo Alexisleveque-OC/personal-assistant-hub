@@ -8,6 +8,7 @@ import {
   deleteSecondBrainNote,
   fetchConversationLogs,
   postConversationFeedback,
+  uploadSecondBrainImage,
 } from "../api.js";
 
 // Sélecteurs DOM principaux
@@ -51,6 +52,40 @@ export function initSecondBrainView() {
   const formNewNote = document.getElementById("form-add-note");
   const inputSearch = document.getElementById("brain-search-input");
   const statusFilterSelect = document.getElementById("brain-status-filter");
+  const btnUploadImage = document.getElementById("btn-upload-image-inline");
+  const fileImageInput = document.getElementById("file-brain-image-input");
+
+  // Ingestion visuelle (Bouton fichier & input masqué)
+  if (btnUploadImage && fileImageInput) {
+    btnUploadImage.addEventListener("click", () => fileImageInput.click());
+    fileImageInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        handleImageUpload(file);
+        fileImageInput.value = "";
+      }
+    });
+  }
+
+  // Support du Coller (Paste / Ctrl+V) d'une capture d'écran
+  window.addEventListener("paste", (e) => {
+    const activeView = document.getElementById("view-second-brain");
+    if (!activeView || !activeView.classList.contains("active")) return;
+
+    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleImageUpload(file, "Capture collée depuis le presse-papier");
+          break;
+        }
+      }
+    }
+  });
 
   // Bascule Notes / Audit
   if (tabNotes && tabAudit) {
@@ -411,3 +446,36 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+export async function handleImageUpload(file, defaultCaption = null) {
+  const statusBanner = document.getElementById("brain-image-status-banner");
+  if (statusBanner) {
+    statusBanner.style.display = "block";
+    statusBanner.style.background = "rgba(37, 99, 235, 0.1)";
+    statusBanner.style.color = "var(--color-primary, #2563eb)";
+    statusBanner.innerHTML = "<span>✨ Analyse de l'image par Gemini Vision en cours...</span>";
+  }
+
+  try {
+    const res = await uploadSecondBrainImage(file, { caption: defaultCaption });
+    if (statusBanner) {
+      const meta = getCategoryMeta(res.analysis.category);
+      statusBanner.style.background = "rgba(34, 197, 94, 0.12)";
+      statusBanner.style.color = "#16a34a";
+      statusBanner.innerHTML = `<span>✓ Image analysée ! Enregistrée sous <strong>${meta.icon} ${meta.label}</strong> : ${escapeHtml(res.analysis.title)}</span>`;
+      setTimeout(() => {
+        statusBanner.style.display = "none";
+      }, 5000);
+    }
+
+    // Basculer sur les notes si on était ailleurs et recharger
+    switchBrainSubview("notes");
+  } catch (err) {
+    if (statusBanner) {
+      statusBanner.style.background = "rgba(239, 68, 68, 0.12)";
+      statusBanner.style.color = "#ef4444";
+      statusBanner.innerHTML = `<span>⚠️ Erreur analyse image : ${escapeHtml(err.message)}</span>`;
+    }
+  }
+}
+

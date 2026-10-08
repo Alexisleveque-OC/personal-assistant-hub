@@ -199,6 +199,24 @@ class NoteUpdate(BaseModel):
     tags: Optional[list[str]] = None
 
 
+class SecondBrainImageAnalysisResult(BaseModel):
+    """Résultat d'analyse multimodale Gemini Vision d'une capture d'écran ou photo."""
+    category: str = Field(..., description="Catégorie identifiée (dev_idea, bug_report, voyage, cuisine, etc.)")
+    title: str = Field(..., description="Titre ou résumé très court (1 ligne)")
+    summary: str = Field(..., description="Description synthétique et exploitable du contenu de l'image")
+    tags: list[str] = Field(default_factory=list, description="Mots-clés / tags extraits")
+    suggested_action: Optional[str] = Field(default=None, description="Action ou étape conseillée le cas échéant")
+
+
+class SecondBrainImageNoteResponse(BaseModel):
+    """Réponse retournée lors de l'ingestion multimodale d'une image vers le Second Cerveau."""
+    success: bool
+    note_id: int
+    note: SecondBrainNoteItem
+    analysis: SecondBrainImageAnalysisResult
+    spoken_response: str
+
+
 # ============================================================================
 # Auto-Apprentissage Vocal (user_learnings)
 # ============================================================================

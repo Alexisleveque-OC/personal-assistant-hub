@@ -1,7 +1,7 @@
 """Router FastAPI pour le Second Cerveau compartimenté (CRUD de notes et statistiques)."""
 import logging
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 
 from app.core.security import verify_api_key
 from app.core.dependencies import get_database_manager
@@ -11,7 +11,10 @@ from app.core.models import (
     SecondBrainNotesListResponse,
     NoteCreate,
     NoteUpdate,
+    SecondBrainImageNoteResponse,
+    SecondBrainImageAnalysisResult,
 )
+from app.core.vision.vision_service import analyze_image_for_second_brain
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,8 @@ router = APIRouter(
     tags=["Second Brain"],
     dependencies=[Depends(verify_api_key)],
 )
+
+SUPPORTED_IMAGE_MIMES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 
 
 @router.get(
@@ -67,6 +72,82 @@ async def create_note_endpoint(payload: NoteCreate):
             detail="Impossible de récupérer la note créée.",
         )
     return created
+
+
+@router.post(
+    "/notes/image",
+    response_model=SecondBrainImageNoteResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ingestion multimodale d'une capture d'écran ou photo vers le Second Cerveau",
+)
+async def upload_image_note_endpoint(
+    image: UploadFile = File(..., description="Fichier image ou capture d'écran (PNG, JPEG, WebP)"),
+    caption: Optional[str] = Form(None, description="Légende ou remarque optionnelle de l'utilisateur"),
+    category_override: Optional[str] = Form(None, description="Catégorie forcée si souhaité"),
+):
+    """Analyse une image via Gemini Vision et l'enregistre automatiquement dans le Second Cerveau."""
+    mime = image.content_type or ""
+    if mime not in SUPPORTED_IMAGE_MIMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Format image '{mime}' non supporté. Formats acceptés : image/png, image/jpeg, image/webp.",
+        )
+
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le fichier image envoyé est vide.",
+        )
+
+    analysis = analyze_image_for_second_brain(
+        image_bytes=image_bytes,
+        mime_type=mime,
+        user_caption=caption,
+    )
+
+    chosen_category = category_override or analysis.category
+    note_content = f"{analysis.title}\n{analysis.summary}"
+    if analysis.suggested_action:
+        note_content += f"\n💡 Action suggérée : {analysis.suggested_action}"
+
+    db = get_database_manager()
+    note_id = db.add_note(
+        category=chosen_category,
+        content=note_content,
+        tags=analysis.tags,
+    )
+
+    created_note = db.get_note(note_id)
+    if not created_note:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors de la récupération de la note image enregistrée.",
+        )
+
+    spoken_reply = (
+        f"J'ai bien analysé votre capture d'écran et je l'ai enregistrée dans vos notes sous '{chosen_category}' : {analysis.title}."
+    )
+
+    try:
+        db.log_conversation(
+            raw_query=f"[Image/Capture] {caption or analysis.title}",
+            intent="second_brain_image_capture",
+            parameters={"category": chosen_category, "tags": analysis.tags, "title": analysis.title},
+            spoken_response=spoken_reply,
+            success=True,
+            llm_model="gemini-flash-vision",
+        )
+    except Exception as exc:
+        logger.warning(f"Impossible d'enregistrer le log d'image : {exc}")
+
+    return SecondBrainImageNoteResponse(
+        success=True,
+        note_id=note_id,
+        note=created_note,
+        analysis=analysis,
+        spoken_response=spoken_reply,
+    )
 
 
 @router.get(
