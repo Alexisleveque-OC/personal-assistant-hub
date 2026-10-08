@@ -130,3 +130,108 @@ async def post_conversation_feedback_endpoint(
     )
     return ConversationFeedbackResponse(success=True, feedback_id=fb_id)
 
+
+# ============================================================================
+# Auto-Apprentissage Vocal (user_learnings - Phase 6)
+# ============================================================================
+
+from app.core.models import (
+    UserLearningItem,
+    UserLearningsListResponse,
+    LearningCreate,
+    LearningUpdate,
+)
+
+
+@router.post(
+    "/api/v1/system/learnings",
+    response_model=UserLearningItem,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_api_key)],
+    summary="Création manuelle d'une règle d'apprentissage",
+)
+async def post_learning_endpoint(payload: LearningCreate):
+    """Enregistre une nouvelle règle apprise pour l'assistant."""
+    db = get_database_manager()
+    rule_id = db.add_learning(
+        rule_text=payload.rule_text,
+        category=payload.category or "general",
+        original_error=payload.original_error,
+        correction=payload.correction,
+        active=payload.active,
+    )
+    item = db.get_learning(rule_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors de la création de la règle.",
+        )
+    return item
+
+
+@router.get(
+    "/api/v1/system/learnings",
+    response_model=UserLearningsListResponse,
+    dependencies=[Depends(verify_api_key)],
+    summary="Consultation des règles apprises",
+)
+async def get_learnings_endpoint(
+    category: Optional[str] = None,
+    active: Optional[bool] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Retourne la liste paginée des règles d'apprentissage."""
+    db = get_database_manager()
+    return db.get_learnings(
+        category=category,
+        active=active,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.patch(
+    "/api/v1/system/learnings/{rule_id}",
+    response_model=UserLearningItem,
+    dependencies=[Depends(verify_api_key)],
+    summary="Mise à jour d'une règle apprise",
+)
+async def patch_learning_endpoint(rule_id: int, payload: LearningUpdate):
+    """Met à jour une règle apprise (ex: désactivation)."""
+    db = get_database_manager()
+    existing = db.get_learning(rule_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Règle {rule_id} introuvable.",
+        )
+    db.update_learning(
+        learning_id=rule_id,
+        rule_text=payload.rule_text,
+        category=payload.category,
+        original_error=payload.original_error,
+        correction=payload.correction,
+        active=payload.active,
+    )
+    updated = db.get_learning(rule_id)
+    return updated
+
+
+@router.delete(
+    "/api/v1/system/learnings/{rule_id}",
+    dependencies=[Depends(verify_api_key)],
+    summary="Suppression d'une règle apprise",
+)
+async def delete_learning_endpoint(rule_id: int):
+    """Supprime définitivement une règle d'apprentissage."""
+    db = get_database_manager()
+    existing = db.get_learning(rule_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Règle {rule_id} introuvable.",
+        )
+    success = db.delete_learning(rule_id)
+    return {"success": success}
+

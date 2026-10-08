@@ -165,6 +165,89 @@ class IntentParser:
                 raw_query=text,
             )
 
+        # 0.05 Auto-Apprentissage Vocal & Enseignement d'Otis (Phase 6)
+        # a) Détection de confusion / correction : "tu as compris X alors que j'ai dit Y"
+        teach_corr = re.search(
+            r"(?:.*?\b)?tu\s+as\s+compris\s+(.+?)\s+alors\s+que\s+(?:je\s+t['’]ai\s+dit|j['’]ai\s+dit|c['’]est|je\s+voulais\s+dire)\s+(.+)",
+            text,
+            re.IGNORECASE,
+        )
+        if teach_corr:
+            orig = teach_corr.group(1).strip()
+            corr = teach_corr.group(2).strip()
+            return ParsedIntent(
+                intent=IntentType.TEACH_ASSISTANT,
+                confidence=0.95,
+                parameters={
+                    "original_error": orig,
+                    "correction": corr,
+                    "category": "vocal_correction",
+                    "rule_text": f"Quand Alexis dit '{orig}', comprendre '{corr}'",
+                },
+                raw_query=text,
+            )
+
+        # b) Définition d'équivalence / synonyme : "quand je dis X je veux dire Y"
+        teach_syn = re.search(
+            r"(?:.*?\b)?quand\s+je\s+dis\s+(.+?)\s+(?:je\s+veux\s+dire|ça\s+veut\s+dire|c['’]est)\s+(.+)",
+            text,
+            re.IGNORECASE,
+        )
+        if teach_syn:
+            orig = teach_syn.group(1).strip()
+            corr = teach_syn.group(2).strip()
+            return ParsedIntent(
+                intent=IntentType.TEACH_ASSISTANT,
+                confidence=0.95,
+                parameters={
+                    "original_error": orig,
+                    "correction": corr,
+                    "category": "synonym",
+                    "rule_text": f"Quand Alexis dit '{orig}', cela signifie '{corr}'",
+                },
+                raw_query=text,
+            )
+
+        # c) Règle de rayon pour les courses : "(le) X va dans le rayon Y"
+        teach_rayon = re.search(
+            r"(?:(?:le|la|les|l['’])\s*)?(.+?)\s+(?:va|vont)\s+(?:systématiquement\s+)?dans\s+le\s+rayon\s+(.+)",
+            text,
+            re.IGNORECASE,
+        )
+        if teach_rayon:
+            item_name = teach_rayon.group(1).strip()
+            rayon_name = teach_rayon.group(2).strip()
+            return ParsedIntent(
+                intent=IntentType.TEACH_ASSISTANT,
+                confidence=0.95,
+                parameters={
+                    "original_error": item_name,
+                    "correction": rayon_name,
+                    "category": "rayon",
+                    "rule_text": text.strip(),
+                },
+                raw_query=text,
+            )
+
+        # d) Ordre générique de mémorisation de règle : "retiens que ..." (hors préférence)
+        teach_rule = re.search(
+            r"^(?:(?:otis\s*,?\s*)?(?:apprends\s+que|retiens\s+que\s+(?!je\s+préfère)|enregistre\s+la\s+règle\s*[:\-]?\s*))(.*)$",
+            text,
+            re.IGNORECASE,
+        )
+        if teach_rule:
+            content = teach_rule.group(1).strip()
+            if content:
+                return ParsedIntent(
+                    intent=IntentType.TEACH_ASSISTANT,
+                    confidence=0.92,
+                    parameters={
+                        "rule_text": content,
+                        "category": "custom_rule",
+                    },
+                    raw_query=text,
+                )
+
         # 0.1 Nettoyage de la liste de courses ("vide la liste de courses", "nettoie la liste")
         if re.search(r"(?:vide|nettoie|supprime|efface)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?", cleaned):
             return ParsedIntent(

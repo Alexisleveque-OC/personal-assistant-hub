@@ -52,8 +52,12 @@ class IntentType(str, Enum):
     LIST_NOTES = "list_notes"
     DELETE_NOTE = "delete_note"
 
+    # Auto-Apprentissage Vocal (Phase 6)
+    TEACH_ASSISTANT = "teach_assistant"
+
     # Non reconnu
     UNKNOWN = "unknown"
+
 
 
 
@@ -189,6 +193,48 @@ class NoteUpdate(BaseModel):
     content: Optional[str] = None
     status: Optional[str] = None
     tags: Optional[list[str]] = None
+
+
+# ============================================================================
+# Auto-Apprentissage Vocal (user_learnings)
+# ============================================================================
+
+class UserLearningItem(BaseModel):
+    """Règle personnalisée apprise par Otis."""
+    id: int
+    rule_text: str
+    category: str = "general"
+    original_error: Optional[str] = None
+    correction: Optional[str] = None
+    active: bool = True
+    created_at: Optional[str] = None
+
+
+class UserLearningsListResponse(BaseModel):
+    """Liste paginée des règles apprises."""
+    total: int
+    limit: int
+    offset: int
+    items: list[UserLearningItem]
+
+
+class LearningCreate(BaseModel):
+    """Payload pour créer ou enregistrer une règle apprise."""
+    rule_text: str
+    category: Optional[str] = "general"
+    original_error: Optional[str] = None
+    correction: Optional[str] = None
+    active: bool = True
+
+
+class LearningUpdate(BaseModel):
+    """Payload pour modifier une règle apprise (ex: désactiver)."""
+    rule_text: Optional[str] = None
+    category: Optional[str] = None
+    original_error: Optional[str] = None
+    correction: Optional[str] = None
+    active: Optional[bool] = None
+
 
 
 

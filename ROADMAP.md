@@ -72,18 +72,14 @@
 ---
 
 
-### ⚪ Étape 3 : Auto-Apprentissage Vocal Interactif (`TEACH_ASSISTANT`) & Injection Dynamique
-* **Objectifs :**
-  1. **Intention `teach_assistant` :**
-     - Détection des ordres de correction vocale (« Attention là tu as compris Troyes alors que je t'ai dit 3 », « Quand je dis renfort je veux dire renforcement », « Le quinoa va en épicerie »).
-  2. **Extraction autonome de la règle :**
-     - Analyse du dernier tour de parole issu de `conversation_logs` et formalisation par Gemini de la règle acquise (déclencheur, valeur corrigée, catégorie).
-     - Persistance dans la table `user_learnings`.
-  3. **Rétro-correction immédiate :**
-     - Modification de la dernière action erronée (correction de la séance de sport, réassignation de rayon, etc.).
-  4. **Injection dynamique sans modification de code :**
-     - Le service NLU charge automatiquement les règles actives de `user_learnings` et les injecte dans le prompt système à chaque tour de parole.
-  5. **TDD strict :** tests du flux de correction vocale, persistance de la règle et injection dans le prompt NLU.
+### ✅ Étape 3 : Auto-Apprentissage Vocal Interactif (`TEACH_ASSISTANT`) & Injection Dynamique
+* **Objectifs validés :**
+  1. **Intention `teach_assistant` :** Détection d'ordres de correction vocale (« Attention là tu as compris Troyes alors que je t'ai dit 3 », « Quand je dis renfort je veux dire renforcement », « Le quinoa va dans le rayon épicerie »).
+  2. **Extraction et persistance de la règle :** Enregistrement dans la table `user_learnings` (SQLite WAL) et rattachement d'un feedback `"correction"` sur le dernier échange dans `conversation_logs`.
+  3. **Rétro-correction & réponse vocale :** Formulations orales naturelles (« C'est bien noté Alexis, j'ai retenu la correction... »).
+  4. **Injection dynamique dans le prompt NLU :** `build_system_prompt_with_learnings()` injecte à la volée les règles actives de `user_learnings` dans le prompt système de Gemini sans modifier une seule ligne de code.
+  5. **Endpoints REST `/api/v1/system/learnings` :** CRUD complet (POST, GET, PATCH, DELETE) pour auditer ou désactiver des règles.
+  6. **TDD strict :** 5/5 tests au vert dans `test_teach_assistant_learning.py`, 370/370 tests du projet au vert.
 
 ---
 

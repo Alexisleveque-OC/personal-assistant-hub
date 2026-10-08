@@ -190,6 +190,37 @@ class GeminiNLUService:
         self.gemini_client = gemini_client or get_gemini_client()
         self.fallback_parser = fallback_parser or _default_local_parser
 
+    def build_system_prompt_with_learnings(self) -> str:
+        """Construit le prompt système enrichi dynamiquement avec les règles apprises d'Alexis."""
+        learnings: List[Dict[str, Any]] = []
+        try:
+            from app.core.database import get_database_manager
+            db = get_database_manager()
+            learnings = db.get_active_learnings()
+        except Exception as exc:
+            logger.debug(f"Impossible de charger les apprentissages depuis la base: {exc}")
+
+        if not learnings:
+            return SYSTEM_PROMPT
+
+        lines = [
+            SYSTEM_PROMPT.strip(),
+            "",
+            "---",
+            "RÈGLES ET CORRECTIONS APPRISES (MÉMOIRE D'ALEXIS) :",
+            "Tu dois impérativement respecter ces consignes, corrections et clarifications formulées par Alexis lors d'échanges passés :",
+        ]
+        for l in learnings:
+            rule_text = l.get("rule_text", "")
+            orig = l.get("original_error")
+            corr = l.get("correction")
+            if orig and corr:
+                lines.append(f"- {rule_text} (Confusion passée : \"{orig}\" -> Correction : \"{corr}\")")
+            else:
+                lines.append(f"- {rule_text}")
+
+        return "\n".join(lines)
+
     async def parse(
         self,
         query: str,
@@ -239,7 +270,7 @@ class GeminiNLUService:
             "contents": [
                 {
                     "parts": [
-                        {"text": SYSTEM_PROMPT},
+                        {"text": self.build_system_prompt_with_learnings()},
                         {"text": user_content},
                     ]
                 }
