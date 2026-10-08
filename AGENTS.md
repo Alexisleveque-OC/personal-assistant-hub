@@ -102,3 +102,10 @@ personal-assistant-hub/
    * Il est **strictement interdit** de fusionner une branche de fonctionnalité (`feat/*`) vers `develop` ou `main` de manière anticipée.
    * Tout nouveau développement reste cantonné sur sa branche dédiée (`feat/<name>`).
    * L'agent doit inviter l'utilisateur à faire ses tests manuels sur son interface, et **attendre son retour explicite** avant de procéder à la moindre fusion vers `develop` ou `main`.
+10. **Modularité Maximale & Découpage des Responsabilités (Clean Architecture) :**
+   * Développer au maximum possible sous forme de modules spécialisés, compacts et hautement découplés pour garantir une lisibilité et une maintenabilité optimales (principe de responsabilité unique / SRP).
+   * Éviter les fichiers "fourre-tout" monolithiques : privilégier des handlers dédiés (`app/handlers/*`), des routeurs par domaine (`app/routers/*`), des services spécialisés et des modèles Pydantic granulaires.
+11. **Documentation Vivante & Mise à Jour du README en Fin de Phase :**
+   * À chaque fin de **grande phase fonctionnelle** du projet (telles que définies dans `SPEC.md`, ex: Phase 5, Phase 6...) et avant la fusion finale vers `develop`/`main`, **mettre à jour obligatoirement le fichier `README.md`** à la racine pour refléter les nouvelles capacités, l'état du projet, les nouveaux endpoints et la documentation opérationnelle.
+   * Ne pas surcharger le README lors des sous-étapes intermédiaires de `ROADMAP.md` pour éviter les commits redondants et le bruit inutile.
+

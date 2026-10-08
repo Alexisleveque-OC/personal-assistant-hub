@@ -24,7 +24,9 @@ from app.routers.mobile import router as mobile_router, mobile_interact
 from app.routers.meals import router as meals_router
 from app.routers.sport import router as sport_router
 from app.routers.strava import router as strava_router
+from app.routers.second_brain import router as second_brain_router
 from app.routers.pwa import router as pwa_router, mount_static_files
+
 
 # Réexports rétrocompatibles des dépendances et singletons pour les tests
 from app.core.dependencies import (
@@ -36,7 +38,10 @@ from app.core.dependencies import (
     get_sessions_store,
     clear_sessions,
     _SESSIONS,
+    get_database_manager,
+    set_database_manager,
 )
+from app.core.database import DatabaseManager
 from app.core.llm.nlu_service import (
     GeminiNLUService,
     get_nlu_service,
@@ -49,7 +54,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Cycle de vie FastAPI : préchauffe les caches mémoire en arrière-plan dès le boot."""
+    """Cycle de vie FastAPI : initialise SQLite et préchauffe les caches mémoire en arrière-plan."""
+    try:
+        get_database_manager().init_db()
+    except Exception as exc:
+        logger.warning(f"Impossible d'initialiser la base SQLite : {exc}")
+
     connector = get_meals_connector()
     if connector and hasattr(connector, "warmup_cache"):
         try:
@@ -64,6 +74,7 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning(f"Impossible de lancer le préchauffage initial du cache sport : {exc}")
     yield
+
 
 
 app = FastAPI(
@@ -89,7 +100,9 @@ app.include_router(mobile_router)
 app.include_router(meals_router)
 app.include_router(sport_router)
 app.include_router(strava_router)
+app.include_router(second_brain_router)
 app.include_router(pwa_router)
+
 
 # Montage des fichiers statiques PWA
 mount_static_files(app)

@@ -29,6 +29,12 @@ def test_get_app_returns_200_html():
     assert 'id="sport-coach-bubble"' in html
     assert 'id="tab-sport-gamification"' in html
     assert 'id="sport-gamification-container"' in html
+    assert 'id="view-second-brain"' in html
+    assert 'data-view="second-brain"' in html
+    assert 'id="second-brain-notes-container"' in html
+    assert 'id="second-brain-audit-container"' in html
+    assert 'id="second-brain-list"' in html
+    assert 'id="audit-logs-list"' in html
 
 
 def test_get_manifest_json():
@@ -49,6 +55,8 @@ def test_get_service_worker():
     content_type = response.headers.get("content-type", "")
     assert "javascript" in content_type or "text/" in content_type
     assert "CACHE_NAME" in response.text
+    assert "second_brain_view.js" in response.text
+    assert "pah-pwa-cache-v15" in response.text
 
 
 def test_get_static_assets():
@@ -70,6 +78,7 @@ def test_get_static_assets():
         "/static/js/api.js",
         "/static/js/speech.js",
         "/static/js/views/chat_view.js",
+        "/static/js/views/second_brain_view.js",
         "/static/js/views/shopping_view.js",
         "/static/js/views/meals_view.js",
         "/static/js/views/sport_view.js",

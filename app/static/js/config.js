@@ -8,7 +8,10 @@ export const state = {
   currentMealSubview: "today", // 'today' | 'week'
   currentSportSubview: "today", // 'today' | 'dashboard' | 'gamification'
   currentSportScale: "week", // 'week' | 'month' | 'year'
-  cachedShoppingData: { waiting_list: [], current_week_items: [], rayons_order: null }
+  cachedShoppingData: { waiting_list: [], current_week_items: [], rayons_order: null },
+  vadSilenceMs: parseInt(localStorage.getItem("pah_vad_silence_ms") || "2000", 10),
+  pushToTalk: localStorage.getItem("pah_push_to_talk") === "true",
+  wakeWordEnabled: localStorage.getItem("pah_wake_word_enabled") === "true",
 };
 
 export function getStoredCheckedItems() {

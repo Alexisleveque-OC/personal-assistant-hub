@@ -1,6 +1,6 @@
 // Vue Assistant Conversationnel / Chat & Vocal
-import { speak } from "../speech.js";
-import { postInteract } from "../api.js";
+import { speak, showUndoToast, hideUndoToast } from "../speech.js";
+import { postInteract, postInteractAudio } from "../api.js";
 
 const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
@@ -43,6 +43,33 @@ export function appendAssistantMessage(text) {
   bubble.scrollIntoView({ behavior: "smooth" });
 }
 
+function handleUndoToast(data) {
+  if (!data) return;
+  const d = data.data || {};
+
+  // Si l'action vient d'annuler une opération, on masque le toast
+  if (d.undone_action) {
+    hideUndoToast();
+    return;
+  }
+
+  // Détection d'une action réversible (note, apprentissage, courses)
+  let actionDesc = null;
+  if (d.note_id) {
+    actionDesc = `Note enregistrée (${d.category || "idée"})`;
+  } else if (d.learning_id) {
+    actionDesc = "Correction mémorisée";
+  } else if (d.items && Array.isArray(d.items) && d.items.length > 0) {
+    actionDesc = `${d.items.length} article(s) ajouté(s)`;
+  }
+
+  if (actionDesc) {
+    showUndoToast(actionDesc, () => {
+      sendInteraction("annule ça");
+    });
+  }
+}
+
 export async function sendInteraction(text) {
   appendUserMessage(text);
   try {
@@ -61,6 +88,38 @@ export async function sendInteraction(text) {
     const data = await res.json();
     appendAssistantMessage(data.spoken_response);
     speak(data.spoken_response);
+    handleUndoToast(data);
+  } catch (err) {
+    appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
+  }
+}
+
+export async function sendAudioInteraction(audioBlob) {
+  appendUserMessage("🎤 Envoi du message vocal...");
+  try {
+    const res = await postInteractAudio(audioBlob);
+
+    if (res.status === 401) {
+      appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Cliquez sur l'engrenage pour la renseigner.");
+      return;
+    }
+
+    if (!res.ok) {
+      appendAssistantMessage(`Erreur serveur (${res.status}).`);
+      return;
+    }
+
+    const data = await res.json();
+
+    // Remplacer le texte temporaire par la transcription exacte
+    const lastUserBubble = chatStream.querySelector(".chat-bubble.user:last-of-type");
+    if (lastUserBubble && data.user_transcription) {
+      lastUserBubble.textContent = `🎤 ${data.user_transcription}`;
+    }
+
+    appendAssistantMessage(data.spoken_response);
+    speak(data.spoken_response);
+    handleUndoToast(data);
   } catch (err) {
     appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
   }

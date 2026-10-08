@@ -113,6 +113,14 @@
         </div>
       </div>
 
+      <!-- Quick Undo Floating Toast -->
+      <div id="undo-toast" class="undo-toast" style="display:none;">
+        <span id="undo-toast-text">Action enregistrée</span>
+        <button id="btn-undo-action" class="btn-undo-action" title="Annuler l'action précédente">
+          ↩ Annuler
+        </button>
+      </div>
+
       <!-- Big Mic & Input Dock -->
       <div class="voice-dock">
         <div class="mic-wrapper" id="mic-wrapper">
@@ -226,6 +234,73 @@
       </div>
     </section>
 
+    <!-- VIEW 5: SECOND CERVEAU & JOURNAL D'AUDIT (Phase 6) -->
+    <section id="view-second-brain" class="view-panel">
+      <div class="shopping-header">
+        <h2 class="section-title">Second Cerveau</h2>
+        <div style="display:flex; gap:8px;">
+          <input type="file" id="file-brain-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+          <button id="btn-upload-image-inline" class="btn-action-small" title="Envoyer une capture d'écran ou photo (ou Ctrl+V)">
+            📷 Capture / Photo
+          </button>
+          <button id="btn-add-note-inline" class="btn-action-small" title="Ajouter une note manuellement">
+            ➕ Ajouter
+          </button>
+        </div>
+      </div>
+
+      <!-- Bannière de Statut Analyse Gemini Vision -->
+      <div id="brain-image-status-banner" class="completion-banner" style="display:none; margin-bottom:12px;"></div>
+
+      <!-- Segmented Brain Switcher -->
+      <div class="segmented-control" id="brain-segmented">
+        <button class="seg-btn active" id="tab-brain-notes" data-subview="notes">🧠 Notes & Idées</button>
+        <button class="seg-btn" id="tab-brain-audit" data-subview="audit">📜 Journal & Feedback</button>
+      </div>
+
+      <!-- Sous-vue: Notes du Second Cerveau -->
+      <div id="second-brain-notes-container">
+        <!-- Formulaire création rapide (dépliable) -->
+        <form id="form-add-note" class="form-add-note-card" style="display:none;">
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <select id="note-category-select" class="form-input" style="width:45%; font-size:0.85rem;">
+              <option value="dev_idea">🛠️ À Développer</option>
+              <option value="bug_report">🐛 Bug / Fix</option>
+              <option value="thought" selected>💡 Pensée / Idée</option>
+              <option value="preference">🎯 Préférence</option>
+              <option value="task">📋 Tâche</option>
+              <option value="voyage">🌴 Voyage</option>
+              <option value="cuisine">🍳 Cuisine</option>
+            </select>
+            <button type="submit" class="btn-primary" style="flex:1; font-size:0.85rem; padding:6px 12px;">Enregistrer</button>
+          </div>
+          <textarea id="note-content-input" class="form-input" placeholder="Que voulez-vous mémoriser ?..." rows="2" style="font-size:0.85rem; width:100%; resize:vertical;"></textarea>
+        </form>
+
+        <!-- Filtres et Recherche -->
+        <div id="brain-notes-controls" style="margin-bottom:12px;">
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <input type="text" id="brain-search-input" class="form-input" placeholder="🔍 Rechercher dans vos notes..." style="font-size:0.85rem; flex:1;" />
+            <select id="brain-status-filter" class="form-input" style="width:35%; font-size:0.85rem;">
+              <option value="active" selected>Actives</option>
+              <option value="">Toutes</option>
+              <option value="done">Archivées</option>
+            </select>
+          </div>
+          <!-- Pills de Catégories dynamiques -->
+          <div id="brain-category-pills" class="category-pills-row"></div>
+        </div>
+
+        <!-- Liste des Cartes de Notes -->
+        <div id="second-brain-list" class="notes-cards-list"></div>
+      </div>
+
+      <!-- Sous-vue: Journal d'Audit & Feedback -->
+      <div id="second-brain-audit-container" style="display:none;">
+        <div id="audit-logs-list" class="audit-logs-list"></div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Bottom Navigation Bar -->
@@ -236,6 +311,12 @@
         <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
       </svg>
       <span>Vocal</span>
+    </button>
+    <button class="nav-item" data-view="second-brain">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+      </svg>
+      <span>Cerveau</span>
     </button>
     <button class="nav-item" data-view="shopping">
       <svg viewBox="0 0 24 24">
@@ -275,6 +356,31 @@
         </button>
       </div>
 
+      <!-- Ergonomie Vocale & VAD Anti-Coupure (Phase 6) -->
+      <div class="form-group" style="margin-top: 18px; padding: 12px; background: rgba(0,0,0,0.02); border-radius: 8px; border: 1px solid var(--border-color);">
+        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>🎙️ Ergonomie Vocale & Anti-Coupure</span>
+        </label>
+        <div style="margin-top: 8px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer; margin-bottom:8px;">
+            <input type="checkbox" id="push-to-talk-toggle" />
+            <span>Mode Push-to-Talk (maintenir appuyé pour parler)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer; margin-bottom:8px;">
+            <input type="checkbox" id="wake-word-toggle" />
+            <span>Détection continue du mot-clé de réveil (« Otis »)</span>
+          </label>
+          <div style="margin-top: 8px;">
+            <label class="form-label" for="vad-silence-select" style="font-size:0.8rem;">Délai de silence tolérant (temps d'hésitation) :</label>
+            <select id="vad-silence-select" class="form-input" style="font-size:0.85rem;">
+              <option value="1500">1.5 seconde (rapide)</option>
+              <option value="2000" selected>2.0 secondes (recommandé - anti-coupure)</option>
+              <option value="2500">2.5 secondes (très tolérant aux hésitations)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div class="form-group" style="margin-top: 18px;">
         <label class="form-label" for="api-key-input">Clé d'API (X-API-Key)</label>
         <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">
@@ -304,6 +410,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/app.js?v=9.0"></script>
+  <script type="module" src="/static/app.js?v=10.0"></script>
 </body>
 </html>
