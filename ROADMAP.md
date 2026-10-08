@@ -128,12 +128,32 @@
 
 ---
 
-### ⚪ Étape 8 : Test d'Intégration End-to-End (E2E) & Recette Finale
+### ⚪ Étape 8 : Ingestion Multimodale Visuelle & Second Cerveau (Screenshots / Photos Gemini Vision)
+* **Objectifs :**
+  1. **Endpoint d'analyse visuelle `/api/v1/second-brain/notes/image` :**
+     - Réception d'images et captures d'écran (PNG, JPEG, WebP) avec champ optionnel `category_hint` ou `note_text`.
+     - Traitement multimodal natif via Gemini Vision (`inlineData`).
+  2. **Extraction contextuelle et classification autonome :**
+     - Détection du type de contenu :
+       - Screenshot de bug / code / console -> note classifiée en `bug_report`.
+       - Screenshot d'hôtel / destination / billet -> note classifiée en `voyage` ou `vacances`.
+       - Screenshot de feature / maquette / repo -> note classifiée en `dev_idea`.
+       - Screenshot de plat / recette -> note classifiée en `cuisine`.
+     - Extraction d'une synthèse courte et pertinente sans forcer l'utilisateur à décrire manuellement.
+  3. **Persistance directe en base SQLite (`second_brain_notes`) :**
+     - Stockage de la note enrichie avec tags et référence.
+  4. **TDD strict :** tests unitaires et mocks de l'analyse d'image.
+
+---
+
+### ⚪ Étape 9 : Test d'Intégration End-to-End (E2E) & Recette Finale
 * **Objectifs :**
   1. Test E2E simulant l'ensemble du cycle de la Phase 6 :
-     - Enregistrement dans le journal conversationnel.
-     - Correction vocale (`teach_assistant`) et vérification de la prise en compte de la règle au tour suivant.
-     - Capture d'idées réparties dans les 5 segments du second cerveau.
+     - Enregistrement dans le journal conversationnel et mesure de latence.
+     - Correction vocale (`teach_assistant`) et injection dynamique de la règle au tour suivant.
+     - Capture d'idées réparties dans les différents segments du second cerveau (texte et image).
      - Commande d'annulation ("Undo") réversible.
-  2. Suite de 350+ tests à 100% au vert.
+     - Pipeline audio direct backend et normalisation phonétique.
+  2. Suite complète de tests (380+ tests) à 100% au vert.
   3. Validation manuelle et recette par l'utilisateur.
+

@@ -179,6 +179,10 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
         - 🎯 `preference` : Préférences et habitudes de vie (*« J'aime ça », « Je préfère... »*).
         - 📋 `task` : Tâches à réaliser (*« Il faut que je fasse ça », « J'ai ça à faire »*).
       - Consultation rapide et filtrage par segments dans la PWA pour retrouver instantanément ses idées à coder.
+    - **Ingestion Multimodale Visuelle (Screenshots / Photos via Gemini Vision) :**
+      - Envoi direct de captures d'écran (bugs UI, erreurs, code) ou de photos (hôtels, idées de vacances, livres, recettes).
+      - Analyse automatique par Gemini Vision (`inlineData`) : extraction d'un résumé intelligent, identification du sujet et classification autonome dans le bon segment du Second Cerveau (`bug_report`, `dev_idea`, `voyage`, `cuisine`...).
+      - Enregistrement immédiat dans `second_brain_notes` sans obliger Alexis à dicter ou détailler manuellement.
     - Profil utilisateur dynamique (`user_profile` : habitudes, objectifs, contraintes).
   - [ ] **Auto-Apprentissage Vocal & Évolution Autonome (In-Context Learning) :**
     - **Intention `teach_assistant` / Auto-Correction vocale :**
