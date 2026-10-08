@@ -76,4 +76,10 @@ async def handle_teach_intent(
         "category": category,
     })
 
+    session_ctx["last_undoable_action"] = {
+        "type": "teach_assistant",
+        "learning_id": learning_id,
+        "rule_text": rule_text,
+    }
+
     return spoken, data

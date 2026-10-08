@@ -48,6 +48,12 @@ async def handle_second_brain_intent(
                 "content": content,
                 "tags": tags,
             })
+            session_ctx["last_undoable_action"] = {
+                "type": "save_note",
+                "note_id": note_id,
+                "content": content,
+                "category": category,
+            }
             return spoken, data
 
         case IntentType.LIST_NOTES:

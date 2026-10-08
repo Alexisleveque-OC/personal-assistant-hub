@@ -165,6 +165,19 @@ class IntentParser:
                 raw_query=text,
             )
 
+        # 0.02 Commande d'annulation immédiate de la dernière action réversible (Phase 6 - Undo)
+        if re.search(
+            r"^(?:(?:oups\s+)?(?:annule(?:\s+(?:ma\s+dernière\s+(?:commande|action)|ce\s+que\s+tu\s+viens\s+de\s+faire|ça))?|annuler|reviens\s+en\s+arrière|retour\s+en\s+arrière|undo))\s*[.!]?$",
+            cleaned,
+            re.IGNORECASE,
+        ):
+            return ParsedIntent(
+                intent=IntentType.UNDO_LAST_ACTION,
+                confidence=0.95,
+                parameters={},
+                raw_query=text,
+            )
+
         # 0.05 Auto-Apprentissage Vocal & Enseignement d'Otis (Phase 6)
         # a) Détection de confusion / correction : "tu as compris X alors que j'ai dit Y"
         teach_corr = re.search(

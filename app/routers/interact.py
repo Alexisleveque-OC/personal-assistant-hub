@@ -24,6 +24,7 @@ from app.handlers.meals_handler import handle_meals_intent
 from app.handlers.sport_handler import handle_sport_intent
 from app.handlers.second_brain_handler import handle_second_brain_intent
 from app.handlers.teach_handler import handle_teach_intent
+from app.handlers.undo_handler import handle_undo_intent
 from app.handlers.assistant_handler import handle_assistant_intent
 
 
@@ -156,6 +157,16 @@ async def interact(
         )
 
     if handled is None:
+        handled = await handle_undo_intent(
+            parsed=parsed,
+            raw_query=request.query,
+            session_ctx=session_ctx,
+            data=data,
+            connector=connector,
+            sport_connector=sport_connector,
+        )
+
+    if handled is None:
         handled = await handle_assistant_intent(
             parsed=parsed,
             raw_query=request.query,
@@ -163,6 +174,19 @@ async def interact(
             data=data,
         )
 
+    # Mémorisation d'action réversible pour les ajouts de courses si l'action a réussi
+    if parsed.intent == IntentType.ADD_SHOPPING_ITEM and handled is not None:
+        raw_it = parsed.parameters.get("items") or parsed.parameters.get("item")
+        if isinstance(raw_it, list):
+            items_list = raw_it
+        elif isinstance(raw_it, str):
+            items_list = [raw_it]
+        else:
+            items_list = [request.query.strip()]
+        session_ctx["last_undoable_action"] = {
+            "type": "add_shopping_item",
+            "items": items_list,
+        }
 
     spoken, data = handled
 

@@ -55,6 +55,9 @@ class IntentType(str, Enum):
     # Auto-Apprentissage Vocal (Phase 6)
     TEACH_ASSISTANT = "teach_assistant"
 
+    # Annulation immédiate (Phase 6)
+    UNDO_LAST_ACTION = "undo_last_action"
+
     # Non reconnu
     UNKNOWN = "unknown"
 

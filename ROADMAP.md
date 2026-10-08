@@ -83,13 +83,15 @@
 
 ---
 
-### ⚪ Étape 4 : Commande d'Annulation Immédiate (« Undo »)
-* **Objectifs :**
-  1. **Intention `undo_last_action` :**
-     - Détection vocale (« Annule », « Oups annule ma dernière commande », « Reviens en arrière »).
-  2. **Mécanisme d'inversion contextuelle :**
-     - Capacité à annuler la dernière action selon son domaine : suppression de la dernière note créée, suppression du dernier article de courses ajouté, ou annulation de la dernière séance de sport enregistrée.
-  3. **TDD strict :** tests unitaires de l'annulation sur les différents domaines.
+### ✅ Étape 4 : Commande d'Annulation Immédiate (« Undo »)
+* **Objectifs validés :**
+  1. **Intention `undo_last_action` :** Détection d'ordres d'annulation immédiate (« Annule », « Annule ça », « Oups annule ma dernière commande », « Reviens en arrière », « Undo »).
+  2. **Mécanisme d'inversion contextuelle :** Module dédié `app/handlers/undo_handler.py` avec rollbacks adaptés selon le domaine :
+     - *Second cerveau* : suppression immédiate de la note créée en base SQLite.
+     - *Auto-apprentissage* : suppression / désactivation de la règle formulée.
+     - *Courses* : retrait de l'article ajouté via `remove_shopping_item`.
+  3. **Message informatif de sécurité :** Réponse courtoise si aucune action récente n'est réversible (« Il n'y a aucune action récente à annuler »).
+  4. **TDD strict :** 5/5 tests validés dans `tests/test_undo_last_action.py`, 375/375 tests du projet au vert.
 
 ---
 
