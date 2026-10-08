@@ -216,6 +216,10 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
     - Extinction automatique à l'arrêt : zéro impact sur la batterie en dehors des courses.
     - Élimination des intermédiaires tiers (indépendance totale de Strava et Decathlon Coach) : calcul précis de la distance (Haversine), vitesse instantanée, allure au km, dénivelé D+ et temps réel sans pause artificielle.
     - Stockage local de la trace (coordonnées GPS / format GPX/FIT) en base SQLite.
+  - [ ] **Affichage Cartographique Interactif en Direct & Tracé GPS (Leaflet / OpenStreetMap) :**
+    - Carte interactive intégrée dans la PWA Sport (Leaflet / tuiles OpenStreetMap légères et économes en bande passante).
+    - Point GPS en direct avec tracé continu du parcours (polyline dynamique) pendant la séance.
+    - Vue récapitulative post-course : tracé complet, dégradé de couleur selon l'allure (carte de rythme / splits kilométriques) et profil altimétrique.
   - [ ] **Programmation de Fractionné & Guidage Audio en Direct (Comme Decathlon Coach) :**
     - Création et planification de séances d'intervalles complexes : échauffement, répétitions fractionnées ($N \times$ temps/distance rapide + temps/distance de récupération), blocs au seuil et retour au calme.
     - **Audio cues & décompte dans les oreilles :** bips d'alerte, décompte 3-2-1 avant chaque changement de phase, annonces vocales d'objectifs (*« Accélère ! Bloc 2 sur 6, 400m à 4'10/km »*, *« Trottine, récupération 1 minute »*).
