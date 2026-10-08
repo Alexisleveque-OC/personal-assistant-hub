@@ -18,6 +18,24 @@ export async function postInteract(queryText) {
   return res;
 }
 
+export async function postInteractAudio(audioBlob, sessionId = null) {
+  const formData = new FormData();
+  formData.append("audio_file", audioBlob, "recording.webm");
+  if (sessionId) {
+    formData.append("session_id", sessionId);
+  }
+  const headers = {};
+  if (state.apiKey) {
+    headers["X-API-Key"] = state.apiKey;
+  }
+  const res = await fetch("/api/v1/interact/audio", {
+    method: "POST",
+    headers: headers,
+    body: formData
+  });
+  return res;
+}
+
 export async function fetchLlmStats() {
   const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
   const res = await fetch("/api/v1/llm/stats", { headers });

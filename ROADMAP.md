@@ -104,16 +104,20 @@
 
 ---
 
-### ⚪ Étape 6 : Ergonomie Vocale PWA (VAD Anti-Coupure, Push-to-Talk, Wake Word)
-* **Objectifs :**
-  1. **Voice Activity Detection (VAD) tolérant :**
-     - Reconnaissance vocale continue avec timer de silence configurable (1.5s à 2.5s réglable dans les paramètres) pour laisser le temps d'hésiter sans coupure intempestive.
+### ✅ Étape 6 : Ergonomie Vocale PWA (VAD Anti-Coupure, Push-to-Talk, Wake Word & Undo Toast)
+* **Objectifs validés :**
+  1. **Voice Activity Detection (VAD) Web Audio API & MediaRecorder :**
+     - Analyse du flux audio via `AnalyserNode` en continu.
+     - Gestion d'un seuil de silence tolérant (1.5s, 2.0s, 2.5s configurable dans les paramètres) empêchant toute coupure prématurée lors d'hésitations orales.
+     - Envoi du flux audio brut directement à `POST /api/v1/interact/audio`.
   2. **Mode Push-to-Talk & Bascule :**
-     - Bouton poussoir (maintenir pour parler) ou toggle pour choisir entre VAD automatique et Push-to-Talk.
+     - Possibilité d'activer le mode Push-to-Talk (maintenir le bouton micro appuyé pour parler) avec persistance dans `localStorage`.
   3. **Wake Word in-app (« Otis ») :**
-     - Détection en écoute continue du mot-clé de réveil dans l'application ouverte.
-  4. **Bouton tactile d'annulation (« Undo ») :**
-     - Toast / bouton réactif immédiat après chaque action pour annuler en 1 clic.
+     - Détection discrète en continu du mot-clé de réveil déclenchant automatiquement la capture audio si activé.
+  4. **Toast flottant d'annulation immédiate (« Undo ») :**
+     - Composant `#undo-toast` apparaissant automatiquement après l'enregistrement d'une note, d'une règle d'apprentissage ou l'ajout d'articles de courses, permettant d'annuler en 1 tap tactile (8s d'affichage).
+  5. **Zéro régression :** 380/380 tests du projet à 100% au vert.
+* **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 ---
 

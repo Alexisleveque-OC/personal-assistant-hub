@@ -7,7 +7,7 @@ import {
   initSpeechRecognition,
 } from "./js/speech.js";
 import { fetchLlmStats } from "./js/api.js";
-import { initChatView, sendInteraction, appendAssistantMessage } from "./js/views/chat_view.js";
+import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage } from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView, switchSportSubview } from "./js/views/sport_view.js";
@@ -28,6 +28,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const apiKeyInput = document.getElementById("api-key-input");
   const voiceSelect = document.getElementById("voice-select");
   const btnTestVoice = document.getElementById("btn-test-voice");
+  const pushToTalkToggle = document.getElementById("push-to-talk-toggle");
+  const wakeWordToggle = document.getElementById("wake-word-toggle");
+  const vadSilenceSelect = document.getElementById("vad-silence-select");
   const navItems = document.querySelectorAll(".nav-item");
 
   const views = {
@@ -77,10 +80,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 6. Reconnaissance Vocale (STT)
+  // 6. Reconnaissance Vocale Haute-Fidélité (VAD & MediaRecorder Audio)
   initSpeechRecognition(
     (transcript) => sendInteraction(transcript),
-    () => appendAssistantMessage("Accès au microphone refusé. Veuillez autoriser le micro dans votre navigateur.")
+    () => appendAssistantMessage("Accès au microphone refusé. Veuillez autoriser le micro dans votre navigateur."),
+    (audioBlob) => sendAudioInteraction(audioBlob)
   );
 
   // 7. Initialisation des Vues Métier
@@ -151,6 +155,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnSettings) {
     btnSettings.addEventListener("click", () => {
       if (apiKeyInput) apiKeyInput.value = state.apiKey;
+      if (pushToTalkToggle) pushToTalkToggle.checked = !!state.pushToTalk;
+      if (wakeWordToggle) wakeWordToggle.checked = !!state.wakeWordEnabled;
+      if (vadSilenceSelect) vadSilenceSelect.value = String(state.vadSilenceMs || 2000);
       populateVoiceList(voiceSelect);
       refreshLlmStats();
       if (settingsModal) settingsModal.classList.add("active");
@@ -173,8 +180,23 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem("pah_voice_uri", state.selectedVoiceUri);
       }
 
+      if (pushToTalkToggle) {
+        state.pushToTalk = pushToTalkToggle.checked;
+        localStorage.setItem("pah_push_to_talk", state.pushToTalk ? "true" : "false");
+      }
+
+      if (wakeWordToggle) {
+        state.wakeWordEnabled = wakeWordToggle.checked;
+        localStorage.setItem("pah_wake_word_enabled", state.wakeWordEnabled ? "true" : "false");
+      }
+
+      if (vadSilenceSelect) {
+        state.vadSilenceMs = parseInt(vadSilenceSelect.value, 10) || 2000;
+        localStorage.setItem("pah_vad_silence_ms", String(state.vadSilenceMs));
+      }
+
       if (settingsModal) settingsModal.classList.remove("active");
-      appendAssistantMessage("Paramètres et voix enregistrés avec succès !");
+      appendAssistantMessage("Paramètres vocaux et ergonomie enregistrés avec succès !");
     });
   }
 
