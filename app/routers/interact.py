@@ -22,7 +22,9 @@ from app.core.dependencies import (
 )
 from app.handlers.meals_handler import handle_meals_intent
 from app.handlers.sport_handler import handle_sport_intent
+from app.handlers.second_brain_handler import handle_second_brain_intent
 from app.handlers.assistant_handler import handle_assistant_intent
+
 
 
 logger = logging.getLogger(__name__)
@@ -136,12 +138,21 @@ async def interact(
         )
 
     if handled is None:
+        handled = await handle_second_brain_intent(
+            parsed=parsed,
+            raw_query=request.query,
+            session_ctx=session_ctx,
+            data=data,
+        )
+
+    if handled is None:
         handled = await handle_assistant_intent(
             parsed=parsed,
             raw_query=request.query,
             session_ctx=session_ctx,
             data=data,
         )
+
 
     spoken, data = handled
 

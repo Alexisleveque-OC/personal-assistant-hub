@@ -12,8 +12,8 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | **Socle SQLite & Journal Conversationnel :** Base `hub_data.db` (WAL mode), traçabilité des échanges (`conversation_logs`) et endpoints d'audit | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 7/7 tests dédiés (359/359 total) au vert |
-| **Étape 2** | **Second Cerveau Compartimenté :** Segmentation automatique LLM en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`), service et endpoints | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
+| **Étape 1** | **Socle SQLite & Journal Conversationnel :** Base `hub_data.db` (WAL mode), traçabilité des échanges (`conversation_logs`) et endpoints d'audit | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (359/359 total) au vert |
+| **Étape 2** | **Second Cerveau Compartimenté :** Segmentation automatique LLM en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`), service et endpoints | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 5/5 tests dédiés (364/364 total) au vert |
 | **Étape 3** | **Auto-Apprentissage Vocal (`TEACH_ASSISTANT`) :** Extraction de règle par Gemini, table `user_learnings`, rétro-correction et injection dynamique dans le prompt | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
 | **Étape 4** | **Commande d'Annulation (« Undo ») :** Intention `undo_last_action` et annulation contextuelle (repas, courses, sport, notes) | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
 | **Étape 5** | **Pipeline STT & Audio Direct Backend :** Endpoint audio direct (`/api/v1/interact/audio`) avec transcription multimodale Gemini & normalisation phonétique | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
@@ -39,30 +39,38 @@
      - `POST /api/v1/system/conversation-logs/{log_id}/feedback` pour enregistrer un retour utilisateur (positif, négatif, correction).
   4. **TDD strict :** 7/7 tests unitaires et d'intégration validés dans `tests/test_database_and_audit_logs.py`.
   5. **Zéro régression :** 359 tests du projet à 100% au vert.
+* **Statut :** 🟢 Validé par l'utilisateur et commité (`bdd591f`).
+
+---
+
+### 🟢 Étape 2 : Second Cerveau Compartimenté (Segments Fondamentaux & Dynamiques Auto-Découverts)
+* **Objectifs réalisés :**
+  1. **Modélisation Pydantic & Intentions :**
+     - Nouvelles intentions déclarées : `save_note`, `list_notes`, `delete_note`.
+     - 5 segments fondamentaux par défaut (`dev_idea`, `bug_report`, `thought`, `preference`, `task`).
+     - **Extensibilité dynamique et auto-découverte :** Otis accepte n'importe quelle catégorie ou thème récurrent (ex: `voyage`, `finance`, `lecture`, `musique`, `cuisine`, etc.) sans contrainte d'enum rigide.
+     - Modèles de données flexibles : `SecondBrainNoteItem`, `SecondBrainNotesListResponse`, `NoteCreate`, `NoteUpdate`.
+  2. **Persistance haute performance SQLite (`DatabaseManager`) :**
+     - Méthodes CRUD ajoutées : `add_note`, `get_note`, `get_notes` (filtrage par catégorie quelconque, statut, recherche textuelle, pagination), `update_note`, `delete_note` et `get_notes_stats` (agrégation dynamique de tous les segments existants).
+  3. **Classification NLU double niveau (Local + Gemini LLM) :**
+     - Parseur local déterministe enrichi avec regex pour les 5 catégories et capture de préfixes dynamiques (`note <thème> : ...`).
+     - Prompt système Gemini et schéma JSON instruits pour classifier et créer automatiquement des catégories thématiques sur des récurrences de vocabulaire.
+  4. **Handler métier & Routeur REST dédié :**
+     - Handler `handle_second_brain_intent` intégré dans le pipeline `/api/v1/interact` avec réponses orales complices adaptées aux catégories dynamiques.
+     - Routeur FastAPI `app/routers/second_brain.py` sous `/api/v1/second-brain/*` :
+       - `GET /notes` : liste paginée et filtrée
+       - `POST /notes` : création directe
+       - `GET /notes/{id}` : détail d'une note
+       - `PATCH /notes/{id}` : mise à jour partielle (ex: statut `done`)
+       - `DELETE /notes/{id}` : suppression
+       - `GET /stats` : compteurs par catégorie (découverte dynamique)
+  5. **TDD strict :** 6/6 tests unitaires et d'intégration validés dans `tests/test_second_brain.py` (incluant la création et le filtrage d'un segment dynamique `voyage`).
+  6. **Zéro régression :** 365 tests du projet à 100% au vert.
 * **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 
 ---
 
-### ⚪ Étape 2 : Second Cerveau Compartimenté (5 Segments SQLite + Classification LLM)
-* **Objectifs :**
-  1. **Modélisation Pydantic & Intentions :**
-     - Nouvelles intentions : `save_note`, `list_notes`, `delete_note`.
-     - 5 segments stricts :
-       - 🛠️ `dev_idea` : Idées de développement (« À dev », « J'aimerais que ça fasse... »)
-       - 🐛 `bug_report` : Corrections à apporter (« Bug », « Problème sur... »)
-       - 💡 `thought` : Réflexions et pensées libres
-       - 🎯 `preference` : Préférences et habitudes
-       - 📋 `task` : Tâches à réaliser
-  2. **Service métier `SecondBrainService` :**
-     - Classification automatique intelligente par Gemini ou extraction déterministe locale.
-     - Méthodes CRUD avec filtrage instantané par segment, recherche textuelle et statut (actif, archivé).
-  3. **Handler & Endpoints API :**
-     - Handler `second_brain_handler.py` intégré dans `/api/v1/interact`.
-     - Endpoints REST : `/api/v1/second-brain/notes` (`GET`, `POST`, `DELETE`, `PATCH`).
-  4. **TDD strict :** tests unitaires du parsing d'intention, de la classification et du service de notes.
-
----
 
 ### ⚪ Étape 3 : Auto-Apprentissage Vocal Interactif (`TEACH_ASSISTANT`) & Injection Dynamique
 * **Objectifs :**

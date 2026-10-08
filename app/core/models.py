@@ -47,8 +47,14 @@ class IntentType(str, Enum):
     CANCEL = "cancel"
     CHOOSE_RAYON = "choose_rayon"
 
+    # Second Cerveau & Notes compartimentées (Phase 6)
+    SAVE_NOTE = "save_note"
+    LIST_NOTES = "list_notes"
+    DELETE_NOTE = "delete_note"
+
     # Non reconnu
     UNKNOWN = "unknown"
+
 
 
 class ParsedIntent(BaseModel):
@@ -136,4 +142,53 @@ class ConversationFeedbackResponse(BaseModel):
     """Confirmation de création d'un feedback."""
     success: bool
     feedback_id: int
+
+
+# ============================================================================
+# Second Cerveau Compartimenté (Phase 6)
+# ============================================================================
+
+class NoteCategory(str, Enum):
+    """Segments fondamentaux par défaut du Second Cerveau (extensibles dynamiquement)."""
+    DEV_IDEA = "dev_idea"       # 🛠️ Idées de dev (« À dev », « J'aimerais que ça fasse... »)
+    BUG_REPORT = "bug_report"   # 🐛 Corrections (« Bug », « Problème sur... »)
+    THOUGHT = "thought"         # 💡 Pensées et notes libres (« Idée », « Réflexion »)
+    PREFERENCE = "preference"   # 🎯 Préférences et habitudes de vie (« J'aime... », « Je préfère... »)
+    TASK = "task"               # 📋 Tâches (« Tâche à faire », « Penser à... »)
+
+
+class SecondBrainNoteItem(BaseModel):
+    """Représentation d'une note stockée dans le Second Cerveau SQLite."""
+    id: int
+    category: str
+    content: str
+    tags: list[str] = Field(default_factory=list)
+    status: str = "active"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class SecondBrainNotesListResponse(BaseModel):
+    """Réponse paginée pour la consultation des notes du Second Cerveau."""
+    total: int
+    limit: int
+    offset: int
+    items: list[SecondBrainNoteItem]
+
+
+class NoteCreate(BaseModel):
+    """Payload pour la création directe d'une note."""
+    category: Optional[str] = NoteCategory.THOUGHT.value
+    content: str
+    tags: Optional[list[str]] = Field(default_factory=list)
+
+
+class NoteUpdate(BaseModel):
+    """Payload pour la mise à jour partielle d'une note."""
+    category: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
 

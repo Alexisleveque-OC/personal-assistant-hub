@@ -24,7 +24,9 @@ from app.routers.mobile import router as mobile_router, mobile_interact
 from app.routers.meals import router as meals_router
 from app.routers.sport import router as sport_router
 from app.routers.strava import router as strava_router
+from app.routers.second_brain import router as second_brain_router
 from app.routers.pwa import router as pwa_router, mount_static_files
+
 
 # Réexports rétrocompatibles des dépendances et singletons pour les tests
 from app.core.dependencies import (
@@ -98,7 +100,9 @@ app.include_router(mobile_router)
 app.include_router(meals_router)
 app.include_router(sport_router)
 app.include_router(strava_router)
+app.include_router(second_brain_router)
 app.include_router(pwa_router)
+
 
 # Montage des fichiers statiques PWA
 mount_static_files(app)

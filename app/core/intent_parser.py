@@ -2,8 +2,9 @@
 import re
 from datetime import date, timedelta
 from typing import Optional
-from app.core.models import IntentType, ParsedIntent
+from app.core.models import IntentType, ParsedIntent, NoteCategory
 from app.core.date_resolver import resolve_date_expression
+
 
 
 def _normalize_rayon(raw: str) -> str:
@@ -823,10 +824,137 @@ class IntentParser:
                 raw_query=text,
             )
 
+        # 10. Second Cerveau & Notes compartimentées (Phase 6)
+        # 10.1 Consultation de notes ("quelles sont mes idées de dev", "liste mes notes", "mes bugs")
+        if re.search(r"\b(?:quelles?\s+sont\s+mes\s+idées\s+de\s+dev|idées\s+à\s+dev|mes\s+idées\s+de\s+code)\b", cleaned):
+            return ParsedIntent(
+                intent=IntentType.LIST_NOTES,
+                confidence=0.92,
+                parameters={"category": NoteCategory.DEV_IDEA.value},
+                raw_query=text,
+            )
+        if re.search(r"\b(?:liste\s+mes\s+bugs|quelles?\s+sont\s+mes\s+bugs|mes\s+corrections)\b", cleaned):
+            return ParsedIntent(
+                intent=IntentType.LIST_NOTES,
+                confidence=0.92,
+                parameters={"category": NoteCategory.BUG_REPORT.value},
+                raw_query=text,
+            )
+        if re.search(r"\b(?:liste\s+mes\s+notes|montre\s+mes\s+notes|quelles?\s+sont\s+mes\s+notes|affiche\s+mes\s+notes)\b", cleaned):
+            return ParsedIntent(
+                intent=IntentType.LIST_NOTES,
+                confidence=0.90,
+                parameters={},
+                raw_query=text,
+            )
+
+        # 10.2 Suppression de note ("supprime la note 5", "efface la note 3")
+        del_match = re.search(r"(?:supprime|retire|efface)\s+la\s+note\s+(\d+)", cleaned)
+        if del_match:
+            return ParsedIntent(
+                intent=IntentType.DELETE_NOTE,
+                confidence=0.95,
+                parameters={"note_id": int(del_match.group(1))},
+                raw_query=text,
+            )
+
+        # 10.3 Capture & enregistrement d'une note (5 segments)
+        # a) dev_idea : "à dev : ...", "idée dev : ...", "idée de dev : ...", "idée de code : ..."
+        dev_match = re.search(r"^(?:(?:note\s+)?à\s+dev(?:\s*[:\-]\s*|\s+)|idée\s+(?:de\s+)?(?:dev|code)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        if dev_match:
+            content = dev_match.group(1).strip()
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.92,
+                parameters={
+                    "category": NoteCategory.DEV_IDEA.value,
+                    "content": content or text,
+                },
+                raw_query=text,
+            )
+
+        # b) bug_report : "bug : ...", "bug à corriger : ...", "correction à faire : ...", "problème sur : ..."
+        bug_match = re.search(r"^(?:bug(?:\s+à\s+corriger)?(?:\s*[:\-]\s*|\s+)|correction(?:\s+à\s+faire)?(?:\s*[:\-]\s*|\s+)|problème\s+sur(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        if bug_match:
+            content = bug_match.group(1).strip()
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.92,
+                parameters={
+                    "category": NoteCategory.BUG_REPORT.value,
+                    "content": content or text,
+                },
+                raw_query=text,
+            )
+
+        # c) task : "tâche à faire : ...", "tâche : ...", "penser à ..." (hors rappels)
+        task_match = re.search(r"^(?:tâche(?:\s+à\s+faire)?(?:\s*[:\-]\s*|\s+)|penser\s+à\s+)(.*)$", cleaned)
+        if task_match:
+            content = task_match.group(1).strip()
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.90,
+                parameters={
+                    "category": NoteCategory.TASK.value,
+                    "content": content or text,
+                },
+                raw_query=text,
+            )
+
+        # d) preference : "je préfère ...", "ma préférence : ...", "retiens que je préfère ..."
+        pref_match = re.search(r"^(?:(?:retiens\s+que\s+)?je\s+préfère|ma\s+préférence(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        if pref_match:
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.90,
+                parameters={
+                    "category": NoteCategory.PREFERENCE.value,
+                    "content": text.strip(),
+                },
+                raw_query=text,
+            )
+
+        # e) Catégorie dynamique extensible : "note <thème> : <contenu>", "idée <thème> : <contenu>" (ex: voyage, finance, lecture, etc.)
+        dyn_match = re.search(r"^(?:(?:note|idée)\s+([a-zA-ZÀ-ÿ0-9_-]{3,25})\s*[:\-]\s*)(.*)$", cleaned)
+        if dyn_match:
+            cat_raw = dyn_match.group(1).strip().lower()
+            content = dyn_match.group(2).strip()
+            if cat_raw not in ("pour", "sur", "dans", "avec", "sans"):
+                if cat_raw in ("dev", "code", "dev_idea"):
+                    cat_raw = NoteCategory.DEV_IDEA.value
+                elif cat_raw in ("bug", "bug_report", "fix"):
+                    cat_raw = NoteCategory.BUG_REPORT.value
+                return ParsedIntent(
+                    intent=IntentType.SAVE_NOTE,
+                    confidence=0.92,
+                    parameters={
+                        "category": cat_raw,
+                        "content": content or text,
+                    },
+                    raw_query=text,
+                )
+
+        # f) thought / note libre : "idée pour plus tard : ...", "note pour plus tard : ...", "idée : ...", "note : ...", "pense-bête : ..."
+        thought_match = re.search(r"^(?:(?:idée|note)\s+pour\s+plus\s+tard(?:\s*[:\-]\s*|\s+)|(?:idée|note|pense[- ]bête|réflexion)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        if thought_match:
+            content = thought_match.group(1).strip()
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.90,
+                parameters={
+                    "category": NoteCategory.THOUGHT.value,
+                    "content": content or text,
+                },
+                raw_query=text,
+            )
+
+
         # Inconnu
+
         return ParsedIntent(
             intent=IntentType.UNKNOWN,
             confidence=0.20,
             parameters={},
             raw_query=text,
         )
+
