@@ -47,8 +47,21 @@ class IntentType(str, Enum):
     CANCEL = "cancel"
     CHOOSE_RAYON = "choose_rayon"
 
+    # Second Cerveau & Notes compartimentées (Phase 6)
+    SAVE_NOTE = "save_note"
+    LIST_NOTES = "list_notes"
+    DELETE_NOTE = "delete_note"
+
+    # Auto-Apprentissage Vocal (Phase 6)
+    TEACH_ASSISTANT = "teach_assistant"
+
+    # Annulation immédiate (Phase 6)
+    UNDO_LAST_ACTION = "undo_last_action"
+
     # Non reconnu
     UNKNOWN = "unknown"
+
+
 
 
 class ParsedIntent(BaseModel):
@@ -89,6 +102,7 @@ class InteractionResponse(BaseModel):
     spoken_response: str = Field(..., description="Texte formulé pour être lu à haute voix ou affiché")
     intent: ParsedIntent
     data: Optional[Dict[str, Any]] = None
+    transcribed_text: Optional[str] = Field(default=None, description="Transcription textuelle extraite du flux audio le cas échéant")
 
     @computed_field
     @property
@@ -101,4 +115,148 @@ class InteractionResponse(BaseModel):
     def text(self) -> str:
         """Alias pour les affichages texte simples / bulles de dialogue."""
         return self.spoken_response
+
+
+class ConversationLogItem(BaseModel):
+    """Représentation d'une interaction enregistrée dans le journal d'audit."""
+    id: int
+    session_id: Optional[str] = None
+    raw_query: str
+    intent: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    spoken_response: str
+    success: bool
+    latency_ms: float = 0.0
+    llm_model: Optional[str] = None
+    error_trace: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ConversationLogsListResponse(BaseModel):
+    """Réponse paginée pour la consultation des logs d'audit."""
+    total: int
+    limit: int
+    offset: int
+    items: list[ConversationLogItem]
+
+
+class ConversationFeedbackCreate(BaseModel):
+    """Payload pour enregistrer un retour ou une correction sur un échange."""
+    feedback_type: str = Field(..., description="'positive', 'negative', 'correction'")
+    user_note: Optional[str] = None
+
+
+class ConversationFeedbackResponse(BaseModel):
+    """Confirmation de création d'un feedback."""
+    success: bool
+    feedback_id: int
+
+
+# ============================================================================
+# Second Cerveau Compartimenté (Phase 6)
+# ============================================================================
+
+class NoteCategory(str, Enum):
+    """Segments fondamentaux par défaut du Second Cerveau (extensibles dynamiquement)."""
+    DEV_IDEA = "dev_idea"       # 🛠️ Idées de dev (« À dev », « J'aimerais que ça fasse... »)
+    BUG_REPORT = "bug_report"   # 🐛 Corrections (« Bug », « Problème sur... »)
+    THOUGHT = "thought"         # 💡 Pensées et notes libres (« Idée », « Réflexion »)
+    PREFERENCE = "preference"   # 🎯 Préférences et habitudes de vie (« J'aime... », « Je préfère... »)
+    TASK = "task"               # 📋 Tâches (« Tâche à faire », « Penser à... »)
+
+
+class SecondBrainNoteItem(BaseModel):
+    """Représentation d'une note stockée dans le Second Cerveau SQLite."""
+    id: int
+    category: str
+    content: str
+    tags: list[str] = Field(default_factory=list)
+    status: str = "active"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class SecondBrainNotesListResponse(BaseModel):
+    """Réponse paginée pour la consultation des notes du Second Cerveau."""
+    total: int
+    limit: int
+    offset: int
+    items: list[SecondBrainNoteItem]
+
+
+class NoteCreate(BaseModel):
+    """Payload pour la création directe d'une note."""
+    category: Optional[str] = NoteCategory.THOUGHT.value
+    content: str
+    tags: Optional[list[str]] = Field(default_factory=list)
+
+
+class NoteUpdate(BaseModel):
+    """Payload pour la mise à jour partielle d'une note."""
+    category: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+class SecondBrainImageAnalysisResult(BaseModel):
+    """Résultat d'analyse multimodale Gemini Vision d'une capture d'écran ou photo."""
+    category: str = Field(..., description="Catégorie identifiée (dev_idea, bug_report, voyage, cuisine, etc.)")
+    title: str = Field(..., description="Titre ou résumé très court (1 ligne)")
+    summary: str = Field(..., description="Description synthétique et exploitable du contenu de l'image")
+    tags: list[str] = Field(default_factory=list, description="Mots-clés / tags extraits")
+    suggested_action: Optional[str] = Field(default=None, description="Action ou étape conseillée le cas échéant")
+
+
+class SecondBrainImageNoteResponse(BaseModel):
+    """Réponse retournée lors de l'ingestion multimodale d'une image vers le Second Cerveau."""
+    success: bool
+    note_id: int
+    note: SecondBrainNoteItem
+    analysis: SecondBrainImageAnalysisResult
+    spoken_response: str
+
+
+# ============================================================================
+# Auto-Apprentissage Vocal (user_learnings)
+# ============================================================================
+
+class UserLearningItem(BaseModel):
+    """Règle personnalisée apprise par Otis."""
+    id: int
+    rule_text: str
+    category: str = "general"
+    original_error: Optional[str] = None
+    correction: Optional[str] = None
+    active: bool = True
+    created_at: Optional[str] = None
+
+
+class UserLearningsListResponse(BaseModel):
+    """Liste paginée des règles apprises."""
+    total: int
+    limit: int
+    offset: int
+    items: list[UserLearningItem]
+
+
+class LearningCreate(BaseModel):
+    """Payload pour créer ou enregistrer une règle apprise."""
+    rule_text: str
+    category: Optional[str] = "general"
+    original_error: Optional[str] = None
+    correction: Optional[str] = None
+    active: bool = True
+
+
+class LearningUpdate(BaseModel):
+    """Payload pour modifier une règle apprise (ex: désactiver)."""
+    rule_text: Optional[str] = None
+    category: Optional[str] = None
+    original_error: Optional[str] = None
+    correction: Optional[str] = None
+    active: Optional[bool] = None
+
+
+
 

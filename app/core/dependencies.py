@@ -9,6 +9,11 @@ import logging
 from app.config import settings
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.connectors.sheets.sport_connector import SportConnector
+from app.core.database import (
+    DatabaseManager,
+    get_database_manager,
+    set_database_manager,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -86,7 +86,25 @@ Liste des intentions disponibles :
 17. small_talk : salutations, politesse, humeur. Fournis une phrase courte, sympa et complice dans "conversational_reply" (l'esprit d'Otis le scribe).
 18. confirm / cancel : oui, d'accord, non, annuler.
 19. choose_rayon : réponse à une clarification de rayon pour un article (ex: "En entretien", "Épicerie", "Laisse en divers", "Rayon frais"). Paramètres : "rayon" (nom du rayon).
-20. unknown : quand la requête n'est pas une commande directe, ou si elle est floue, incomplète, interrogative ou réflexive.
+
+20. Second Cerveau & Notes compartimentées (Phase 6) :
+   - save_note : capturer et classifier instantanément une note ou idée dans le second cerveau.
+     Paramètres :
+     - "content" : contenu principal épuré de la note.
+     - "category" : segment thématique de la note.
+       * Les 5 segments fondamentaux par défaut sont :
+         - "dev_idea" : idées de développement, code, features (« À dev », « Idée de code »)
+         - "bug_report" : anomalies, bugs à corriger (« Bug », « Correction », « Problème sur... »)
+         - "thought" : pensées libres, inspirations, réflexions (« Idée pour plus tard », « Note libre »)
+         - "preference" : préférences, goûts, habitudes de vie (« J'aime... », « Je préfère... »)
+         - "task" : tâches concrètes (« Tâche », « Penser à... »)
+       * Segments dynamiques auto-découverts : Otis est autonome et adaptable ! Si un mot-clé, préfixe ou concept revient régulièrement ou si la note porte sur un domaine distinct (ex: "voyage", "finance", "lecture", "musique", "cuisine", "maison", "santé", etc.), crée et affecte directement ce segment personnalisé dans "category".
+     - "tags" : liste de mots-clés optionnels.
+   - list_notes : consulter les notes du second cerveau. Paramètres optionnels : "category" (dev_idea, bug_report, voyage, etc.), "status".
+   - delete_note : supprimer une note par son identifiant. Paramètre : "note_id" (int).
+
+
+21. unknown : quand la requête n'est pas une commande directe, ou si elle est floue, incomplète, interrogative ou réflexive.
     RÈGLE MAJEURE D'INTELLIGENCE : Ne réponds JAMAIS par un message générique froid. Analyse le besoin sous-jacent et génère dans "conversational_reply" une réponse complice, intelligente et concise qui aide Alexis.
 
 RÈGLES DE STYLE ET CONCISION (OBLIGATOIRE) :
@@ -131,6 +149,13 @@ GEMINI_JSON_SCHEMA = {
                 "task": {"type": "STRING"},
                 "device": {"type": "STRING"},
                 "action": {"type": "STRING"},
+                # Paramètres Second Cerveau (Phase 6)
+                "content": {"type": "STRING"},
+                "note_id": {"type": "INTEGER"},
+                "tags": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                },
                 # Paramètres Sport & Running (Otis)
                 "distance_km": {"type": "NUMBER"},
                 "duration_seconds": {"type": "INTEGER"},
@@ -153,6 +178,7 @@ GEMINI_JSON_SCHEMA = {
 }
 
 
+
 class GeminiNLUService:
     """Service d'analyse d'intentions NLU s'appuyant sur l'API Gemini avec fallback déterministe."""
 
@@ -163,6 +189,37 @@ class GeminiNLUService:
     ) -> None:
         self.gemini_client = gemini_client or get_gemini_client()
         self.fallback_parser = fallback_parser or _default_local_parser
+
+    def build_system_prompt_with_learnings(self) -> str:
+        """Construit le prompt système enrichi dynamiquement avec les règles apprises d'Alexis."""
+        learnings: List[Dict[str, Any]] = []
+        try:
+            from app.core.database import get_database_manager
+            db = get_database_manager()
+            learnings = db.get_active_learnings()
+        except Exception as exc:
+            logger.debug(f"Impossible de charger les apprentissages depuis la base: {exc}")
+
+        if not learnings:
+            return SYSTEM_PROMPT
+
+        lines = [
+            SYSTEM_PROMPT.strip(),
+            "",
+            "---",
+            "RÈGLES ET CORRECTIONS APPRISES (MÉMOIRE D'ALEXIS) :",
+            "Tu dois impérativement respecter ces consignes, corrections et clarifications formulées par Alexis lors d'échanges passés :",
+        ]
+        for l in learnings:
+            rule_text = l.get("rule_text", "")
+            orig = l.get("original_error")
+            corr = l.get("correction")
+            if orig and corr:
+                lines.append(f"- {rule_text} (Confusion passée : \"{orig}\" -> Correction : \"{corr}\")")
+            else:
+                lines.append(f"- {rule_text}")
+
+        return "\n".join(lines)
 
     async def parse(
         self,
@@ -213,7 +270,7 @@ class GeminiNLUService:
             "contents": [
                 {
                     "parts": [
-                        {"text": SYSTEM_PROMPT},
+                        {"text": self.build_system_prompt_with_learnings()},
                         {"text": user_content},
                     ]
                 }

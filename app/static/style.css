@@ -538,6 +538,55 @@ body {
   min-height: 24px;
 }
 
+/* Toast Flottant d'Annulation Immédiate (Undo) */
+.undo-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #1e293b);
+  border: 1px solid var(--border-color, #cbd5e1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  border-radius: 24px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  margin: 0 auto 12px auto;
+  max-width: 90%;
+  animation: slideUpFade 0.3s ease-out;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 100;
+}
+
+.btn-undo-action {
+  background: var(--color-primary, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-undo-action:hover {
+  background: var(--color-primary-dark, #1d4ed8);
+  transform: scale(1.04);
+}
+
+.btn-undo-action:active {
+  transform: scale(0.96);
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Bouton Microphone & Formulaire */
 .voice-dock {
   display: flex;
@@ -2436,4 +2485,294 @@ body {
   background: rgba(148, 163, 184, 0.15);
   color: #475569;
 }
+
+/* ==========================================================================
+   Second Cerveau & Journal d'Audit Conversationnel (Phase 6)
+   ========================================================================== */
+
+.form-add-note-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  animation: slideUpFade 0.25s ease-out;
+}
+
+.category-pills-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+}
+
+.category-pills-row::-webkit-scrollbar {
+  display: none;
+}
+
+.cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-secondary, #64748b);
+  border: 1px solid var(--border-color, #cbd5e1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cat-pill:hover {
+  border-color: var(--color-primary, #2563eb);
+  color: var(--text-primary, #1e293b);
+}
+
+.cat-pill.active {
+  background: var(--color-primary, #2563eb);
+  color: #ffffff;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.pill-count {
+  font-size: 0.72rem;
+  opacity: 0.85;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.cat-pill.active .pill-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.notes-cards-list,
+.audit-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.note-card.done {
+  opacity: 0.65;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.note-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.note-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.note-date {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.note-content {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-primary, #1e293b);
+  word-break: break-word;
+  margin-bottom: 10px;
+}
+
+.note-content.text-done {
+  text-decoration: line-through;
+  color: var(--text-muted, #94a3b8);
+}
+
+.note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--border-color, #f1f5f9);
+  padding-top: 8px;
+}
+
+.btn-note-toggle {
+  border: none;
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-complete {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+.btn-complete:hover {
+  background: rgba(34, 197, 94, 0.22);
+}
+
+.btn-reopen {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+.btn-reopen:hover {
+  background: rgba(245, 158, 11, 0.22);
+}
+
+.btn-note-delete {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.btn-note-delete:hover {
+  opacity: 1;
+}
+
+/* Journal d'Audit Cards */
+.audit-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.audit-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.audit-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.audit-status-dot.ok {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.audit-status-dot.err {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+.audit-intent-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--color-primary, #2563eb);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.audit-matched-by {
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.audit-date {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.audit-prompt {
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: var(--text-primary, #1e293b);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.audit-response {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #475569);
+  line-height: 1.4;
+  margin-bottom: 10px;
+  padding-left: 6px;
+  border-left: 2px solid var(--color-primary, #2563eb);
+}
+
+.audit-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  border-top: 1px solid var(--border-color, #f1f5f9);
+  padding-top: 8px;
+}
+
+.audit-meta-info {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-feedback-action {
+  background: transparent;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 12px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-feedback-action:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary, #1e293b);
+}
+
+.feedback-form-box {
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  animation: slideUpFade 0.2s ease-out;
+}
+
+.feedback-textarea {
+  width: 100%;
+  font-size: 0.8rem;
+  resize: vertical;
+  min-height: 50px;
+}
+
 

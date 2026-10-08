@@ -38,6 +38,7 @@ Pour que le serveur Cloud puisse dialoguer avec votre Google Sheets sans risquer
 | `SPREADSHEET_BUDGET_ID` | Identifiant du classeur Budget Mensuel (optionnel) | `1k2l3m4n5o_EXEMPLE_ID_CLASSEUR_BUDGET` |
 | `GOOGLE_SERVICE_ACCOUNT_INFO` | Contenu intégral de votre fichier `credentials.json` | `{"type": "service_account", ...}` |
 | `GEMINI_API_KEY` | Clé d'API Google AI Studio pour le moteur conversationnel Gemini Flash | `AIzaSy...` |
+| `LITESTREAM_REPLICA_URL` | URL de réplication du bucket Cloud pour SQLite (GCS, S3, R2) | `gcs://nom-de-votre-bucket/hub_data.db` |
 
 > [!IMPORTANT]
 > **Partage Google Sheets obligatoire :**
@@ -84,7 +85,14 @@ Google Cloud Run offre un **niveau gratuit permanent de 2 millions de requêtes 
    * `GCP_SA_KEY` : Le contenu du fichier JSON de clé téléchargé ci-dessus.
    * `GCP_REGION` : `europe-west1` (Belgique) ou `europe-west9` (Paris).
 
-*Dès lors, chaque merge vers `main` compilera et déploiera automatiquement votre image Docker sur votre compte Google Cloud !*
+4. **Créer le Bucket de persistance SQLite (Litestream - 100% Gratuit) :**
+   * Dans la console Google Cloud > **Cloud Storage** > **Buckets** > **Créer**.
+   * Nom du bucket : ex `personal-assistant-hub-data-<votre-nom>` (doit être unique mondialement).
+   * Emplacement : Région `europe-west1` ou `europe-west9`.
+   * Donnez les droits au compte de service Cloud Run (rôle `Storage Object Admin`).
+   * Ajoutez le secret GitHub : `LITESTREAM_REPLICA_URL=gcs://nom-du-bucket/hub_data.db`.
+
+*Dès lors, chaque merge vers `main` compilera et déploiera automatiquement votre image Docker sur votre compte Google Cloud avec réplication continue de vos données !*
 
 ---
 
