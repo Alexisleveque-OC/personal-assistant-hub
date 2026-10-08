@@ -216,8 +216,19 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
     - Extinction automatique à l'arrêt : zéro impact sur la batterie en dehors des courses.
     - Élimination des intermédiaires tiers (indépendance totale de Strava et Decathlon Coach) : calcul précis de la distance (Haversine), vitesse instantanée, allure au km, dénivelé D+ et temps réel sans pause artificielle.
     - Stockage local de la trace (coordonnées GPS / format GPX/FIT) en base SQLite.
+  - [ ] **Programmation de Fractionné & Guidage Audio en Direct (Comme Decathlon Coach) :**
+    - Création et planification de séances d'intervalles complexes : échauffement, répétitions fractionnées ($N \times$ temps/distance rapide + temps/distance de récupération), blocs au seuil et retour au calme.
+    - **Audio cues & décompte dans les oreilles :** bips d'alerte, décompte 3-2-1 avant chaque changement de phase, annonces vocales d'objectifs (*« Accélère ! Bloc 2 sur 6, 400m à 4'10/km »*, *« Trottine, récupération 1 minute »*).
+    - Régulateur d'allure vocal : alerte si vous partez trop vite ou trop lentement par rapport à l'allure cible.
+    - Bilan audio automatique à la fin du fractionné avec moyennes par bloc.
+  - [ ] **Checklist de Renforcement Dépliable (Validation Clic & Voix) :**
+    - Liste d'exercices structurée et interactive (accordéon dépliable par groupe musculaire dans l'onglet Sport : gainage, fentes, renforcement mollet/soléaire/tibial pour la périostite).
+    - **Double modalité de validation :**
+      - Au clic tactile sur les cases à cocher de la PWA.
+      - À la voix sans toucher le téléphone : *« Otis, coche le gainage planche »*, *« J'ai fait 3 séries de mollets sur une marche »*, *« Valide tous les exercices de renfo »*.
+    - Persistance SQLite des exercices réalisés et intégration automatique dans le volume de renforcement de la semaine.
   - [ ] **Coach Vocal Temps Réel & Feedback Mains-Libres en Course :**
-    - Alertes audio automatiques à chaque kilomètre ou fractionné : allure moyenne du dernier kilomètre, distance parcourue, reste à parcourir.
+    - Alertes audio automatiques à chaque kilomètre : allure moyenne du dernier kilomètre, distance parcourue, reste à parcourir.
     - Écoute continue mains-libres dans les écouteurs : questionner Otis sur ses métriques à tout instant (*« Otis, j'en suis à combien ? »*, *« Quelle est mon allure moyenne ? »*) ou lui dicter des pensées/idées pour le Second Cerveau en courant.
   - [ ] **Module Protecteur Blessure & Adaptation Dynamique du Plan (Gestion Périostite) :**
     - Prise en compte immédiate des ressentis oraux de douleur en course ou au débrief (*« J'ai mal au tibia »*, *« Ma périostite me lance »*).
