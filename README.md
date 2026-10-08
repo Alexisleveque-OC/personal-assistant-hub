@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2.10+-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-[![Tests Pytest](https://img.shields.io/badge/tests-386%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
+[![Tests Pytest](https://img.shields.io/badge/tests-389%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![Architecture Modulaire](https://img.shields.io/badge/architecture-Domain--First%20%7C%20APIRouters-purple.svg)](https://fastapi.tiangolo.com/tutorial/bigger-applications/)
 [![Code Style: TDD Strict](https://img.shields.io/badge/code%20style-TDD%20Strict-success.svg)](https://en.wikipedia.org/wiki/Test-driven_development)
 
@@ -22,7 +22,7 @@ L'objectif de **Personal Assistant Hub** est d'unifier ces outils derrière une 
 1. **Zéro friction :** Poser une question spontanée (*« Qu'est-ce qu'on mange ce soir ? »*, *« Qu'est-ce que j'ai comme séance aujourd'hui ? »*, *« Il me reste quoi à acheter au rayon Fruits ? »*) et obtenir une réponse instantanée.
 2. **Intelligence Hybride Réactive (< 1-2s) :** Un cerveau LLM (Google Gemini Flash) avec auto-découverte et dialogues multi-tours, épaulé par un préchauffage du cache mémoire en RAM au boot et un repli déterministe local en cas de panne réseau.
 3. **Mini-Coach Sportif Intégré (Otis) :** Suivi d'entraînement running et renforcement, calculs physiologiques (allure, km-effort, charge RPE), prévention des blessures (périostite) et gamification dopaminée (badges pop-culture).
-4. **Robustesse d'artisan :** 386 tests automatisés à 100% au vert, validation stricte des contrats par Pydantic v2, base relationnelle SQLite locale ultra-rapide (WAL mode), architecture modulaire en sous-routeurs et handlers spécialisés.
+4. **Robustesse d'artisan :** 389 tests automatisés à 100% au vert, validation stricte des contrats par Pydantic v2, base relationnelle SQLite locale ultra-rapide (WAL mode) avec réplication continue Cloud (Litestream), architecture modulaire en sous-routeurs et handlers spécialisés.
 
 ---
 
@@ -185,7 +185,7 @@ GEMINI_API_KEY=votre_cle_gemini_flash
 ```bash
 .venv/bin/pytest -v
 ```
-> **386 tests automatisés exécutés à 100% au vert en ~42 secondes.**
+> **389 tests automatisés exécutés à 100% au vert en ~22 secondes.**
 
 ### 5. Lancer le serveur de développement
 
