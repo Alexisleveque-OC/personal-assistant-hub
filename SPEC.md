@@ -34,13 +34,15 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   * Repli local déterministe automatique en cas de panne réseau ou de quota dépassé.
 * **Statut :** Finalisé, validé par 208 tests automatisés (Unitaires + E2E) et validé sur smartphone PWA.
 
-### C. Module Sport & Running (SQLite & Mini-Coach Otis)
-* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant et protecteur contre les blessures (périostite).
+### C. Module Sport & Running (SQLite, Mini-Coach Otis & Futur Otis Live Runner)
+* **Rôle :** Suivi, planification et analyse des séances de course à pied et de renforcement, avec rôle de "mini-coach" motivant, protecteur contre les blessures (périostite) et futur compagnon de course en direct.
 * **Fonctionnalités clés :**
   * **Base de Données Locale SQLite (`sport_sessions`, `sport_weekly_summaries`) :** Remplacement haute performance du Google Sheet historique (< 1 ms de latence, zéro quota API, requêtes et agrégations instantanées).
   * **Calculs de charge & volume :** Synthèse automatique du volume kilométrique, temps cumulé, Charge RPE ($\text{Durée} \times \text{RPE}$), nb séances de renfo, alerte sécurité (+10% max) et plafond conseillé pour S+1.
   * **Interactions vocales :** Consultation de séance (*« Qu'est-ce que j'ai comme séance aujourd'hui ? »*), enregistrement vocal d'une course ou séance de renfo (*« J'ai fait 30 min de renfo, ressenti 7 sur 10 »*), réajustement a posteriori (*« Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite »*), résolution de "ma dernière séance".
-  * **Passerelle de synchronisation :** Synchronisation automatique Strava via webhooks (`/api/v1/integrations/strava/webhook`) et ingestion d'activités.
+  * **Adaptation Dynamique de Charge & Protection Périostite :** Prise en compte immédiate des douleurs aux tibias/musculaires pour adapter à la baisse les sorties longues, éviter le dénivelé négatif et préconiser du repos actif ou renforcement soléaire.
+  * **Otis Live Runner (Capacitor / Android Foreground Service) :** Suivi GPS en direct activé uniquement pendant l'effort (extinction à la fin de la séance pour préserver la batterie), annonces d'allures au kilomètre dans les écouteurs, dictée mains-libres pendant la course et pilotage de Spotify par la voix.
+  * **Passerelles & Écosystème :** Ingestion directe de traces GPX/FIT, indépendance de Strava/Decathlon et compatibilité montres Garmin Connect.
 
 ### D. Moteur Vocal Haute-Fidélité, Mémoire Long-Terme & "Second Cerveau"
 * **Rôle :** Permettre à l'utilisateur de parler librement et naturellement à son assistant avec une transcription sans faille, de décharger son esprit et d'apprendre continuellement de ses interactions.
@@ -208,34 +210,53 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
     - Remplacement des dates ISO brutes parlées ("2026-10-07") par des formulations orales naturelles ("du 7 octobre", "d'hier").
     - Support de l'infinitif ("modifier", "changer") et tolérance sur les déclinaisons de vocabulaire ("renfort", "renfo").
 
-- [ ] **Phase 7 : Connecteurs Organisationnels (Google Agenda & Google Tasks)**
+- [ ] **Phase 7 : Otis Live Runner - Coach Vocal Temps Réel, Traqueur GPS Natif & Contrôle Spotify**
+  - [ ] **Tracking GPS Natif & Autonomie Totale (Capacitor / Android Foreground Service) :**
+    - Activation d'un *Foreground Service* natif avec notification persistante dans la barre d'état **uniquement pendant la séance active** (*« Otis, lance ma séance »* ou bouton « Démarrer »).
+    - Extinction automatique à l'arrêt : zéro impact sur la batterie en dehors des courses.
+    - Élimination des intermédiaires tiers (indépendance totale de Strava et Decathlon Coach) : calcul précis de la distance (Haversine), vitesse instantanée, allure au km, dénivelé D+ et temps réel sans pause artificielle.
+    - Stockage local de la trace (coordonnées GPS / format GPX/FIT) en base SQLite.
+  - [ ] **Coach Vocal Temps Réel & Feedback Mains-Libres en Course :**
+    - Alertes audio automatiques à chaque kilomètre ou fractionné : allure moyenne du dernier kilomètre, distance parcourue, reste à parcourir.
+    - Écoute continue mains-libres dans les écouteurs : questionner Otis sur ses métriques à tout instant (*« Otis, j'en suis à combien ? »*, *« Quelle est mon allure moyenne ? »*) ou lui dicter des pensées/idées pour le Second Cerveau en courant.
+  - [ ] **Module Protecteur Blessure & Adaptation Dynamique du Plan (Gestion Périostite) :**
+    - Prise en compte immédiate des ressentis oraux de douleur en course ou au débrief (*« J'ai mal au tibia »*, *« Ma périostite me lance »*).
+    - Ajustement automatique du plan de la semaine : allègement de la sortie longue du weekend (-30% à -50%), suppression temporaire du dénivelé négatif (D-) et du fractionné, proposition de cross-training (vélo) et de renforcement adapté (soléaire/tibial).
+  - [ ] **Contrôle Musical Spotify Connect Mains-Libres :**
+    - Connexion OAuth2 avec l'API Spotify Web / Spotify Connect.
+    - Commandes vocales directes sans sortir le smartphone : *« Otis, mets ma playlist Running »*, *« Otis, morceau suivant »*, *« Otis, mets du son motivant »*.
+  - [ ] **Passerelle Montres Connectées (Garmin Connect & Ingestion .FIT) :**
+    - Ingestion et parsing des fichiers d'activité natifs `.FIT` de Garmin.
+    - Architecture prête pour synchronisation API Garmin Connect dès acquisition d'une montre de running.
+
+- [ ] **Phase 8 : Connecteurs Organisationnels (Google Agenda & Google Tasks)**
   - [ ] Intégration Google Calendar API (événements du jour, échéances, dates importantes)
   - [ ] Intégration Google Tasks API (consultation et création de tâches)
   - [ ] Connecteur Gmail (lecture et récapitulatif des notifications importantes)
   - [ ] Tests automatisés dédiés
 
-- [ ] **Phase 8 : Chronique Matinale Audio (Mini-Podcast Quotidien Enrichi)**
+- [ ] **Phase 9 : Chronique Matinale Audio (Mini-Podcast Quotidien Enrichi)**
   - [ ] Agrégateur modulaire universel du matin (Météo locale, Agenda du jour, Tâches prioritaires, Séance de sport prévue, Menus déjeuner & dîner, Profil)
   - [ ] Scénarisation dynamique par Gemini Flash
   - [ ] Moteur de synthèse vocale locale Edge-TTS (génération de MP3)
   - [ ] API de distribution (audio pour PWA et déclenchement planifié)
 
-- [ ] **Phase 9 : Connecteur Budget (Google Sheets)**
+- [ ] **Phase 10 : Connecteur Budget (Google Sheets)**
   - [ ] Modélisation des dépenses et catégories sur le classeur financier
   - [ ] Calculs de soldes restants et saisie de dépenses
   - [ ] Tests automatisés dédiés
 
-- [ ] **Phase 10 : Interfaces Vocales & Messageries (Alexa Skill & Bot Telegram)**
+- [ ] **Phase 11 : Interfaces Vocales & Messageries (Alexa Skill & Bot Telegram)**
   - [ ] Webhook FastAPI compatible avec le protocole Amazon Alexa Custom Skill
   - [ ] Routage direct des commandes vocales Alexa vers le moteur central
   - [ ] Passerelle bot Telegram (texte et messages vocaux entrants/sortants)
 
-- [ ] **Phase 11 : Connecteurs Professionnels (Mails Pro, Jira & Trello)**
+- [ ] **Phase 12 : Connecteurs Professionnels (Mails Pro, Jira & Trello)**
   - [ ] Connecteur Jira (lecture des tickets et logging de temps)
   - [ ] Connecteur Trello (lecture et déplacement de cartes)
   - [ ] Connecteur e-mails pro avec isolation stricte des secrets
 
-- [ ] **Phase 12 : Domotique (Prises connectées & Scénarios)**
+- [ ] **Phase 13 : Domotique (Prises connectées & Scénarios)**
   - [ ] Intégration des APIs d'équipements connectés
   - [ ] Intentions de commande et de statut (`toggle_device`, `get_device_status`)
 
