@@ -102,3 +102,38 @@ class InteractionResponse(BaseModel):
         """Alias pour les affichages texte simples / bulles de dialogue."""
         return self.spoken_response
 
+
+class ConversationLogItem(BaseModel):
+    """Représentation d'une interaction enregistrée dans le journal d'audit."""
+    id: int
+    session_id: Optional[str] = None
+    raw_query: str
+    intent: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    spoken_response: str
+    success: bool
+    latency_ms: float = 0.0
+    llm_model: Optional[str] = None
+    error_trace: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ConversationLogsListResponse(BaseModel):
+    """Réponse paginée pour la consultation des logs d'audit."""
+    total: int
+    limit: int
+    offset: int
+    items: list[ConversationLogItem]
+
+
+class ConversationFeedbackCreate(BaseModel):
+    """Payload pour enregistrer un retour ou une correction sur un échange."""
+    feedback_type: str = Field(..., description="'positive', 'negative', 'correction'")
+    user_note: Optional[str] = None
+
+
+class ConversationFeedbackResponse(BaseModel):
+    """Confirmation de création d'un feedback."""
+    success: bool
+    feedback_id: int
+

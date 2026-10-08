@@ -1,8 +1,9 @@
-# Roadmap Feature : Phase 5 ter - Retours d'Expérience Utilisateur (Sport & Courses) (`feat/ux-sport-shopping`)
+# Roadmap Feature : Phase 6 - Moteur Vocal Haute-Fidélité, Mémoire Long-terme & Second Cerveau (`feat/voice-memory-second-brain`)
 
 > **Règles d'or (AGENTS.md) :**
 > - Chaque étape doit être validée **manuellement et explicitement par l'utilisateur** avant de passer à la suivante.
-> - La suite de tests automatisés (`pytest`) doit être à **100% au vert** à chaque étape (TDD strict).
+> - La suite de tests automatisés (`pytest`) doit être à **100% au vert** à chaque étape (TDD strict : Rouge ➔ Vert ➔ Refactor).
+> - Zéro commit prématuré sans test ni validation préalable.
 > - À la fin de la feature, un **test d'intégration End-to-End (E2E)** doit valider le flux complet de bout en bout.
 
 ---
@@ -11,80 +12,124 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | **Courses :** Synchronisation directe en lot dans Google Sheets (Cette semaine & Liste d'attente) sur "J'ai fini" + bouton Reset | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (346/346 total) au vert |
-| **Étape 2** | **Sport Backend :** Endpoints d'historique des séances et de synthèses de semaines (`/sessions` & `/summaries`) en TDD strict | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (350/350 total) au vert |
-| **Étape 3** | **Sport Frontend :** Vue chronologique des séances avec résumé concis et accordéon de détail complet (PWA) | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 350/350 tests (0 régression) |
-| **Étape 4** | **Sport Frontend :** Vue historique et synthèse des semaines avec accordéon des séances composantes (PWA) | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 350/350 tests (0 régression) |
-| **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette finale** | ⚪ À faire | En attente | Suite complète (100% au vert) |
+| **Étape 1** | **Socle SQLite & Journal Conversationnel :** Base `hub_data.db` (WAL mode), traçabilité des échanges (`conversation_logs`) et endpoints d'audit | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 7/7 tests dédiés (359/359 total) au vert |
+| **Étape 2** | **Second Cerveau Compartimenté :** Segmentation automatique LLM en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`), service et endpoints | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
+| **Étape 3** | **Auto-Apprentissage Vocal (`TEACH_ASSISTANT`) :** Extraction de règle par Gemini, table `user_learnings`, rétro-correction et injection dynamique dans le prompt | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
+| **Étape 4** | **Commande d'Annulation (« Undo ») :** Intention `undo_last_action` et annulation contextuelle (repas, courses, sport, notes) | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
+| **Étape 5** | **Pipeline STT & Audio Direct Backend :** Endpoint audio direct (`/api/v1/interact/audio`) avec transcription multimodale Gemini & normalisation phonétique | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
+| **Étape 6** | **Ergonomie Vocale PWA :** VAD anti-coupure avec délai de silence configurable (1.5s - 2.5s), mode Push-to-Talk, Wake Word in-app (« Otis ») | ⚪ À faire | En attente | Tests manuels & PWA |
+| **Étape 7** | **Interface PWA - Vues Second Cerveau & Audit :** Consultation et filtres pills (🛠️ À dev, 🐛 Bugs, etc.), vue Journal des échanges avec feedback | ⚪ À faire | En attente | Tests visuels & ergonomie |
+| **Étape 8** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation du cycle complet (journal, apprentissage vocal in-context, notes, annulation) | ⚪ À faire | En attente | Suite complète (100% au vert) |
 
 ---
 
 ## Détail des Étapes
 
-### 🟢 Étape 1 : Courses : Synchronisation Directe Google Sheets sur "J'ai fini" & Réinitialisation
+### 🟢 Étape 1 : Socle de Persistance SQLite & Journal Conversationnel (`conversation_logs`)
 * **Objectifs réalisés :**
-  1. **Source de Vérité Google Sheets (Adieu reset artificiel du lundi) :** Respect du cycle de courses d'Alexis (démarrant le samedi). Aucune purge arbitraire par semaine ISO. C'est l'état réel des cases du Google Sheet qui fait autorité.
-  2. **Synchronisation en Lot (Batch) sur *"🏁 J'ai fini !"* :**
-     - Durant les courses : les cases sont cochées tactilement et instantanément en mémoire/UI (0 requête API, 0 latence, quotas préservés).
-     - Au clic sur *"🏁 J'ai fini !"* : un seul appel API groupé (`POST /api/v1/meals/shopping/complete`) transmet tous les articles cochés.
-     - **`Cette semaine` :** les cases correspondantes passent à `TRUE` dans le Sheet via `batch_update` avec `value_input_option="USER_ENTERED"` préservant la règle de validation checkbox.
-     - **`Liste_Attente` :** les articles achetés sont également passés à `TRUE` dans le Sheet (`mark_shopping_items_bought`).
-     - Feedback visuel clair : badge vert *"✅ Synchronisé dans votre Google Sheet (Cette semaine & Liste d'attente)"*.
-  3. **Bouton de Réinitialisation Explicite :** Bouton *"🔄 Réinitialiser"* sur l'onglet "Cette semaine" qui passe toutes les cases à `FALSE` dans le Google Sheet (`POST /api/v1/meals/shopping/reset`) et purge le cache pour démarrer une nouvelle semaine vierge.
-  4. **Tests automatisés :** 4 tests unitaires dédiés dans `tests/test_shopping_week_reset.py`, 346/346 tests du projet au vert.
-  5. **Mise à jour PWA :** Service Worker incrémenté en `v11`.
-* **Statut :** 🟢 Validé par l'utilisateur et commité (`f1def49`).
-
----
-
-### 🟢 Étape 2 : Sport Backend : Endpoints d'Historique des Séances & des Semaines
-* **Objectifs réalisés :**
-  1. **Endpoint `GET /api/v1/sport/sessions` :**
-     - Récupération de l'historique complet avec tri antichronologique par défaut (`order=desc|asc`).
-     - Filtres optionnels insensibles à la casse : `statut` (ex: `Réalisé`, `Prévu`, `Repos`), `type_seance` (ex: `EF`, `Fractionné`, `Renforcement`).
-     - Pagination intégrée (`limit`, `offset`) et comptage `total`.
-  2. **Endpoint `GET /api/v1/sport/summaries` :**
-     - Récupération des synthèses de semaines (`Synthese_Hebdo` ou fallback dynamique par séances).
-     - Paramètre `include_sessions=True` pour imbriquer directement la liste des séances de chaque semaine (indispensable pour l'accordéon frontend sans requêtes multiples en cascade).
-     - Filtres par `annee`, tri paramétrable et pagination.
-  3. **Méthode connecteur `SportConnector.get_all_summaries` :**
-     - Extraction depuis le cache/feuille `Synthese_Hebdo` avec tri chronologique descendant.
-     - Fallback autonome depuis l'historique complet des séances si l'onglet est absent ou vide.
-  4. **Modèles Pydantic stricts :** `SportSessionsListResponse`, `SportWeeklySummaryWithSessions`, `SportSummariesListResponse`.
-  5. **TDD strict :** 4/4 tests unitaires dédiés dans `tests/test_sport_history_endpoints.py`, 350/350 tests du projet au vert (0 régression).
-* **Statut :** 🟢 Validé par l'utilisateur et commité (`b8c31d7`).
-
----
-
-### 🟢 Étape 3 : Sport Frontend : Vue Chronologique des Séances avec Accordéon de Détail
-* **Objectifs réalisés :**
-  1. **Sous-onglet dédié "Séances" :** Intégré dans le sélecteur horizontal ergonomique (`Aujourd'hui` | `Séances` | `Semaines` | `Dashboard` | `Trophées 🏆`).
-  2. **Filtres interactifs par pills :** Filtrage instantané en mémoire par type de séance (`Tous`, `EF`, `Fractionné`, `Sortie Longue`, `Renfo`, `Tempo`, `Récup`) et par statut (`Tous`, `Réalisé`, `Prévu`).
-  3. **Cartes avec accordéon animé (au clic) :**
-     - **Header résumé :** Date en français, pastille de type colorée avec emoji, semaine ISO, badge statut (`Réalisé` vert, `Prévu` bleu), métrique principale (km ou durée) et chevron animé.
-     - **Détails dépliables :** Grille métrique (Distance, Durée, Allure moyenne / Allure cible, Vitesse, Dénivelé D+, Km-Effort, RPE avec pastille colorée fail-fast, FC Moy / Max bpm, Note météo), encadré "Programme Technique" et encadré "Remarques & Sensations" avec mise en avant automatique des alertes tibias/douleurs.
+  1. **Base SQLite unifiée locale (`hub_data.db`) :**
+     - Initialisation automatique avec mode WAL (`PRAGMA journal_mode=WAL;`), clés étrangères actives (`PRAGMA foreign_keys=ON;`) et timeout à 5000ms.
+     - Tables créées : `conversation_logs`, `conversation_feedbacks`, `user_learnings`, `second_brain_notes`.
+  2. **Traçabilité systématique des interactions :**
+     - Enregistrement systématique dans `conversation_logs` de chaque requête arrivant sur `/api/v1/interact` : session, prompt brut, intention détectée, paramètres, réponse générée, statut succès, latence en millisecondes (`latency_ms`), modèle LLM résolu, trace d'erreur.
+     - L'identifiant généré `log_id` est retourné dans le payload `data` de `InteractionResponse` pour faciliter le feedback côté client.
+  3. **Endpoints de consultation & audit :**
+     - `GET /api/v1/system/conversation-logs` avec pagination (`limit`, `offset`) et filtres (`session_id`, `success`).
+     - `GET /api/v1/system/conversation-logs/{log_id}` retournant le détail d'un échange et ses feedbacks.
+     - `POST /api/v1/system/conversation-logs/{log_id}/feedback` pour enregistrer un retour utilisateur (positif, négatif, correction).
+  4. **TDD strict :** 7/7 tests unitaires et d'intégration validés dans `tests/test_database_and_audit_logs.py`.
+  5. **Zéro régression :** 359 tests du projet à 100% au vert.
 * **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
----
-
-### 🟢 Étape 4 : Sport Frontend : Vue Historique & Synthèse des Semaines
-* **Objectifs réalisés :**
-  1. **Sous-onglet dédié "Semaines" :** Cartes synthétiques par semaine affichant les totaux clés.
-  2. **Header de semaine :** Libellé Semaine XX (Année), badge d'alerte sécurité Otis (`🟢 Progression Saine`, `🟡 Vigilance`, `🔴 Risque Blessure`), métriques clés (Km total, D+ total, Km-effort, Allure moyenne, Charge RPE, Nombre de séances).
-  3. **Accordéon interactif dépliable :**
-     - Indicateurs d'évolution de charge (Volume Km-Effort vs S-1, Plafond S+1 conseillé).
-     - Liste détaillée des séances composant chaque semaine sous forme de mini-cartes lisibles (date, type, distance, durée, allure, RPE, programme, remarques).
-  4. **PWA :** Service Worker incrémenté en `v12` pour mise à jour immédiate du cache client.
-* **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 ---
 
-### 🟢 Étape 5 : Test d'Intégration End-to-End (E2E) & Recette Finale
-* **Objectifs réalisés :**
-  1. Écriture du test d'intégration E2E complet (`tests/test_e2e_ux_sport_shopping.py`) validant :
-     - Le flux Courses : batch synchronisation lors de "J'ai fini !" (Cette semaine + Liste d'attente) avec préservation des validations Google Sheets et réinitialisation le samedi.
-     - Le flux Sport : interrogation chronologique des séances avec filtres multiples (statut, types prioritaires incluant Course et Vitesse) et calculs physiologiques (allure, km-effort, vitesse, charge RPE).
-     - Le flux Synthèses : consultation des bilans de semaines avec séances imbriquées pour l'accordéon.
-  2. Suite complète de tests validée à 100% au vert : **352 tests passés avec succès**.
-  3. Validation visuelle et ergonomique validée par l'utilisateur.
-* **Statut :** 🟢 Terminé et validé à 100%.
+### ⚪ Étape 2 : Second Cerveau Compartimenté (5 Segments SQLite + Classification LLM)
+* **Objectifs :**
+  1. **Modélisation Pydantic & Intentions :**
+     - Nouvelles intentions : `save_note`, `list_notes`, `delete_note`.
+     - 5 segments stricts :
+       - 🛠️ `dev_idea` : Idées de développement (« À dev », « J'aimerais que ça fasse... »)
+       - 🐛 `bug_report` : Corrections à apporter (« Bug », « Problème sur... »)
+       - 💡 `thought` : Réflexions et pensées libres
+       - 🎯 `preference` : Préférences et habitudes
+       - 📋 `task` : Tâches à réaliser
+  2. **Service métier `SecondBrainService` :**
+     - Classification automatique intelligente par Gemini ou extraction déterministe locale.
+     - Méthodes CRUD avec filtrage instantané par segment, recherche textuelle et statut (actif, archivé).
+  3. **Handler & Endpoints API :**
+     - Handler `second_brain_handler.py` intégré dans `/api/v1/interact`.
+     - Endpoints REST : `/api/v1/second-brain/notes` (`GET`, `POST`, `DELETE`, `PATCH`).
+  4. **TDD strict :** tests unitaires du parsing d'intention, de la classification et du service de notes.
+
+---
+
+### ⚪ Étape 3 : Auto-Apprentissage Vocal Interactif (`TEACH_ASSISTANT`) & Injection Dynamique
+* **Objectifs :**
+  1. **Intention `teach_assistant` :**
+     - Détection des ordres de correction vocale (« Attention là tu as compris Troyes alors que je t'ai dit 3 », « Quand je dis renfort je veux dire renforcement », « Le quinoa va en épicerie »).
+  2. **Extraction autonome de la règle :**
+     - Analyse du dernier tour de parole issu de `conversation_logs` et formalisation par Gemini de la règle acquise (déclencheur, valeur corrigée, catégorie).
+     - Persistance dans la table `user_learnings`.
+  3. **Rétro-correction immédiate :**
+     - Modification de la dernière action erronée (correction de la séance de sport, réassignation de rayon, etc.).
+  4. **Injection dynamique sans modification de code :**
+     - Le service NLU charge automatiquement les règles actives de `user_learnings` et les injecte dans le prompt système à chaque tour de parole.
+  5. **TDD strict :** tests du flux de correction vocale, persistance de la règle et injection dans le prompt NLU.
+
+---
+
+### ⚪ Étape 4 : Commande d'Annulation Immédiate (« Undo »)
+* **Objectifs :**
+  1. **Intention `undo_last_action` :**
+     - Détection vocale (« Annule », « Oups annule ma dernière commande », « Reviens en arrière »).
+  2. **Mécanisme d'inversion contextuelle :**
+     - Capacité à annuler la dernière action selon son domaine : suppression de la dernière note créée, suppression du dernier article de courses ajouté, ou annulation de la dernière séance de sport enregistrée.
+  3. **TDD strict :** tests unitaires de l'annulation sur les différents domaines.
+
+---
+
+### ⚪ Étape 5 : Pipeline STT Haute-Fidélité & Audio Direct Backend
+* **Objectifs :**
+  1. **Endpoint audio direct `/api/v1/interact/audio` :**
+     - Réception d'un flux audio WebM / WAV / OGG capté côté client.
+     - Analyse multimodale native directe via Gemini (audio direct dans `generateContent`) ou transcription assistée avec lexique métier.
+  2. **Couche de normalisation phonétique intelligente :**
+     - Remplacement préventif et contextuel des confusions récurrentes (« Otis » vs « 10 » / « Autiste », « 3 » vs « Troyes », « renfort » vs « renforcement ») pour fiabiliser le flux Web Speech.
+  3. **TDD strict :** tests du format audio, de l'endpoint et de la normalisation phonétique.
+
+---
+
+### ⚪ Étape 6 : Ergonomie Vocale PWA (VAD Anti-Coupure, Push-to-Talk, Wake Word)
+* **Objectifs :**
+  1. **Voice Activity Detection (VAD) tolérant :**
+     - Reconnaissance vocale continue avec timer de silence configurable (1.5s à 2.5s réglable dans les paramètres) pour laisser le temps d'hésiter sans coupure intempestive.
+  2. **Mode Push-to-Talk & Bascule :**
+     - Bouton poussoir (maintenir pour parler) ou toggle pour choisir entre VAD automatique et Push-to-Talk.
+  3. **Wake Word in-app (« Otis ») :**
+     - Détection en écoute continue du mot-clé de réveil dans l'application ouverte.
+  4. **Bouton tactile d'annulation (« Undo ») :**
+     - Toast / bouton réactif immédiat après chaque action pour annuler en 1 clic.
+
+---
+
+### ⚪ Étape 7 : Interface PWA - Vues Second Cerveau & Journal d'Audit
+* **Objectifs :**
+  1. **Vue Second Cerveau ES6 :**
+     - Onglet dédié ou sous-vue avec filtres pills (🛠️ À dev, 🐛 Bugs, 💡 Pensées, 🎯 Préférences, 📋 Tâches).
+     - Saisie rapide au clavier ou dictée vocale, suppression et archivage.
+  2. **Vue Journal & Feedback :**
+     - Consultation des dernières interactions avec latence, modèle utilisé et bouton de signalement/correction.
+  3. **Incrémentation Service Worker (v13).**
+
+---
+
+### ⚪ Étape 8 : Test d'Intégration End-to-End (E2E) & Recette Finale
+* **Objectifs :**
+  1. Test E2E simulant l'ensemble du cycle de la Phase 6 :
+     - Enregistrement dans le journal conversationnel.
+     - Correction vocale (`teach_assistant`) et vérification de la prise en compte de la règle au tour suivant.
+     - Capture d'idées réparties dans les 5 segments du second cerveau.
+     - Commande d'annulation ("Undo") réversible.
+  2. Suite de 350+ tests à 100% au vert.
+  3. Validation manuelle et recette par l'utilisateur.

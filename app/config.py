@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # Sécurité & Accès distant
     api_key: str = ""
 
+    # Base de Données Locale SQLite (hub_data.db)
+    sqlite_db_path: str = "hub_data.db"
+
     # Google Sheets
     google_service_account_file: str = "credentials.json"
     google_service_account_info: str = ""

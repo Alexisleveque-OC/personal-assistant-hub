@@ -1,5 +1,6 @@
 """Router FastAPI pour l'analyse NLU et l'interaction conversationnelle universelle."""
 import logging
+import time
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, BackgroundTasks
@@ -17,10 +18,12 @@ from app.core.dependencies import (
     get_meals_connector,
     get_sport_connector,
     get_sessions_store,
+    get_database_manager,
 )
 from app.handlers.meals_handler import handle_meals_intent
 from app.handlers.sport_handler import handle_sport_intent
 from app.handlers.assistant_handler import handle_assistant_intent
+
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,11 @@ async def interact(
     1. Parse l'intention (local puis LLM fallback)
     2. Route vers le handler spécialisé (Meals, Sport, Assistant)
     3. Formule une réponse parlée / textuelle et mémorise l'historique
+    4. Enregistre l'échange et les métriques de latence dans SQLite (conversation_logs)
     """
+    start_time = time.perf_counter()
+    session_id = request.session_id or request.source or "default"
+
     if not request.query or not request.query.strip():
         return InteractionResponse(
             success=False,
@@ -76,7 +83,6 @@ async def interact(
         )
 
     sessions = get_sessions_store()
-    session_id = request.session_id or request.source or "default"
     session_ctx = sessions.setdefault(session_id, {})
     if request.context:
         session_ctx.update(request.context)
@@ -96,6 +102,8 @@ async def interact(
         except Exception:
             pass
 
+    used_llm_model: Optional[str] = None
+
     # 1. Analyse locale déterministe
     parsed = intent_parser.parse(request.query, context=session_ctx)
 
@@ -104,6 +112,8 @@ async def interact(
         llm_parsed = await nlu_service.parse(request.query, context=session_ctx)
         if llm_parsed.intent != IntentType.UNKNOWN or llm_parsed.conversational_reply:
             parsed = llm_parsed
+            if hasattr(nlu_service, "gemini_client") and nlu_service.gemini_client:
+                used_llm_model = getattr(nlu_service.gemini_client, "_resolved_model", None)
 
     data: Dict[str, Any] = dict(parsed.parameters)
 
@@ -142,9 +152,33 @@ async def interact(
     if len(hist) > 6:
         session_ctx["history"] = hist[-6:]
 
+    is_success = parsed.intent != IntentType.UNKNOWN and "error" not in parsed.parameters
+    latency_ms = (time.perf_counter() - start_time) * 1000
+    error_trace = str(data.get("error")) if data.get("error") else None
+
+    # 4. Traçabilité dans la base de données unifiée SQLite (conversation_logs)
+    try:
+        db = get_database_manager()
+        log_id = db.log_conversation(
+            session_id=session_id,
+            raw_query=request.query,
+            intent=parsed.intent.value,
+            parameters=data,
+            spoken_response=spoken,
+            success=is_success,
+            latency_ms=round(latency_ms, 2),
+            llm_model=used_llm_model,
+            error_trace=error_trace,
+        )
+        if isinstance(data, dict):
+            data["log_id"] = log_id
+    except Exception as log_exc:
+        logger.warning(f"Impossible d'enregistrer l'échange dans conversation_logs : {log_exc}")
+
     return InteractionResponse(
-        success=parsed.intent != IntentType.UNKNOWN and "error" not in parsed.parameters,
+        success=is_success,
         spoken_response=spoken,
         intent=parsed,
         data=data,
     )
+

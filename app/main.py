@@ -36,7 +36,10 @@ from app.core.dependencies import (
     get_sessions_store,
     clear_sessions,
     _SESSIONS,
+    get_database_manager,
+    set_database_manager,
 )
+from app.core.database import DatabaseManager
 from app.core.llm.nlu_service import (
     GeminiNLUService,
     get_nlu_service,
@@ -49,7 +52,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Cycle de vie FastAPI : préchauffe les caches mémoire en arrière-plan dès le boot."""
+    """Cycle de vie FastAPI : initialise SQLite et préchauffe les caches mémoire en arrière-plan."""
+    try:
+        get_database_manager().init_db()
+    except Exception as exc:
+        logger.warning(f"Impossible d'initialiser la base SQLite : {exc}")
+
     connector = get_meals_connector()
     if connector and hasattr(connector, "warmup_cache"):
         try:
@@ -64,6 +72,7 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning(f"Impossible de lancer le préchauffage initial du cache sport : {exc}")
     yield
+
 
 
 app = FastAPI(
