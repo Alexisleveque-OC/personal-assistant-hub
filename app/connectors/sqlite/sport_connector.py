@@ -128,6 +128,39 @@ class SqlSportConnector(BaseConnector):
         rows = self.db.get_sport_sessions(week=week_num, year=year)
         return [self._row_to_sport_session(r) for r in rows]
 
+    def get_last_session(
+        self,
+        session_type: Optional[Union[SportSessionType, str]] = None,
+        status: Optional[Union[SportSessionStatus, str]] = SportSessionStatus.REALISE,
+    ) -> Optional[SportSession]:
+        """Récupère la dernière séance enregistrée en base (filtrée par statut et type optionnel)."""
+        type_str = None
+        if session_type:
+            if isinstance(session_type, SportSessionType):
+                type_str = session_type.value
+            else:
+                clean = str(session_type).strip().lower()
+                if clean in ("renfo", "renforcement", "ppg", "musculation"):
+                    type_str = SportSessionType.RENFORCEMENT.value
+                elif clean in ("footing", "ef", "course"):
+                    type_str = SportSessionType.EF.value
+                elif clean in ("fractionné", "fractionne"):
+                    type_str = SportSessionType.FRACTIONNE.value
+                elif clean in ("sortie longue", "longue"):
+                    type_str = SportSessionType.SORTIE_LONGUE.value
+                else:
+                    try:
+                        type_str = SportSessionType(str(session_type)).value
+                    except ValueError:
+                        type_str = str(session_type)
+
+        statut_str = None
+        if status:
+            statut_str = status.value if hasattr(status, "value") else str(status)
+
+        row = self.db.get_last_sport_session(session_type=type_str, status=statut_str)
+        return self._row_to_sport_session(row) if row else None
+
     def log_session(self, session_data: SportSessionCreate) -> SportSession:
         """Enregistre ou met à jour une séance terminée dans SQLite et met à jour la synthèse."""
         target_date = session_data.date or date.today()

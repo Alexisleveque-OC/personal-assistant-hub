@@ -15,8 +15,8 @@
 | **Étape 1** | **Schéma Relationnel SQLite Sport :** Tables `sport_sessions` et `sport_weekly_summaries` dans `DatabaseManager` (`hub_data.db`), index, contraintes et méthodes CRUD | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (393/393 total) au vert |
 | **Étape 2** | **Connecteur Backend `SqlSportConnector` :** Implémentation haute performance (< 1 ms), parité fonctionnelle complète avec `SportConnector` et calculs de charge en mémoire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (401/401 total) au vert |
 | **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (403/403 total) au vert |
-| **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
-| **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | ⚪ Prévu | - | Tests réponses vocales & NLU |
+| **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (407/407 total) au vert |
+| **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
 | **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | ⚪ Prévu | - | Tests API & régression globale |
 | **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | ⚪ Prévu | - | Test E2E Live & 100% vert |
 
@@ -68,19 +68,25 @@
      - Support CLI avec options `--output-dir`, `--format json|csv|all`, `--db-path`.
   3. **TDD strict :** 2/2 tests unitaires validés dans `tests/test_sport_migration_and_export.py`.
   4. **Zéro régression :** 403/403 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
+* **Statut :** 🟢 Validé par l'utilisateur et commité (`ffe8712`).
 
 ---
 
-### ⚪ Étape 4 : Résolution Sémantique Temporelle (« Ma dernière séance »)
-* **Objectifs :**
-  1. Ajouter dans `SqlSportConnector` et `DatabaseManager` une méthode de recherche de la dernière séance :
-     - `get_last_session(session_type: Optional[SportSessionType] = None, status: Optional[SportSessionStatus] = SportSessionStatus.REALISE)`
-  2. Enrichir `IntentParser` (regex locales et prompt Gemini) pour détecter les formulations relatives :
-     - « ma dernière séance », « ma dernière course », « mon dernier footing », « mon dernier renfo / renforcement ».
-  3. Intégrer la résolution dynamique dans `app/handlers/sport_handler.py` pour récupérer la dernière entrée réelle en base au lieu de retomber sur la date d'aujourd'hui.
-* **Critères d'acceptation :**
-  - Tests NLU et tests de handler validant la bonne restitution de la dernière séance selon le contexte demandé.
+### 🟢 Étape 4 : Résolution Sémantique Temporelle (« Ma dernière séance »)
+* **Objectifs réalisés :**
+  1. **Méthode `get_last_session` dans `SqlSportConnector` :**
+     - Interrogation directe de SQLite (`get_last_sport_session`) filtrée par statut (`SportSessionStatus.REALISE` par défaut) et type de séance optionnel (`EF`, `Fractionné`, `Renforcement`, etc.).
+  2. **Parsing sémantique dans `IntentParser` :**
+     - Détection précise des requêtes temporelles : « ma dernière séance », « rappelle-moi mon dernier footing », « mon dernier renfo », « mon dernier renforcement ».
+     - Extraction dynamique du type de séance cible (`session_type`).
+     - Exclusion des consultations temporelles sportives de la création de tâches Google Tasks.
+  3. **Résolution dynamique dans `sport_handler.py` :**
+     - Traitement du cas `is_last` sans jamais présumer arbitrairement `date.today()`.
+     - Formulation orale personnalisée : « Votre dernière séance était une séance de Fractionné de 10 km : 6x400m à 3'45/km. »
+     - Réponse de repli claire si aucune séance passée n'existe en base.
+  4. **TDD strict :** 4/4 tests unitaires validés dans `tests/test_sport_temporal_resolution.py`.
+  5. **Zéro régression :** 407/407 tests au vert sur l'ensemble du projet.
+* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
 
 ---
 

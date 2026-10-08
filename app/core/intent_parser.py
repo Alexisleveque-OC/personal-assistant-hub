@@ -646,7 +646,10 @@ class IntentParser:
             )
 
         # 6. Tâches Google Tasks ("rappelle-moi d'...", "ajoute une tâche...")
-        if cleaned.startswith("rappelle-moi") or "ajoute la tâche" in cleaned:
+        if (
+            (cleaned.startswith("rappelle-moi") and not re.search(r"\b(?:derni[èe]re?\s+(?:séance|seance|course|footing|sortie|renfo|renforcement|entraînement|entrainement)|ce\s+qu[' ]on\s+mange|mes\s+notes)\b", cleaned))
+            or "ajoute la tâche" in cleaned
+        ):
             task_content = re.sub(r"^(?:rappelle-moi\s+(?:de\s+|d')?|ajoute la tâche\s+)", "", cleaned).strip()
             return ParsedIntent(
                 intent=IntentType.ADD_TASK,
@@ -902,6 +905,32 @@ class IntentParser:
                     "type_seance": type_raw.capitalize(),
                     "day_name": day_name,
                 },
+                raw_query=text,
+            )
+
+        # 9.35 Consultation de la dernière séance ("c'est quoi ma dernière séance ?", "mon dernier footing", "ma dernière séance de renfo")
+        if re.search(r"\b(?:(?:ma|mon|mes)?\s*derni[èe]re?|le\s+dernier)\s+(?:séance|seance|course|footing|sortie|entraînement|entrainement|session|renfo|renforcement)\b", cleaned) or \
+           re.search(r"\b(?:quel(?:le)?|c[' ]?est\s+quoi|rappelle[- ]moi|donne[- ]moi|affiche)\s+(?:ma|mon|mes)?\s*derni[èe]re?\s+(?:séance|seance|course|footing|sortie|entraînement|entrainement|session|renfo|renforcement)\b", cleaned):
+            session_type = None
+            if re.search(r"\b(?:renfo|renforcement|ppg|muscu)\b", cleaned):
+                session_type = "Renforcement"
+            elif re.search(r"\b(?:footing|ef)\b", cleaned):
+                session_type = "EF"
+            elif re.search(r"\b(?:fractionn[ée])\b", cleaned):
+                session_type = "Fractionné"
+            elif re.search(r"\b(?:sortie\s+longue)\b", cleaned):
+                session_type = "Sortie Longue"
+            elif re.search(r"\b(?:course)\b", cleaned):
+                session_type = "course"
+
+            params = {"target_date": "last", "last_session": True}
+            if session_type:
+                params["session_type"] = session_type
+
+            return ParsedIntent(
+                intent=IntentType.GET_SPORT_SESSION,
+                confidence=0.95,
+                parameters=params,
                 raw_query=text,
             )
 

@@ -32,6 +32,43 @@ async def handle_sport_intent(
     """
     match parsed.intent:
         case IntentType.GET_SPORT_SESSION:
+            is_last = (
+                parsed.parameters.get("last_session") is True
+                or parsed.parameters.get("target_date") in ("last", "derniere", "dernière")
+            )
+            requested_type = parsed.parameters.get("session_type") or parsed.parameters.get("type_seance")
+
+            if is_last:
+                if not sport_connector:
+                    return "Le carnet d'entraînement sport n'est pas configuré.", data
+
+                if hasattr(sport_connector, "get_last_session"):
+                    session = sport_connector.get_last_session(session_type=requested_type)
+                else:
+                    all_s = [s for s in sport_connector.get_all_sessions() if s.statut == SportSessionStatus.REALISE]
+                    if requested_type:
+                        all_s = [s for s in all_s if str(s.type_seance).lower() == str(requested_type).lower()]
+                    all_s.sort(key=lambda s: s.date, reverse=True)
+                    session = all_s[0] if all_s else None
+
+                if session:
+                    data["session"] = session.model_dump(mode="json")
+                    type_nom = session.type_seance.value if hasattr(session.type_seance, "value") else str(session.type_seance)
+                    dist_str = f"{session.distance_km:.2f}".rstrip("0").rstrip(".").replace(".", ",") if session.distance_km else ""
+                    spoken = f"Votre dernière séance était une séance de {type_nom}"
+                    if dist_str:
+                        spoken += f" de {dist_str} km"
+                    details = session.programme or session.notes
+                    if details:
+                        spoken += f" : {details}"
+                    if session.remarques and session.remarques != details:
+                        spoken += f" (Remarques : {session.remarques})"
+                    spoken += "."
+                else:
+                    label = f" de type {requested_type}" if requested_type else ""
+                    spoken = f"Aucune séance précédente{label} n'a été trouvée dans votre historique."
+                return spoken, data
+
             target_date_raw = parsed.parameters.get("target_date")
             if isinstance(target_date_raw, date):
                 target_d = target_date_raw
