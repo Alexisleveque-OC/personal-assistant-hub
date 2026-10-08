@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2.10+-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-[![Tests Pytest](https://img.shields.io/badge/tests-352%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
+[![Tests Pytest](https://img.shields.io/badge/tests-386%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![Architecture Modulaire](https://img.shields.io/badge/architecture-Domain--First%20%7C%20APIRouters-purple.svg)](https://fastapi.tiangolo.com/tutorial/bigger-applications/)
 [![Code Style: TDD Strict](https://img.shields.io/badge/code%20style-TDD%20Strict-success.svg)](https://en.wikipedia.org/wiki/Test-driven_development)
 
@@ -22,7 +22,7 @@ L'objectif de **Personal Assistant Hub** est d'unifier ces outils derrière une 
 1. **Zéro friction :** Poser une question spontanée (*« Qu'est-ce qu'on mange ce soir ? »*, *« Qu'est-ce que j'ai comme séance aujourd'hui ? »*, *« Il me reste quoi à acheter au rayon Fruits ? »*) et obtenir une réponse instantanée.
 2. **Intelligence Hybride Réactive (< 1-2s) :** Un cerveau LLM (Google Gemini Flash) avec auto-découverte et dialogues multi-tours, épaulé par un préchauffage du cache mémoire en RAM au boot et un repli déterministe local en cas de panne réseau.
 3. **Mini-Coach Sportif Intégré (Otis) :** Suivi d'entraînement running et renforcement, calculs physiologiques (allure, km-effort, charge RPE), prévention des blessures (périostite) et gamification dopaminée (badges pop-culture).
-4. **Robustesse d'artisan :** 352 tests automatisés à 100% au vert, validation stricte des contrats par Pydantic v2, détection de dérive de structure (*Schema Drift*), architecture modulaire en sous-routeurs et handlers spécialisés.
+4. **Robustesse d'artisan :** 386 tests automatisés à 100% au vert, validation stricte des contrats par Pydantic v2, base relationnelle SQLite locale ultra-rapide (WAL mode), architecture modulaire en sous-routeurs et handlers spécialisés.
 
 ---
 
@@ -41,27 +41,35 @@ personal-assistant-hub/
 │   │   ├── date_resolver.py     # Résolveur temporel intelligent (relatif, absolu, midi/soir)
 │   │   ├── models.py            # Contrats de données stricts (Pydantic v2)
 │   │   ├── session_manager.py   # Mémoire de dialogue multi-tours
+│   │   ├── audio/               # Pipeline audio direct & normalisation phonétique
+│   │   │   ├── phonetic_normalizer.py
+│   │   │   └── stt_service.py
+│   │   ├── vision/              # Analyse multimodale d'images & screenshots (Gemini Flash Vision)
+│   │   │   └── vision_service.py
 │   │   └── llm/                 # Intégration LLM (Gemini Client, Structured Outputs)
 │   ├── routers/                 # Contrôleurs HTTP modulaires (APIRouter)
-│   │   ├── system.py            # Santé (/health), métriques LLM, préchauffage cache
+│   │   ├── system.py            # Santé (/health), métriques LLM, logs d'audit & auto-apprentissage
+│   │   ├── second_brain.py      # Second Cerveau CRUD & ingestion visuelle (/api/v1/second-brain/*)
 │   │   ├── pwa.py               # Routes statiques PWA (/app, manifest.json, sw.js)
 │   │   ├── meals.py             # Planning repas & ingrédients (/api/v1/meals/*)
 │   │   ├── sport.py             # Séances, synthèses hebdo, dashboard (/api/v1/sport/*)
 │   │   ├── strava.py            # Ingestion & webhooks Strava (/api/v1/integrations/strava/*)
-│   │   └── mobile.py            # Adaptateur vocal & HTTP Shortcuts (/api/v1/mobile/*)
+│   │   └── mobile.py            # Adaptateur vocal, audio direct & webhooks (/api/v1/interact/*)
 │   ├── handlers/                # Aiguillage métier découplé des contrôleurs HTTP
 │   │   ├── meals_handler.py     # Traitement des intentions Repas & Courses
 │   │   ├── sport_handler.py     # Traitement des intentions Sport & Coaching Otis
-│   │   └── assistant_handler.py # Traitement conversationnel & clarifications
+│   │   ├── assistant_handler.py # Traitement conversationnel & clarifications
+│   │   └── undo_handler.py      # Commande d'annulation contextuelle immédiate (Undo)
 │   ├── connectors/              # Connecteurs tiers isolés et interchangeables
 │   │   ├── base.py              # Interface commune des connecteurs
 │   │   ├── sheets/              # Google Sheets Repas & Courses (Planning, Recettes, Rayons)
 │   │   └── sport/               # Suivi running, calculs de charge & Coach Otis
 │   └── static/                  # Interface utilisateur Web PWA (ES6 Modules)
-│       ├── js/views/            # Vues modulaires (vocal.js, sport.js, meals.js, etc.)
+│       ├── js/views/            # Vues modulaires (vocal, sport, meals, second_brain_view.js)
 │       ├── css/                 # Styles graphiques & thème sombre Monstera
-│       └── sw.js                # Service Worker v12 (mise en cache & offline)
-├── tests/                       # Suite de 352 tests automatisés (Unitaires, Mocks & E2E)
+│       └── sw.js                # Service Worker v15 (mise en cache & offline)
+├── hub_data.db                  # Base de données SQLite locale unifiée (mode WAL haute performance)
+├── tests/                       # Suite de 386 tests automatisés (Unitaires, Mocks & E2E)
 ├── docs/                        # Guides de déploiement Cloud & documentation technique
 ├── AGENTS.md                    # Directives d'ingénierie agentique, TDD strict & Git
 ├── SPEC.md                      # Cahier des charges et backlog d'implémentation
@@ -95,6 +103,14 @@ personal-assistant-hub/
 * **Web App PWA installable :** Micro réactif, synthèse vocale (TTS), Service Worker v12 avec mise en cache et fonctionnement hors-ligne.
 * **Docker & CI/CD Cloud :** Image de production ultra-légère (`python:3.12-slim`), pipeline GitHub Actions déployant automatiquement sur chaque merge dans `main`.
 
+### 🧠 4. Second Cerveau, Moteur Vocal & Auto-Apprentissage — [🟢 Opérationnel]
+* **Socle de persistance SQLite WAL (`hub_data.db`) :** Journal conversationnel d'audit (`conversation_logs`) avec capture de la latence, des tokens, du modèle et endpoints d'audit/feedbacks.
+* **Auto-apprentissage vocal interactif (`teach_assistant`) :** Correction d'erreurs à la voix (*« Quand je dis renfort je veux dire renforcement »*), table `user_learnings` et injection dynamique des règles dans le prompt système sans toucher au code.
+* **Second Cerveau compartimenté & dynamique :** Classification automatique des notes en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`) et découverte de catégories personnalisées (voyage, cuisine, finances...).
+* **Ingestion multimodale visuelle (Gemini Flash Vision) :** Capture et envoi d'images/screenshots (`POST /api/v1/second-brain/notes/image`), extraction de résumés structurés et interception native du **coller presse-papier (Ctrl+V)** dans la PWA.
+* **Bouton d'annulation immédiate (« Undo ») :** Intention `undo_last_action` et composant flottant `#undo-toast` permettant d'annuler en 1 tap ou à la voix la dernière action (suppression d'une note créée par erreur, ajout de course, etc.).
+* **Pipeline Audio Direct & Normalisation Phonétique :** Traitement de flux audio bruts (`/api/v1/interact/audio`), VAD tolérant aux hésitations (1.5s - 2.5s) via Web Audio API, mode Push-to-Talk et filtre phonétique préventif (`phonetic_normalizer.py`).
+
 ---
 
 ## 🗺️ Backlog & Feuilles de Route
@@ -107,20 +123,28 @@ personal-assistant-hub/
 - [x] **Phase 5 : Module Sport Running & Mini-Coach Otis** (Dashboard, RPE, Périostite, Gamification, Strava)
 - [x] **Phase 5 bis : Refactoring Modulaire Architectural** (Clean Architecture, APIRouters, Handlers)
 - [x] **Phase 5 ter : Retours d'Expérience UX (Sport & Courses)** (Historique Séances/Semaines, Batch Sync)
-- [ ] **Phase 6 : Moteur Vocal Haute-Fidélité, Mémoire Long-terme & Second Cerveau** *(En préparation)*
-  - STT audio haute fidélité (Gemini Audio) & VAD tolérant aux hésitations
-  - Auto-apprentissage vocal interactif (`teach_assistant` : correction d'erreurs à la voix sans toucher au code)
-  - Second Cerveau compartimenté dans SQLite (🛠️ Idées dev, 🐛 Bugs, 💡 Pensées, 🎯 Préférences, 📋 Tâches)
-  - Déclencheur Wake Word in-app ("Otis") et commande d'annulation tactile/vocale (*Undo*)
-- [ ] **Phase 6.5 : Migration Sport (Google Sheets ➔ Base SQLite)**
+- [x] **Phase 6 : Moteur Vocal Haute-Fidélité, Mémoire Long-terme & Second Cerveau**
+  - Socle SQLite unifié en mode WAL (`hub_data.db`) & journal d'audit des conversations
+  - Second Cerveau compartimenté avec ingestion multimodale d'images (Gemini Vision & Ctrl+V)
+  - Auto-apprentissage vocal (`teach_assistant`) avec injection dynamique dans le prompt
+  - Commande d'annulation réversible immédiate (*Undo*) et toast tactile interactif
+  - Pipeline STT direct (`/api/v1/interact/audio`), normalisation phonétique et VAD tolérant (1.5-2.5s)
+  - Interface PWA dédiée (vue Second Cerveau, filtres pills, audit des échanges & correction)
+- [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
+  - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
+  - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
+  - Adaptation dynamique de charge et allègement immédiat en cas d'alerte périostite
+  - Checklist interactive de renforcement musculaire (clic & voix)
+  - Compatibilité montres sportives (import direct de fichiers `.FIT` Garmin)
+- [ ] **Phase 8 : Migration Sport (Google Sheets ➔ Base SQLite locale)**
   - Stockage local relationnel haute performance (< 1 ms de latence, fin des quotas Google Sheets)
   - Résolution sémantique de *« ma dernière séance »* et dates naturelles orales
-- [ ] **Phase 7 : Connecteurs Organisationnels (Google Agenda, Google Tasks, Gmail)**
-- [ ] **Phase 8 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
-- [ ] **Phase 9 : Connecteur Budget (Google Sheets)**
-- [ ] **Phase 10 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
-- [ ] **Phase 11 : Connecteurs Professionnels (Mails Pro, Jira, Trello)**
-- [ ] **Phase 12 : Domotique (Tuya / Home Assistant)**
+- [ ] **Phase 9 : Connecteurs Organisationnels (Google Agenda, Google Tasks, Gmail)**
+- [ ] **Phase 10 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
+- [ ] **Phase 11 : Connecteur Budget (Google Sheets)**
+- [ ] **Phase 12 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
+- [ ] **Phase 13 : Connecteurs Professionnels (Mails Pro, Jira, Trello)**
+- [ ] **Phase 14 : Domotique (Tuya / Home Assistant)**
 
 ---
 
@@ -161,7 +185,7 @@ GEMINI_API_KEY=votre_cle_gemini_flash
 ```bash
 .venv/bin/pytest -v
 ```
-> **352 tests automatisés exécutés à 100% au vert en ~25 secondes.**
+> **386 tests automatisés exécutés à 100% au vert en ~42 secondes.**
 
 ### 5. Lancer le serveur de développement
 

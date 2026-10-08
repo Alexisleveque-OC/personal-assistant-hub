@@ -13,13 +13,14 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Socle SQLite & Journal Conversationnel :** Base `hub_data.db` (WAL mode), traçabilité des échanges (`conversation_logs`) et endpoints d'audit | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (359/359 total) au vert |
-| **Étape 2** | **Second Cerveau Compartimenté :** Segmentation automatique LLM en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`), service et endpoints | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 5/5 tests dédiés (364/364 total) au vert |
-| **Étape 3** | **Auto-Apprentissage Vocal (`TEACH_ASSISTANT`) :** Extraction de règle par Gemini, table `user_learnings`, rétro-correction et injection dynamique dans le prompt | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
-| **Étape 4** | **Commande d'Annulation (« Undo ») :** Intention `undo_last_action` et annulation contextuelle (repas, courses, sport, notes) | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
-| **Étape 5** | **Pipeline STT & Audio Direct Backend :** Endpoint audio direct (`/api/v1/interact/audio`) avec transcription multimodale Gemini & normalisation phonétique | ⚪ À faire | En attente | Tests unitaires (TDD strict) |
-| **Étape 6** | **Ergonomie Vocale PWA :** VAD anti-coupure avec délai de silence configurable (1.5s - 2.5s), mode Push-to-Talk, Wake Word in-app (« Otis ») | ⚪ À faire | En attente | Tests manuels & PWA |
-| **Étape 7** | **Interface PWA - Vues Second Cerveau & Audit :** Consultation et filtres pills (🛠️ À dev, 🐛 Bugs, etc.), vue Journal des échanges avec feedback | ⚪ À faire | En attente | Tests visuels & ergonomie |
-| **Étape 8** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation du cycle complet (journal, apprentissage vocal in-context, notes, annulation) | ⚪ À faire | En attente | Suite complète (100% au vert) |
+| **Étape 2** | **Second Cerveau Compartimenté :** Segmentation automatique LLM en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`), service et endpoints | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (364/364 total) au vert |
+| **Étape 3** | **Auto-Apprentissage Vocal (`TEACH_ASSISTANT`) :** Extraction de règle par Gemini, table `user_learnings`, rétro-correction et injection dynamique dans le prompt | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (370/370 total) au vert |
+| **Étape 4** | **Commande d'Annulation (« Undo ») :** Intention `undo_last_action` et annulation contextuelle (repas, courses, sport, notes) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (375/375 total) au vert |
+| **Étape 5** | **Pipeline STT & Audio Direct Backend :** Endpoint audio direct (`/api/v1/interact/audio`) avec transcription multimodale Gemini & normalisation phonétique | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (380/380 total) au vert |
+| **Étape 6** | **Ergonomie Vocale PWA :** VAD anti-coupure avec délai de silence configurable (1.5s - 2.5s), mode Push-to-Talk, Wake Word in-app (« Otis ») | 🟢 Terminé | Validé par l'utilisateur | ✅ Tests audio, PWA & VAD |
+| **Étape 7** | **Interface PWA - Vues Second Cerveau & Audit :** Consultation et filtres pills (🛠️ À dev, 🐛 Bugs, etc.), vue Journal des échanges avec feedback | 🟢 Terminé | Validé par l'utilisateur | ✅ Tests visuels & ergonomie |
+| **Étape 8** | **Ingestion Multimodale Visuelle :** Analyse de captures et photos par Gemini Flash Vision (`POST /api/v1/second-brain/notes/image`, Ctrl+V PWA) | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (385/385 total) au vert |
+| **Étape 9** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation du cycle complet (journal, apprentissage in-context, notes, images, undo, audio direct) | 🟢 Terminé | Prêt pour recette utilisateur | ✅ 386/386 tests (100% au vert) |
 
 ---
 
@@ -163,14 +164,17 @@
 
 ---
 
-### ⚪ Étape 9 : Test d'Intégration End-to-End (E2E) & Recette Finale
-* **Objectifs :**
-  1. Test E2E simulant l'ensemble du cycle de la Phase 6 :
-     - Enregistrement dans le journal conversationnel et mesure de latence.
-     - Correction vocale (`teach_assistant`) et injection dynamique de la règle au tour suivant.
-     - Capture d'idées réparties dans les différents segments du second cerveau (texte et image).
-     - Commande d'annulation ("Undo") réversible.
-     - Pipeline audio direct backend et normalisation phonétique.
-  2. Suite complète de tests (380+ tests) à 100% au vert.
-  3. Validation manuelle et recette par l'utilisateur.
+### ✅ Étape 9 : Test d'Intégration End-to-End (E2E) & Recette Finale
+* **Objectifs validés :**
+  1. **Test E2E complet ([tests/test_e2e_phase6_voice_memory_second_brain.py](file:///home/alexis/CODE/personal-assistant-hub/tests/test_e2e_phase6_voice_memory_second_brain.py)) :**
+     - Traçabilité complète des échanges dans `conversation_logs` avec latence, token, statut succès.
+     - Correction vocale (`teach_assistant`) et injection in-context immédiate de la nouvelle règle dans le système sans redémarrage.
+     - Capture d'idées texte (`remember_this`) avec routage multi-catégories dans le Second Cerveau.
+     - Ingestion multimodale visuelle (`POST /api/v1/second-brain/notes/image`) avec classification automatique par Gemini Flash Vision.
+     - Annulation contextuelle immédiate (`undo_last_action`) roll-backant la dernière note créée.
+     - Traitement du flux audio brut en direct (`POST /api/v1/interact/audio`) avec transcription et normalisation phonétique.
+     - Consultation paginée et audit des logs de conversation avec vérification du feedback.
+  2. **Couverture de tests globale :** 386 tests automatisés à 100% au vert en ~42 secondes.
+  3. **Documentation :** Mise à jour complète du `README.md` (Règle 11 AGENTS.md) et des spécifications.
+* **Statut :** 🟢 PHASE 6 INTÉGRALEMENT TERMINÉE ET VALIDÉE (Prête pour recette finale utilisateur).
 
