@@ -14,8 +14,8 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Schéma Relationnel SQLite Sport :** Tables `sport_sessions` et `sport_weekly_summaries` dans `DatabaseManager` (`hub_data.db`), index, contraintes et méthodes CRUD | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (393/393 total) au vert |
 | **Étape 2** | **Connecteur Backend `SqlSportConnector` :** Implémentation haute performance (< 1 ms), parité fonctionnelle complète avec `SportConnector` et calculs de charge en mémoire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (401/401 total) au vert |
-| **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
-| **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | ⚪ Prévu | - | Tests NLU & Handler |
+| **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (403/403 total) au vert |
+| **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
 | **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | ⚪ Prévu | - | Tests réponses vocales & NLU |
 | **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | ⚪ Prévu | - | Tests API & régression globale |
 | **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | ⚪ Prévu | - | Test E2E Live & 100% vert |
@@ -52,19 +52,23 @@
      - Gestion d'extension de remarques (`append_remarques`, `append_notes`).
   4. **TDD strict :** 8/8 tests unitaires validés dans `tests/test_sql_sport_connector.py`.
   5. **Zéro régression :** 401/401 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
+* **Statut :** 🟢 Validé par l'utilisateur et commité (`cf48319`).
 
 ---
 
-### ⚪ Étape 3 : Script d'Aspiration & Migration Google Sheets ➔ SQLite + Outil d'Export/Backup
-* **Objectifs :**
-  1. Développer un script one-off `scripts/migrate_sport_sheets_to_sqlite.py` capable :
-     - De lire l'intégralité de l'historique de l'onglet `Séances` et de la `Synthèse_Hebdo` depuis le Google Sheet actif via les identifiants existants.
-     - De nettoyer, valider et insérer toutes les séances et synthèses dans la base SQLite unifiée locale (`hub_data.db`).
-     - De gérer l'idempotence (éviter les doublons si le script est relancé).
-  2. Fournir un outil d'export/backup de secours (`scripts/export_sport_data.py`) permettant d'exporter les données sportives en formats standards (JSON et CSV).
-* **Critères d'acceptation :**
-  - Script testable avec mock et vérification de la parfaite intégrité des données importées et exportées.
+### 🟢 Étape 3 : Script d'Aspiration & Migration Google Sheets ➔ SQLite + Outil d'Export/Backup
+* **Objectifs réalisés :**
+  1. **Script de migration one-off (`scripts/migrate_sport_sheets_to_sqlite.py`) :**
+     - Aspiration complète des séances et synthèses depuis le Google Sheet actif via `SportConnector`.
+     - Insertion et mise à jour idempotente dans SQLite (zéro doublon en cas de réexécution).
+     - Support CLI avec options `--db-path` et `--dry-run`.
+  2. **Outil d'export/backup de secours (`scripts/export_sport_data.py`) :**
+     - Export complet en JSON (`sport_backup_YYYYMMDD_HHMMSS.json`).
+     - Export en CSV séparé (`sport_sessions_*.csv` et `sport_weekly_summaries_*.csv`).
+     - Support CLI avec options `--output-dir`, `--format json|csv|all`, `--db-path`.
+  3. **TDD strict :** 2/2 tests unitaires validés dans `tests/test_sport_migration_and_export.py`.
+  4. **Zéro régression :** 403/403 tests au vert sur l'ensemble du projet.
+* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
 
 ---
 
