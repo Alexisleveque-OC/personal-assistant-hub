@@ -13,8 +13,8 @@
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Schéma Relationnel SQLite Sport :** Tables `sport_sessions` et `sport_weekly_summaries` dans `DatabaseManager` (`hub_data.db`), index, contraintes et méthodes CRUD | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (393/393 total) au vert |
-| **Étape 2** | **Connecteur Backend `SqlSportConnector` :** Implémentation haute performance (< 1 ms), parité fonctionnelle complète avec `SportConnector` et calculs de charge en mémoire | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
-| **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | ⚪ Prévu | - | Tests de migration & export |
+| **Étape 2** | **Connecteur Backend `SqlSportConnector` :** Implémentation haute performance (< 1 ms), parité fonctionnelle complète avec `SportConnector` et calculs de charge en mémoire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (401/401 total) au vert |
+| **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
 | **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | ⚪ Prévu | - | Tests NLU & Handler |
 | **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | ⚪ Prévu | - | Tests réponses vocales & NLU |
 | **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | ⚪ Prévu | - | Tests API & régression globale |
@@ -34,27 +34,25 @@
      - Synthèses : `upsert_sport_weekly_summary` (avec `ON CONFLICT DO UPDATE`), `get_sport_weekly_summary`, `get_all_sport_weekly_summaries`, `delete_sport_weekly_summary`.
   3. **TDD strict :** 4/4 tests unitaires validés dans `tests/test_database_sport.py`.
   4. **Zéro régression :** 393/393 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
+* **Statut :** 🟢 Validé par l'utilisateur et commité (`295a5b3`).
 
 ---
 
-### ⚪ Étape 2 : Connecteur Backend `SqlSportConnector`
-* **Objectifs :**
-  1. Créer `app/connectors/sqlite/sport_connector.py` implémentant l'interface métier attendue par l'application :
-     - `get_session(target_date)`
-     - `get_all_sessions()`
-     - `get_week_sessions(week_num, year)`
-     - `log_session(session_data)`
-     - `plan_session(...)`
-     - `plan_weekly_sessions(...)`
-     - `update_session(...)`
-     - `get_weekly_summary(week_num, year)`
-     - `get_all_summaries(year)`
-  2. Remplacer les lectures réseau Google Sheets par des requêtes SQLite locales exécutées en moins de 1 milliseconde.
-  3. Mettre à jour automatiquement les synthèses hebdomadaires lors de chaque ajout ou modification de séance.
-* **Critères d'acceptation :**
-  - Parité fonctionnelle à 100% avec `SportConnector` (Google Sheets).
-  - Tests unitaires complets sur base SQLite temporaire isolée.
+### 🟢 Étape 2 : Connecteur Backend `SqlSportConnector`
+* **Objectifs réalisés :**
+  1. **Implémentation de `SqlSportConnector` dans `app/connectors/sqlite/sport_connector.py` :**
+     - Respect de l'interface `BaseConnector` avec propriété `name = "sqlite_sport"`, méthode `is_healthy()` et méthode générique `execute_action()`.
+     - Parité fonctionnelle complète avec `SportConnector` : `get_session`, `get_all_sessions`, `get_week_sessions`, `log_session`, `plan_session`, `plan_weekly_sessions`, `update_session`, `get_weekly_summary`, `get_all_summaries`.
+  2. **Performance & Temps Réel :**
+     - Zéro latence réseau Google Sheets (< 1 ms d'exécution en SQLite WAL local).
+     - Zéro quota API Google.
+  3. **Synchronisation automatique des métriques physiologiques :**
+     - Calcul automatique de la synthèse hebdomadaire et persistance dans `sport_weekly_summaries` à chaque enregistrement ou mise à jour de séance.
+     - Gestion du `target_type` pour cibler une séance précise en cas de séances multiples à la même date (ex: Footing + Renforcement).
+     - Gestion d'extension de remarques (`append_remarques`, `append_notes`).
+  4. **TDD strict :** 8/8 tests unitaires validés dans `tests/test_sql_sport_connector.py`.
+  5. **Zéro régression :** 401/401 tests au vert sur l'ensemble du projet.
+* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
 
 ---
 

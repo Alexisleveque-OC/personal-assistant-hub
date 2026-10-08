@@ -279,6 +279,7 @@ class SportSessionCreate(BaseModel):
 
 class SportSessionUpdate(BaseModel):
     """Payload pour modifier une séance passée (RPE, notes de douleur, ressenti)."""
+    statut: Optional[SportSessionStatus] = None
     ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
     programme: Optional[str] = None
     remarques: Optional[str] = None
