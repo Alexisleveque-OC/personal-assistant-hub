@@ -121,14 +121,23 @@
 
 ---
 
-### ⚪ Étape 7 : Interface PWA - Vues Second Cerveau & Journal d'Audit
-* **Objectifs :**
-  1. **Vue Second Cerveau ES6 :**
-     - Onglet dédié ou sous-vue avec filtres pills (🛠️ À dev, 🐛 Bugs, 💡 Pensées, 🎯 Préférences, 📋 Tâches).
-     - Saisie rapide au clavier ou dictée vocale, suppression et archivage.
-  2. **Vue Journal & Feedback :**
-     - Consultation des dernières interactions avec latence, modèle utilisé et bouton de signalement/correction.
-  3. **Incrémentation Service Worker (v13).**
+### ✅ Étape 7 : Interface PWA - Vues Second Cerveau & Journal d'Audit
+* **Objectifs validés :**
+  1. **Vue Second Cerveau ES6 (`second_brain_view.js`) :**
+     - Onglet « Cerveau » dédié dans la barre de navigation inférieure de la PWA.
+     - Contrôle segmenté : sous-vue [🧠 Notes & Idées] et sous-vue [📜 Journal & Feedback].
+     - Filtres par catégories dynamiques (Pills : Tous, 🛠️ À Développer, 🐛 Bugs & Fixes, 💡 Pensées, 🎯 Préférences, 📋 Tâches, 🌴 Voyages, 🍳 Cuisine, 🏃 Coach Sport...).
+     - Filtres par statut (Actives / Toutes / Archivées) et barre de recherche textuelle en temps réel.
+     - Formulaire d'ajout rapide inline de note avec sélection de catégorie.
+     - Cartes de notes interactives avec bascule de statut (✓ Fait / ↺ Réactiver) et suppression.
+  2. **Vue Journal Conversationnel d'Audit & Feedback :**
+     - Liste détaillée des échanges (requête utilisateur, réponse d'Otis, intention détectée, modèle LLM, latence en ms, statut succès/erreur).
+     - Bouton interactif « 💬 Corriger / Signaler » ouvrant un formulaire de feedback pour alimenter le moteur d'auto-apprentissage (`postConversationFeedback`).
+  3. **Mise à jour PWA & Service Worker :**
+     - Cache incrémenté en `v15` dans `sw.js` avec mise en cache de `second_brain_view.js`.
+     - Script tag PWA incrémenté en `v=10.0`.
+  4. **Zéro régression :** 380/380 tests du projet à 100% au vert.
+* **Statut :** 🟢 Terminé, prêt pour recette utilisateur.
 
 ---
 

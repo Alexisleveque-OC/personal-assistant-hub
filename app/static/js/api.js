@@ -141,4 +141,72 @@ export async function fetchSportSummariesData({ order = "desc", annee = null, in
   return await res.json();
 }
 
+export async function fetchSecondBrainNotes({ category = null, status = "active", search = null, limit = 50, offset = 0 } = {}) {
+  const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (category) params.append("category", category);
+  if (status) params.append("status", status);
+  if (search) params.append("search", search);
+
+  const res = await fetch(`/api/v1/second-brain/notes?${params.toString()}`, { headers });
+  if (!res.ok) throw new Error("Erreur chargement second cerveau : " + res.status);
+  return await res.json();
+}
+
+export async function fetchSecondBrainStats() {
+  const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
+  const res = await fetch("/api/v1/second-brain/stats", { headers });
+  if (!res.ok) throw new Error("Erreur statistiques second cerveau : " + res.status);
+  return await res.json();
+}
+
+export async function createSecondBrainNote(payload) {
+  const res = await fetch("/api/v1/second-brain/notes", {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error("Erreur création note : " + res.status);
+  return await res.json();
+}
+
+export async function patchSecondBrainNote(noteId, payload) {
+  const res = await fetch(`/api/v1/second-brain/notes/${noteId}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error("Erreur mise à jour note : " + res.status);
+  return await res.json();
+}
+
+export async function deleteSecondBrainNote(noteId) {
+  const res = await fetch(`/api/v1/second-brain/notes/${noteId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error("Erreur suppression note : " + res.status);
+  return await res.json();
+}
+
+export async function fetchConversationLogs({ limit = 50, offset = 0, success = null } = {}) {
+  const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (success !== null) params.append("success", String(success));
+
+  const res = await fetch(`/api/v1/system/conversation-logs?${params.toString()}`, { headers });
+  if (!res.ok) throw new Error("Erreur chargement journal conversationnel : " + res.status);
+  return await res.json();
+}
+
+export async function postConversationFeedback(logId, payload) {
+  const res = await fetch(`/api/v1/system/conversation-logs/${logId}/feedback`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error("Erreur envoi feedback : " + res.status);
+  return await res.json();
+}
+
 

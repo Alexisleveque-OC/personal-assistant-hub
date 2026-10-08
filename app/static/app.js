@@ -11,6 +11,7 @@ import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMes
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView, switchSportSubview } from "./js/views/sport_view.js";
+import { initSecondBrainView, loadSecondBrainNotes, loadSecondBrainCategories } from "./js/views/second_brain_view.js";
 
 // Export / Référence SpeechRecognition pour les vérifications de compatibilité
 export { SpeechRecognition };
@@ -35,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const views = {
     chat: document.getElementById("view-chat"),
+    "second-brain": document.getElementById("view-second-brain"),
     shopping: document.getElementById("view-shopping"),
     meals: document.getElementById("view-meals"),
     sport: document.getElementById("view-sport")
@@ -89,6 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 7. Initialisation des Vues Métier
   initChatView();
+  initSecondBrainView();
   initShoppingView();
   initMealsView();
   initSportView();
@@ -104,7 +107,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (views[k]) views[k].classList.toggle("active", k === targetView);
       });
 
-      if (targetView === "shopping") {
+      if (targetView === "second-brain") {
+        loadSecondBrainNotes();
+        loadSecondBrainCategories();
+      } else if (targetView === "shopping") {
         fetchShoppingList();
       } else if (targetView === "meals") {
         if (state.currentMealSubview === "today") {
@@ -213,6 +219,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector('.nav-item[data-view="sport"]')?.click();
     const tabSportGamification = document.getElementById("tab-sport-gamification");
     if (tabSportGamification) tabSportGamification.click();
+  } else if (actionParam === "second_brain") {
+    document.querySelector('.nav-item[data-view="second-brain"]')?.click();
   }
 
   // 11. Enregistrement PWA Service Worker
