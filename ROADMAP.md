@@ -95,14 +95,12 @@
 
 ---
 
-### ⚪ Étape 5 : Pipeline STT Haute-Fidélité & Audio Direct Backend
-* **Objectifs :**
-  1. **Endpoint audio direct `/api/v1/interact/audio` :**
-     - Réception d'un flux audio WebM / WAV / OGG capté côté client.
-     - Analyse multimodale native directe via Gemini (audio direct dans `generateContent`) ou transcription assistée avec lexique métier.
-  2. **Couche de normalisation phonétique intelligente :**
-     - Remplacement préventif et contextuel des confusions récurrentes (« Otis » vs « 10 » / « Autiste », « 3 » vs « Troyes », « renfort » vs « renforcement ») pour fiabiliser le flux Web Speech.
-  3. **TDD strict :** tests du format audio, de l'endpoint et de la normalisation phonétique.
+### ✅ Étape 5 : Pipeline STT Haute-Fidélité & Audio Direct Backend
+* **Objectifs validés :**
+  1. **Couche de normalisation phonétique :** Module dédié [app/core/audio/phonetic_normalizer.py](file:///home/alexis/CODE/personal-assistant-hub/app/core/audio/phonetic_normalizer.py) corrigeant préventivement les confusions usuelles (« RPE à Troyes » $\rightarrow$ « RPE à 3 », « autiste/notice » $\rightarrow$ « Otis », « renfort » $\rightarrow$ « renforcement », « des plus » $\rightarrow$ « D+ »).
+  2. **Service STT Multimodal Gemini :** Module dédié [app/core/audio/stt_service.py](file:///home/alexis/CODE/personal-assistant-hub/app/core/audio/stt_service.py) envoyant directement le flux audio base64 avec `inlineData` à l'API Gemini pour une transcription exacte et une extraction structurée.
+  3. **Endpoint direct `POST /api/v1/interact/audio` :** Réception de flux audio bruts (WebM, WAV, OGG, MP3), validation MIME type, transcription et exécution transparente du pipeline conversationnel avec renvoi de `transcribed_text`.
+  4. **TDD strict :** 5/5 tests validés dans `tests/test_audio_stt_and_phonetic.py`, 380/380 tests du projet au vert.
 
 ---
 

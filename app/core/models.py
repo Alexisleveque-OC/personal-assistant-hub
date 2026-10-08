@@ -102,6 +102,7 @@ class InteractionResponse(BaseModel):
     spoken_response: str = Field(..., description="Texte formulé pour être lu à haute voix ou affiché")
     intent: ParsedIntent
     data: Optional[Dict[str, Any]] = None
+    transcribed_text: Optional[str] = Field(default=None, description="Transcription textuelle extraite du flux audio le cas échéant")
 
     @computed_field
     @property

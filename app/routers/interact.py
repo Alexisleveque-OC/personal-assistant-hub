@@ -1,9 +1,9 @@
 """Router FastAPI pour l'analyse NLU et l'interaction conversationnelle universelle."""
 import logging
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, File, UploadFile, Form, HTTPException, status
 
 from app.core.security import verify_api_key
 from app.core.models import (
@@ -14,6 +14,8 @@ from app.core.models import (
 )
 from app.core.intent_parser import IntentParser
 from app.core.llm.nlu_service import get_nlu_service
+from app.core.audio.phonetic_normalizer import normalize_phonetics
+from app.core.audio.stt_service import get_stt_service
 from app.core.dependencies import (
     get_meals_connector,
     get_sport_connector,
@@ -73,7 +75,8 @@ async def interact(
     start_time = time.perf_counter()
     session_id = request.session_id or request.source or "default"
 
-    if not request.query or not request.query.strip():
+    normalized_query = normalize_phonetics(request.query.strip())
+    if not normalized_query:
         return InteractionResponse(
             success=False,
             spoken_response="Je n'ai rien entendu. Pouvez-vous répéter votre demande ?",
@@ -109,7 +112,7 @@ async def interact(
     used_llm_model: Optional[str] = None
 
     # 1. Analyse locale déterministe
-    parsed = intent_parser.parse(request.query, context=session_ctx)
+    parsed = intent_parser.parse(normalized_query, context=session_ctx)
 
     # 2. Si le modèle local ne comprend pas (UNKNOWN) : activation du cerveau LLM Gemini
     if parsed.intent == IntentType.UNKNOWN and nlu_service:
@@ -226,4 +229,57 @@ async def interact(
         intent=parsed,
         data=data,
     )
+
+
+@router.post(
+    "/interact/audio",
+    response_model=InteractionResponse,
+    tags=["Interaction"],
+    summary="Point d'entrée multimodal direct pour flux audio (WebM, WAV, OGG, MP3)",
+)
+async def interact_audio(
+    audio_file: UploadFile = File(..., description="Fichier audio brut capté par le client"),
+    session_id: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
+):
+    """Reçoit un fichier audio, effectue la transcription STT multimodale avec Gemini,
+    applique la normalisation phonétique et exécute l'intention associée."""
+    content_type = audio_file.content_type or ""
+    allowed_prefixes = ("audio/", "video/webm", "video/ogg")
+    if not (content_type.startswith("audio/") or content_type in allowed_prefixes):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Format de fichier non supporté ({content_type}). Veuillez fournir un fichier audio (WebM, WAV, OGG, MP3).",
+        )
+
+    audio_bytes = await audio_file.read()
+    if not audio_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Le flux audio envoyé est vide.",
+        )
+
+    stt_service = get_stt_service()
+    try:
+        transcribed_text, _ = await stt_service.process_audio(
+            audio_bytes=audio_bytes,
+            mime_type=content_type,
+            context={"session_id": session_id},
+        )
+    except Exception as exc:
+        logger.error(f"Erreur lors du traitement STT audio : {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Service de reconnaissance audio temporairement indisponible : {exc}",
+        )
+
+    req = InteractionRequest(
+        query=transcribed_text,
+        session_id=session_id,
+        source="audio_direct",
+    )
+    resp = await interact(request=req, background_tasks=background_tasks)
+    resp.transcribed_text = transcribed_text
+    return resp
+
 
