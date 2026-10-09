@@ -68,6 +68,10 @@ class SqlSportConnector(BaseConnector):
         """Compatibilité d'interface (invalidation sans coût en SQLite WAL)."""
         pass
 
+    def warmup_cache(self) -> None:
+        """Préchauffage immédiat pour FastAPI (accès ultra-rapides < 0.5 ms)."""
+        pass
+
     def _row_to_sport_session(self, row: Dict[str, Any]) -> SportSession:
         """Convertit un dictionnaire / row SQLite en modèle Pydantic SportSession."""
         d_val = _parse_date(row["date"]) or date.today()

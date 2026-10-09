@@ -17,7 +17,7 @@
 | **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (403/403 total) au vert |
 | **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (407/407 total) au vert |
 | **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (411/411 total) au vert |
-| **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | ⚪ Prévu | - | Tests API & régression globale |
+| **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (413/413 total) au vert |
 | **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | ⚪ Prévu | - | Test E2E Live & 100% vert |
 
 ---
@@ -104,13 +104,14 @@
 
 ---
 
-### ⚪ Étape 6 : Bascule Globale vers `SqlSportConnector` & Nettoyage
-* **Objectifs :**
-  1. Mettre à jour `app/core/dependencies.py` pour instancier et injecter `SqlSportConnector` par défaut.
-  2. Rendre la variable d'environnement `SPREADSHEET_SPORT_ID` optionnelle (suppression de l'erreur bloquante si absente).
-  3. Mettre à jour `app/routers/sport.py` et le dashboard pour interagir avec le connecteur SQLite unifié.
+### 🟢 Étape 6 : Bascule Globale vers `SqlSportConnector` & Nettoyage
+* **Objectifs réalisés :**
+  1. `app/core/dependencies.py` met désormais à disposition `SqlSportConnector` par défaut dans `get_sport_connector()`.
+  2. Variable d'environnement `SPREADSHEET_SPORT_ID` devenue totalement optionnelle (plus d'erreur bloquante si absente).
+  3. `app/routers/sport.py` et le dashboard s'appuient sur le connecteur SQLite unifié.
 * **Critères d'acceptation :**
   - 100% des tests de régression existants au vert sans dépendance externe à Google Sheets.
+  - Tests unitaires validés à 100% dans `tests/test_sql_sport_default_dependency.py`.
 
 ---
 

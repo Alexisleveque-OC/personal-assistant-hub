@@ -9,6 +9,7 @@ import logging
 from app.config import settings
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.connectors.sheets.sport_connector import SportConnector
+from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.database import (
     DatabaseManager,
     get_database_manager,
@@ -46,23 +47,21 @@ def get_sport_connector_error() -> Optional[str]:
     return _sport_connector_error
 
 
-def get_sport_connector() -> Optional[SportConnector]:
-    """Récupère l'instance active du connecteur sport running ou tente son initialisation."""
+def get_sport_connector() -> Optional[Any]:
+    """Récupère l'instance active du connecteur sport (SqlSportConnector par défaut) ou tente son initialisation."""
     global _sport_connector, _sport_connector_error
     if _sport_connector == "UNSET":
         try:
-            if not getattr(settings, "spreadsheet_sport_id", None) or not settings.spreadsheet_sport_id.strip():
-                raise ValueError("Variable d'environnement SPREADSHEET_SPORT_ID manquante ou non configurée.")
-            _sport_connector = SportConnector()
+            _sport_connector = SqlSportConnector()
             _sport_connector_error = None
         except Exception as exc:
-            logger.warning(f"Impossible d'initialiser SportConnector : {exc}")
+            logger.warning(f"Impossible d'initialiser SqlSportConnector : {exc}")
             _sport_connector = None
             _sport_connector_error = str(exc)
     return _sport_connector
 
 
-def set_sport_connector(connector: Optional[SportConnector]) -> None:
+def set_sport_connector(connector: Optional[Any]) -> None:
     """Permet l'injection d'un connecteur sport (mock) pour les tests unitaires et d'intégration."""
     global _sport_connector, _sport_connector_error
     _sport_connector = connector
