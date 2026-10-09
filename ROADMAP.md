@@ -18,7 +18,7 @@
 | **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (407/407 total) au vert |
 | **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (411/411 total) au vert |
 | **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (413/413 total) au vert |
-| **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | ⚪ Prévu | - | Test E2E Live & 100% vert |
+| **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | 🟢 Terminé | Validé par l'utilisateur | ✅ 1/1 test E2E dédié (414/414 total) au vert |
 
 ---
 
@@ -115,14 +115,20 @@
 
 ---
 
-### ⚪ Étape 7 : Test d'Intégration End-to-End (E2E) & Recette Finale
-* **Objectifs :**
-  1. Écrire `tests/test_e2e_sport_sqlite_migration.py` validant l'ensemble du flux :
-     - Initialisation base locale SQLite.
-     - Enregistrement vocal d'une séance et consultation de « ma dernière séance ».
-     - Modification orale avec formulations naturelles et infinitif.
-     - Calculs physiologiques instantanés et export de secours.
-  2. Effectuer la recette fonctionnelle complète.
+### 🟢 Étape 7 : Test d'Intégration End-to-End (E2E) & Recette Finale
+* **Objectifs réalisés :**
+  1. Écriture de `tests/test_e2e_sport_sqlite_migration.py` validant l'ensemble du cycle de bout en bout :
+     - Initialisation base locale SQLite WAL (`DatabaseManager`).
+     - Planification et consultation d'une séance future avec oralisation naturelle.
+     - Enregistrement vocal d'une séance de running avec calculs physiologiques automatiques (allure, vitesse, km-effort, charge RPE).
+     - Enregistrement d'une séance de renforcement avec tolérance lexicale (« renfort » / « muscu »).
+     - Résolution sémantique temporelle dynamique de « ma dernière séance » et par type (« mon dernier renfo »).
+     - Modification orale avec infinitif et oralisation chaleureuse.
+     - Consultation du Dashboard REST `/api/v1/sport/today` et de la synthèse hebdomadaire multicritère.
+     - Export et sauvegarde de secours (JSON et CSV).
+  2. Préservation des séances multiples le même jour (ex: Running le matin + Renforcement l'après-midi) dans `SqlSportConnector`.
+  3. Sérialisation JSON robuste des objets dates dans `DatabaseManager.log_conversation`.
 * **Critères d'acceptation :**
-  - Suite de tests 100% au vert.
-  - Validation manuelle utilisateur.
+  - Test E2E validé à 100% dans `tests/test_e2e_sport_sqlite_migration.py`.
+  - 100% de la suite de tests au vert (414/414 tests).
+

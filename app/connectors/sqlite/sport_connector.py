@@ -171,12 +171,25 @@ class SqlSportConnector(BaseConnector):
         date_iso = target_date.isoformat()
         semaine = target_date.isocalendar()[1]
 
-        # Vérifier si une séance existe déjà pour cette date
-        existing = self.db.get_sport_session_by_date(date_iso)
-
         final_type = session_data.type_seance
         final_prog = session_data.programme or ""
         final_rem = session_data.remarques or session_data.notes or ""
+
+        # Vérifier si une séance correspondante existe déjà pour cette date :
+        # 1. En priorité absolue, une séance planifiée (pour la valider comme Réalisée)
+        # 2. Sinon, une séance déjà réalisée DU MÊME TYPE (pour mise à jour)
+        # 3. Si les séances existantes sont d'un type différent (ex: Running + Renfo), on crée une nouvelle séance !
+        existing_sessions = self.db.get_sport_sessions(start_date=date_iso, end_date=date_iso)
+        existing = None
+        for s in existing_sessions:
+            if s.get("statut") == SportSessionStatus.PLANIFIE.value:
+                existing = s
+                break
+        if not existing:
+            for s in existing_sessions:
+                if s.get("type_seance") == final_type.value:
+                    existing = s
+                    break
 
         if existing:
             # Préserver le type ou programme prévu si log rapide par défaut
@@ -207,6 +220,7 @@ class SqlSportConnector(BaseConnector):
                 "strava_id": session_data.strava_id or existing.get("strava_id"),
             }
             self.db.update_sport_session(existing["id"], updates)
+            saved_id = existing["id"]
         else:
             insert_data = {
                 "date": date_iso,
@@ -227,15 +241,15 @@ class SqlSportConnector(BaseConnector):
                 "vitesse_cible": None,
                 "strava_id": session_data.strava_id,
             }
-            self.db.add_sport_session(insert_data)
+            saved_id = self.db.add_sport_session(insert_data)
 
         # Mettre à jour la synthèse hebdomadaire correspondante
         self.get_weekly_summary(week_num=semaine, year=target_date.year)
 
-        saved = self.get_session(target_date)
-        if not saved:
+        saved_row = self.db.get_sport_session_by_id(saved_id)
+        if not saved_row:
             raise RuntimeError(f"Échec de récupération de la séance enregistrée pour {date_iso}")
-        return saved
+        return self._row_to_sport_session(saved_row)
 
     def plan_session(
         self,
@@ -385,10 +399,10 @@ class SqlSportConnector(BaseConnector):
         # Mettre à jour la synthèse
         self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.year)
 
-        saved = self.get_session(t_date)
-        if not saved:
+        saved_row = self.db.get_sport_session_by_id(existing["id"])
+        if not saved_row:
             raise RuntimeError(f"Échec de récupération de la séance après modification ({date_iso})")
-        return saved
+        return self._row_to_sport_session(saved_row)
 
     def get_weekly_summary(
         self,

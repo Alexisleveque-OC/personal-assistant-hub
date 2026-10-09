@@ -225,7 +225,7 @@ class DatabaseManager:
         error_trace: Optional[str] = None,
     ) -> int:
         """Enregistre une interaction conversationnelle dans la base."""
-        param_json = json.dumps(parameters or {}, ensure_ascii=False)
+        param_json = json.dumps(parameters or {}, ensure_ascii=False, default=str)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
