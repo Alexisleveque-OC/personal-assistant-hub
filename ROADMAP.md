@@ -16,7 +16,7 @@
 | **Étape 2** | **Connecteur Backend `SqlSportConnector` :** Implémentation haute performance (< 1 ms), parité fonctionnelle complète avec `SportConnector` et calculs de charge en mémoire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (401/401 total) au vert |
 | **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (403/403 total) au vert |
 | **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (407/407 total) au vert |
-| **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | 🟡 En cours | En attente de lancement | Phase Rouge TDD à initier |
+| **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (411/411 total) au vert |
 | **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | ⚪ Prévu | - | Tests API & régression globale |
 | **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | ⚪ Prévu | - | Test E2E Live & 100% vert |
 
@@ -90,16 +90,17 @@
 
 ---
 
-### ⚪ Étape 5 : Ergonomie Vocale, Formulations Naturelles & Tolérances Linguistiques
+### 🟢 Étape 5 : Ergonomie Vocale, Formulations Naturelles & Tolérances Linguistiques
 * **Objectifs :**
   1. Supprimer le texte hardcodé « Pour aujourd'hui... » de `sport_handler.py` lors de la consultation d'une séance à une autre date ou de la dernière séance.
   2. Implémenter un formateur oral de dates naturelles (`format_natural_spoken_date(target_date)`) :
-     - Exemples : « d'aujourd'hui », « d'hier », « de demain », « du mardi 6 octobre ».
+     - Exemples : « d'aujourd'hui », « d'hier », « de demain », « du dimanche 4 octobre ».
   3. Améliorer la flexibilité grammaticale :
-     - Support de l'infinitif dans les requêtes vocales (« modifier ma séance », « planifier mon footing »).
-     - Déclinaisons de vocabulaire : « renfort », « renfo », « muscu », « PPG » mappés automatiquement vers `SportSessionType.RENFORCEMENT`.
+     - Support de l'infinitif dans les requêtes vocales (« modifier ma séance », « changer le rpe », « planifier un footing »).
+     - Déclinaisons de vocabulaire : « renfort », « renfo », « muscu », « musculation », « PPG », « gainage » mappés automatiquement vers `SportSessionType.RENFORCEMENT`.
 * **Critères d'acceptation :**
-  - Réponses vocales chaleureuses, fluides et exemptes d'incohérences de date. Tests unitaires dédiés.
+  - Réponses vocales chaleureuses, fluides et exemptes d'incohérences de date.
+  - Tests unitaires validés à 100% dans `tests/test_sport_voice_natural_dates.py`.
 
 ---
 

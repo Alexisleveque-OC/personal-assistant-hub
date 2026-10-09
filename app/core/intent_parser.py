@@ -708,9 +708,9 @@ class IntentParser:
         # 9.1 bis Réajustement ou modification a posteriori d'une séance passée
         # (ex: "modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite",
         #      "ajoute une note sur ma course de dimanche : douleur au tibia à J+2",
-        #      "change le rpe de ma séance d'hier à 8")
-        if re.search(r"(?:modifie|change|réajuste|mets\s+à\s+jour)\s+(?:le\s+ressenti|le\s+rpe|la\s+note|ma\s+séance|ma\s+course)", cleaned) or \
-           re.search(r"ajoute\s+une\s+note\s+(?:sur|à)\s+ma\s+(?:course|séance)", cleaned):
+        #      "change le rpe de ma séance d'hier à 8", "modifier ma séance d'hier ressenti à 7")
+        if re.search(r"(?:modifie[rz]?|change[rz]?|réajuste[rz]?|reajuste[rz]?|mets?\s+à\s+jour|mettre\s+à\s+jour|édite[rz]?|edite[rz]?)\s+(?:le\s+ressenti|le\s+rpe|la\s+note|ma\s+séance|ma\s+seance|ma\s+course)", cleaned) or \
+           re.search(r"(?:ajoute[rz]?)\s+une\s+note\s+(?:sur|à)\s+ma\s+(?:course|séance|seance)", cleaned):
             update_params: Dict[str, Any] = {}
 
             # Date cible
@@ -748,10 +748,10 @@ class IntentParser:
 
         # 9.2 Renforcement musculaire / PPG sans distance ("j'ai fait 30 minutes de renfo, ressenti 7 sur 10", "log séance de renforcement 30 minutes...")
         renfo_match = re.search(
-            r"(?:j[' ]?ai\s+fait|note|log|enregistre|ajoute)(?:\s+(?:ma|la|une)?\s*séance(?:\s+de)?)?\s+([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)\s+(?:de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)",
+            r"(?:j[' ]?ai\s+fait|note[rz]?|log(?:ge[rz]?)?|enregistre[rz]?|ajoute[rz]?)(?:\s+(?:ma|la|une)?\s*séance(?:\s+de)?)?\s+([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)\s+(?:de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|renfort|ppg|muscu(?:lation)?|gainage)",
             cleaned,
         ) or re.search(
-            r"(?:j[' ]?ai\s+fait|note|log|enregistre|ajoute)\s+(?:(?:ma|la|une)?\s*séance\s+de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|ppg|gainage)(?:\s+(?:de\s+)?([0-9]+)\s*min(?:utes?)?)?",
+            r"(?:j[' ]?ai\s+fait|note[rz]?|log(?:ge[rz]?)?|enregistre[rz]?|ajoute[rz]?)\s+(?:(?:ma|la|une)?\s*séance\s+de\s+)?(renfo(?:rcement(?:\s+musculaire)?)?|renfort|ppg|muscu(?:lation)?|gainage)(?:\s+(?:de\s+)?([0-9]+)\s*min(?:utes?)?)?",
             cleaned,
         )
         if renfo_match:
@@ -893,26 +893,30 @@ class IntentParser:
             )
 
         # 9.3 Planification d'une séance future ("planifie-moi un fractionné jeudi...")
-        if re.search(r"(?:planifie|prévois|programme)(?:-moi)?\s+(?:une?\s+)?(?:séance\s+de\s+)?(fractionné|sortie longue|footing|ef|tempo|seuil)", cleaned):
-            plan_match = re.search(r"(fractionné|sortie longue|footing|ef|tempo|seuil)", cleaned)
+        if re.search(r"(?:planifie[rz]?|prévoi[st]|prévoir|prevoir|programme[rz]?)(?:-moi)?\s+(?:une?\s+)?(?:séance\s+de\s+)?(fractionné|fractionne|sortie longue|footing|ef|tempo|seuil|renfo|renforcement|renfort|ppg|muscu|musculation|gainage)", cleaned):
+            plan_match = re.search(r"(fractionné|fractionne|sortie longue|footing|ef|tempo|seuil|renfo|renforcement|renfort|ppg|muscu|musculation|gainage)", cleaned)
             type_raw = plan_match.group(1) if plan_match else "EF"
+            if type_raw.lower() in ("renfo", "renforcement", "renfort", "ppg", "muscu", "musculation", "gainage"):
+                type_nom = "Renforcement"
+            else:
+                type_nom = type_raw.capitalize()
             day_match = re.search(r"(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain)", cleaned)
             day_name = day_match.group(1) if day_match else None
             return ParsedIntent(
                 intent=IntentType.PLAN_SPORT_SESSION,
                 confidence=0.92,
                 parameters={
-                    "type_seance": type_raw.capitalize(),
+                    "type_seance": type_nom,
                     "day_name": day_name,
                 },
                 raw_query=text,
             )
 
         # 9.35 Consultation de la dernière séance ("c'est quoi ma dernière séance ?", "mon dernier footing", "ma dernière séance de renfo")
-        if re.search(r"\b(?:(?:ma|mon|mes)?\s*derni[èe]re?|le\s+dernier)\s+(?:séance|seance|course|footing|sortie|entraînement|entrainement|session|renfo|renforcement)\b", cleaned) or \
-           re.search(r"\b(?:quel(?:le)?|c[' ]?est\s+quoi|rappelle[- ]moi|donne[- ]moi|affiche)\s+(?:ma|mon|mes)?\s*derni[èe]re?\s+(?:séance|seance|course|footing|sortie|entraînement|entrainement|session|renfo|renforcement)\b", cleaned):
+        if re.search(r"\b(?:(?:ma|mon|mes)?\s*derni[èe]re?|le\s+dernier)\s+(?:séance|seance|course|footing|sortie|entraînement|entrainement|session|renfo|renforcement|renfort|muscu|gainage|ppg)\b", cleaned) or \
+           re.search(r"\b(?:quel(?:le)?|c[' ]?est\s+quoi|rappelle[- ]moi|rappeler|donne[- ]moi|donner|affiche[rz]?)\s+(?:ma|mon|mes)?\s*derni[èe]re?\s+(?:séance|seance|course|footing|sortie|entraînement|entrainement|session|renfo|renforcement|renfort|muscu|gainage|ppg)\b", cleaned):
             session_type = None
-            if re.search(r"\b(?:renfo|renforcement|ppg|muscu)\b", cleaned):
+            if re.search(r"\b(?:renfo|renforcement|renfort|ppg|muscu(?:lation)?|gainage)\b", cleaned):
                 session_type = "Renforcement"
             elif re.search(r"\b(?:footing|ef)\b", cleaned):
                 session_type = "EF"

@@ -13,7 +13,7 @@ from app.connectors.sheets.sport_models import (
     SportSessionType,
     SportSessionUpdate,
 )
-from app.core.date_resolver import parse_target_date
+from app.core.date_resolver import format_natural_spoken_date, parse_target_date
 from app.core.sport_coach_service import SportCoachService
 
 logger = logging.getLogger(__name__)
@@ -83,11 +83,16 @@ async def handle_sport_intent(
 
             if sport_connector:
                 session = sport_connector.get_session(target_d)
+                is_past = target_d < date.today()
+                date_phrase = format_natural_spoken_date(target_d, preposition=False)
+                prep_prefix = f"Pour {date_phrase}" if date_phrase in ("aujourd'hui", "demain", "après-demain", "hier", "avant-hier") else f"Pour le {date_phrase}"
+
                 if session:
                     data["session"] = session.model_dump()
                     type_nom = session.type_seance.value if hasattr(session.type_seance, "value") else str(session.type_seance)
                     dist_str = f"{session.distance_km:.2f}".rstrip("0").rstrip(".").replace(".", ",") if session.distance_km else ""
-                    spoken = f"Pour aujourd'hui, vous avez une séance de {type_nom}"
+                    verb_phrase = "vous aviez" if is_past else "vous avez"
+                    spoken = f"{prep_prefix}, {verb_phrase} une séance de {type_nom}"
                     if dist_str:
                         spoken += f" de {dist_str} km"
                     details = session.programme or session.notes
@@ -97,7 +102,10 @@ async def handle_sport_intent(
                         spoken += f" (Remarques : {session.remarques})"
                     spoken += "."
                 else:
-                    spoken = "Aucune séance n'est planifiée pour cette date. C'est une journée de repos bien méritée !"
+                    if is_past:
+                        spoken = f"Aucune séance n'était planifiée pour cette date. C'était une journée de repos bien méritée !"
+                    else:
+                        spoken = "Aucune séance n'est planifiée pour cette date. C'est une journée de repos bien méritée !"
             else:
                 spoken = "Le carnet d'entraînement sport n'est pas configuré."
             return spoken, data
@@ -120,7 +128,7 @@ async def handle_sport_intent(
 
             type_seance_param = parsed.parameters.get("type_seance")
             if isinstance(type_seance_param, str):
-                if type_seance_param.lower() in ("renfo", "renforcement", "ppg", "musculation"):
+                if type_seance_param.lower() in ("renfo", "renforcement", "renfort", "ppg", "muscu", "musculation", "gainage"):
                     type_seance = SportSessionType.RENFORCEMENT
                 else:
                     try:
@@ -250,10 +258,10 @@ async def handle_sport_intent(
                 try:
                     updated = sport_connector.update_session(target_d, update_payload)
                     data["session"] = updated.model_dump()
-                    date_disp = target_d.strftime("%d/%m")
+                    date_disp = format_natural_spoken_date(target_d, preposition=True)
                     charge = updated.charge_rpe
 
-                    spoken_parts = [f"C'est noté Alexis. J'ai mis à jour ta séance du {date_disp}"]
+                    spoken_parts = [f"C'est noté Alexis. J'ai mis à jour ta séance {date_disp}"]
                     if rpe is not None:
                         spoken_parts.append(f"avec un ressenti de {rpe}/10")
                         if charge:
@@ -324,8 +332,9 @@ async def handle_sport_intent(
                     notes=notes,
                 )
                 data["session"] = planned.model_dump()
-            date_disp = t_date.strftime("%d/%m/%Y")
-            spoken = f"C'est noté ! J'ai planifié une séance de {t_type} pour le {date_disp}."
+            date_disp = format_natural_spoken_date(t_date, preposition=False)
+            prep_str = f"pour {date_disp}" if date_disp in ("aujourd'hui", "demain", "après-demain") else f"pour le {date_disp}"
+            spoken = f"C'est noté ! J'ai planifié une séance de {t_type} {prep_str}."
             return spoken, data
 
         case IntentType.PLAN_WEEKLY_TRAINING:
