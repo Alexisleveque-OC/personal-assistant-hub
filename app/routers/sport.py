@@ -44,10 +44,10 @@ _gamification_service = SportGamificationService()
 
 
 def get_sport_connector_dep():
-    """Dépendance FastAPI pour obtenir le SportConnector actif."""
+    """Dépendance FastAPI pour obtenir le connecteur sport actif (SQLite par défaut)."""
     connector = get_sport_connector()
     if not connector:
-        err = get_sport_connector_error() or "vérifiez la variable SPREADSHEET_SPORT_ID et l'accès Google Sheets"
+        err = get_sport_connector_error() or "vérifiez la base SQLite locale"
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Connecteur sport non disponible ({err}).",

@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2.10+-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-[![Tests Pytest](https://img.shields.io/badge/tests-389%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
+[![Tests Pytest](https://img.shields.io/badge/tests-414%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![Architecture Modulaire](https://img.shields.io/badge/architecture-Domain--First%20%7C%20APIRouters-purple.svg)](https://fastapi.tiangolo.com/tutorial/bigger-applications/)
 [![Code Style: TDD Strict](https://img.shields.io/badge/code%20style-TDD%20Strict-success.svg)](https://en.wikipedia.org/wiki/Test-driven_development)
 
@@ -21,8 +21,8 @@ Entre les tableurs Google Sheets de repas et de sport, les listes de courses par
 L'objectif de **Personal Assistant Hub** est d'unifier ces outils derrière une **API centrale unique**, pilotable en langage naturel :
 1. **Zéro friction :** Poser une question spontanée (*« Qu'est-ce qu'on mange ce soir ? »*, *« Qu'est-ce que j'ai comme séance aujourd'hui ? »*, *« Il me reste quoi à acheter au rayon Fruits ? »*) et obtenir une réponse instantanée.
 2. **Intelligence Hybride Réactive (< 1-2s) :** Un cerveau LLM (Google Gemini Flash) avec auto-découverte et dialogues multi-tours, épaulé par un préchauffage du cache mémoire en RAM au boot et un repli déterministe local en cas de panne réseau.
-3. **Mini-Coach Sportif Intégré (Otis) :** Suivi d'entraînement running et renforcement, calculs physiologiques (allure, km-effort, charge RPE), prévention des blessures (périostite) et gamification dopaminée (badges pop-culture).
-4. **Robustesse d'artisan :** 389 tests automatisés à 100% au vert, validation stricte des contrats par Pydantic v2, base relationnelle SQLite locale ultra-rapide (WAL mode) avec réplication continue Cloud (Litestream), architecture modulaire en sous-routeurs et handlers spécialisés.
+3. **Mini-Coach Sportif Intégré (Otis) :** Suivi d'entraînement running et renforcement unifié sur base SQLite locale (< 1 ms de latence), calculs physiologiques (allure, km-effort, charge RPE), prévention des blessures (périostite) et gamification dopaminée (badges pop-culture).
+4. **Robustesse d'artisan :** 414 tests automatisés à 100% au vert, validation stricte des contrats par Pydantic v2, base relationnelle SQLite locale ultra-rapide (WAL mode) avec réplication continue Cloud (Litestream), architecture modulaire en sous-routeurs et handlers spécialisés.
 
 ---
 
@@ -93,10 +93,13 @@ personal-assistant-hub/
 * **Courses en magasin & Batch Sync :** Catégorisation dynamique par rayons, cochage tactile instantané en magasin et synchronisation groupée en lot (*« 🏁 J'ai fini ! »*) préservant les cases à cocher Google Sheets. Réinitialisation explicite le samedi.
 
 ### 🏃 2. Sport Running & Mini-Coach Otis — [🟢 Opérationnel]
-* **Carnet d'entraînement 360° :** Suivi des séances (EF, Fractionné, Sortie Longue, Seuil, Renforcement) avec calculs physiologiques automatiques (Km-Effort, allure min/km, vitesse, charge RPE).
+* **Carnet d'entraînement 360° sous SQLite WAL :** Persistance relationnelle locale unifiée dans `hub_data.db` (latence < 1 ms, zéro appel réseau, quotas Google Sheets éliminés).
+* **Calculs physiologiques instantanés :** Allure min/km, vitesse km/h, Km-Effort ($D + D^+/100$), charge RPE ($\text{Durée} \times \text{RPE}$) calculés automatiquement.
+* **Résolution temporelle dynamique & Ergonomie vocale :** Interrogation en base de *« ma dernière séance »*, *« mon dernier footing »*, dates orales naturelles (*« de demain »*, *« d'hier »*, *« du dimanche 4 octobre »*), support de l'infinitif (*« modifier ma séance »*) et tolérance lexicale (*« renfort »*, *« muscu »*, *« ppg »*).
 * **Synthèse & Alertes de Sécurité :** Dashboard hebdomadaire de charge, règle de sécurité des +10% max et alertes ciblées pour la prévention des périostites tibiales.
 * **PWA Sport Interactive :** Vue chronologique des séances, historique des semaines avec accordéons dépliables, jauges SVG et pop-up de ressenti RPE tactile.
 * **Gamification Pop-Culture :** Système de badges et de trophées dopaminés (Astérix, Le Seigneur des Anneaux, Brandon Sanderson) célébrant la régularité et les records personnels.
+* **Outils de migration & Sauvegarde de secours :** Script de migration one-off (`scripts/migrate_sport_sheets_to_sqlite.py`) et export instantané JSON/CSV (`scripts/export_sport_data.py`).
 * **Passerelle Strava :** Ingestion automatique d'activités via webhooks.
 
 ### 📱 3. Interface Mobile Vocale PWA & Conteneurisation — [🟢 Opérationnel]
@@ -130,16 +133,19 @@ personal-assistant-hub/
   - Commande d'annulation réversible immédiate (*Undo*) et toast tactile interactif
   - Pipeline STT direct (`/api/v1/interact/audio`), normalisation phonétique et VAD tolérant (1.5-2.5s)
   - Interface PWA dédiée (vue Second Cerveau, filtres pills, audit des échanges & correction)
+- [x] **Phase 6.5 : Migration Sport vers SQLite Unifié & Résolution Temporelle**
+  - Schéma relationnel `sport_sessions` et `sport_weekly_summaries` dans `hub_data.db` (mode WAL)
+  - Connecteur `SqlSportConnector` haute performance (< 1 ms) avec parité fonctionnelle stricte
+  - Résolution sémantique temporelle de *« ma dernière séance »* et des dates naturelles orales
+  - Flexibilité grammaticale (infinitif) et tolérance lexicale (renfort, muscu, ppg)
+  - Découplage de Google Sheets (`SPREADSHEET_SPORT_ID` optionnel) & outil d'export/backup JSON/CSV
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
   - Adaptation dynamique de charge et allègement immédiat en cas d'alerte périostite
   - Checklist interactive de renforcement musculaire (clic & voix)
   - Compatibilité montres sportives (import direct de fichiers `.FIT` Garmin)
-- [ ] **Phase 8 : Migration Sport (Google Sheets ➔ Base SQLite locale)**
-  - Stockage local relationnel haute performance (< 1 ms de latence, fin des quotas Google Sheets)
-  - Résolution sémantique de *« ma dernière séance »* et dates naturelles orales
-- [ ] **Phase 9 : Connecteurs Organisationnels (Google Agenda, Google Tasks, Gmail)**
+- [ ] **Phase 8 : Connecteurs Organisationnels (Google Agenda, Google Tasks, Gmail)**
 - [ ] **Phase 10 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
 - [ ] **Phase 11 : Connecteur Budget (Google Sheets)**
 - [ ] **Phase 12 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
@@ -185,7 +191,7 @@ GEMINI_API_KEY=votre_cle_gemini_flash
 ```bash
 .venv/bin/pytest -v
 ```
-> **389 tests automatisés exécutés à 100% au vert en ~22 secondes.**
+> **414 tests automatisés exécutés à 100% au vert en ~13 secondes.**
 
 ### 5. Lancer le serveur de développement
 

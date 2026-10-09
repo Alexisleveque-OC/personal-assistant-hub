@@ -32,6 +32,12 @@ MONTHS_FR = {
     "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12, "décembre": 12,
 }
 
+MONTH_NAMES_FR = {
+    1: "janvier", 2: "février", 3: "mars", 4: "avril",
+    5: "mai", 6: "juin", 7: "juillet", 8: "août",
+    9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre",
+}
+
 
 def resolve_date_expression(text: str, now: Optional[datetime] = None) -> ResolvedDate:
     """Analyse une phrase en français et extrait la date cible et le moment de la journée."""
@@ -263,4 +269,44 @@ def parse_target_date(
         return today + timedelta(days=1)
 
     return default or today
+
+
+def format_natural_spoken_date(
+    target_date: date,
+    reference_date: Optional[date] = None,
+    preposition: bool = True,
+) -> str:
+    """Formate une date en français naturel et oralisé.
+
+    Exemples :
+    - aujourd'hui / d'aujourd'hui
+    - demain / de demain
+    - après-demain / d'après-demain
+    - hier / d'hier
+    - avant-hier / d'avant-hier
+    - mardi 6 octobre / du mardi 6 octobre
+    - lundi 6 octobre 2025 / du lundi 6 octobre 2025
+    """
+    ref = reference_date or date.today()
+    delta_days = (target_date - ref).days
+
+    if delta_days == 0:
+        return "d'aujourd'hui" if preposition else "aujourd'hui"
+    elif delta_days == 1:
+        return "de demain" if preposition else "demain"
+    elif delta_days == 2:
+        return "d'après-demain" if preposition else "après-demain"
+    elif delta_days == -1:
+        return "d'hier" if preposition else "hier"
+    elif delta_days == -2:
+        return "d'avant-hier" if preposition else "avant-hier"
+
+    weekday_str = WEEKDAY_NAMES[target_date.weekday()].lower()
+    month_str = MONTH_NAMES_FR.get(target_date.month, "")
+    year_suffix = f" {target_date.year}" if target_date.year != ref.year else ""
+
+    date_label = f"{weekday_str} {target_date.day} {month_str}{year_suffix}"
+    if preposition:
+        return f"du {date_label}"
+    return date_label
 
