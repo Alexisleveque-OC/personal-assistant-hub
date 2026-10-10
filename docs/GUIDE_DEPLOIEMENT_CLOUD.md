@@ -88,11 +88,12 @@ Google Cloud Run offre un **niveau gratuit permanent de 2 millions de requêtes 
 4. **Créer le Bucket de persistance SQLite (Litestream - 100% Gratuit) :**
    * Dans la console Google Cloud > **Cloud Storage** > **Buckets** > **Créer**.
    * Nom du bucket : ex `personal-assistant-hub-data-<votre-nom>` (doit être unique mondialement).
-   * Emplacement : Région `europe-west1` ou `europe-west9`.
-   * Donnez les droits au compte de service Cloud Run (rôle `Storage Object Admin`).
+   * Donnez le rôle **Administrateur des objets de stockage** (`Storage Object Admin`) :
+     - À l'adresse email de votre compte de service `GOOGLE_SERVICE_ACCOUNT_INFO` (visible dans votre `credentials.json`, ex: `...@...iam.gserviceaccount.com`).
+     - Et au compte de service Cloud Run par défaut (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`).
    * Ajoutez le secret GitHub : `LITESTREAM_REPLICA_URL=gcs://nom-du-bucket/hub_data.db`.
 
-*Dès lors, chaque merge vers `main` compilera et déploiera automatiquement votre image Docker sur votre compte Google Cloud avec réplication continue de vos données !*
+*Dès lors, chaque merge vers `main` déploiera votre conteneur avec `--no-cpu-throttling` (Gen2) et réplication continue Litestream 24h/24 sans perte de données !*
 
 ---
 
