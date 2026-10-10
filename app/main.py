@@ -52,6 +52,31 @@ from app.core.llm.nlu_service import (
 logger = logging.getLogger(__name__)
 
 
+def _auto_migrate_sport_sheets(force: bool = False) -> None:
+    """Importe automatiquement les séances historiques si la base SQLite est vierge."""
+    import os
+    if not force and os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+
+    try:
+        db = get_database_manager()
+        sessions = db.get_sport_sessions(limit=1)
+        sport_sheet_id = getattr(settings, "spreadsheet_sport_id", None)
+        if not sessions and sport_sheet_id and str(sport_sheet_id).strip():
+            logger.info("Base SQLite vierge détectée pour le sport : synchronisation automatique depuis Google Sheets...")
+            from app.connectors.sheets.sport_connector import SportConnector
+            from scripts.migrate_sport_sheets_to_sqlite import migrate_sheets_to_sqlite
+
+            sheet_conn = SportConnector()
+            report = migrate_sheets_to_sqlite(sheet_conn, db, dry_run=False)
+            logger.info(
+                f"Auto-migration sport terminée : {report.get('sessions_migrated', 0)} séance(s), "
+                f"{report.get('summaries_migrated', 0)} synthèse(s) importée(s)."
+            )
+    except Exception as exc:
+        logger.warning(f"Auto-migration sport ignorée ou échouée : {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Cycle de vie FastAPI : initialise SQLite et préchauffe les caches mémoire en arrière-plan."""
@@ -59,6 +84,12 @@ async def lifespan(app: FastAPI):
         get_database_manager().init_db()
     except Exception as exc:
         logger.warning(f"Impossible d'initialiser la base SQLite : {exc}")
+
+    # Auto-migration en tâche de fond si base vierge
+    try:
+        asyncio.create_task(asyncio.to_thread(_auto_migrate_sport_sheets))
+    except Exception as exc:
+        logger.warning(f"Impossible de lancer l'auto-migration sport : {exc}")
 
     connector = get_meals_connector()
     if connector and hasattr(connector, "warmup_cache"):

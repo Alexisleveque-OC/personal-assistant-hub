@@ -73,7 +73,7 @@ jobs:
           GSA_B64=$(python3 -c "import os, base64; print(base64.b64encode(os.environ.get('GSA_INFO', '').encode('utf-8')).decode('utf-8'))")
 
           # Assembler les variables d'environnement à injecter dans le conteneur Cloud Run
-          ENV_VARS="API_KEY=${API_KEY},SPREADSHEET_MEALS_SHOPPING_ID=${SHEET_ID}"
+          ENV_VARS="API_KEY=${API_KEY},SPREADSHEET_MEALS_SHOPPING_ID=${SHEET_ID},SQLITE_DB_PATH=/app/hub_data.db"
           if [ -n "$SPORT_SHEET_ID" ]; then
             ENV_VARS="${ENV_VARS},SPREADSHEET_SPORT_ID=${SPORT_SHEET_ID}"
           fi
@@ -98,6 +98,9 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 8000 \
+            --execution-environment gen2 \
+            --no-cpu-throttling \
+            --max-instances 1 \
             --quiet \
             --set-env-vars "$ENV_VARS"
 
