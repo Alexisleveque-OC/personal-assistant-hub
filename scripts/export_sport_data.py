@@ -9,7 +9,12 @@ from datetime import datetime
 import json
 import logging
 import os
+from pathlib import Path
+import sys
 from typing import Any, Dict, List, Optional
+
+# Garantit que la racine du projet est dans sys.path lors de l'exécution en CLI
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.database import DatabaseManager, get_database_manager
 

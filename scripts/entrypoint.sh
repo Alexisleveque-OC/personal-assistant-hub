@@ -32,7 +32,26 @@ if [ -n "$REPLICA_URL" ]; then
     # 1. Restauration initiale si la base locale n'existe pas encore
     if [ ! -f "$DB_PATH" ]; then
         echo "📥 Recherche d'une sauvegarde existante dans le bucket Cloud..."
-        litestream restore -if-replica-exists -o "$DB_PATH" "$REPLICA_URL" || echo "ℹ️ Aucune sauvegarde précédente trouvée, création d'une nouvelle base."
+        if ! litestream restore -if-replica-exists -o "$DB_PATH" "$REPLICA_URL"; then
+            echo "⚠️ Échec de litestream restore avec GOOGLE_APPLICATION_CREDENTIALS."
+            if [ -n "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+                echo "🔄 Tentative de repli sur les identifiants Cloud Run natifs (ADC)..."
+                OLD_GAC="$GOOGLE_APPLICATION_CREDENTIALS"
+                unset GOOGLE_APPLICATION_CREDENTIALS
+                if litestream restore -if-replica-exists -o "$DB_PATH" "$REPLICA_URL"; then
+                    echo "✅ Restauration réussie avec les identifiants Cloud Run natifs !"
+                else
+                    echo "⚠️ Échec également avec les identifiants natifs. Rétablissement de GOOGLE_APPLICATION_CREDENTIALS."
+                    export GOOGLE_APPLICATION_CREDENTIALS="$OLD_GAC"
+                fi
+            fi
+        fi
+
+        if [ -f "$DB_PATH" ]; then
+            echo "✅ Base de données SQLite restaurée avec succès depuis le bucket Cloud !"
+        else
+            echo "ℹ️ Aucun réplica préexistant ou base introuvable. Initialisation d'une nouvelle base."
+        fi
     else
         echo "ℹ️ Base SQLite locale $DB_PATH déjà présente."
     fi
