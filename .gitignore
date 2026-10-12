@@ -47,4 +47,6 @@ tools/
 *.db-shm
 *.sqlite
 *.sqlite3
+*.bak
+*.restore_tmp*
 
