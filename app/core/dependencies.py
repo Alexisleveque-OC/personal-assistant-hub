@@ -71,9 +71,12 @@ def set_sport_connector(connector: Optional[Any]) -> None:
 
 def get_sessions_store() -> Dict[str, Dict[str, Any]]:
     """Retourne le dictionnaire de mémoire des sessions multi-tours."""
-    return _SESSIONS
+    from app.core.session_manager import get_session_manager
+    return get_session_manager().as_dict_store()
 
 
 def clear_sessions() -> None:
     """Réinitialise la mémoire de session (utilitaire pour les tests)."""
-    _SESSIONS.clear()
+    from app.core.session_manager import get_session_manager
+    get_session_manager().clear_all()
+

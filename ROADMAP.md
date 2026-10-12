@@ -17,9 +17,10 @@
 | **Étape 2** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 3** | **Éditeur Manuel Complet des Séances de Sport (PWA) :** Modal d'édition manuelle de chaque champ (distance, durée, D+, RPE, notes, remarques, type) pour modifier ses séances en toute autonomie | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 4** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + tolérances phonétiques et réveil in-app sur « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
-| **Étape 5** | **Correction Sauvegarde des Séances (Screen 2) :** Résolution de l'erreur *« ❌ Échec. Réessayer »* lors de la validation du ressenti RPE et des notes de course dans l'interface PWA Sport | ⏳ À faire | En attente | ⏳ TDD à créer |
-| **Étape 6** | **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4) :** Fin du mode 100% "stateless", buffer d'historique des derniers échanges pour conserver le contexte du dialogue | ⏳ À faire | En attente | ⏳ TDD à créer |
-| **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression (419+ tests), déploiement prod et recette utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 5** | **Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux) :** Résolution de l'erreur *« ❌ Échec. Réessayer »*, suppression des créations de doublons lors d'un debrief (*« sur cette séance »*), et correction automatique sur plainte utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 6** | **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4) :** Fin du mode stateless, buffer d'historique de 20 messages avec horodatages et bouton de nouveau fil | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (434/434 total) au vert |
+| **Étape 6.1** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé, indicateur d'attente et envoi automatique dès reconnexion | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression, déploiement prod et recette utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
 
 ---
 
@@ -95,27 +96,64 @@
 
 ---
 
-### ⏳ Étape 5 : Correction Sauvegarde des Séances (Screen 2)
-* **Contexte & Problème (Screen 2) :**
-  - Erreur *« ❌ Échec. Réessayer »* affichée sur le bouton rouge lors de la saisie du debrief d'une séance de sport.
+### ⏳ Étape 5 : Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux)
+* **Contexte & Problèmes constatés :**
+  1. **Échec de sauvegarde manuelle (Screen 2) :** Erreur *« ❌ Échec. Réessayer »* sur le bouton rouge lors de la saisie du debrief d'une séance dans l'UI.
+  2. **Création d'un doublon au lieu de modifier la séance existante (Nouveaux Screens) :**
+     - Après avoir consulté sa dernière séance (*Sortie Longue de 7.5 km du 10 oct.*) et modifié son RPE, Alexis enchaîne : *« super, j'ai mis 45min et 30 sec pour faire 7km sur cette séance »*.
+     - Le système a interprété cela comme `LOG_SPORT_SESSION` au lieu de `UPDATE_SPORT_SESSION` ou validation de la séance existante, créant une deuxième séance distincte le même jour (*EF 7 km* en doublon de *Sortie Longue 7.5 km*).
+  3. **Hallucination passive sur rétroaction corrective :**
+     - Alexis signale : *« tu as créé une séance plutôt que modifier la séance qui était prévue »*.
+     - Otis formule une promesse polie (*« Toutes mes excuses, Alexis. Je rectifie le tir et fusionne cela sur la bonne séance. »*) mais n'effectue AUCUNE action réelle dans la base de données (intention `unknown` sans mutation concrète).
 * **Objectifs à réaliser :**
-  1. Inspecter la route appelée par le bouton (payload JSON, gestion des types, gestion du RPE, texte avec retours à la ligne ou caractères spéciaux).
-  2. Améliorer la robustesse de l'endpoint et afficher un message d'erreur précis au lieu d'un échec opaque.
-  3. Gérer le retry automatique et la mise à jour optimiste de l'UI.
+  1. **Débriefing contextuel d'une séance existante :**
+     - Identifier les formulations de debriefing de séance en cours (*« sur cette séance »*, *« pour cette course »*, *« j'ai mis X min pour faire Y km »*) et les router vers la mise à jour / validation de la séance ciblée (`session_ctx["last_sport_date"]`) au lieu d'en insérer une nouvelle.
+  2. **Gestion des doublons et intentions de fusion/correction :**
+     - Reconnaître les plaintes de doublon ou de mauvaise création (*« tu as créé une séance plutôt que modifier... »*, *« fusionne avec la séance prévue »*, *« supprime le doublon »*) et exécuter la correction en base (fusion des données sur la séance prévue et suppression du doublon créé par erreur).
+  3. **Robustesse de l'endpoint de debrief de la carte PWA :**
+     - Sécuriser l'endpoint `PATCH /api/v1/sport/session/{dateStr}`, gérer les retours à la ligne, types numériques et fournir des messages d'erreur contextualisés.
 * **Critères d'acceptation :**
-  - Validation et enregistrement du debrief sans erreur, passage de la carte à l'état sauvegardé.
+  - Pas de création de doublon lorsqu'un debriefing oral fait référence à une séance existante ou prévue.
+  - La remarque corrective d'Alexis fusionne et nettoie immédiatement le doublon en base sans promesse vide.
+  - Sauvegarde de la carte de debriefing fluide sans bouton rouge d'erreur.
 
 ---
 
-### ⏳ Étape 6 : Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4)
-* **Contexte & Problème (Screens 3 & 4) :**
-  - Le chat est actuellement 100% stateless : chaque message est traité isolément sans mémoire du message précédent (*« C'est l'application » ➔ « Tu parles de quelle application ? »*).
+### ✅ Étape 6 : Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4)
+* **Contexte & Problème résolu (Screens 3 & 4) :**
+  - Le chat était auparavant stateless avec désynchronisation des sessions entre texte et vocal (*« C'est l'application » ➔ « Tu parles de quelle application ? »*).
+* **Réalisations :**
+  1. **SessionManager résilient (`app/core/session_manager.py`) :**
+     - Fenêtre glissante intelligente portée à **20 messages** (10 allers-retours complets Alexis + Otis).
+     - **Horodatage contextuel précis** de chaque tour dans le prompt Gemini (`[À l'instant]`, `[Il y a 12 min]`, `[Il y a 2h]`) permettant à l'IA d'avoir une perception temporelle exacte.
+     - TTL étendu à **24 heures** (session continue sur la journée sans coupure intempestive).
+     - Restauration automatique depuis SQLite (`conversation_logs`) en cas de redémarrage serveur ou recyclage de worker.
+  2. **Identité de session unifiée PWA & Contrôle utilisateur (`config.js`, `api.js`, `chat_view.js`, `index.html`) :**
+     - Transmission systématique du `session_id` partagé dans `postInteract` (texte) ET `postInteractAudio` (vocal).
+     - **Bouton & Chip « ✨ Nouveau fil » :** Accessible d'un clic dans le header et au-dessus des messages pour repartir d'une page blanche à la demande d'Alexis (`resetActiveSessionId()`).
+  3. **Résolution des anaphores & prise de note contextuelle (`intent_parser.py`, `nlu_service.py`, `sport_handler.py`) :**
+     - Prompt Gemini enrichi pour poursuivre naturellement le fil après une question d'Otis (*« C'est l'application »*).
+     - Détection et capture de notes multi-tours (*« Prends note de ces 3 derniers échanges. Il faut corriger »*) synthétisant les échanges récents dans `second_brain_notes` (`bug_report` ou `dev_idea`).
+     - Résolution de séances sportives contextuelles sans date explicite (*« Il fallait en modifier le rpe a 3 »*).
+* **Critères d'acceptation validés :**
+  - 7/7 tests dédiés passés à 100% au vert dans `tests/test_conversation_session_memory.py`.
+  - Suite globale à 100% au vert (434/434 tests).
+
+---
+
+### ⏳ Étape 6.1 : File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox)
+* **Contexte & Problème :**
+  - Si la connexion est coupée (perte 4G/5G, tunnel coupé ou redémarrage du serveur), l'envoi échoue et le message saisi ou dicté est perdu avec une simple erreur *« Impossible de joindre le serveur »*.
 * **Objectifs à réaliser :**
-  1. Intégrer un buffer d'historique de conversation (les $N$ derniers messages de la session active) transmis au NLU / Gemini.
-  2. Permettre la résolution contextuelle des anaphores (*« l'application »*, *« celle-ci »*, *« la deuxième »*, *« corrige ça »*).
-  3. Définir une politique de TTL / expiration de session propre pour ne pas mélanger des discussions distantes de plusieurs heures.
+  1. **File d'attente locale (Offline Outbox) :** Sauvegarde immédiate des messages échoués dans `localStorage` (`pah_offline_queue`) avec leur horodatage et leur `session_id`.
+  2. **Feedback visuel dans le chat :** Affichage immédiat du message dans le flux avec un indicateur discret ⏳ *« En attente de réseau »* et bouton *« Réessayer »*.
+  3. **Synchronisation automatique & manuelle :**
+     - Détection du retour réseau (`window.addEventListener('online')` ou polling léger).
+     - Dépilage séquentiel dans l'ordre chronologique sur la même session active.
+     - Option de déclenchement manuel au clic.
 * **Critères d'acceptation :**
-  - Tests unitaires et E2E validant la continuité d'un dialogue multi-tours.
+  - Zéro perte de message en cas de coupure réseau ou serveur indisponible.
+  - Envoi fluide dès reconnexion et réception de la réponse d'Otis.
 
 ---
 

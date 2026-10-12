@@ -67,3 +67,25 @@ export function initTheme() {
     });
   }
 }
+
+export function getActiveSessionId() {
+  const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 heures (continuité sans coupure intempestive)
+  const now = Date.now();
+  let sessionId = localStorage.getItem("pah_session_id");
+  const lastActive = parseInt(localStorage.getItem("pah_session_timestamp") || "0", 10);
+
+  if (!sessionId || (now - lastActive) > SESSION_TTL_MS) {
+    const randomPart = Math.random().toString(36).substring(2, 9);
+    sessionId = "pwa_" + now.toString(36) + "_" + randomPart;
+    localStorage.setItem("pah_session_id", sessionId);
+  }
+  localStorage.setItem("pah_session_timestamp", now.toString());
+  return sessionId;
+}
+
+export function resetActiveSessionId() {
+  localStorage.removeItem("pah_session_id");
+  localStorage.removeItem("pah_session_timestamp");
+  return getActiveSessionId();
+}
+

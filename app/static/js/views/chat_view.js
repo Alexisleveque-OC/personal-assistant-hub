@@ -1,6 +1,7 @@
 // Vue Assistant Conversationnel / Chat & Vocal
 import { speak, showUndoToast, hideUndoToast } from "../speech.js";
 import { postInteract, postInteractAudio } from "../api.js";
+import { resetActiveSessionId } from "../config.js";
 
 const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
@@ -41,6 +42,22 @@ export function appendAssistantMessage(text) {
   btnReplay.addEventListener("click", () => speak(text));
 
   bubble.scrollIntoView({ behavior: "smooth" });
+}
+
+export function startNewThread() {
+  resetActiveSessionId();
+  if (chatStream) {
+    chatStream.innerHTML = `
+      <div class="chat-bubble assistant">
+        <div class="bubble-header">
+          <span>Assistant Hub</span>
+        </div>
+        <div class="bubble-content">
+          ✨ Nouveau fil de discussion ouvert. Que puis-je faire pour toi ?
+        </div>
+      </div>
+    `;
+  }
 }
 
 function handleUndoToast(data) {
@@ -137,7 +154,24 @@ export function initChatView() {
     });
   }
 
+  // Bouton Nouveau fil dans le header
+  const btnNewChat = document.getElementById("btn-new-chat");
+  if (btnNewChat) {
+    btnNewChat.addEventListener("click", () => {
+      startNewThread();
+    });
+  }
+
+  // Chip Nouveau fil
+  const chipNewChat = document.getElementById("chip-new-chat");
+  if (chipNewChat) {
+    chipNewChat.addEventListener("click", () => {
+      startNewThread();
+    });
+  }
+
   document.querySelectorAll(".chip-btn").forEach((chip) => {
+    if (chip.id === "chip-new-chat") return;
     chip.addEventListener("click", () => {
       const text = chip.getAttribute("data-query") || chip.textContent.trim();
       sendInteraction(text);

@@ -723,7 +723,7 @@ class IntentParser:
                     update_params["target_date"] = num_date_match.group(1)
 
             # RPE / Ressenti
-            rpe_match = re.search(r"(?:ressenti|rpe).*?\b(?:à|de)\s*([0-9]+)", cleaned) or re.search(r"(?:ressenti|rpe)\s*([0-9]+)", cleaned)
+            rpe_match = re.search(r"(?:ressenti|rpe).*?\b(?:à|a|de)\s*([0-9]+)", cleaned) or re.search(r"(?:ressenti|rpe)\s*([0-9]+)", cleaned)
             if rpe_match:
                 update_params["ressenti_rpe"] = int(rpe_match.group(1))
 
@@ -997,6 +997,49 @@ class IntentParser:
             )
 
         # 10.3 Capture & enregistrement d'une note (5 segments)
+        # a0) Note contextuelle multi-tours / anaphore sur les échanges récents
+        # (ex: "prend note de ces 3 derniers échanges. Il faut corriger", "prends note de ça", "note ces derniers échanges")
+        context_note_match = re.search(
+            r"^(?:ok\s+)?(?:prends?|fais?|ajoute?|enregistre?)\s+note\s+(?:de\s+)?(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça)(?:[\.:\-]\s*|\s+)?(.*)$",
+            cleaned,
+        ) or re.search(
+            r"^(?:note|enregistre)\s+(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça)(?:[\.:\-]\s*|\s+)?(.*)$",
+            cleaned,
+        )
+        if context_note_match:
+            extra_comment = context_note_match.group(1).strip()
+            history = (context or {}).get("history", [])
+
+            # Synthétiser le contenu à partir de l'historique des échanges
+            if history and isinstance(history, list):
+                turns = []
+                for turn in history[-6:]:
+                    if isinstance(turn, dict):
+                        role = "Alexis" if turn.get("role") == "user" else "Otis"
+                        turns.append(f"{role}: \"{turn.get('text', '')}\"")
+                synthesized_content = " | ".join(turns)
+                if extra_comment:
+                    synthesized_content = f"{extra_comment} (Contexte: {synthesized_content})"
+            else:
+                synthesized_content = extra_comment or text.strip()
+
+            # Catégorisation intelligente (bug_report si problème/correction mentionné, dev_idea sinon)
+            full_check_text = (cleaned + " " + synthesized_content).lower()
+            if any(w in full_check_text for w in ("corriger", "bug", "erreur", "ne fonctionne pas", "problème", "échec", "plantage")):
+                cat = NoteCategory.BUG_REPORT.value
+            else:
+                cat = NoteCategory.DEV_IDEA.value
+
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.95,
+                parameters={
+                    "category": cat,
+                    "content": synthesized_content,
+                },
+                raw_query=text,
+            )
+
         # a) dev_idea : "à dev : ...", "idée dev : ...", "idée de dev : ...", "idée de code : ..."
         dev_match = re.search(r"^(?:(?:note\s+)?à\s+dev(?:\s*[:\-]\s*|\s+)|idée\s+(?:de\s+)?(?:dev|code)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
         if dev_match:

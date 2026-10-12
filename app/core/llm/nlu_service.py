@@ -111,8 +111,11 @@ RÈGLES DE STYLE ET CONCISION (OBLIGATOIRE) :
 - Sois très concis : MAXIMUM 1 à 2 phrases courtes et directes.
 - Évite les formules de politesse creuses et les flatteries inutiles. Va droit au fait avec l'esprit vif et complice d'Otis.
 
-CONTINUITÉ DU DIALOGUE (CONTEXTE ET MÉMOIRE) :
-- Utilise l'historique des échanges récents pour maintenir le fil de la discussion. Ne redemande jamais ce qui a déjà été dit.
+CONTINUITÉ DU DIALOGUE ET RÉSOLUTION DU CONTEXTE (OBLIGATOIRE) :
+- Utilise TOUJOURS l'historique des échanges récents pour maintenir le fil de la discussion. Ne redemande JAMAIS ce qui a déjà été dit ou clarifié.
+- Réponse à une question d'Otis : Si Otis a posé une question au tour précédent (ex: choix entre matériel ou application, demande de précision sur un plat, etc.), et qu'Alexis y répond brièvement (ex: "C'est l'application", "La deuxième", "Celui-là", "Non", "Oui"), interprète impérativement sa réponse comme la continuation directe du sujet évoqué. Ne redemande jamais "De quoi parles-tu ?" ou "Quelle application ?".
+- Prise de note sur référence anaphorique : Si Alexis dit "prends note de ça", "enregistre ce bug", "note ces derniers échanges", déclenche l'intention "save_note" et synthétise fidèlement le problème ou l'idée discutée dans les derniers échanges récents dans "content" (catégorie "bug_report" pour une anomalie, "dev_idea" pour une idée, etc.).
+- Référence temporelle ou sportive implicite : Si Alexis dit "il fallait en modifier le RPE à 3" ou "change la note à 8", utilise la séance de sport évoquée dans l'historique récent ou aujourd'hui.
 """
 
 GEMINI_JSON_SCHEMA = {
@@ -256,10 +259,27 @@ class GeminiNLUService:
 
         if history and isinstance(history, list):
             user_content += "Historique des échanges récents :\n"
-            for turn in history[-6:]:
+            for turn in history[-20:]:
                 if isinstance(turn, dict):
-                    role = "Alexis" if turn.get("role") == "user" else "Assistant"
-                    user_content += f"- {role} : \"{turn.get('text', '')}\"\n"
+                    role = "Alexis" if turn.get("role") == "user" else "Otis"
+                    ts = turn.get("timestamp")
+                    time_prefix = ""
+                    if ts:
+                        try:
+                            turn_dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                            diff = now - turn_dt.replace(tzinfo=None)
+                            diff_sec = max(0, int(diff.total_seconds()))
+                            if diff_sec < 60:
+                                time_prefix = "[À l'instant] "
+                            elif diff_sec < 3600:
+                                time_prefix = f"[Il y a {diff_sec // 60} min] "
+                            elif diff_sec < 86400:
+                                time_prefix = f"[Il y a {diff_sec // 3600}h] "
+                            else:
+                                time_prefix = f"[{turn_dt.strftime('%d/%m %H:%M')}] "
+                        except Exception:
+                            time_prefix = ""
+                    user_content += f"- {time_prefix}{role} : \"{turn.get('text', '')}\"\n"
             user_content += "\n"
 
         user_content += f"Requête actuelle d'Alexis : \"{query}\""

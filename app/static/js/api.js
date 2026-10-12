@@ -1,5 +1,5 @@
 // Client API HTTP fetch avec authentification par clé API
-import { state } from "./config.js";
+import { state, getActiveSessionId } from "./config.js";
 
 export function getAuthHeaders() {
   const headers = { "Content-Type": "application/json" };
@@ -9,21 +9,21 @@ export function getAuthHeaders() {
   return headers;
 }
 
-export async function postInteract(queryText) {
+export async function postInteract(queryText, sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
   const res = await fetch("/api/v1/interact", {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ query: queryText })
+    body: JSON.stringify({ query: queryText, session_id: finalSessionId })
   });
   return res;
 }
 
 export async function postInteractAudio(audioBlob, sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
   const formData = new FormData();
   formData.append("audio_file", audioBlob, "recording.webm");
-  if (sessionId) {
-    formData.append("session_id", sessionId);
-  }
+  formData.append("session_id", finalSessionId);
   const headers = {};
   if (state.apiKey) {
     headers["X-API-Key"] = state.apiKey;

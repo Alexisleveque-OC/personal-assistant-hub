@@ -22,6 +22,7 @@ from app.core.dependencies import (
     get_sessions_store,
     get_database_manager,
 )
+from app.core.session_manager import get_session_manager
 from app.handlers.meals_handler import handle_meals_intent
 from app.handlers.sport_handler import handle_sport_intent
 from app.handlers.second_brain_handler import handle_second_brain_intent
@@ -48,9 +49,9 @@ intent_parser = IntentParser()
 )
 async def parse_intent(request: InteractionRequest):
     """Analyse la phrase en langage naturel et extrait l'intention et ses paramètres."""
-    sessions = get_sessions_store()
     session_id = request.session_id or request.source or "default"
-    session_ctx = sessions.setdefault(session_id, {})
+    sess_mgr = get_session_manager()
+    session_ctx = sess_mgr.get_session(session_id)
     if request.context:
         session_ctx.update(request.context)
     return intent_parser.parse(request.query, context=session_ctx)
@@ -89,8 +90,8 @@ async def interact(
             data={},
         )
 
-    sessions = get_sessions_store()
-    session_ctx = sessions.setdefault(session_id, {})
+    sess_mgr = get_session_manager()
+    session_ctx = sess_mgr.get_session(session_id)
     if request.context:
         session_ctx.update(request.context)
 
@@ -194,11 +195,12 @@ async def interact(
     spoken, data = handled
 
     # Mémorisation du tour dans l'historique de la session pour la continuité conversationnelle
-    hist = session_ctx.setdefault("history", [])
-    hist.append({"role": "user", "text": request.query.strip()})
-    hist.append({"role": "assistant", "text": spoken.strip()})
-    if len(hist) > 6:
-        session_ctx["history"] = hist[-6:]
+    sess_mgr.record_turn(
+        session_id=session_id,
+        user_text=request.query,
+        assistant_text=spoken,
+        extra_context=session_ctx,
+    )
 
     is_success = parsed.intent != IntentType.UNKNOWN and "error" not in parsed.parameters
     latency_ms = (time.perf_counter() - start_time) * 1000

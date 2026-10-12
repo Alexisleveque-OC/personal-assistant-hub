@@ -52,6 +52,7 @@ async def handle_sport_intent(
                     session = all_s[0] if all_s else None
 
                 if session:
+                    session_ctx["last_sport_date"] = str(session.date)
                     data["session"] = session.model_dump(mode="json")
                     type_nom = session.type_seance.value if hasattr(session.type_seance, "value") else str(session.type_seance)
                     dist_str = f"{session.distance_km:.2f}".rstrip("0").rstrip(".").replace(".", ",") if session.distance_km else ""
@@ -88,6 +89,7 @@ async def handle_sport_intent(
                 prep_prefix = f"Pour {date_phrase}" if date_phrase in ("aujourd'hui", "demain", "après-demain", "hier", "avant-hier") else f"Pour le {date_phrase}"
 
                 if session:
+                    session_ctx["last_sport_date"] = str(session.date)
                     data["session"] = session.model_dump()
                     type_nom = session.type_seance.value if hasattr(session.type_seance, "value") else str(session.type_seance)
                     dist_str = f"{session.distance_km:.2f}".rstrip("0").rstrip(".").replace(".", ",") if session.distance_km else ""
@@ -205,6 +207,7 @@ async def handle_sport_intent(
                 )
 
             data["session"] = new_session.model_dump()
+            session_ctx["last_sport_date"] = str(new_session.date)
             minutes = ((dur_sec or 1800) // 60)
             if is_validating_planned and planned_session:
                 dist_str = f" de {str(dist).replace('.', ',')} km" if dist else ""
@@ -229,7 +232,7 @@ async def handle_sport_intent(
             raw_date = parsed.parameters.get("target_date")
             if isinstance(raw_date, date):
                 target_d = raw_date
-            elif raw_date in ("today", "aujourd'hui", None):
+            elif raw_date in ("today", "aujourd'hui"):
                 target_d = date.today()
             elif raw_date == "demain":
                 target_d = date.today() + timedelta(days=1)
@@ -237,6 +240,8 @@ async def handle_sport_intent(
                 target_d = date.today() - timedelta(days=1)
             elif raw_date:
                 target_d = parse_target_date(str(raw_date))
+            elif session_ctx.get("last_sport_date"):
+                target_d = parse_target_date(str(session_ctx["last_sport_date"]))
             else:
                 target_d = date.today()
 
@@ -258,6 +263,8 @@ async def handle_sport_intent(
                 try:
                     updated = sport_connector.update_session(target_d, update_payload)
                     data["session"] = updated.model_dump()
+                    if rpe is not None:
+                        data["ressenti_rpe"] = rpe
                     date_disp = format_natural_spoken_date(target_d, preposition=True)
                     charge = updated.charge_rpe
 
