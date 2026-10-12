@@ -1,10 +1,11 @@
-# Roadmap Feature : Phase 6.5 - Migration Sport vers SQLite & Résolution Temporelle (`feat/sport-sqlite-migration`)
+# Roadmap Feature : Phase 6.6 - Stabilisation, Corrections de Bugs & Évolution Sport / Chat Vocal (`feat/bugfix-phase6-6`)
 
 > **Règles d'or (AGENTS.md) :**
 > - Chaque étape doit être validée **manuellement et explicitement par l'utilisateur** avant de passer à la suivante.
 > - La suite de tests automatisés (`pytest`) doit être à **100% au vert** à chaque étape (TDD strict : Rouge ➔ Vert ➔ Refactor).
 > - Zéro commit prématuré sans test ni validation préalable.
 > - À la fin de la feature, un **test d'intégration End-to-End (E2E)** doit valider le flux complet de bout en bout.
+> - Déploiement en production et validation utilisateur.
 
 ---
 
@@ -12,123 +13,108 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | **Schéma Relationnel SQLite Sport :** Tables `sport_sessions` et `sport_weekly_summaries` dans `DatabaseManager` (`hub_data.db`), index, contraintes et méthodes CRUD | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (393/393 total) au vert |
-| **Étape 2** | **Connecteur Backend `SqlSportConnector` :** Implémentation haute performance (< 1 ms), parité fonctionnelle complète avec `SportConnector` et calculs de charge en mémoire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (401/401 total) au vert |
-| **Étape 3** | **Script de Migration & Outils d'Export/Backup :** Aspiration complète du Google Sheet actif vers SQLite et utilitaire d'export/backup de secours (CSV / JSON) | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (403/403 total) au vert |
-| **Étape 4** | **Résolution Sémantique Temporelle (« Ma dernière séance ») :** Interrogation dynamique en base SQLite pour « ma dernière séance », « mon dernier footing », « mon dernier renfo » | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (407/407 total) au vert |
-| **Étape 5** | **Ergonomie Vocale & Dates Naturelles :** Suppression du « Pour aujourd'hui... » hardcodé, dates orales naturelles (« du 7 octobre »), tolérance infinitif et lexique (« renfort ») | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (411/411 total) au vert |
-| **Étape 6** | **Bascule Globale vers `SqlSportConnector` :** Injection du connecteur SQLite par défaut dans `dependencies.py`, routes REST et découplage total de Google Sheets | 🟢 Terminé | Validé par l'utilisateur | ✅ 2/2 tests dédiés (413/413 total) au vert |
-| **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle (persistance locale, requêtes temporelles, oralisation naturelle, export de secours) | 🟢 Terminé | Validé par l'utilisateur | ✅ 1/1 test E2E dédié (414/414 total) au vert |
+| **Étape 1** | **Correcteur Temporel Universel :** Résolution unifiée des expressions relatives (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 2** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 3** | **Éditeur Manuel Complet des Séances de Sport (PWA) :** Modal d'édition manuelle de chaque champ (distance, durée, D+, RPE, notes, remarques, type) pour modifier ses séances en toute autonomie | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 4** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + tolérances phonétiques et réveil in-app sur « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 5** | **Correction Sauvegarde des Séances (Screen 2) :** Résolution de l'erreur *« ❌ Échec. Réessayer »* lors de la validation du ressenti RPE et des notes de course dans l'interface PWA Sport | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 6** | **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4) :** Fin du mode 100% "stateless", buffer d'historique des derniers échanges pour conserver le contexte du dialogue | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression (419+ tests), déploiement prod et recette utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
 
 ---
 
 ## Détail des Étapes
 
-### 🟢 Étape 1 : Schéma Relationnel SQLite & Persistance Sport (`sport_sessions`, `sport_weekly_summaries`)
-* **Objectifs réalisés :**
-  1. **Schéma de données étendu dans `DatabaseManager.init_db()` :**
-     - Table `sport_sessions` créée avec colonnes typées, contraintes et index (`idx_sport_sessions_date`, `idx_sport_sessions_semaine`, `idx_sport_sessions_type`, `idx_sport_sessions_statut`).
-     - Table `sport_weekly_summaries` créée avec contrainte d'unicité `UNIQUE(semaine, annee)` et index composé `idx_sport_summaries_semaine_annee`.
-  2. **Méthodes CRUD et requêtage ajoutées dans `DatabaseManager` :**
-     - Sessions : `add_sport_session`, `get_sport_session_by_id`, `get_sport_session_by_date`, `get_sport_sessions` (avec filtres de date, semaine, type, statut, pagination), `get_last_sport_session`, `update_sport_session`, `delete_sport_session`.
-     - Synthèses : `upsert_sport_weekly_summary` (avec `ON CONFLICT DO UPDATE`), `get_sport_weekly_summary`, `get_all_sport_weekly_summaries`, `delete_sport_weekly_summary`.
-  3. **TDD strict :** 4/4 tests unitaires validés dans `tests/test_database_sport.py`.
-  4. **Zéro régression :** 393/393 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Validé par l'utilisateur et commité (`295a5b3`).
-
----
-
-### 🟢 Étape 2 : Connecteur Backend `SqlSportConnector`
-* **Objectifs réalisés :**
-  1. **Implémentation de `SqlSportConnector` dans `app/connectors/sqlite/sport_connector.py` :**
-     - Respect de l'interface `BaseConnector` avec propriété `name = "sqlite_sport"`, méthode `is_healthy()` et méthode générique `execute_action()`.
-     - Parité fonctionnelle complète avec `SportConnector` : `get_session`, `get_all_sessions`, `get_week_sessions`, `log_session`, `plan_session`, `plan_weekly_sessions`, `update_session`, `get_weekly_summary`, `get_all_summaries`.
-  2. **Performance & Temps Réel :**
-     - Zéro latence réseau Google Sheets (< 1 ms d'exécution en SQLite WAL local).
-     - Zéro quota API Google.
-  3. **Synchronisation automatique des métriques physiologiques :**
-     - Calcul automatique de la synthèse hebdomadaire et persistance dans `sport_weekly_summaries` à chaque enregistrement ou mise à jour de séance.
-     - Gestion du `target_type` pour cibler une séance précise en cas de séances multiples à la même date (ex: Footing + Renforcement).
-     - Gestion d'extension de remarques (`append_remarques`, `append_notes`).
-  4. **TDD strict :** 8/8 tests unitaires validés dans `tests/test_sql_sport_connector.py`.
-  5. **Zéro régression :** 401/401 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Validé par l'utilisateur et commité (`cf48319`).
-
----
-
-### 🟢 Étape 3 : Script d'Aspiration & Migration Google Sheets ➔ SQLite + Outil d'Export/Backup
-* **Objectifs réalisés :**
-  1. **Script de migration one-off (`scripts/migrate_sport_sheets_to_sqlite.py`) :**
-     - Aspiration complète des séances et synthèses depuis le Google Sheet actif via `SportConnector`.
-     - Insertion et mise à jour idempotente dans SQLite (zéro doublon en cas de réexécution).
-     - Support CLI avec options `--db-path` et `--dry-run`.
-  2. **Outil d'export/backup de secours (`scripts/export_sport_data.py`) :**
-     - Export complet en JSON (`sport_backup_YYYYMMDD_HHMMSS.json`).
-     - Export en CSV séparé (`sport_sessions_*.csv` et `sport_weekly_summaries_*.csv`).
-     - Support CLI avec options `--output-dir`, `--format json|csv|all`, `--db-path`.
-  3. **TDD strict :** 2/2 tests unitaires validés dans `tests/test_sport_migration_and_export.py`.
-  4. **Zéro régression :** 403/403 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Validé par l'utilisateur et commité (`ffe8712`).
-
----
-
-### 🟢 Étape 4 : Résolution Sémantique Temporelle (« Ma dernière séance »)
-* **Objectifs réalisés :**
-  1. **Méthode `get_last_session` dans `SqlSportConnector` :**
-     - Interrogation directe de SQLite (`get_last_sport_session`) filtrée par statut (`SportSessionStatus.REALISE` par défaut) et type de séance optionnel (`EF`, `Fractionné`, `Renforcement`, etc.).
-  2. **Parsing sémantique dans `IntentParser` :**
-     - Détection précise des requêtes temporelles : « ma dernière séance », « rappelle-moi mon dernier footing », « mon dernier renfo », « mon dernier renforcement ».
-     - Extraction dynamique du type de séance cible (`session_type`).
-     - Exclusion des consultations temporelles sportives de la création de tâches Google Tasks.
-  3. **Résolution dynamique dans `sport_handler.py` :**
-     - Traitement du cas `is_last` sans jamais présumer arbitrairement `date.today()`.
-     - Formulation orale personnalisée : « Votre dernière séance était une séance de Fractionné de 10 km : 6x400m à 3'45/km. »
-     - Réponse de repli claire si aucune séance passée n'existe en base.
-  4. **TDD strict :** 4/4 tests unitaires validés dans `tests/test_sport_temporal_resolution.py`.
-  5. **Zéro régression :** 407/407 tests au vert sur l'ensemble du projet.
-* **Statut :** 🟢 Terminé, prêt pour validation utilisateur.
-
----
-
-### 🟢 Étape 5 : Ergonomie Vocale, Formulations Naturelles & Tolérances Linguistiques
-* **Objectifs :**
-  1. Supprimer le texte hardcodé « Pour aujourd'hui... » de `sport_handler.py` lors de la consultation d'une séance à une autre date ou de la dernière séance.
-  2. Implémenter un formateur oral de dates naturelles (`format_natural_spoken_date(target_date)`) :
-     - Exemples : « d'aujourd'hui », « d'hier », « de demain », « du dimanche 4 octobre ».
-  3. Améliorer la flexibilité grammaticale :
-     - Support de l'infinitif dans les requêtes vocales (« modifier ma séance », « changer le rpe », « planifier un footing »).
-     - Déclinaisons de vocabulaire : « renfort », « renfo », « muscu », « musculation », « PPG », « gainage » mappés automatiquement vers `SportSessionType.RENFORCEMENT`.
+### ⏳ Étape 1 : Correcteur Temporel Universel
+* **Contexte & Problème :**
+  - Des requêtes contenant des termes temporels relatifs (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) subissent parfois des décalages calendaires ou sont captées par le mauvais handler.
+* **Objectifs à réaliser :**
+  1. Centraliser et unifier la logique de résolution temporelle dans un service/helper réutilisable (`UniversalDateResolver`).
+  2. Gérer explicitement les expressions pluriel/période : *« ces 3 derniers jours »*, *« les 3 derniers échanges »*, *« cette semaine »*, *« la semaine dernière »*.
+  3. Empêcher toute dérive de date lors du changement de semaine calendaire ou de fin de mois.
 * **Critères d'acceptation :**
-  - Réponses vocales chaleureuses, fluides et exemptes d'incohérences de date.
-  - Tests unitaires validés à 100% dans `tests/test_sport_voice_natural_dates.py`.
+  - Tests unitaires TDD couvrant tous les cas temporels passés, relatifs et multiples.
 
 ---
 
-### 🟢 Étape 6 : Bascule Globale vers `SqlSportConnector` & Nettoyage
-* **Objectifs réalisés :**
-  1. `app/core/dependencies.py` met désormais à disposition `SqlSportConnector` par défaut dans `get_sport_connector()`.
-  2. Variable d'environnement `SPREADSHEET_SPORT_ID` devenue totalement optionnelle (plus d'erreur bloquante si absente).
-  3. `app/routers/sport.py` et le dashboard s'appuient sur le connecteur SQLite unifié.
+### ⏳ Étape 2 : Détection Thématique Contextuelle par Mots-Clés
+* **Contexte & Problème (Screen 4) :**
+  - En disant *« Ok prends note de ces 3 derniers échanges. Il faut corriger »*, l'assistant a compris à tort qu'il devait mettre à jour 3 séances de sport avec un RPE à 3/10 !
+* **Objectifs à réaliser :**
+  1. Renforcer le filtrage par mots-clés thématiques dominants :
+     - Sport/Running : `couru`, `footing`, `fractionné`, `km`, `allure`, `séance de course`, etc.
+     - Renforcement : `renfo`, `gainage`, `pompes`, `muscu`, `étirements`, `tibial`, etc.
+     - Second Cerveau / Notes : `prends note`, `note que`, `rappelle-moi de`, `à noter`, `note de bug`, `idée`.
+     - Métadiscussion : `ces derniers échanges`, `ce qu'on vient de dire`, `la conversation`.
+  2. Priorisation stricte : une intention explicite de prise de note (*« prends note de... »*) ne doit **JAMAIS** déclencher une mutation sportive (CRUD sport).
 * **Critères d'acceptation :**
-  - 100% des tests de régression existants au vert sans dépendance externe à Google Sheets.
-  - Tests unitaires validés à 100% dans `tests/test_sql_sport_default_dependency.py`.
+  - 100% de tests unitaires sur les phrases pièges et phrases mixtes.
 
 ---
 
-### 🟢 Étape 7 : Test d'Intégration End-to-End (E2E) & Recette Finale
-* **Objectifs réalisés :**
-  1. Écriture de `tests/test_e2e_sport_sqlite_migration.py` validant l'ensemble du cycle de bout en bout :
-     - Initialisation base locale SQLite WAL (`DatabaseManager`).
-     - Planification et consultation d'une séance future avec oralisation naturelle.
-     - Enregistrement vocal d'une séance de running avec calculs physiologiques automatiques (allure, vitesse, km-effort, charge RPE).
-     - Enregistrement d'une séance de renforcement avec tolérance lexicale (« renfort » / « muscu »).
-     - Résolution sémantique temporelle dynamique de « ma dernière séance » et par type (« mon dernier renfo »).
-     - Modification orale avec infinitif et oralisation chaleureuse.
-     - Consultation du Dashboard REST `/api/v1/sport/today` et de la synthèse hebdomadaire multicritère.
-     - Export et sauvegarde de secours (JSON et CSV).
-  2. Préservation des séances multiples le même jour (ex: Running le matin + Renforcement l'après-midi) dans `SqlSportConnector`.
-  3. Sérialisation JSON robuste des objets dates dans `DatabaseManager.log_conversation`.
+### ⏳ Étape 3 : Éditeur Manuel Complet des Séances de Sport (PWA)
+* **Contexte & Problème :**
+  - Si l'analyse vocale échoue ou si une séance a besoin d'ajustements fins, l'utilisateur ne peut pas modifier chaque champ individuellement à la main dans l'interface PWA.
+* **Objectifs à réaliser :**
+  1. Ajouter un bouton « Modifier » / icône crayon sur la carte de séance de la PWA.
+  2. Ouvrir un formulaire modal d'édition complet permettant de modifier manuellement :
+     - Type de séance (`EF`, `Fractionné`, `Sortie Longue`, `Renforcement`).
+     - Distance ($km$), Allure / Durée (minutes/secondes), Dénivelé ($D+$).
+     - Ressenti RPE ($1$ à $10$), Notes & Remarques.
+  3. Endpoint backend `PATCH /api/v1/sport/sessions/{id}` avec validation Pydantic granulaire et recalcul automatique de la synthèse hebdomadaire.
 * **Critères d'acceptation :**
-  - Test E2E validé à 100% dans `tests/test_e2e_sport_sqlite_migration.py`.
-  - 100% de la suite de tests au vert (414/414 tests).
+  - Modification manuelle fonctionnelle au clic sur mobile et desktop, avec persistance SQLite immédiate.
 
+---
+
+### ⏳ Étape 4 : Pipeline Vocal PWA (Envoi Audio, Bouton Push-to-Talk & Wake-Word « Otis »)
+* **Contexte & Problèmes (Screen 1 & Retour Utilisateur) :**
+  - Les messages vocaux ne partent pas certains matins.
+  - Le bouton flottant Push-to-Talk se décale au toucher ou au scroll sur smartphone.
+  - La reconnaissance continue du mot-clé de réveil in-app (*« Otis »*) ne se déclenche jamais sur mobile.
+* **Objectifs à réaliser :**
+  1. **Envoi Audio & Permissions :** Auditer le flux d'enregistrement et d'envoi audio dans `app/static/js/app.js` (MediaRecorder, gestion des permissions micro, formats MIME Safari/Chrome/Android, timeout réseau).
+  2. **Stabilité Tactile & CSS du Bouton :** Fixer la position du bouton Push-to-Talk en CSS (`position: fixed`, désactivation du scroll rebond élastique sur le conteneur du bouton, gestion propre de `touch-action: none`).
+  3. **Fiabilisation & Calibrage du Wake-Word In-App (« Otis ») :**
+     - Module de calibrage in-app multi-situations (échantillonnage guidé de 5 à 10 prononciations dans des contextes réels : voix au calme, essoufflé en courant, voix rapide, voix forte).
+     - Apprentissage automatique des retranscriptions du micro pour alimenter un dictionnaire local d'alias personnalisés propre à l'utilisateur.
+     - Tolérances phonétiques françaises par défaut (*« autiste »*, *« notice »*, *« au tisse »*, *« hotis »*, *« dis otis »*).
+     - Rendre le redémarrage de `SpeechRecognition` résilient (reconnexion automatique après silence ou mise en arrière-plan sans planter).
+     - Témoin visuel clair (icône micro pulsante) confirmant l'écoute active du wake-word.
+* **Critères d'acceptation :**
+  - Bouton stable et immobile au toucher sur smartphone.
+  - Envoi des blobs audio fluide sans échec silencieux.
+  - Module de calibrage guidé disponible dans l'onglet réglages/profil.
+  - Déclenchement fluide du réveil in-app, y compris avec une voix essoufflée en courant.
+
+---
+
+### ⏳ Étape 5 : Correction Sauvegarde des Séances (Screen 2)
+* **Contexte & Problème (Screen 2) :**
+  - Erreur *« ❌ Échec. Réessayer »* affichée sur le bouton rouge lors de la saisie du debrief d'une séance de sport.
+* **Objectifs à réaliser :**
+  1. Inspecter la route appelée par le bouton (payload JSON, gestion des types, gestion du RPE, texte avec retours à la ligne ou caractères spéciaux).
+  2. Améliorer la robustesse de l'endpoint et afficher un message d'erreur précis au lieu d'un échec opaque.
+  3. Gérer le retry automatique et la mise à jour optimiste de l'UI.
+* **Critères d'acceptation :**
+  - Validation et enregistrement du debrief sans erreur, passage de la carte à l'état sauvegardé.
+
+---
+
+### ⏳ Étape 6 : Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4)
+* **Contexte & Problème (Screens 3 & 4) :**
+  - Le chat est actuellement 100% stateless : chaque message est traité isolément sans mémoire du message précédent (*« C'est l'application » ➔ « Tu parles de quelle application ? »*).
+* **Objectifs à réaliser :**
+  1. Intégrer un buffer d'historique de conversation (les $N$ derniers messages de la session active) transmis au NLU / Gemini.
+  2. Permettre la résolution contextuelle des anaphores (*« l'application »*, *« celle-ci »*, *« la deuxième »*, *« corrige ça »*).
+  3. Définir une politique de TTL / expiration de session propre pour ne pas mélanger des discussions distantes de plusieurs heures.
+* **Critères d'acceptation :**
+  - Tests unitaires et E2E validant la continuité d'un dialogue multi-tours.
+
+---
+
+### ⏳ Étape 7 : Test d'Intégration End-to-End (E2E) & Recette Finale
+* **Objectifs à réaliser :**
+  1. Test E2E couvrant les scénarios critiques corrigés.
+  2. Validation de la suite complète à 100% au vert.
+  3. Déploiement en production et validation avec l'utilisateur sur mobile.
