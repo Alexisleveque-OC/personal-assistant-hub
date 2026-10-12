@@ -4,6 +4,27 @@ from unittest.mock import MagicMock
 from app.config import settings
 from app.main import set_meals_connector
 from app.connectors.sheets.models import DayMealPlan, ShoppingItem, WaitingListItem
+from app.core.database import DatabaseManager, set_database_manager
+
+
+@pytest.fixture(autouse=True)
+def isolate_sqlite_database(tmp_path, monkeypatch):
+    """Garantit qu'aucun test ne lit ni n'écrit dans hub_data.db de production.
+
+    Crée une base SQLite temporaire isolée dans tmp_path pour chaque test,
+    initialise son schéma complet, et l'injecte dans settings et le singleton DatabaseManager.
+    """
+    test_db_path = str(tmp_path / "test_isolated.db")
+    monkeypatch.setattr(settings, "sqlite_db_path", test_db_path)
+
+    test_manager = DatabaseManager(db_path=test_db_path)
+    test_manager.init_db()
+    set_database_manager(test_manager)
+
+    try:
+        yield test_manager
+    finally:
+        set_database_manager(None)
 
 
 @pytest.fixture(autouse=True)
@@ -57,3 +78,4 @@ def isolate_test_environment(request, monkeypatch):
         yield mock_connector
     finally:
         set_meals_connector(None)
+
