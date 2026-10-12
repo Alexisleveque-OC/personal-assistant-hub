@@ -939,19 +939,28 @@ class IntentParser:
             )
 
         # 9.4 Consultation de séance ("qu'est-ce que j'ai comme séance aujourd'hui ?", "c'est quoi ma course de demain ?")
-        if re.search(r"(?:séance|course|footing|entraînement|entrainement)\s+(?:d[' ]|de\s+)?(aujourd[' ]?hui|demain|hier|ce soir)", cleaned) or \
-           re.search(r"(?:qu[' ]?est[- ]ce\s+que\s+j[' ]?ai\s+comme\s+séance|c[' ]?est\s+quoi\s+ma\s+course)", cleaned):
+        if re.search(r"(?:séance|course|footing|entraînement|entrainement)\s+(?:d[' ]|de\s+)?(aujourd[' ]?hui|demain|hier|ce soir|avant[- ]hier|après[- ]demain|apres[- ]demain)", cleaned) or \
+           re.search(r"(?:qu[' ]?est[- ]ce\s+que\s+j[' ]?ai\s+comme\s+séance|c[' ]?(?:est|était)\s+quoi\s+ma\s+(?:séance|course|sortie|footing))", cleaned):
+            resolved = resolve_date_expression(cleaned)
             target_date = "today"
             if "demain" in cleaned:
                 target_date = "demain"
             elif "hier" in cleaned:
                 target_date = "hier"
+            elif "avant-hier" in cleaned or "avant hier" in cleaned:
+                target_date = "avant-hier"
+            elif "aujourd" in cleaned or "ce jour" in cleaned:
+                target_date = "today"
+            elif resolved.target_date:
+                target_date = resolved.target_date.isoformat()
             return ParsedIntent(
                 intent=IntentType.GET_SPORT_SESSION,
                 confidence=0.92,
                 parameters={"target_date": target_date},
                 raw_query=text,
             )
+
+
 
         # 10. Second Cerveau & Notes compartimentées (Phase 6)
         # 10.1 Consultation de notes ("quelles sont mes idées de dev", "liste mes notes", "mes bugs")

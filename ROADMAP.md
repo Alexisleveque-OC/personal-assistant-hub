@@ -13,7 +13,7 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | **Correcteur Temporel Universel :** Résolution unifiée des expressions relatives (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 1** | **Correcteur Temporel Universel :** Résolution unifiée des expressions relatives (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (427/427 total) au vert |
 | **Étape 2** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 3** | **Éditeur Manuel Complet des Séances de Sport (PWA) :** Modal d'édition manuelle de chaque champ (distance, durée, D+, RPE, notes, remarques, type) pour modifier ses séances en toute autonomie | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 4** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + tolérances phonétiques et réveil in-app sur « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
@@ -25,15 +25,21 @@
 
 ## Détail des Étapes
 
-### ⏳ Étape 1 : Correcteur Temporel Universel
-* **Contexte & Problème :**
-  - Des requêtes contenant des termes temporels relatifs (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) subissent parfois des décalages calendaires ou sont captées par le mauvais handler.
-* **Objectifs à réaliser :**
-  1. Centraliser et unifier la logique de résolution temporelle dans un service/helper réutilisable (`UniversalDateResolver`).
-  2. Gérer explicitement les expressions pluriel/période : *« ces 3 derniers jours »*, *« les 3 derniers échanges »*, *« cette semaine »*, *« la semaine dernière »*.
-  3. Empêcher toute dérive de date lors du changement de semaine calendaire ou de fin de mois.
+### 🟢 Étape 1 : Correcteur Temporel Universel
+* **Contexte & Problème résolu :**
+  - Des requêtes contenant des termes temporels relatifs (*« hier »*, *« avant-hier »*, *« demain »*, *« après-demain »*, *« dimanche dernier »*, *« ces 3 derniers jours »*) subissaient des collisions ou n'étaient pas captées correctement.
+* **Objectifs réalisés :**
+  1. Centralisation dans `app/core/date_resolver.py` avec `TemporalRangeType` et `resolve_temporal_range` :
+     - Résolution de fenêtres de jours (*« ces 3 derniers jours »* ➔ liste exacte des dates et bornes).
+     - Résolution des semaines (*« cette semaine »*, *« la semaine dernière »*, *« la semaine prochaine »*).
+  2. Support complet des expressions relatives passées et futures dans `resolve_date_expression` :
+     - *« avant-hier »*, *« hier »*, *« après-demain »*, *« demain »*.
+     - Jours relatifs avec *« dernier / dernière »* (*« dimanche dernier »*, *« lundi dernier »* résolu dans le passé de 1 à 7 jours).
+  3. Distinction étanche entre période calendaire et décompte d'échanges conversationnels (*« ces 3 derniers échanges »* ne produit aucune date calendaire parasite).
+  4. Intégration dans `IntentParser` : support complet des consultations de séances passées/futures (*« c'est quoi ma séance d'avant-hier ? »*).
 * **Critères d'acceptation :**
-  - Tests unitaires TDD couvrant tous les cas temporels passés, relatifs et multiples.
+  - 8/8 tests unitaires TDD validés dans `tests/test_universal_date_resolver.py`.
+  - Non-régression totale : 427/427 tests passés au vert.
 
 ---
 
