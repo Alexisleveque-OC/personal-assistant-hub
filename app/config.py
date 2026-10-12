@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     # Base de Données Locale SQLite (hub_data.db)
     sqlite_db_path: str = "hub_data.db"
+    litestream_replica_url: str = ""
 
     # Google Sheets
     google_service_account_file: str = "credentials.json"

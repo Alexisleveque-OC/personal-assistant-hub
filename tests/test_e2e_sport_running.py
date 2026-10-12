@@ -134,7 +134,13 @@ class InMemorySportStore:
 @pytest.fixture
 def e2e_sport_store(monkeypatch):
     """Prépare un historique représentatif de 3 semaines pour tester l'intégralité du flow."""
+    from datetime import timedelta
     ref_today = date.today()
+
+    prev_week_date = ref_today - timedelta(days=7)
+    prev_week_num = prev_week_date.isocalendar()[1]
+    prev_2_week_date = ref_today - timedelta(days=14)
+    prev_2_week_num = prev_2_week_date.isocalendar()[1]
 
     # Mock rapide du conseil LLM pour éviter les timeouts réseau pendant la validation
     async def mock_coach_tip(context):
@@ -155,14 +161,14 @@ def e2e_sport_store(monkeypatch):
     import app.routers.sport as sport_router
     monkeypatch.setattr(sport_router, "_call_gemini_coach_tip", mock_coach_tip)
 
-    # Semaine 39 : 4 séances (EF, Fractionné, SL, Renfo)
-    s39_1 = SportSession(date=date(2026, 9, 22), semaine=39, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.EF, distance_km=8.0, duree_secondes=2700, denivele_d_plus=50, ressenti_rpe=5)
-    s39_2 = SportSession(date=date(2026, 9, 24), semaine=39, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.FRACTIONNE, distance_km=7.0, duree_secondes=2250, denivele_d_plus=30, ressenti_rpe=7)
-    s39_3 = SportSession(date=date(2026, 9, 26), semaine=39, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.SORTIE_LONGUE, distance_km=14.0, duree_secondes=4900, denivele_d_plus=150, ressenti_rpe=6)
-    s39_4 = SportSession(date=date(2026, 9, 27), semaine=39, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.RENFORCEMENT, distance_km=0.0, duree_secondes=1800, denivele_d_plus=0, ressenti_rpe=5)
+    # Semaine S-2 : 4 séances (EF, Fractionné, SL, Renfo)
+    s39_1 = SportSession(date=prev_2_week_date - timedelta(days=3), semaine=prev_2_week_num, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.EF, distance_km=8.0, duree_secondes=2700, denivele_d_plus=50, ressenti_rpe=5)
+    s39_2 = SportSession(date=prev_2_week_date - timedelta(days=2), semaine=prev_2_week_num, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.FRACTIONNE, distance_km=7.0, duree_secondes=2250, denivele_d_plus=30, ressenti_rpe=7)
+    s39_3 = SportSession(date=prev_2_week_date - timedelta(days=1), semaine=prev_2_week_num, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.SORTIE_LONGUE, distance_km=14.0, duree_secondes=4900, denivele_d_plus=150, ressenti_rpe=6)
+    s39_4 = SportSession(date=prev_2_week_date, semaine=prev_2_week_num, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.RENFORCEMENT, distance_km=0.0, duree_secondes=1800, denivele_d_plus=0, ressenti_rpe=5)
 
-    # Semaine 40 : 1 séance précédente du même type (pour alimenter le comparateur)
-    s40_prev_ef = SportSession(date=date(2026, 9, 29), semaine=40, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.EF, distance_km=9.0, duree_secondes=3100, denivele_d_plus=60, ressenti_rpe=5, remarques="Bonne aisance")
+    # Semaine S-1 : 1 séance précédente du même type (pour alimenter le comparateur et le plafond)
+    s40_prev_ef = SportSession(date=prev_week_date, semaine=prev_week_num, statut=SportSessionStatus.REALISE, type_seance=SportSessionType.EF, distance_km=9.0, duree_secondes=3100, denivele_d_plus=60, ressenti_rpe=5, remarques="Bonne aisance")
 
     # Séance planifiée pour aujourd'hui
     s_today_planned = SportSession(date=ref_today, semaine=ref_today.isocalendar()[1], statut=SportSessionStatus.PLANIFIE, type_seance=SportSessionType.EF, distance_km=10.5, duree_secondes=3600, notes="Footing d'EF régulier en endurance fondamentale")
@@ -184,6 +190,7 @@ def e2e_sport_store(monkeypatch):
 
 def test_complete_e2e_running_and_coach_otis_lifecycle(e2e_sport_store):
     """Scénario d'intégration E2E complet validant l'ensemble du cycle de vie Sport Running."""
+    from datetime import timedelta
     today = date.today()
 
     # -------------------------------------------------------------------------
@@ -232,10 +239,11 @@ def test_complete_e2e_running_and_coach_otis_lifecycle(e2e_sport_store):
     assert session_done["vitesse_kmh"] is not None
     assert session_done["allure_secondes"] is not None
 
-    # Vérification du comparateur de séances (avec celle du 2026-09-29)
+    # Vérification du comparateur de séances (avec celle de la semaine précédente)
     assert len(data_today_done["comparisons"]) == 1
     comp = data_today_done["comparisons"][0]
-    assert comp["previous_session"]["date"] == "2026-09-29"
+    prev_week_expected_date = (today - timedelta(days=7)).isoformat()
+    assert comp["previous_session"]["date"] == prev_week_expected_date
     dist_delta = next((d for d in comp["deltas"] if d["metric"] == "distance_km"), None)
     assert dist_delta is not None
     assert dist_delta["current"] == 10.5
