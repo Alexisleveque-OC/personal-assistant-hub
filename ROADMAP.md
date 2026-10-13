@@ -15,9 +15,11 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Correcteur Temporel Universel :** Résolution unifiée des expressions relatives (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (427/427 total) au vert |
 | **Étape 2** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
-| **Étape 3** | **Éditeur Manuel Complet des Séances de Sport (PWA) :** Modal d'édition manuelle de chaque champ (distance, durée, D+, RPE, notes, remarques, type) pour modifier ses séances en toute autonomie | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 3** | **Éditeur Manuel Séances de Sport & Suppression (PWA) :** Modal d'édition des champs bruts (distance, durée, D+, RPE, météo, FC, notes, type) et bouton de suppression de séance avec confirmation pour assainir le carnet | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 3.1** | **Import Strava Fiabilisé & Observabilité Erreurs UI :** Synchro Strava fiabilisée avec bouton manuel et affichage de messages d'erreurs explicites (fin des échecs muets) | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 4** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + tolérances phonétiques et réveil in-app sur « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
-| **Étape 5** | **Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux) :** Résolution de l'erreur *« ❌ Échec. Réessayer »*, suppression des créations de doublons lors d'un debrief (*« sur cette séance »*), et correction automatique sur plainte utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 5** | **Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux) :** Résolution de l'erreur *« ❌ Échec »*, suppression des doublons et fusion réelle de doublon | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (439/439 total) au vert |
+| **Étape 5.1** | **Persistance Débriefing Rétroactif, Préservation Sélective & FC :** Résolution de l'écrasement à 0/None, support complet FC (moy/max), persistance brute garantie et affichage Charge RPE & Météo | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (446/446 total) au vert |
 | **Étape 6** | **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4) :** Fin du mode stateless, buffer d'historique de 20 messages avec horodatages et bouton de nouveau fil | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (434/434 total) au vert |
 | **Étape 6.1** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé, indicateur d'attente et envoi automatique dès reconnexion | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression, déploiement prod et recette utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
@@ -60,17 +62,46 @@
 ---
 
 ### ⏳ Étape 3 : Éditeur Manuel Complet des Séances de Sport (PWA)
-* **Contexte & Problème :**
-  - Si l'analyse vocale échoue ou si une séance a besoin d'ajustements fins, l'utilisateur ne peut pas modifier chaque champ individuellement à la main dans l'interface PWA.
+* **Contexte & Règle d'or de conception (Validation Alexis) :**
+  - Si l'analyse vocale échoue ou si une séance a besoin d'ajustements fins, l'utilisateur doit pouvoir modifier les données brutes de la séance sans risquer d'altérer la logique métier.
+  - **Distinction stricte Champs Bruts vs Champs Calculés :**
+    - **Champs bruts modifiables (updatables) :**
+      * `distance_km`, `duree_secondes` (minutes et secondes), `denivele_d_plus`.
+      * `ressenti_rpe` (1 à 10), `meteo_note` (1 à 10).
+      * `type_seance` (`EF`, `Fractionné`, `Sortie Longue`, `Renforcement`).
+      * `programme`, `remarques`, `notes`, `fc_moyenne`, `fc_max`.
+    - **Champs calculés protégés (NON updatables manuellement car dérivés automatiquement) :**
+      * `allure_moyenne` (dérivée de duree / distance).
+      * `vitesse_moyenne` (dérivée de distance / duree).
+      * `charge_rpe` (dérivée de RPE * (duree_secondes / 60)).
+      * `km_effort` (dérivé de distance + D+ / 100).
+      * Synthèses hebdomadaires et mensuelles (recalculées de façon déterministe par le moteur).
 * **Objectifs à réaliser :**
-  1. Ajouter un bouton « Modifier » / icône crayon sur la carte de séance de la PWA.
-  2. Ouvrir un formulaire modal d'édition complet permettant de modifier manuellement :
-     - Type de séance (`EF`, `Fractionné`, `Sortie Longue`, `Renforcement`).
-     - Distance ($km$), Allure / Durée (minutes/secondes), Dénivelé ($D+$).
-     - Ressenti RPE ($1$ à $10$), Notes & Remarques.
-  3. Endpoint backend `PATCH /api/v1/sport/sessions/{id}` avec validation Pydantic granulaire et recalcul automatique de la synthèse hebdomadaire.
+  1. Bouton « Modifier » / icône crayon sur la carte de séance de la PWA.
+  2. Formulaire modal d'édition restreint aux champs bruts éligibles (distance, durée, D+, RPE, météo, FC, notes, type).
+  3. Endpoint backend `PATCH /api/v1/sport/session/{date}` ou `{id}` avec validation Pydantic granulaire et recalcul automatique immédiat des indicateurs dérivés.
+  4. Bouton « Supprimer la séance » (icône poubelle rouge) avec modal de confirmation (*« Voulez-vous vraiment supprimer cette séance ? »*) et endpoint `DELETE /api/v1/sport/session/{id}` pour éliminer instantanément une séance parasite/doublon et recalculer automatiquement le bilan hebdomadaire.
 * **Critères d'acceptation :**
   - Modification manuelle fonctionnelle au clic sur mobile et desktop, avec persistance SQLite immédiate.
+  - Suppression de séance fluide avec mise à jour instantanée du carnet et de la synthèse hebdo.
+  - Recalcul automatique et instantané des métriques dérivées (allure, charge RPE).
+
+---
+
+### ⏳ Étape 3.1 : Import Strava Fiabilisé & Observabilité des Erreurs dans l'UI
+* **Contexte & Problèmes soulevés :**
+  1. **Import Strava manquant :** Les séances enregistrées sur Strava ne remontent toujours pas dans le carnet d'entraînement local.
+  2. **Opacité et absence de messages d'erreur :** En cas de problème réseau, d'erreur serveur ou de rejet, l'utilisateur n'a aucun message explicite sur ce qui se passe ou se heurte à un simple *« Échec »* muet.
+* **Objectifs à réaliser :**
+  1. **Flux de Synchronisation Strava Résilient (`sport.py`, `strava_connector.py`) :**
+     - Auditer la chaîne de synchronisation Strava (gestion du refresh token OAuth2, polling/webhook, déduplication contre Strava ID, écriture dans `sport_sessions` SQLite).
+     - Bouton d'action manuelle de synchronisation Strava dans l'onglet Sport avec statut visuel temps réel (*« 🔄 Synchronisation en cours... »*, *« ✅ 2 activités importées »*, *« ⚠️ Token Strava expiré »*).
+  2. **Observabilité Totale & Toasts d'Erreurs Explicites dans la PWA :**
+     - Remplacer tous les messages génériques muets par des bannières/toasts détaillés affichant la cause exacte renvoyée par l'API (ex: statut HTTP, `detail` FastAPI, panne réseau ou champ manquant).
+     - Indiquer clairement à l'utilisateur ce qui se passe et l'action requise pour résoudre l'anomalie.
+* **Critères d'acceptation :**
+  - Les activités Strava sont importées automatiquement et manuellement dans SQLite avec distance, durée et allure.
+  - Toute anomalie (Strava, sauvegarde, réseau) produit un message clair, lisible et actionnable dans l'UI.
 
 ---
 
@@ -96,26 +127,55 @@
 
 ---
 
-### ⏳ Étape 5 : Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux)
-* **Contexte & Problèmes constatés :**
-  1. **Échec de sauvegarde manuelle (Screen 2) :** Erreur *« ❌ Échec. Réessayer »* sur le bouton rouge lors de la saisie du debrief d'une séance dans l'UI.
-  2. **Création d'un doublon au lieu de modifier la séance existante (Nouveaux Screens) :**
-     - Après avoir consulté sa dernière séance (*Sortie Longue de 7.5 km du 10 oct.*) et modifié son RPE, Alexis enchaîne : *« super, j'ai mis 45min et 30 sec pour faire 7km sur cette séance »*.
-     - Le système a interprété cela comme `LOG_SPORT_SESSION` au lieu de `UPDATE_SPORT_SESSION` ou validation de la séance existante, créant une deuxième séance distincte le même jour (*EF 7 km* en doublon de *Sortie Longue 7.5 km*).
-  3. **Hallucination passive sur rétroaction corrective :**
-     - Alexis signale : *« tu as créé une séance plutôt que modifier la séance qui était prévue »*.
-     - Otis formule une promesse polie (*« Toutes mes excuses, Alexis. Je rectifie le tir et fusionne cela sur la bonne séance. »*) mais n'effectue AUCUNE action réelle dans la base de données (intention `unknown` sans mutation concrète).
-* **Objectifs à réaliser :**
-  1. **Débriefing contextuel d'une séance existante :**
-     - Identifier les formulations de debriefing de séance en cours (*« sur cette séance »*, *« pour cette course »*, *« j'ai mis X min pour faire Y km »*) et les router vers la mise à jour / validation de la séance ciblée (`session_ctx["last_sport_date"]`) au lieu d'en insérer une nouvelle.
-  2. **Gestion des doublons et intentions de fusion/correction :**
-     - Reconnaître les plaintes de doublon ou de mauvaise création (*« tu as créé une séance plutôt que modifier... »*, *« fusionne avec la séance prévue »*, *« supprime le doublon »*) et exécuter la correction en base (fusion des données sur la séance prévue et suppression du doublon créé par erreur).
-  3. **Robustesse de l'endpoint de debrief de la carte PWA :**
-     - Sécuriser l'endpoint `PATCH /api/v1/sport/session/{dateStr}`, gérer les retours à la ligne, types numériques et fournir des messages d'erreur contextualisés.
-* **Critères d'acceptation :**
-  - Pas de création de doublon lorsqu'un debriefing oral fait référence à une séance existante ou prévue.
-  - La remarque corrective d'Alexis fusionne et nettoie immédiatement le doublon en base sans promesse vide.
-  - Sauvegarde de la carte de debriefing fluide sans bouton rouge d'erreur.
+### ✅ Étape 5 : Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux)
+* **Contexte & Problèmes résolus :**
+  1. **Échec de sauvegarde manuelle (Screen 2) :** L'endpoint `PATCH /api/v1/sport/session/{target_date}` appelait `update_session(..., update_data=payload)` qui levait un `TypeError: unexpected keyword argument 'update_data'` sur `SqlSportConnector`, causant une erreur 500 et le bouton rouge *« ❌ Échec. Réessayer »*.
+  2. **Création d'un doublon lors d'un débriefing consécutif :** L'ordre « durée avant distance » (*« j'ai mis 45min et 30 sec pour faire 7km sur cette séance »*) et l'anaphore n'étaient pas reconnus, provoquant un log en doublon (*EF 7 km* à côté de la *Sortie Longue 7.5 km*).
+  3. **Hallucination passive sur rétroaction corrective :** L'injonction *« tu as créé une séance plutôt que modifier la séance qui était prévue »* tombait en `unknown` sans mutation réelle en base.
+* **Réalisations :**
+  1. **Harmonisation et robustesse de l'API de debrief (`sport_connector.py`, `routers/sport.py`, `api.js`, `sport_view.js`) :**
+     - `SqlSportConnector.update_session` accepte désormais indifféremment `updates` et `update_data` en keyword arguments.
+     - Gestion d'erreur explicite avec status 400/404 contextualisés, messages d'erreur détaillés extraits côté PWA et logs complets.
+  2. **Résolution anaphorique et protection anti-doublon (`intent_parser.py`, `sport_handler.py`, `sport_connector.py`) :**
+     - Détection dans `IntentParser` des tournures durée-avant-distance (*« j'ai mis X min [et Y sec] pour faire Z km (sur cette séance) »*) et extraction précise des secondes.
+     - Prise en compte de `contextual_session` et `last_sport_date` pour cibler la séance active sans créer de doublon.
+     - Préservation du type de séance d'origine (ex: Sortie Longue) lors d'un débriefing rapide.
+  3. **Action corrective réelle et fusion de doublon (`models.py`, `sport_handler.py`, `nlu_service.py`) :**
+     - Nouvelle intention `FIX_SPORT_DUPLICATE` (`fix_sport_duplicate`) intégrée dans le parser local et le prompt NLU Gemini.
+     - Action concrète en base SQLite : fusion des métriques (distance, durée, notes, RPE) sur la séance prévue/principale, suppression du doublon parasite via `delete_session` et recalcul de la synthèse hebdomadaire avec confirmation vocale explicite d'Otis.
+* **Critères d'acceptation validés :**
+  - 5/5 tests TDD dédiés au vert dans `tests/test_sport_debrief_and_duplicate_handling.py`.
+  - Suite de régression globale à 100% au vert (**439/439 tests passés**).
+
+---
+
+### ✅ Étape 5.1 : Persistance Débriefing Rétroactif, Préservation Sélective & FC (Screens Débriefing)
+* **Contexte & Problèmes résolus :**
+  1. **Confusion entre consultation et réécriture rétroactive :**
+     - Alexis disait : *« Finalement sur ma dernière séance de sport j'ai couru 5km avec un rpe a 4 et en 45min 30 »*.
+     - Le système déclenchait une simple lecture passive (`GET_SPORT_SESSION`) de 7 km au lieu de mettre à jour la séance en base.
+  2. **Incomplétude des champs bruts et écrasement partiel à 0/None :**
+     - Lorsqu'Alexis précisait un champ ultérieur (*« ma fréquence max sur cette séance était a 156 et moyenne a 171 »*), le backend écrasait les métriques précédentes (`distance_km`, `duree_secondes`, `ressenti_rpe`) avec `None`, remettant la carte à zéro.
+     - Les fréquences cardiaques (`fc_moyenne`, `fc_max`) n'étaient pas reconnues dans l'intention ni persistées en base.
+  3. **Manque de visibilité de la Charge RPE et de la Météo dans l'UI :**
+     - Les cartes de séances n'affichaient ni la Charge RPE calculée ni la note météo.
+* **Réalisations :**
+  1. **Routage intelligent des révisions d'ouverture & de la FC (`intent_parser.py`, `nlu_service.py`) :**
+     - Détection des tournures de rectification combinées à une action de course pour cibler la dernière séance (`target_date="last"`).
+     - Détection et extraction complète des fréquences cardiaques (`fc_max`, `fc_moyenne` et formats libres en bpm).
+  2. **Débriefing des séances planifiées & transition de statut (`sport_handler.py`, `sport_connector.py`, `database.py`) :**
+     - Résolution intelligente de « dernière séance » : recherche jusqu'à la date du jour (`max_date=date.today()`) incluant les séances au statut `Prévu` non encore débriefées.
+     - Transition automatique : dès qu'une séance planifiée (`Prévu`) reçoit des métriques réelles d'effort (durée, distance, RPE, météo, FC), son statut bascule immédiatement à **`Réalisé`**, et sa charge RPE ainsi que sa vitesse/allure sont calculées.
+  3. **Préservation sélective absolue & non-écrasement (`sport_connector.py`, `sport_handler.py`) :**
+     - Filtrage strict des valeurs `None` dans `update_session` pour ne modifier QUE les champs explicitement spécifiés.
+     - Prise en charge et persistance complète de `fc_moyenne` et `fc_max` dans SQLite.
+     - Confirmation vocale détaillée d'Otis citant explicitement les métriques modifiées (distance, durée, RPE, météo, FC max, FC moyenne).
+  4. **Affichage enrichi de la Charge RPE et de la Météo dans la PWA (`sport_view.js`) :**
+     - Intégration de badges visibles dès l'en-tête de la séance (*« 🔥 RPE {charge} »*, *« ☀️ {meteo}/10 »*).
+     - Boîtes dédiées dans la grille de métriques de la carte pour la Charge RPE et la Météo avec icônes dynamiques.
+* **Critères d'acceptation validés :**
+  - 8/8 tests TDD dédiés au vert dans `tests/test_sport_retroactive_debrief_and_persistence.py` et `tests/test_sport_selective_update_and_heart_rate.py`.
+  - Non-régression totale : **451/451 tests au vert**.
 
 ---
 
@@ -128,16 +188,19 @@
      - **Horodatage contextuel précis** de chaque tour dans le prompt Gemini (`[À l'instant]`, `[Il y a 12 min]`, `[Il y a 2h]`) permettant à l'IA d'avoir une perception temporelle exacte.
      - TTL étendu à **24 heures** (session continue sur la journée sans coupure intempestive).
      - Restauration automatique depuis SQLite (`conversation_logs`) en cas de redémarrage serveur ou recyclage de worker.
-  2. **Identité de session unifiée PWA & Contrôle utilisateur (`config.js`, `api.js`, `chat_view.js`, `index.html`) :**
+  2. **Identité de session unifiée PWA, Persistance Visuelle & Contrôle utilisateur (`config.js`, `api.js`, `chat_view.js`, `index.html`) :**
      - Transmission systématique du `session_id` partagé dans `postInteract` (texte) ET `postInteractAudio` (vocal).
-     - **Bouton & Chip « ✨ Nouveau fil » :** Accessible d'un clic dans le header et au-dessus des messages pour repartir d'une page blanche à la demande d'Alexis (`resetActiveSessionId()`).
+     - **Persistance locale du fil de discussion (20 messages) :** Sauvegarde automatique dans `localStorage` (`pah_chat_ui_history`) à chaque message émis ou reçu. Les allers-retours d'onglets (Chat ➔ Séance ➔ Chat) et les rechargements de page préservent désormais 100% du fil de discussion.
+     - **Synchronisation & Restauration Serveur :** Endpoints dédiés `GET /api/v1/session/history` et `POST /api/v1/session/reset`. Si le cache local est vierge, réhydratation automatique depuis `SessionManager`.
+     - **Bouton & Chip « ✨ Nouveau fil » :** Accessible d'un clic dans le header et au-dessus des messages pour repartir d'une page blanche à la demande d'Alexis (purge `localStorage` et reset serveur).
+     - **Actualisation réactive des vues métier :** Événement custom `sport-data-updated` émis lors d'une modification par le chat pour rafraîchir instantanément la vue sport sans rechargement manuel.
   3. **Résolution des anaphores & prise de note contextuelle (`intent_parser.py`, `nlu_service.py`, `sport_handler.py`) :**
      - Prompt Gemini enrichi pour poursuivre naturellement le fil après une question d'Otis (*« C'est l'application »*).
      - Détection et capture de notes multi-tours (*« Prends note de ces 3 derniers échanges. Il faut corriger »*) synthétisant les échanges récents dans `second_brain_notes` (`bug_report` ou `dev_idea`).
      - Résolution de séances sportives contextuelles sans date explicite (*« Il fallait en modifier le rpe a 3 »*).
 * **Critères d'acceptation validés :**
-  - 7/7 tests dédiés passés à 100% au vert dans `tests/test_conversation_session_memory.py`.
-  - Suite globale à 100% au vert (434/434 tests).
+  - 8/8 tests dédiés passés à 100% au vert dans `tests/test_conversation_session_memory.py`.
+  - Suite globale à 100% au vert (**450/450 tests**).
 
 ---
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v15";
+const CACHE_NAME = "pah-pwa-cache-v17";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
@@ -61,6 +61,22 @@ self.addEventListener("fetch", (event) => {
           { headers: { "Content-Type": "application/json" } }
         );
       })
+    );
+    return;
+  }
+
+  // Pour les fichiers JS de logique (views, config, api, speech) : Network-First pour actualisation immédiate
+  if (url.pathname.startsWith("/static/js/") || url.pathname.startsWith("/static/app.js")) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

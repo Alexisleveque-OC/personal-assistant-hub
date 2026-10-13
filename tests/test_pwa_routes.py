@@ -56,7 +56,7 @@ def test_get_service_worker():
     assert "javascript" in content_type or "text/" in content_type
     assert "CACHE_NAME" in response.text
     assert "second_brain_view.js" in response.text
-    assert "pah-pwa-cache-v15" in response.text
+    assert "pah-pwa-cache-" in response.text
 
 
 def test_get_static_assets():

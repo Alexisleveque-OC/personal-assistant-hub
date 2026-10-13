@@ -277,3 +277,52 @@ def test_interact_updates_sport_session_with_contextual_rpe(temp_db):
     saved_sess = temp_db.get_sport_session_by_date(target_date)
     assert saved_sess["ressenti_rpe"] == 3
 
+
+def test_session_history_and_reset_endpoints(temp_db):
+    """Vérifie que les endpoints GET /session/history et POST /session/reset fonctionnent correctement."""
+    session_id = "test-session-api-endpoints"
+
+    # 1. Effectuer 2 interactions dans la session
+    r1 = client.post(
+        "/api/v1/interact",
+        headers=API_HEADERS,
+        json={"query": "bonjour assistant", "session_id": session_id},
+    )
+    assert r1.status_code == 200
+
+    r2 = client.post(
+        "/api/v1/interact",
+        headers=API_HEADERS,
+        json={"query": "donne moi un conseil", "session_id": session_id},
+    )
+    assert r2.status_code == 200
+
+    # 2. Récupérer l'historique via GET /api/v1/session/history
+    res_hist = client.get(
+        f"/api/v1/session/history?session_id={session_id}",
+        headers=API_HEADERS,
+    )
+    assert res_hist.status_code == 200
+    data_hist = res_hist.json()
+    assert data_hist["session_id"] == session_id
+    assert len(data_hist["history"]) == 4  # 2 tours = 4 messages (2 user + 2 assistant)
+    assert data_hist["history"][0]["role"] == "user"
+    assert "bonjour" in data_hist["history"][0]["text"].lower()
+
+    # 3. Réinitialiser la session via POST /api/v1/session/reset
+    res_reset = client.post(
+        f"/api/v1/session/reset?session_id={session_id}",
+        headers=API_HEADERS,
+    )
+    assert res_reset.status_code == 200
+    assert res_reset.json()["status"] == "cleared"
+
+    # 4. Vérifier que l'historique en mémoire est désormais vide
+    res_hist_after = client.get(
+        f"/api/v1/session/history?session_id={session_id}",
+        headers=API_HEADERS,
+    )
+    assert res_hist_after.status_code == 200
+    assert len(res_hist_after.json()["history"]) == 0
+
+

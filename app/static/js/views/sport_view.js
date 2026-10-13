@@ -175,6 +175,20 @@ export function renderSportToday(data) {
             </div>
           ` : ""}
 
+          ${s.charge_rpe ? `
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Charge RPE</div>
+              <div class="sport-metric-val" style="font-weight:700; color:var(--color-accent);">${s.charge_rpe}</div>
+            </div>
+          ` : ""}
+
+          ${s.meteo_note ? `
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Météo</div>
+              <div class="sport-metric-val">${getMeteoBadge(s.meteo_note)}</div>
+            </div>
+          ` : ""}
+
           ${s.fc_moyenne ? `
             <div class="sport-metric-box">
               <div class="sport-metric-label">FC Moy</div>
@@ -253,6 +267,17 @@ export function getRpeColor(rpe) {
   return "#d32f2f";
 }
 
+export function getMeteoBadge(note) {
+  if (!note && note !== 0) return "-";
+  const n = Number(note);
+  let icon = "🌤️";
+  if (n >= 8) icon = "☀️";
+  else if (n >= 5) icon = "🌤️";
+  else if (n >= 3) icon = "⛅";
+  else icon = "🌧️";
+  return `${icon} ${n}/10`;
+}
+
 export function attachSportFeedbackHandlers(idx, session) {
   const card = document.querySelector(`.sport-session-card[data-session-idx="${idx}"]`);
   if (!card) return;
@@ -303,8 +328,10 @@ export function attachSportFeedbackHandlers(idx, session) {
           fetchSportToday();
         }, 900);
       } catch (err) {
+        console.error("Erreur de sauvegarde de debrief sport:", err);
         saveBtn.disabled = false;
         saveBtn.textContent = "❌ Échec. Réessayer";
+        saveBtn.title = err.message || "Erreur de communication";
         saveBtn.style.background = "var(--color-danger)";
       }
     });
@@ -763,6 +790,8 @@ export function renderSportSessionsView() {
               <span class="session-type-pill ${typeCls}">${typeEmoji} ${s.type_seance || "Course"}</span>
               <span style="font-size:0.75rem; color:var(--color-text-muted); font-weight:600;">Semaine ${s.semaine}</span>
               <span class="badge-status ${statusClass}" style="font-size:0.68rem; padding:1px 6px;">${statusLabel}</span>
+              ${s.charge_rpe ? `<span style="font-size:0.75rem; background:rgba(59, 130, 246, 0.15); color:var(--color-accent); font-weight:700; padding:1px 6px; border-radius:6px;">🔥 RPE ${s.charge_rpe}</span>` : ""}
+              ${s.meteo_note ? `<span style="font-size:0.75rem; background:rgba(255, 255, 255, 0.05); color:var(--color-text); font-weight:600; padding:1px 6px; border-radius:6px;">${getMeteoBadge(s.meteo_note)}</span>` : ""}
               ${isPainAlert ? '<span style="font-size:0.72rem; padding:1px 6px; border-radius:6px; background:rgba(239, 68, 68, 0.2); color:#ef4444; font-weight:800;">⚠️ Tibia/Douleur</span>' : ''}
             </div>
           </div>
@@ -813,6 +842,16 @@ export function renderSportSessionsView() {
               <div class="sport-metric-val" style="color:${s.ressenti_rpe ? getRpeColor(s.ressenti_rpe) : 'inherit'}">
                 ${s.ressenti_rpe ? s.ressenti_rpe : "-"}<span class="sport-metric-unit">${s.ressenti_rpe ? "/10" : ""}</span>
               </div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Charge RPE</div>
+              <div class="sport-metric-val" style="font-weight:700; color:var(--color-accent);">${s.charge_rpe ? s.charge_rpe : "-"}</div>
+            </div>
+
+            <div class="sport-metric-box">
+              <div class="sport-metric-label">Météo</div>
+              <div class="sport-metric-val" style="font-size:0.92rem;">${s.meteo_note ? getMeteoBadge(s.meteo_note) : "-"}</div>
             </div>
 
             <div class="sport-metric-box">
@@ -1026,4 +1065,13 @@ export function initSportView() {
   if (tabSportSummaries) tabSportSummaries.addEventListener("click", () => switchSportSubview("summaries"));
   if (tabSportDash) tabSportDash.addEventListener("click", () => switchSportSubview("dashboard"));
   if (tabSportGamification) tabSportGamification.addEventListener("click", () => switchSportSubview("gamification"));
+
+  // Rafraîchissement automatique si le chat effectue une modification de séance
+  window.addEventListener("sport-data-updated", () => {
+    if (state.currentSportSubview === "sessions") {
+      fetchSportSessions();
+    } else if (state.currentSportSubview === "today") {
+      fetchSportToday();
+    }
+  });
 }

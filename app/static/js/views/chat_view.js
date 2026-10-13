@@ -1,23 +1,62 @@
-// Vue Assistant Conversationnel / Chat & Vocal
+// Vue Assistant Conversationnel / Chat & Vocal avec Persistance 20 Messages
 import { speak, showUndoToast, hideUndoToast } from "../speech.js";
-import { postInteract, postInteractAudio } from "../api.js";
-import { resetActiveSessionId } from "../config.js";
+import { postInteract, postInteractAudio, fetchSessionHistory, postResetSession } from "../api.js";
+import { getActiveSessionId, resetActiveSessionId } from "../config.js";
 
 const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
 const queryInput = document.getElementById("query-input");
 
-export function appendUserMessage(text) {
-  if (!chatStream) return;
+const CHAT_STORAGE_KEY = "pah_chat_ui_history";
+const MAX_SAVED_MESSAGES = 20;
+
+export function getStoredChatHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveChatMessage(role, text) {
+  if (!text) return;
+  const history = getStoredChatHistory();
+  history.push({ role, text, timestamp: new Date().toISOString() });
+  const trimmed = history.slice(-MAX_SAVED_MESSAGES);
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.warn("Impossible de sauvegarder le message dans localStorage", e);
+  }
+}
+
+export function updateLastUserMessage(newText) {
+  const history = getStoredChatHistory();
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === "user") {
+      history[i].text = newText;
+      break;
+    }
+  }
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(history));
+  } catch (e) {}
+}
+
+function renderUserBubble(text, shouldScroll = true) {
+  if (!chatStream) return null;
   const bubble = document.createElement("div");
   bubble.className = "chat-bubble user";
   bubble.textContent = text;
   chatStream.appendChild(bubble);
-  bubble.scrollIntoView({ behavior: "smooth" });
+  if (shouldScroll) {
+    bubble.scrollIntoView({ behavior: "smooth" });
+  }
+  return bubble;
 }
 
-export function appendAssistantMessage(text) {
-  if (!chatStream) return;
+function renderAssistantBubble(text, shouldScroll = true) {
+  if (!chatStream) return null;
   const bubble = document.createElement("div");
   bubble.className = "chat-bubble assistant";
 
@@ -39,13 +78,75 @@ export function appendAssistantMessage(text) {
   chatStream.appendChild(bubble);
 
   const btnReplay = header.querySelector(".btn-tts");
-  btnReplay.addEventListener("click", () => speak(text));
+  if (btnReplay) {
+    btnReplay.addEventListener("click", () => speak(text));
+  }
 
-  bubble.scrollIntoView({ behavior: "smooth" });
+  if (shouldScroll) {
+    bubble.scrollIntoView({ behavior: "smooth" });
+  }
+  return bubble;
+}
+
+export function appendUserMessage(text) {
+  renderUserBubble(text, true);
+  saveChatMessage("user", text);
+}
+
+export function appendAssistantMessage(text) {
+  renderAssistantBubble(text, true);
+  saveChatMessage("assistant", text);
+}
+
+export async function restoreChatHistory() {
+  if (!chatStream) return;
+  const localHistory = getStoredChatHistory();
+
+  if (localHistory.length > 0) {
+    chatStream.innerHTML = "";
+    localHistory.forEach((msg) => {
+      if (msg.role === "user") {
+        renderUserBubble(msg.text, false);
+      } else {
+        renderAssistantBubble(msg.text, false);
+      }
+    });
+    chatStream.lastElementChild?.scrollIntoView({ behavior: "auto" });
+    return;
+  }
+
+  // Tenter de restaurer depuis le backend si localStorage était vide
+  try {
+    const res = await fetchSessionHistory();
+    if (res && Array.isArray(res.history) && res.history.length > 0) {
+      chatStream.innerHTML = "";
+      const serverHistory = res.history.slice(-MAX_SAVED_MESSAGES);
+      serverHistory.forEach((msg) => {
+        if (msg.role === "user") {
+          renderUserBubble(msg.text, false);
+        } else {
+          renderAssistantBubble(msg.text, false);
+        }
+      });
+      try {
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(serverHistory));
+      } catch (e) {}
+      chatStream.lastElementChild?.scrollIntoView({ behavior: "auto" });
+    }
+  } catch (e) {
+    console.debug("Pas d'historique de session serveur à restaurer");
+  }
 }
 
 export function startNewThread() {
+  const oldSessionId = getActiveSessionId();
   resetActiveSessionId();
+  try {
+    localStorage.removeItem(CHAT_STORAGE_KEY);
+  } catch (e) {}
+
+  postResetSession(oldSessionId).catch(() => {});
+
   if (chatStream) {
     chatStream.innerHTML = `
       <div class="chat-bubble assistant">
@@ -106,6 +207,12 @@ export async function sendInteraction(text) {
     appendAssistantMessage(data.spoken_response);
     speak(data.spoken_response);
     handleUndoToast(data);
+
+    // Notification globale pour rafraîchir les vues métiers si une séance sport a été touchée
+    const it = data.intent ? (data.intent.intent || "") : "";
+    if (it.includes("sport") || (data.data && data.data.session)) {
+      window.dispatchEvent(new CustomEvent("sport-data-updated"));
+    }
   } catch (err) {
     appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
   }
@@ -131,18 +238,28 @@ export async function sendAudioInteraction(audioBlob) {
     // Remplacer le texte temporaire par la transcription exacte
     const lastUserBubble = chatStream.querySelector(".chat-bubble.user:last-of-type");
     if (lastUserBubble && data.user_transcription) {
-      lastUserBubble.textContent = `🎤 ${data.user_transcription}`;
+      const fullText = `🎤 ${data.user_transcription}`;
+      lastUserBubble.textContent = fullText;
+      updateLastUserMessage(fullText);
     }
 
     appendAssistantMessage(data.spoken_response);
     speak(data.spoken_response);
     handleUndoToast(data);
+
+    const it = data.intent ? (data.intent.intent || "") : "";
+    if (it.includes("sport") || (data.data && data.data.session)) {
+      window.dispatchEvent(new CustomEvent("sport-data-updated"));
+    }
   } catch (err) {
     appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
   }
 }
 
 export function initChatView() {
+  // Réhydrater immédiatement les 20 derniers messages
+  restoreChatHistory();
+
   if (queryForm) {
     queryForm.addEventListener("submit", (e) => {
       e.preventDefault();

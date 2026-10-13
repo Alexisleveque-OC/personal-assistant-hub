@@ -35,6 +35,24 @@ export async function postInteractAudio(audioBlob, sessionId = null) {
   });
   return res;
 }
+export async function fetchSessionHistory(sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
+  const headers = getAuthHeaders();
+  const res = await fetch(`/api/v1/session/history?session_id=${encodeURIComponent(finalSessionId)}`, { headers });
+  if (!res.ok) return { session_id: finalSessionId, history: [] };
+  return await res.json();
+}
+
+export async function postResetSession(sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
+  const headers = getAuthHeaders();
+  const res = await fetch(`/api/v1/session/reset?session_id=${encodeURIComponent(finalSessionId)}`, {
+    method: "POST",
+    headers,
+  });
+  if (!res.ok) return { status: "error" };
+  return await res.json();
+}
 
 export async function fetchLlmStats() {
   const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
@@ -89,7 +107,11 @@ export async function patchSportSession(dateStr, payload) {
     headers: getAuthHeaders(),
     body: JSON.stringify(payload)
   });
-  if (!res.ok) throw new Error("Échec de la sauvegarde");
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const detailMsg = errJson && errJson.detail ? errJson.detail : ("Échec de la sauvegarde (" + res.status + ")");
+    throw new Error(detailMsg);
+  }
   return await res.json();
 }
 

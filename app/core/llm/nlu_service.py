@@ -66,9 +66,14 @@ Liste des intentions disponibles :
      - "target_date" : date de la séance si elle a eu lieu hier ou un autre jour.
    - update_sport_session : modifier a posteriori le ressenti (RPE), ajuster ou ajouter une note de douleur/périostite sur une séance passée (ex: "Otis, modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite", "Otis, ajoute une note sur ma course de dimanche : douleur au tibia à J+2", "Change le RPE d'hier à 8").
      Paramètres :
-     - "target_date" : date ou jour ciblé (ex: "dimanche", "hier", "2026-10-04").
+     - "target_date" : date ou jour ciblé (ex: "dimanche", "hier", "2026-10-04", ou "last" si "dernière séance").
+     - "distance_km" : float en km (ex: 5.0).
+     - "duration_seconds" : int (durée en secondes, ex: 45 min 30 -> 2730).
      - "ressenti_rpe" : int de 1 à 10 si mentionné.
-     - "notes" : note ou commentaire sur la douleur / périostite / ressenti.
+     - "meteo_note" : int de 1 à 10 si mentionnée (ex: "météo à 3").
+     - "fc_moyenne" : int en bpm (ex: "moyenne à 171" -> 171).
+     - "fc_max" : int en bpm (ex: "max à 156" -> 156).
+     - "notes" : note ou commentaire sur la douleur / périostite / ressenti / conditions.
      - "append_notes" : true si l'utilisateur demande d'ajouter ou compléter une note existante.
    - get_sport_weekly_summary : consulter le bilan hebdomadaire et les conseils de sécurité d'Otis (ex: "J'en suis à combien de kilomètres cette semaine ?", "Quel est mon bilan de running ?", "Combien je peux courir la semaine prochaine ?").
      Paramètres : "week_num" (int), "year" (int).
@@ -76,6 +81,8 @@ Liste des intentions disponibles :
      Paramètres : "target_date", "day_name", "type_seance", "distance_km", "notes".
    - plan_weekly_training : générer proactivement le plan d'entraînement pour toute la semaine (ex: "Otis, prévois-moi ma semaine d'entraînement", "Que me conseilles-tu cette semaine ?", "Planifie ma semaine de running", "Otis, je voudrais faire 15 km samedi, prévois ma semaine", "Prévois une semaine de repos").
      Paramètres : "week_num" (int), "year" (int), "is_deload" (bool), "user_wishes" (string).
+   - fix_sport_duplicate : corriger une erreur de séance ou fusionner un doublon créé par mégarde (ex: "tu as créé une séance plutôt que modifier la séance qui était prévue", "tu as créé un doublon au lieu de modifier la séance", "fusionne avec la séance prévue", "supprime le doublon").
+     Paramètres : "target_date".
 
 11. get_budget_balance : solde financier. Paramètre : "category" (courses, loisir, general).
 12. log_expense : enregistrer une dépense. Paramètres : "amount" (float), "category".
@@ -116,6 +123,8 @@ CONTINUITÉ DU DIALOGUE ET RÉSOLUTION DU CONTEXTE (OBLIGATOIRE) :
 - Réponse à une question d'Otis : Si Otis a posé une question au tour précédent (ex: choix entre matériel ou application, demande de précision sur un plat, etc.), et qu'Alexis y répond brièvement (ex: "C'est l'application", "La deuxième", "Celui-là", "Non", "Oui"), interprète impérativement sa réponse comme la continuation directe du sujet évoqué. Ne redemande jamais "De quoi parles-tu ?" ou "Quelle application ?".
 - Prise de note sur référence anaphorique : Si Alexis dit "prends note de ça", "enregistre ce bug", "note ces derniers échanges", déclenche l'intention "save_note" et synthétise fidèlement le problème ou l'idée discutée dans les derniers échanges récents dans "content" (catégorie "bug_report" pour une anomalie, "dev_idea" pour une idée, etc.).
 - Référence temporelle ou sportive implicite : Si Alexis dit "il fallait en modifier le RPE à 3" ou "change la note à 8", utilise la séance de sport évoquée dans l'historique récent ou aujourd'hui.
+- Débriefing sportif consécutif : Si Alexis dit "j'ai mis 45min et 30 sec pour faire 7km sur cette séance", ne crée JAMAIS une nouvelle séance distincte : applique cette durée et distance sur la séance en cours ou précédente évoquée dans les échanges récents.
+- Plainte de doublon ou rectification : Si Alexis dit "tu as créé une séance plutôt que modifier la séance qui était prévue" ou "tu as créé un doublon", déclenche impérativement "fix_sport_duplicate" pour qu'Otis fusionne les données et nettoie la base au lieu de donner une réponse passive "unknown".
 """
 
 GEMINI_JSON_SCHEMA = {

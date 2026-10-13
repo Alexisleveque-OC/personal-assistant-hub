@@ -121,9 +121,13 @@ class SessionManager:
             }
 
     def clear_session(self, session_id: str) -> None:
-        """Réinitialise une session spécifique."""
-        if session_id in self._sessions:
-            del self._sessions[session_id]
+        """Réinitialise une session spécifique à vide."""
+        if not session_id:
+            session_id = "default"
+        self._sessions[session_id] = {
+            "context": {"history": []},
+            "last_active": datetime.now(),
+        }
 
     def clear_all(self) -> None:
         """Réinitialise l'ensemble des sessions en mémoire."""

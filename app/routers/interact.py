@@ -3,7 +3,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, BackgroundTasks, File, UploadFile, Form, HTTPException, status
+from fastapi import APIRouter, Depends, BackgroundTasks, File, UploadFile, Form, HTTPException, status, Query
 
 from app.core.security import verify_api_key
 from app.core.models import (
@@ -283,5 +283,37 @@ async def interact_audio(
     resp = await interact(request=req, background_tasks=background_tasks)
     resp.transcribed_text = transcribed_text
     return resp
+
+
+@router.get(
+    "/session/history",
+    tags=["Interaction"],
+    summary="Récupère l'historique conversationnel de la session active (jusqu'à 20 messages)",
+)
+async def get_session_history(
+    session_id: Optional[str] = Query(None, description="Identifiant unique de la session client"),
+):
+    """Retourne la liste chronologique des messages de la session active."""
+    sess_mgr = get_session_manager()
+    sid = session_id or "default"
+    ctx = sess_mgr.get_session(sid)
+    history = ctx.get("history", [])
+    return {"session_id": sid, "history": history}
+
+
+@router.post(
+    "/session/reset",
+    tags=["Interaction"],
+    summary="Réinitialise le contexte et l'historique d'une session conversationnelle",
+)
+async def reset_session(
+    session_id: Optional[str] = Query(None, description="Identifiant unique de la session client à purger"),
+):
+    """Purge le contexte mémoire d'une session spécifique."""
+    sess_mgr = get_session_manager()
+    sid = session_id or "default"
+    sess_mgr.clear_session(sid)
+    return {"status": "cleared", "session_id": sid}
+
 
 

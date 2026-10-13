@@ -119,13 +119,14 @@ def test_distinguish_temporal_days_vs_conversation_echanges():
 
 def test_parse_target_date_with_universal_corrections():
     """Vérifie parse_target_date avec toutes les déclinaisons textuelles."""
-    ref_today = date(2026, 10, 12)
+    ref_today = date.today()
 
     assert parse_target_date("hier") == ref_today - timedelta(days=1)
     assert parse_target_date("avant-hier") == ref_today - timedelta(days=2)
     assert parse_target_date("demain") == ref_today + timedelta(days=1)
     assert parse_target_date("après-demain") == ref_today + timedelta(days=2)
-    assert parse_target_date("dimanche dernier") == date(2026, 10, 11)
+    expected_sunday = ref_today - timedelta(days=((ref_today.weekday() - 6) % 7 or 7))
+    assert parse_target_date("dimanche dernier") == expected_sunday
 
 
 def test_intent_parser_resolves_past_and_future_sport_queries():

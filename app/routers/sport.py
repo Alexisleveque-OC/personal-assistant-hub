@@ -259,9 +259,16 @@ async def patch_sport_session(
             "session": updated.model_dump(mode="json"),
         }
     except ValueError as exc:
+        logger.warning(f"Séance introuvable lors de la mise à jour ({target_date}) : {exc}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
+        )
+    except Exception as exc:
+        logger.error(f"Erreur lors de la mise à jour de la séance ({target_date}) : {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Échec de mise à jour de la séance : {exc}",
         )
 
 
