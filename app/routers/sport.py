@@ -272,6 +272,56 @@ async def patch_sport_session(
         )
 
 
+@router.delete("/session/{session_id}")
+async def delete_sport_session_endpoint(
+    session_id: int,
+    connector=Depends(get_sport_connector_dep),
+):
+    """Supprime une séance sportive par son identifiant unique et met à jour la synthèse."""
+    deleted = connector.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Séance {session_id} introuvable.",
+        )
+    return {
+        "success": True,
+        "message": f"Séance {session_id} supprimée avec succès.",
+        "session_id": session_id,
+    }
+
+
+@router.patch("/session/id/{session_id}")
+async def patch_sport_session_by_id(
+    session_id: int,
+    payload: Dict[str, Any],
+    connector=Depends(get_sport_connector_dep),
+):
+    """Met à jour chirurgicalement les champs bruts d'une séance par son ID et recalcule les indicateurs."""
+    try:
+        updated = connector.update_session_by_id(
+            session_id=session_id,
+            updates=payload,
+        )
+        return {
+            "success": True,
+            "message": f"Séance {session_id} mise à jour.",
+            "session": updated.model_dump(mode="json"),
+        }
+    except ValueError as exc:
+        logger.warning(f"Séance {session_id} introuvable lors de la mise à jour : {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        logger.error(f"Erreur lors de la mise à jour de la séance {session_id} : {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Échec de mise à jour de la séance : {exc}",
+        )
+
+
 @router.get("/dashboard", response_model=SportPeriodDashboard)
 async def get_sport_dashboard(
     scale: DashboardScale = Query(DashboardScale.WEEK, description="Échelle : week, month, year"),

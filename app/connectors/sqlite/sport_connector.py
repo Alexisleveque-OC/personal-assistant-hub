@@ -95,6 +95,7 @@ class SqlSportConnector(BaseConnector):
                 type_seance = SportSessionType.EF
 
         return SportSession(
+            id=int(row["id"]) if row.get("id") is not None else None,
             date=d_val,
             semaine=int(row.get("semaine") or d_val.isocalendar()[1]),
             statut=statut,
@@ -348,9 +349,67 @@ class SqlSportConnector(BaseConnector):
         return results
 
     def delete_session(self, session_id: int) -> bool:
-        """Supprime une séance sportive par son identifiant unique."""
+        """Supprime une séance sportive par son identifiant unique et actualise la synthèse."""
+        row = self.db.get_sport_session_by_id(session_id)
+        if not row:
+            return False
         deleted = self.db.delete_sport_session(session_id)
+        if deleted and row.get("date"):
+            t_date = _parse_date(row["date"])
+            if t_date:
+                self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.year)
         return deleted
+
+    def update_session_by_id(
+        self,
+        session_id: int,
+        updates: Optional[Union[SportSessionUpdate, Dict[str, Any]]] = None,
+        update_data: Optional[Union[SportSessionUpdate, Dict[str, Any]]] = None,
+    ) -> SportSession:
+        """Met à jour chirurgicalement les champs bruts d'une séance par son ID."""
+        raw_payload = updates if updates is not None else update_data
+        if raw_payload is None:
+            raw_payload = {}
+
+        existing = self.db.get_sport_session_by_id(session_id)
+        if not existing:
+            raise ValueError(f"Séance ID {session_id} introuvable.")
+
+        update_dict: Dict[str, Any] = (
+            raw_payload.model_dump(exclude_unset=True) if isinstance(raw_payload, SportSessionUpdate) else dict(raw_payload)
+        )
+        # Filtrer strictement les valeurs None pour ne jamais écraser les métriques existantes
+        update_dict = {k: v for k, v in update_dict.items() if v is not None}
+
+        # Transition automatique vers Réalisé si métriques réelles enregistrées sur une séance prévue
+        if "statut" not in update_dict and existing.get("statut") in (SportSessionStatus.PLANIFIE.value, "Prévu", "Planifié"):
+            if any(k in update_dict for k in ("distance_km", "duree_secondes", "ressenti_rpe", "fc_moyenne", "fc_max", "meteo_note")):
+                update_dict["statut"] = SportSessionStatus.REALISE.value
+
+        # Normalisation des Enums
+        if "statut" in update_dict:
+            s_val = update_dict["statut"]
+            update_dict["statut"] = s_val.value if hasattr(s_val, "value") else str(s_val)
+        if "type_seance" in update_dict:
+            t_val = update_dict["type_seance"]
+            update_dict["type_seance"] = t_val.value if hasattr(t_val, "value") else str(t_val)
+
+        # Protection stricte : exclusion des champs calculés
+        forbidden_computed = ["allure_moyenne", "allure_formatted", "vitesse_kmh", "km_effort", "charge_rpe", "semaine", "annee"]
+        for fc in forbidden_computed:
+            update_dict.pop(fc, None)
+
+        self.db.update_sport_session(session_id, update_dict)
+
+        # Mettre à jour la synthèse de la semaine
+        t_date = _parse_date(existing["date"])
+        if t_date:
+            self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.year)
+
+        saved_row = self.db.get_sport_session_by_id(session_id)
+        if not saved_row:
+            raise RuntimeError(f"Échec de récupération de la séance après modification (ID {session_id})")
+        return self._row_to_sport_session(saved_row)
 
     def update_session(
         self,

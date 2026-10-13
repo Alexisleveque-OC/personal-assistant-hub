@@ -15,13 +15,14 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Correcteur Temporel Universel :** Résolution unifiée des expressions relatives (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (427/427 total) au vert |
 | **Étape 2** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
-| **Étape 3** | **Éditeur Manuel Séances de Sport & Suppression (PWA) :** Modal d'édition des champs bruts (distance, durée, D+, RPE, météo, FC, notes, type) et bouton de suppression de séance avec confirmation pour assainir le carnet | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 3** | **Éditeur Manuel Séances de Sport & Suppression (PWA) :** Modal d'édition des champs bruts (distance, durée, D+, RPE, météo, FC, notes, type) et bouton de suppression de séance avec confirmation pour assainir le carnet | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (455/455 total) au vert |
 | **Étape 3.1** | **Import Strava Fiabilisé & Observabilité Erreurs UI :** Synchro Strava fiabilisée avec bouton manuel et affichage de messages d'erreurs explicites (fin des échecs muets) | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 4** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + tolérances phonétiques et réveil in-app sur « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 5** | **Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux) :** Résolution de l'erreur *« ❌ Échec »*, suppression des doublons et fusion réelle de doublon | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (439/439 total) au vert |
 | **Étape 5.1** | **Persistance Débriefing Rétroactif, Préservation Sélective & FC :** Résolution de l'écrasement à 0/None, support complet FC (moy/max), persistance brute garantie et affichage Charge RPE & Météo | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (446/446 total) au vert |
 | **Étape 6** | **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Screens 3 & 4) :** Fin du mode stateless, buffer d'historique de 20 messages avec horodatages et bouton de nouveau fil | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (434/434 total) au vert |
 | **Étape 6.1** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé, indicateur d'attente et envoi automatique dès reconnexion | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 6.2** | **Gestion Audio Focus & Ducking Casque (Running Mode) :** Atténuation du volume casque (musique/podcast) uniquement si Otis parle ou si l'utilisateur lui parle, et non en continu dès l'ouverture de l'application | ⏳ À faire | En attente | ⏳ Tests UI / Audio à créer |
 | **Étape 7** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression, déploiement prod et recette utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
 
 ---
@@ -61,30 +62,35 @@
 
 ---
 
-### ⏳ Étape 3 : Éditeur Manuel Complet des Séances de Sport (PWA)
+### 🟢 Étape 3 : Éditeur Manuel Complet des Séances de Sport & Suppression (PWA)
 * **Contexte & Règle d'or de conception (Validation Alexis) :**
   - Si l'analyse vocale échoue ou si une séance a besoin d'ajustements fins, l'utilisateur doit pouvoir modifier les données brutes de la séance sans risquer d'altérer la logique métier.
   - **Distinction stricte Champs Bruts vs Champs Calculés :**
     - **Champs bruts modifiables (updatables) :**
       * `distance_km`, `duree_secondes` (minutes et secondes), `denivele_d_plus`.
       * `ressenti_rpe` (1 à 10), `meteo_note` (1 à 10).
-      * `type_seance` (`EF`, `Fractionné`, `Sortie Longue`, `Renforcement`).
-      * `programme`, `remarques`, `notes`, `fc_moyenne`, `fc_max`.
+      * `type_seance` (`EF`, `Fractionné`, `Sortie Longue`, `Renforcement`, `Course`, `Vitesse`, `Tempo`, `Récup`).
+      * `programme`, `remarques`, `notes`, `fc_moyenne`, `fc_max`, `statut`.
     - **Champs calculés protégés (NON updatables manuellement car dérivés automatiquement) :**
       * `allure_moyenne` (dérivée de duree / distance).
       * `vitesse_moyenne` (dérivée de distance / duree).
       * `charge_rpe` (dérivée de RPE * (duree_secondes / 60)).
       * `km_effort` (dérivé de distance + D+ / 100).
       * Synthèses hebdomadaires et mensuelles (recalculées de façon déterministe par le moteur).
-* **Objectifs à réaliser :**
-  1. Bouton « Modifier » / icône crayon sur la carte de séance de la PWA.
-  2. Formulaire modal d'édition restreint aux champs bruts éligibles (distance, durée, D+, RPE, météo, FC, notes, type).
-  3. Endpoint backend `PATCH /api/v1/sport/session/{date}` ou `{id}` avec validation Pydantic granulaire et recalcul automatique immédiat des indicateurs dérivés.
-  4. Bouton « Supprimer la séance » (icône poubelle rouge) avec modal de confirmation (*« Voulez-vous vraiment supprimer cette séance ? »*) et endpoint `DELETE /api/v1/sport/session/{id}` pour éliminer instantanément une séance parasite/doublon et recalculer automatiquement le bilan hebdomadaire.
-* **Critères d'acceptation :**
-  - Modification manuelle fonctionnelle au clic sur mobile et desktop, avec persistance SQLite immédiate.
-  - Suppression de séance fluide avec mise à jour instantanée du carnet et de la synthèse hebdo.
-  - Recalcul automatique et instantané des métriques dérivées (allure, charge RPE).
+* **Réalisations :**
+  1. **Endpoints API Backend (`routers/sport.py`, `sqlite/sport_connector.py`) :**
+     - Endpoint `DELETE /api/v1/sport/session/{id}` avec suppression en base SQLite et recalcul automatique de la synthèse hebdomadaire rattachée.
+     - Endpoint `PATCH /api/v1/sport/session/id/{id}` avec filtrage strict des `None` (non-écrasement sélectif), exclusion des champs calculés forcés et recalcul immédiat des indicateurs dérivés.
+     - Champ `id` exposé dans le contrat Pydantic `SportSession`.
+  2. **Interface PWA (`sport_view.js`, `index.html`, `api.js`) :**
+     - Boutons d'action « ✏️ Modifier » et « 🗑️ Supprimer » sur chaque carte d'accordéon de l'historique et sur la carte du jour.
+     - Confirmation explicite avant suppression pour éviter toute perte accidentelle.
+     - Formulaire modal d'édition `#modal-edit-sport-session` ergonomique restreint aux champs bruts éligibles (distance, durée minutes/secondes, D+, RPE, météo, FC, remarques).
+     - Actualisation réactive instantanée des vues et compteurs sans rechargement de page.
+* **Critères d'acceptation validés :**
+  - 4/4 tests TDD dédiés au vert dans `tests/test_sport_manual_editor_and_deletion.py`.
+  - Non-régression totale : **455/455 tests passés à 100% au vert**.
+  - Validé manuellement et testé avec succès par Alexis.
 
 ---
 
@@ -217,6 +223,22 @@
 * **Critères d'acceptation :**
   - Zéro perte de message en cas de coupure réseau ou serveur indisponible.
   - Envoi fluide dès reconnexion et réception de la réponse d'Otis.
+
+---
+
+### ⏳ Étape 6.2 : Gestion Audio Focus & Ducking Casque (Running Mode)
+* **Contexte & Problème constaté en course à pied :**
+  - À l'ouverture de l'application pendant une sortie running, le son du casque (musique, podcast) baisse automatiquement de manière continue (*audio ducking permanent*).
+  - L'écoute du micro ou le contexte audio Web / SpeechRecognition force le système hôte (iOS/Android) en mode communication continue.
+* **Comportement attendu :**
+  - Le volume du casque ne doit baisser (**ducking**) **uniquement** si Otis est en train de parler (synthèse vocale TTS en cours de lecture) ou si l'utilisateur est en train de lui parler (Push-to-Talk actif).
+  - Dès la fin de l'interaction (TTS terminé ou relâchement du Push-to-Talk), libérer le flux audio pour que la musique/le podcast reprenne son volume nominal à 100%.
+* **Objectifs à réaliser :**
+  1. Gestion dynamique du contexte audio (`AudioContext` / MediaStreams / SpeechRecognition) : n'activer l'écoute et la capture que sur appui Push-to-Talk ou détection de parole, et libérer les tracks micro au repos.
+  2. Gestion des attributs AudioSession / Ducking pour ne pas monopoliser le canal audio du smartphone en continu en arrière-plan.
+* **Critères d'acceptation :**
+  - La musique/le podcast continue à son volume normal lorsque la PWA est simplement ouverte à l'écran.
+  - Le son est atténué uniquement pendant que l'utilisateur parle ou qu'Otis répond, puis revient instantanément à la normale.
 
 ---
 
