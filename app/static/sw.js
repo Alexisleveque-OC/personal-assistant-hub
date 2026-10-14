@@ -1,9 +1,10 @@
-const CACHE_NAME = "pah-pwa-cache-v18";
+const CACHE_NAME = "pah-pwa-cache-v19";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
   "/static/app.js",
   "/static/js/config.js",
+  "/static/js/audio_focus.js",
   "/static/js/api.js",
   "/static/js/speech.js",
   "/static/js/views/chat_view.js",

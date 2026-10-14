@@ -1,10 +1,12 @@
 // Personal Assistant Hub - PWA Entrypoint & Modular Orchestrator
 import { state, initTheme } from "./js/config.js";
+import { audioFocusManager } from "./js/audio_focus.js";
 import {
   SpeechRecognition,
   populateVoiceList,
   speak,
   initSpeechRecognition,
+  setWakeWordEnabled,
 } from "./js/speech.js";
 import { fetchLlmStats } from "./js/api.js";
 import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage } from "./js/views/chat_view.js";
@@ -17,7 +19,8 @@ import { initSecondBrainView, loadSecondBrainNotes, loadSecondBrainCategories } 
 export { SpeechRecognition };
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Initialisation Thème (Cocooning Clair / Botanique Sombre)
+  // 1. Initialisation Audio Focus (Mode Ambient non-intrusif) & Thème
+  audioFocusManager.initAudioSession();
   initTheme();
 
   // 2. Éléments globaux
@@ -194,6 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (wakeWordToggle) {
         state.wakeWordEnabled = wakeWordToggle.checked;
         localStorage.setItem("pah_wake_word_enabled", state.wakeWordEnabled ? "true" : "false");
+        setWakeWordEnabled(state.wakeWordEnabled);
       }
 
       if (vadSilenceSelect) {

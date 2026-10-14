@@ -1,5 +1,6 @@
 // Module de Synthèse Vocale (TTS), Moteur VAD Anti-Coupure (MediaRecorder) et Ergonomie Vocale
 import { state } from "./config.js";
+import { audioFocusManager } from "./audio_focus.js";
 
 export const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -15,6 +16,13 @@ let isSpeakingDetected = false;
 let isRecording = false;
 let legacyRecognition = null;
 let undoTimeoutId = null;
+
+// Gestion Audio Focus & Ducking
+let activeUtterance = null;
+let ttsWatchdogTimer = null;
+let wakeRecInstance = null;
+let wakeWordPaused = false;
+let onWakeWordCallback = null;
 
 // ============================================================================
 // 1. Synthèse Vocale (TTS)
@@ -58,9 +66,25 @@ export function populateVoiceList(voiceSelect) {
   }
 }
 
+export function cancelSpeaking() {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+  if (ttsWatchdogTimer) {
+    clearTimeout(ttsWatchdogTimer);
+    ttsWatchdogTimer = null;
+  }
+  activeUtterance = null;
+  audioFocusManager.releaseDucking("tts");
+  resumeWakeWordDetector();
+}
+
 export function speak(text, overrideVoiceUri = null) {
   if (!state.ttsEnabled || !("speechSynthesis" in window) || !text) return;
-  window.speechSynthesis.cancel();
+  cancelSpeaking();
+
   const cleanText = text.replace(/[*_#]/g, "");
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = "fr-FR";
@@ -72,8 +96,45 @@ export function speak(text, overrideVoiceUri = null) {
     const foundVoice = frenchVoices.find((v) => v.voiceURI === uriToUse);
     if (foundVoice) utterance.voice = foundVoice;
   }
+
+  function handleTtsDone() {
+    if (ttsWatchdogTimer) {
+      clearTimeout(ttsWatchdogTimer);
+      ttsWatchdogTimer = null;
+    }
+    activeUtterance = null;
+    audioFocusManager.releaseDucking("tts");
+    resumeWakeWordDetector();
+  }
+
+  utterance.onstart = () => {
+    pauseWakeWordDetector();
+    audioFocusManager.requestDucking("tts");
+  };
+
+  utterance.onend = () => {
+    handleTtsDone();
+  };
+
+  utterance.onerror = (e) => {
+    console.debug("[TTS] Fin ou interruption de lecture vocale:", e);
+    handleTtsDone();
+  };
+
+  // Référence globale activeUtterance pour éviter le garbage collection prématuré dans Chrome Mobile
+  activeUtterance = utterance;
+
+  // Watchdog de sécurité (durée estimée + marge)
+  const watchdogMs = Math.max(3000, cleanText.length * 150 + 3000);
+  ttsWatchdogTimer = setTimeout(() => {
+    console.debug("[TTS] Watchdog audio focus déclenché");
+    handleTtsDone();
+  }, watchdogMs);
+
+  audioFocusManager.requestDucking("tts");
   window.speechSynthesis.speak(utterance);
 }
+
 
 // ============================================================================
 // 2. Toast d'Annulation Tactile Immédiate (« Undo »)
@@ -149,6 +210,8 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
 
   async function startAudioCapture() {
     try {
+      pauseWakeWordDetector();
+      audioFocusManager.requestDucking("recording");
       audioChunks = [];
       isSpeakingDetected = false;
 
@@ -222,6 +285,8 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
     }
 
     cleanupAudioNodes();
+    audioFocusManager.releaseDucking("recording");
+    resumeWakeWordDetector();
   }
 
   function cleanupAudioNodes() {
@@ -230,7 +295,9 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       animFrameId = null;
     }
     if (audioStream) {
-      audioStream.getTracks().forEach((track) => track.stop());
+      try {
+        audioStream.getTracks().forEach((track) => track.stop());
+      } catch (e) {}
       audioStream = null;
     }
     if (audioContext && audioContext.state !== "closed") {
@@ -239,6 +306,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       } catch (e) {}
       audioContext = null;
     }
+    analyserNode = null;
   }
 
   function setupVoiceActivityDetection() {
@@ -329,7 +397,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
 
   // Wake Word discret in-app ("Otis") si activé
   if (state.wakeWordEnabled && SpeechRecognition) {
-    initWakeWordDetector(() => {
+    startWakeWordDetection(() => {
       if (!isRecording) {
         console.debug("[WakeWord] Déclenchement automatique via mot-clé Otis !");
         startAudioCapture();
@@ -338,36 +406,112 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
   }
 }
 
-// Détecteur de réveil in-app ("Otis")
-function initWakeWordDetector(onWakeCallback) {
-  try {
-    const wakeRec = new SpeechRecognition();
-    wakeRec.lang = "fr-FR";
-    wakeRec.continuous = true;
-    wakeRec.interimResults = true;
+// ============================================================================
+// 4. Détecteur de Réveil In-App (« Otis ») Non-Intrusif & Contrôlable
+// ============================================================================
 
-    wakeRec.onresult = (evt) => {
+export function setWakeWordEnabled(enabled) {
+  state.wakeWordEnabled = !!enabled;
+  if (state.wakeWordEnabled) {
+    startWakeWordDetection();
+  } else {
+    stopWakeWordDetection();
+  }
+}
+
+export function pauseWakeWordDetector() {
+  wakeWordPaused = true;
+  if (wakeRecInstance) {
+    try {
+      wakeRecInstance.abort();
+    } catch (e) {}
+  }
+}
+
+export function resumeWakeWordDetector() {
+  wakeWordPaused = false;
+  if (state.wakeWordEnabled && !isRecording && !audioFocusManager.isDucking()) {
+    startWakeWordDetection();
+  }
+}
+
+export function stopWakeWordDetection() {
+  wakeWordPaused = false;
+  if (wakeRecInstance) {
+    try {
+      wakeRecInstance.abort();
+    } catch (e) {}
+    wakeRecInstance = null;
+  }
+}
+
+export function startWakeWordDetection(onWakeCallback = null) {
+  if (onWakeCallback) {
+    onWakeWordCallback = onWakeCallback;
+  }
+  if (!state.wakeWordEnabled || !SpeechRecognition) return;
+  if (wakeWordPaused || isRecording || (typeof document !== "undefined" && document.hidden)) {
+    return;
+  }
+
+  try {
+    if (wakeRecInstance) {
+      try { wakeRecInstance.abort(); } catch (e) {}
+    }
+
+    wakeRecInstance = new SpeechRecognition();
+    wakeRecInstance.lang = "fr-FR";
+    wakeRecInstance.continuous = true;
+    wakeRecInstance.interimResults = true;
+
+    wakeRecInstance.onresult = (evt) => {
       for (let i = evt.resultIndex; i < evt.results.length; ++i) {
         const transcript = evt.results[i][0].transcript.toLowerCase();
         if (transcript.includes("otis") || transcript.includes("dis otis")) {
-          onWakeCallback();
+          if (onWakeWordCallback) onWakeWordCallback();
           break;
         }
       }
     };
 
-    wakeRec.onerror = () => {};
-    wakeRec.onend = () => {
-      if (state.wakeWordEnabled && !isRecording) {
-        try { wakeRec.start(); } catch (e) {}
+    wakeRecInstance.onerror = (e) => {
+      console.debug("[WakeWord] Événement d'écoute:", e?.error || e);
+    };
+
+    wakeRecInstance.onend = () => {
+      // Reconnexion uniquement si l'état est toujours actif et non en pause
+      if (
+        state.wakeWordEnabled &&
+        !wakeWordPaused &&
+        !isRecording &&
+        !audioFocusManager.isDucking() &&
+        (typeof document === "undefined" || !document.hidden)
+      ) {
+        setTimeout(() => {
+          try {
+            if (wakeRecInstance) wakeRecInstance.start();
+          } catch (e) {}
+        }, 500);
       }
     };
 
-    wakeRec.start();
+    wakeRecInstance.start();
   } catch (e) {
     console.warn("Wake word non initialisé:", e);
   }
 }
+
+// Surveillance de la visibilité de l'application
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      pauseWakeWordDetector();
+    } else {
+      resumeWakeWordDetector();
+    }
+  });
+}
+
 
 // Fallback legacy Web Speech API si MediaRecorder indisponible
 function initLegacyWebSpeech(onResultCallback, onNotAllowedCallback) {

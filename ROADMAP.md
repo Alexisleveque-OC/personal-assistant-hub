@@ -13,7 +13,7 @@
 
 | Étape | Description | Statut | Validation Utilisateur | Tests Automatisés |
 | :--- | :--- | :---: | :---: | :---: |
-| **Étape 1** | **Gestion Audio Focus & Ducking Casque (Running Mode) :** Atténuation du volume casque (musique/podcast) uniquement si Otis parle ou si l'utilisateur lui parle, et non en continu dès l'ouverture de l'application | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 1** | **Gestion Audio Focus & Ducking Casque (Running Mode) :** Atténuation du volume casque (musique/podcast) uniquement si Otis parle ou si l'utilisateur lui parle, et non en continu dès l'ouverture de l'application | ✅ Fait | Validé par Alexis | ✅ 100% vert (469 tests) |
 | **Étape 2** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + calibrage in-app du mot-clé de réveil « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 3** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 4** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé en forêt, indicateur d'attente et envoi automatique dès reconnexion | ⏳ À faire | En attente | ⏳ TDD à créer |
