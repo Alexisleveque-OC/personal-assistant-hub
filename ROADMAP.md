@@ -15,8 +15,8 @@
 | :--- | :--- | :---: | :---: | :---: |
 | **Étape 1** | **Gestion Audio Focus & Ducking Casque (Running Mode) :** Atténuation du volume casque (musique/podcast) uniquement si Otis parle ou si l'utilisateur lui parle, et non en continu dès l'ouverture de l'application | ✅ Fait | Validé par Alexis | ✅ 100% vert (469 tests) |
 | **Étape 2** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + calibrage in-app du mot-clé de réveil « Otis » | ✅ Fait | Validé par Alexis | ✅ 100% vert (478 tests) |
-| **Étape 3** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | 🟡 En cours | En attente de TDD | ⏳ TDD en cours |
-| **Étape 4** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé en forêt, indicateur d'attente et envoi automatique dès reconnexion | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 3** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ✅ Fait | Validé par Alexis | ✅ 100% vert (493 tests) |
+| **Étape 4** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé en forêt, indicateur d'attente et envoi automatique dès reconnexion | 🟡 En cours | En attente de TDD | ⏳ TDD en cours |
 | **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression, déploiement prod et recette utilisateur | ⏳ À faire | En attente | ⏳ TDD à créer |
 
 ---
@@ -66,7 +66,7 @@
 
 ---
 
-### ⏳ Étape 3 : Détection Thématique Contextuelle par Mots-Clés
+### ✅ Étape 3 : Détection Thématique Contextuelle par Mots-Clés
 * **Contexte & Problème résolu :**
   - En disant *« Ok prends note de ces 3 derniers échanges. Il faut corriger »*, l'assistant comprenait à tort qu'il devait mettre à jour 3 séances de sport avec un RPE à 3/10 !
 * **Objectifs à réaliser :**
