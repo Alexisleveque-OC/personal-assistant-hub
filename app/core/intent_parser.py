@@ -261,6 +261,11 @@ class IntentParser:
                     raw_query=text,
                 )
 
+        # 0.08 Second Cerveau & Notes compartimentées (Priorité Haute - Évite les faux positifs courses/sport)
+        note_intent = self._parse_second_brain(text, cleaned, context)
+        if note_intent:
+            return note_intent
+
         # 0.1 Nettoyage de la liste de courses ("vide la liste de courses", "nettoie la liste")
         if re.search(r"(?:vide|nettoie|supprime|efface)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?", cleaned):
             return ParsedIntent(
@@ -729,7 +734,7 @@ class IntentParser:
         # Cas 2 : Révisions d'ouverture ("Finalement sur ma dernière séance j'ai couru 5km avec un rpe à 4 et en 45min 30")
         # Cas 3 : Tournures informelles ("tu peux même mettre le rpe à 5, et la météo à 3...", "mets le rpe à 5")
         is_explicit_update = bool(
-            re.search(r"(?:modifie[rz]?|change[rz]?|réajuste[rz]?|reajuste[rz]?|mets?\s+à\s+jour|mettre\s+à\s+jour|édite[rz]?|edite[rz]?)\s+(?:le\s+ressenti|le\s+rpe|la\s+note|la\s+météo|la\s+meteo|ma\s+séance|ma\s+seance|ma\s+course)", cleaned) or
+            re.search(r"(?:modifie[rz]?|change[rz]?|réajuste[rz]?|reajuste[rz]?|mets?\s+à\s+jour|mettre\s+à\s+jour|édite[rz]?|edite[rz]?)\s+(?:le\s+ressenti|le\s+rpe|(?:la\s+note\s+(?:de\s+(?:ma\s+|la\s+)?(?:séance|seance|météo|meteo|course)|(?:[àa]|sur)\s*[0-9]+))|la\s+météo|la\s+meteo|ma\s+séance|ma\s+seance|ma\s+course)", cleaned) or
             re.search(r"(?:ajoute[rz]?)\s+une\s+note\s+(?:sur|à)\s+ma\s+(?:course|séance|seance)", cleaned)
         )
         is_revision_opening = bool(
@@ -1129,7 +1134,45 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 10.2 Suppression de note ("supprime la note 5", "efface la note 3")
+        # 10. Second Cerveau & Notes compartimentées (Fallback si non intercepté plus tôt)
+        note_intent = self._parse_second_brain(text, cleaned, context)
+        if note_intent:
+            return note_intent
+
+        # Inconnu
+        return ParsedIntent(
+            intent=IntentType.UNKNOWN,
+            confidence=0.20,
+            parameters={},
+            raw_query=text,
+        )
+
+    def _parse_second_brain(self, text: str, cleaned: str, context: Optional[dict] = None) -> Optional[ParsedIntent]:
+        """Analyse et classification stricte des intentions liées au Second Cerveau (Notes & Idées)."""
+        # 1. Consultation de notes ("quelles sont mes idées de dev", "liste mes notes")
+        if re.search(r"\b(?:quelles?\s+sont\s+mes\s+idées\s+de\s+dev|idées\s+à\s+dev|mes\s+idées\s+de\s+code)\b", cleaned):
+            return ParsedIntent(
+                intent=IntentType.LIST_NOTES,
+                confidence=0.92,
+                parameters={"category": NoteCategory.DEV_IDEA.value},
+                raw_query=text,
+            )
+        if re.search(r"\b(?:liste\s+mes\s+bugs|quelles?\s+sont\s+mes\s+bugs|mes\s+corrections)\b", cleaned):
+            return ParsedIntent(
+                intent=IntentType.LIST_NOTES,
+                confidence=0.92,
+                parameters={"category": NoteCategory.BUG_REPORT.value},
+                raw_query=text,
+            )
+        if re.search(r"\b(?:liste\s+mes\s+notes|montre\s+mes\s+notes|quelles?\s+sont\s+mes\s+notes|affiche\s+mes\s+notes)\b", cleaned):
+            return ParsedIntent(
+                intent=IntentType.LIST_NOTES,
+                confidence=0.90,
+                parameters={},
+                raw_query=text,
+            )
+
+        # 2. Suppression de note ("supprime la note 5", "efface la note 3")
         del_match = re.search(r"(?:supprime|retire|efface)\s+la\s+note\s+(\d+)", cleaned)
         if del_match:
             return ParsedIntent(
@@ -1139,21 +1182,19 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 10.3 Capture & enregistrement d'une note (5 segments)
-        # a0) Note contextuelle multi-tours / anaphore sur les échanges récents
-        # (ex: "prend note de ces 3 derniers échanges. Il faut corriger", "prends note de ça", "note ces derniers échanges")
+        # 3. Capture & enregistrement d'une note
+        # a) Note contextuelle multi-tours / anaphore sur les échanges récents
         context_note_match = re.search(
-            r"^(?:ok\s+)?(?:prends?|fais?|ajoute?|enregistre?)\s+note\s+(?:de\s+)?(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça)(?:[\.:\-]\s*|\s+)?(.*)$",
+            r"^(?:ok\s+)?(?:prends?|fais?|ajoute?|enregistre?)\s+note\s+(?:de\s+)?(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça|ce\s+qu['’ ]on\s+vient\s+de\s+dire)(?:[\.:\-]\s*|\s+)?(.*)$",
             cleaned,
         ) or re.search(
-            r"^(?:note|enregistre)\s+(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça)(?:[\.:\-]\s*|\s+)?(.*)$",
+            r"^(?:note|enregistre)\s+(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça|ce\s+qu['’ ]on\s+vient\s+de\s+dire)(?:[\.:\-]\s*|\s+)?(.*)$",
             cleaned,
         )
         if context_note_match:
             extra_comment = context_note_match.group(1).strip()
             history = (context or {}).get("history", [])
 
-            # Synthétiser le contenu à partir de l'historique des échanges
             if history and isinstance(history, list):
                 turns = []
                 for turn in history[-6:]:
@@ -1166,9 +1207,8 @@ class IntentParser:
             else:
                 synthesized_content = extra_comment or text.strip()
 
-            # Catégorisation intelligente (bug_report si problème/correction mentionné, dev_idea sinon)
             full_check_text = (cleaned + " " + synthesized_content).lower()
-            if any(w in full_check_text for w in ("corriger", "bug", "erreur", "ne fonctionne pas", "problème", "échec", "plantage")):
+            if any(w in full_check_text for w in ("corriger", "bug", "erreur", "ne fonctionne pas", "ne marche pas", "problème", "échec", "plantage")):
                 cat = NoteCategory.BUG_REPORT.value
             else:
                 cat = NoteCategory.DEV_IDEA.value
@@ -1183,8 +1223,8 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # a) dev_idea : "à dev : ...", "idée dev : ...", "idée de dev : ...", "idée de code : ..."
-        dev_match = re.search(r"^(?:(?:note\s+)?à\s+dev(?:\s*[:\-]\s*|\s+)|idée\s+(?:de\s+)?(?:dev|code)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        # b) dev_idea : "à dev : ...", "idée dev : ...", "idée de dev : ...", "idée de code : ..."
+        dev_match = re.search(r"^(?:(?:note\s+)?à\s+dev(?:\s*[:\-]\s*|\s+)|(?:note\s+d['’]?)?idée\s+(?:de\s+)?(?:dev|code)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
         if dev_match:
             content = dev_match.group(1).strip()
             return ParsedIntent(
@@ -1197,8 +1237,8 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # b) bug_report : "bug : ...", "bug à corriger : ...", "correction à faire : ...", "problème sur : ..."
-        bug_match = re.search(r"^(?:bug(?:\s+à\s+corriger)?(?:\s*[:\-]\s*|\s+)|correction(?:\s+à\s+faire)?(?:\s*[:\-]\s*|\s+)|problème\s+sur(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        # c) bug_report : "note de bug : ...", "bug : ...", "bug à corriger : ...", "correction à faire : ...", "problème sur : ..."
+        bug_match = re.search(r"^(?:(?:note\s+de\s+)?bug(?:\s+à\s+corriger)?(?:\s*[:\-]\s*|\s+)|correction(?:\s+à\s+faire)?(?:\s*[:\-]\s*|\s+)|problème\s+sur(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
         if bug_match:
             content = bug_match.group(1).strip()
             return ParsedIntent(
@@ -1211,7 +1251,7 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # c) task : "tâche à faire : ...", "tâche : ...", "penser à ..." (hors rappels)
+        # d) task : "tâche à faire : ...", "tâche : ...", "penser à ..." (hors rappels)
         task_match = re.search(r"^(?:tâche(?:\s+à\s+faire)?(?:\s*[:\-]\s*|\s+)|penser\s+à\s+)(.*)$", cleaned)
         if task_match:
             content = task_match.group(1).strip()
@@ -1225,7 +1265,7 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # d) preference : "je préfère ...", "ma préférence : ...", "retiens que je préfère ..."
+        # e) preference : "je préfère ...", "ma préférence : ...", "retiens que je préfère ..."
         pref_match = re.search(r"^(?:(?:retiens\s+que\s+)?je\s+préfère|ma\s+préférence(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
         if pref_match:
             return ParsedIntent(
@@ -1238,7 +1278,7 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # e) Catégorie dynamique extensible : "note <thème> : <contenu>", "idée <thème> : <contenu>" (ex: voyage, finance, lecture, etc.)
+        # f) Catégorie dynamique extensible : "note <thème> : <contenu>", "idée <thème> : <contenu>" (ex: voyage, finance, lecture, etc.)
         dyn_match = re.search(r"^(?:(?:note|idée)\s+([a-zA-ZÀ-ÿ0-9_-]{3,25})\s*[:\-]\s*)(.*)$", cleaned)
         if dyn_match:
             cat_raw = dyn_match.group(1).strip().lower()
@@ -1258,27 +1298,43 @@ class IntentParser:
                     raw_query=text,
                 )
 
-        # f) thought / note libre : "idée pour plus tard : ...", "note pour plus tard : ...", "idée : ...", "note : ...", "pense-bête : ..."
-        thought_match = re.search(r"^(?:(?:idée|note)\s+pour\s+plus\s+tard(?:\s*[:\-]\s*|\s+)|(?:idée|note|pense[- ]bête|réflexion)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
+        # g) thought / note générale libre :
+        # Couvre les formes avec séparateur écrit (":", "-") et les formulations orales naturelles ("pour...", "juste pour...", "disant que...", "que...", "de...")
+        thought_match = re.search(
+            r"^(?:ok\s+)?"
+            r"(?:"
+            r"(?:(?:prends?|ajoute?|enregistre?|fais?|crée?|mets?)\s+)?(?:une\s+)?note(?:\s+(?:pour|sur|dans)\s+[^:\-]+)?\s*[:\-]\s*"
+            r"|(?:prends?|ajoute?|enregistre?|fais?|crée?|mets?)\s+(?:une\s+)?note\b(?:\s+(?:juste\s+)?(?:pour|que|de|disant\s+que|comme\s+quoi)\s+|\s*[:\-]\s*|\s+)"
+            r"|(?:ok\s+)?prends?\s+note\s+(?:que|de|pour)\s+"
+            r"|(?:idée|note)\s+pour\s+plus\s+tard(?:\s*[:\-]\s*|\s+)"
+            r"|(?:idée|note|pense[- ]bête|réflexion)\s*[:\-]\s*"
+            r"|à\s+noter\s*[:\-]?\s+"
+            r"|note\s+que\s+"
+            r")(.*)$",
+            cleaned,
+        )
         if thought_match:
-            content = thought_match.group(1).strip()
+            raw_content = thought_match.group(1).strip()
+            # Nettoyage léger des prépositions orales en tête de contenu
+            cleaned_content = re.sub(r"^(?:juste\s+)?(?:pour\s+|que\s+|de\s+|disant\s+que\s+|comme\s+quoi\s+)", "", raw_content, flags=re.IGNORECASE).strip()
+            content = cleaned_content if cleaned_content else (raw_content or text.strip())
+            full_note_check = (cleaned + " " + content).lower()
+            if any(w in full_note_check for w in ("corriger", "bug", "erreur", "ne fonctionne pas", "ne marche pas", "problème", "échec", "plantage")):
+                cat = NoteCategory.BUG_REPORT.value
+            elif any(w in full_note_check for w in ("à dev", "idee dev", "idée dev", "code", "développement", "refactor")):
+                cat = NoteCategory.DEV_IDEA.value
+            else:
+                cat = NoteCategory.THOUGHT.value
+
             return ParsedIntent(
                 intent=IntentType.SAVE_NOTE,
-                confidence=0.90,
+                confidence=0.92,
                 parameters={
-                    "category": NoteCategory.THOUGHT.value,
-                    "content": content or text,
+                    "category": cat,
+                    "content": content,
                 },
                 raw_query=text,
             )
 
-
-        # Inconnu
-
-        return ParsedIntent(
-            intent=IntentType.UNKNOWN,
-            confidence=0.20,
-            parameters={},
-            raw_query=text,
-        )
+        return None
 

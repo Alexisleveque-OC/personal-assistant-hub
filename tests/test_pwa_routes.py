@@ -75,6 +75,7 @@ def test_get_static_assets():
 
     for module_path in (
         "/static/js/config.js",
+        "/static/js/audio_focus.js",
         "/static/js/api.js",
         "/static/js/speech.js",
         "/static/js/views/chat_view.js",

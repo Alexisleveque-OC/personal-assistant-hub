@@ -60,13 +60,22 @@ class AudioSTTService:
         if context:
             prompt_text += f"\nContexte : {json.dumps(context, ensure_ascii=False, default=str)}"
 
+        # Nettoyage et normalisation du MIME type (suppression des paramètres ;codecs=opus etc.)
+        clean_mime = (mime_type or "audio/webm").split(";")[0].strip().lower()
+        if clean_mime in ("video/mp4", "audio/m4a", "audio/x-m4a", "audio/aac"):
+            clean_mime = "audio/mp4"
+        elif clean_mime in ("video/webm", "video/x-matroska"):
+            clean_mime = "audio/webm"
+        elif clean_mime in ("video/ogg",):
+            clean_mime = "audio/ogg"
+
         return {
             "contents": [
                 {
                     "parts": [
                         {
                             "inlineData": {
-                                "mimeType": mime_type,
+                                "mimeType": clean_mime,
                                 "data": b64_audio,
                             }
                         },

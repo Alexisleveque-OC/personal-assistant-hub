@@ -156,7 +156,14 @@ async def handle_sport_intent(
                 try:
                     existing_session = sport_connector.get_session(session_date)
                     if existing_session and existing_session.type_seance:
-                        type_seance = existing_session.type_seance
+                        cand_type = existing_session.type_seance
+                        if isinstance(cand_type, SportSessionType):
+                            type_seance = cand_type
+                        elif isinstance(cand_type, str):
+                            try:
+                                type_seance = SportSessionType(cand_type)
+                            except ValueError:
+                                pass
                 except Exception:
                     pass
 
@@ -177,13 +184,23 @@ async def handle_sport_intent(
 
             if planned_session:
                 if "type_seance" not in parsed.parameters and planned_session.type_seance:
-                    type_seance = planned_session.type_seance
+                    cand_type = planned_session.type_seance
+                    if isinstance(cand_type, SportSessionType):
+                        type_seance = cand_type
+                    elif isinstance(cand_type, str):
+                        try:
+                            type_seance = SportSessionType(cand_type)
+                        except ValueError:
+                            pass
                 if dist is None and planned_session.distance_km and type_seance != SportSessionType.RENFORCEMENT:
-                    dist = planned_session.distance_km
+                    if isinstance(planned_session.distance_km, (int, float)):
+                        dist = float(planned_session.distance_km)
                 if not dur_sec and planned_session.duree_secondes:
-                    dur_sec = planned_session.duree_secondes
+                    if isinstance(planned_session.duree_secondes, (int, float)):
+                        dur_sec = int(planned_session.duree_secondes)
                 if not prog and planned_session.programme:
-                    prog = planned_session.programme
+                    if isinstance(planned_session.programme, str):
+                        prog = planned_session.programme
 
             if not prog and notes and type_seance == SportSessionType.RENFORCEMENT:
                 prog = notes
