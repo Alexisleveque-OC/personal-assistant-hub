@@ -28,6 +28,7 @@ class IntentType(str, Enum):
     UPDATE_SPORT_SESSION = "update_sport_session"
     PLAN_WEEKLY_TRAINING = "plan_weekly_training"
     EXPLAIN_SPORT_EXERCISE = "explain_sport_exercise"
+    FIX_SPORT_DUPLICATE = "fix_sport_duplicate"
 
     # Google Tasks
     ADD_TASK = "add_task"
@@ -215,6 +216,26 @@ class SecondBrainImageNoteResponse(BaseModel):
     note: SecondBrainNoteItem
     analysis: SecondBrainImageAnalysisResult
     spoken_response: str
+
+
+class SportScreenshotAnalysisResult(BaseModel):
+    """Résultat d'analyse multimodale Gemini Vision d'une capture d'écran sportive (Strava, Decathlon, Garmin)."""
+    is_sport_session: bool = Field(True, description="True s'il s'agit d'un récapitulatif de séance sportive")
+    app_source: str = Field(default="Inconnu", description="Application ou montre source (ex: Strava, Decathlon Coach, Decathlon Connect (CW500 M), Garmin)")
+    date: Optional[str] = Field(None, description="Date de la séance au format ISO YYYY-MM-DD")
+    heure_depart: Optional[str] = Field(None, description="Heure de début au format HH:MM")
+    type_seance: str = Field(default="EF", description="Type de séance (EF, Sortie Longue, Fractionné, Renforcement, etc.)")
+    distance_km: Optional[float] = Field(None, description="Distance parcourue en kilomètres")
+    duree_secondes: Optional[int] = Field(None, description="Durée de déplacement / active en secondes")
+    denivele_d_plus: Optional[int] = Field(0, description="Dénivelé positif en mètres (D+)")
+    allure_moyenne: Optional[str] = Field(None, description="Allure moyenne au format mm:ss (ex: 06:01)")
+    vitesse_kmh: Optional[float] = Field(None, description="Vitesse moyenne en km/h")
+    fc_moyenne: Optional[int] = Field(None, description="Fréquence cardiaque moyenne en bpm")
+    fc_max: Optional[int] = Field(None, description="Fréquence cardiaque maximale en bpm")
+    cadence_spm: Optional[int] = Field(None, description="Cadence moyenne en pas/min")
+    calories_kcal: Optional[int] = Field(None, description="Calories brûlées")
+    titre: Optional[str] = Field(None, description="Titre donné à l'activité")
+    message: Optional[str] = Field(None, description="Message d'information ou motif de rejet si non sportive")
 
 
 # ============================================================================

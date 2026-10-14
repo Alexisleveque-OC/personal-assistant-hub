@@ -1,5 +1,5 @@
 // Client API HTTP fetch avec authentification par clé API
-import { state } from "./config.js";
+import { state, getActiveSessionId } from "./config.js";
 
 export function getAuthHeaders() {
   const headers = { "Content-Type": "application/json" };
@@ -9,21 +9,21 @@ export function getAuthHeaders() {
   return headers;
 }
 
-export async function postInteract(queryText) {
+export async function postInteract(queryText, sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
   const res = await fetch("/api/v1/interact", {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ query: queryText })
+    body: JSON.stringify({ query: queryText, session_id: finalSessionId })
   });
   return res;
 }
 
 export async function postInteractAudio(audioBlob, sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
   const formData = new FormData();
   formData.append("audio_file", audioBlob, "recording.webm");
-  if (sessionId) {
-    formData.append("session_id", sessionId);
-  }
+  formData.append("session_id", finalSessionId);
   const headers = {};
   if (state.apiKey) {
     headers["X-API-Key"] = state.apiKey;
@@ -34,6 +34,24 @@ export async function postInteractAudio(audioBlob, sessionId = null) {
     body: formData
   });
   return res;
+}
+export async function fetchSessionHistory(sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
+  const headers = getAuthHeaders();
+  const res = await fetch(`/api/v1/session/history?session_id=${encodeURIComponent(finalSessionId)}`, { headers });
+  if (!res.ok) return { session_id: finalSessionId, history: [] };
+  return await res.json();
+}
+
+export async function postResetSession(sessionId = null) {
+  const finalSessionId = sessionId || getActiveSessionId();
+  const headers = getAuthHeaders();
+  const res = await fetch(`/api/v1/session/reset?session_id=${encodeURIComponent(finalSessionId)}`, {
+    method: "POST",
+    headers,
+  });
+  if (!res.ok) return { status: "error" };
+  return await res.json();
 }
 
 export async function fetchLlmStats() {
@@ -89,7 +107,38 @@ export async function patchSportSession(dateStr, payload) {
     headers: getAuthHeaders(),
     body: JSON.stringify(payload)
   });
-  if (!res.ok) throw new Error("Échec de la sauvegarde");
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const detailMsg = errJson && errJson.detail ? errJson.detail : ("Échec de la sauvegarde (" + res.status + ")");
+    throw new Error(detailMsg);
+  }
+  return await res.json();
+}
+
+export async function patchSportSessionById(sessionId, payload) {
+  const res = await fetch(`/api/v1/sport/session/id/${sessionId}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const detailMsg = errJson && errJson.detail ? errJson.detail : ("Échec de la modification (" + res.status + ")");
+    throw new Error(detailMsg);
+  }
+  return await res.json();
+}
+
+export async function deleteSportSession(sessionId) {
+  const res = await fetch(`/api/v1/sport/session/${sessionId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const detailMsg = errJson && errJson.detail ? errJson.detail : ("Échec de la suppression (" + res.status + ")");
+    throw new Error(detailMsg);
+  }
   return await res.json();
 }
 
@@ -231,5 +280,27 @@ export async function uploadSecondBrainImage(imageFile, { caption = null, catego
   }
   return await res.json();
 }
+
+export async function importSportScreenshot(imageFile) {
+  const formData = new FormData();
+  formData.append("file", imageFile);
+
+  const headers = {};
+  if (state.apiKey) {
+    headers["X-API-Key"] = state.apiKey;
+  }
+
+  const res = await fetch("/api/v1/sport/import-screenshot", {
+    method: "POST",
+    headers: headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || ("Erreur lors de l'import de la capture : " + res.status));
+  }
+  return await res.json();
+}
+
 
 

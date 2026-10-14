@@ -685,6 +685,25 @@ class IntentParser:
             )
 
         # 9. Sport & Running (Mini-Coach Otis)
+        # 9.0 bis Correction / Fusion de doublon de séance sportive
+        # (ex: "tu as créé une séance plutôt que modifier la séance qui était prévue",
+        #      "tu as créé un doublon au lieu de modifier la séance",
+        #      "fusionne avec la séance prévue", "supprime le doublon")
+        if re.search(
+            r"(?:tu\s+as\s+créé\s+(?:une\s+séance|un\s+doublon)|fusionne\s+(?:les\s+deux\s+séances|avec\s+la\s+séance|cette\s+séance)|supprime\s+le\s+doublon)",
+            cleaned,
+        ):
+            fix_params: Dict[str, Any] = {}
+            date_match = re.search(r"\b(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|hier|aujourd[' ]?hui)\b", cleaned)
+            if date_match:
+                fix_params["target_date"] = date_match.group(1).replace(" ", "")
+            return ParsedIntent(
+                intent=IntentType.FIX_SPORT_DUPLICATE,
+                confidence=0.96,
+                parameters=fix_params,
+                raw_query=text,
+            )
+
         # 9.1 Bilan hebdomadaire ("j'en suis à combien de kilomètres cette semaine", "bilan de course")
         if re.search(r"(?:combien\s+de\s+k(?:m|ilomètres?)|bilan\s+(?:de\s+)?(?:course|running|sport)|résumé\s+(?:de\s+)?(?:course|running)|cumul\s+(?:de\s+)?(?:course|running))", cleaned):
             summary_params: Dict[str, Any] = {}
@@ -706,42 +725,147 @@ class IntentParser:
             )
 
         # 9.1 bis Réajustement ou modification a posteriori d'une séance passée
-        # (ex: "modifie le ressenti de ma course de dimanche à 9 sur 10 à cause de ma périostite",
-        #      "ajoute une note sur ma course de dimanche : douleur au tibia à J+2",
-        #      "change le rpe de ma séance d'hier à 8", "modifier ma séance d'hier ressenti à 7")
-        if re.search(r"(?:modifie[rz]?|change[rz]?|réajuste[rz]?|reajuste[rz]?|mets?\s+à\s+jour|mettre\s+à\s+jour|édite[rz]?|edite[rz]?)\s+(?:le\s+ressenti|le\s+rpe|la\s+note|ma\s+séance|ma\s+seance|ma\s+course)", cleaned) or \
-           re.search(r"(?:ajoute[rz]?)\s+une\s+note\s+(?:sur|à)\s+ma\s+(?:course|séance|seance)", cleaned):
+        # Cas 1 : Commandes explicites ("modifie le ressenti...", "change la note...", "mets à jour...")
+        # Cas 2 : Révisions d'ouverture ("Finalement sur ma dernière séance j'ai couru 5km avec un rpe à 4 et en 45min 30")
+        # Cas 3 : Tournures informelles ("tu peux même mettre le rpe à 5, et la météo à 3...", "mets le rpe à 5")
+        is_explicit_update = bool(
+            re.search(r"(?:modifie[rz]?|change[rz]?|réajuste[rz]?|reajuste[rz]?|mets?\s+à\s+jour|mettre\s+à\s+jour|édite[rz]?|edite[rz]?)\s+(?:le\s+ressenti|le\s+rpe|la\s+note|la\s+météo|la\s+meteo|ma\s+séance|ma\s+seance|ma\s+course)", cleaned) or
+            re.search(r"(?:ajoute[rz]?)\s+une\s+note\s+(?:sur|à)\s+ma\s+(?:course|séance|seance)", cleaned)
+        )
+        is_revision_opening = bool(
+            re.search(r"\b(?:finalement|en\s+fait|rectification|rectifie)\b.*?\b(?:derni[èe]re\s+(?:séance|seance|course|sortie(?:\s+longue)?)|cette\s+(?:séance|seance|course|sortie(?:\s+longue)?)|ma\s+(?:séance|seance|course|sortie(?:\s+longue)?))\b", cleaned) or
+            re.search(r"\b(?:sur\s+)?(?:ma\s+|la\s+)?(?:derni[èe]re\s+(?:séance|seance|course|sortie(?:\s+longue)?)|cette\s+(?:séance|seance|course|sortie(?:\s+longue)?))\b.*?\b(?:finalement|en\s+fait|rectification|j[' ]?ai\s+(?:couru|fait|mis))\b", cleaned) or
+            (re.search(r"\b(?:sur\s+cette\s+(?:séance|seance|course|sortie))\b", cleaned) and re.search(r"\b(?:fréquence|frequence|fc|cardio|rpe|ressenti|allure|vitesse)\b", cleaned))
+        )
+        is_informal_metric_update = bool(
+            re.search(r"\b(?:tu\s+peux\s+(?:m[eê]me\s+|aussi\s+)?(?:mettre|passer|noter|ajuster|modifier)|mets?\s+(?:aussi\s+|m[eê]me\s+)?)\b.*?\b(?:rpe|ressenti|météo|meteo)\b", cleaned) or
+            re.search(r"\b(?:ma\s+)?(?:fréquence|frequence|fc|cardio)\b.*?\b[0-9]{2,3}\b", cleaned) or
+            re.search(r"\b[0-9]{2,3}\s*(?:bpm|pulsations)\b", cleaned)
+        )
+        is_weather_opinion = bool(
+            re.search(r"\b(?:la\s+)?(?:météo|meteo)\b", cleaned) and
+            (
+                re.search(r"(?:(?:donc\s+)?(?:je\s+)?(?:mettrais|mets|met|noterais|noterait|donne)|(?:[àa]|de))\s*([0-9]+)", cleaned) or
+                re.search(r"([0-9]+)\s*(?:à|a|pour)\s*(?:la\s+)?(?:météo|meteo)", cleaned)
+            )
+        )
+
+        if is_explicit_update or is_revision_opening or is_informal_metric_update or is_weather_opinion:
             update_params: Dict[str, Any] = {}
 
             # Date cible
-            date_match = re.search(r"\b(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|hier|avant-hier|aujourd[' ]?hui)\b", cleaned)
-            if date_match:
-                update_params["target_date"] = date_match.group(1).replace(" ", "")
+            if re.search(r"\b(?:derni[èe]re?\s+(?:séance|seance|course|sortie(?:\s+longue)?)|cette\s+(?:séance|seance|course|sortie(?:\s+longue)?))\b", cleaned) or is_weather_opinion:
+                update_params["target_date"] = "last"
             else:
-                num_date_match = re.search(r"\b([0-9]{1,2}/[0-9]{1,2}(?:/[0-9]{2,4})?|[0-9]{4}-[0-9]{2}-[0-9]{2})\b", cleaned)
-                if num_date_match:
-                    update_params["target_date"] = num_date_match.group(1)
+                date_match = re.search(r"\b(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|hier|avant-hier|aujourd[' ]?hui)\b", cleaned)
+                if date_match:
+                    update_params["target_date"] = date_match.group(1).replace(" ", "")
+                else:
+                    num_date_match = re.search(r"\b([0-9]{1,2}/[0-9]{1,2}(?:/[0-9]{2,4})?|[0-9]{4}-[0-9]{2}-[0-9]{2})\b", cleaned)
+                    if num_date_match:
+                        update_params["target_date"] = num_date_match.group(1)
 
-            # RPE / Ressenti
-            rpe_match = re.search(r"(?:ressenti|rpe).*?\b(?:à|de)\s*([0-9]+)", cleaned) or re.search(r"(?:ressenti|rpe)\s*([0-9]+)", cleaned)
+            # Type de séance ciblé
+            if re.search(r"\bsortie\s+longue\b", cleaned):
+                update_params["target_type"] = "Sortie Longue"
+            elif re.search(r"\bfractionn[ée]\b", cleaned):
+                update_params["target_type"] = "Fractionné"
+            elif re.search(r"\brenfo(?:rcement)?\b", cleaned):
+                update_params["target_type"] = "Renforcement"
+            elif re.search(r"\bef\b|\bfooting\b", cleaned):
+                update_params["target_type"] = "EF"
+
+            # Distance optionnelle (ex: "5km", "5.5 km", "7km")
+            dist_m = re.search(r"\b([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)\b", cleaned)
+            if dist_m:
+                update_params["distance_km"] = float(dist_m.group(1).replace(",", "."))
+
+            # Durée optionnelle (ex: "en 45min 30", "en 45min et 30 sec", "45 min", "en 45 min")
+            dur_m = re.search(r"(?:en\s+)?([0-9]+)\s*min(?:utes?)?(?:\s*(?:et\s+)?([0-9]{1,2})\s*(?:sec(?:ondes?)?|s|\b))?", cleaned)
+            if dur_m:
+                d_mins = int(dur_m.group(1))
+                d_secs = int(dur_m.group(2)) if dur_m.group(2) else 0
+                update_params["duration_seconds"] = d_mins * 60 + d_secs
+
+            # RPE / Ressenti (y compris sans espace "rpe a5")
+            rpe_match = re.search(r"(?:ressenti|rpe).*?(?:[àa]|de)?\s*([0-9]+)", cleaned)
             if rpe_match:
                 update_params["ressenti_rpe"] = int(rpe_match.group(1))
 
+            # Météo (note sur 10 avec tournures directes ou indirectes)
+            meteo_match = (
+                re.search(r"(?:météo|meteo).*?\b(?:à|a|de)\s*([0-9]+)", cleaned) or
+                re.search(r"(?:météo|meteo).*?(?:donc\s+)?(?:je\s+)?(?:mettrais|mets|noterais|donne)\s*([0-9]+)", cleaned) or
+                re.search(r"(?:je\s+)?(?:mettrais|mets|noterais)\s*([0-9]+).*?(?:météo|meteo)", cleaned) or
+                re.search(r"(?:météo|meteo)\s*([0-9]+)", cleaned)
+            )
+            if meteo_match:
+                update_params["meteo_note"] = int(meteo_match.group(1))
 
-            # Notes / Douleur / Périostite
-            if ":" in text:
+            # Fréquence Cardiaque Max
+            fc_max_match = re.search(
+                r"(?:fréquence|frequence|fc|cardio)?\s*(?:max(?:imale?)?)\s*(?:sur\s+cette\s+(?:séance|seance|course)\s+)?(?:était|etait|est)?\s*(?:[àa]|de)?\s*([0-9]{2,3})",
+                cleaned,
+            ) or re.search(
+                r"\b([0-9]{2,3})\s*(?:en\s+max|en\s+fc\s+max|max)\b",
+                cleaned,
+            )
+            if fc_max_match:
+                update_params["fc_max"] = int(fc_max_match.group(1))
+
+            # Fréquence Cardiaque Moyenne
+            fc_moy_match = re.search(
+                r"(?:fréquence|frequence|fc|cardio)?\s*(?:moy(?:en(?:ne)?)?)\s*(?:sur\s+(?:cette|la\s+derni[èe]re)\s+(?:séance|seance|course)\s+)?(?:était|etait|est)?\s*(?:[àa]|de)?\s*([0-9]{2,3})",
+                cleaned,
+            ) or re.search(
+                r"\b([0-9]{2,3})\s*(?:en\s+moyenne|en\s+fc\s+moy|moy)\b",
+                cleaned,
+            )
+            if fc_moy_match:
+                update_params["fc_moyenne"] = int(fc_moy_match.group(1))
+
+            # Fréquence cardiaque globale si ni max ni moy précisé
+            if "fc_max" not in update_params and "fc_moyenne" not in update_params:
+                fc_gen_match = re.search(r"(?:fréquence\s+cardiaque|frequence\s+cardiaque|cardio|fc)\s*(?:était|etait|est)?\s*(?:[àa]|de)?\s*([0-9]{2,3})", cleaned)
+                if fc_gen_match:
+                    update_params["fc_moyenne"] = int(fc_gen_match.group(1))
+
+            # Notes / Remarques / Commentaires / Douleur / Périostite
+            notes_extracted = []
+            if re.search(r"\b(?:douleur|mal|courbature|mollet|tibia|périostite)\b", cleaned):
+                d_m = re.search(r"\b(?:j[' ]?ai\s+eu\s+)?(?:de\s+)?(?:bonne[s]?\s+)?(?:douleur[s]?|mal|courbature[s]?|périostite)\b.*", text, re.IGNORECASE)
+                if d_m:
+                    notes_extracted.append(d_m.group(0).strip())
+            if re.search(r"\b(?:pluie|pleuvait|brume|vent|froid|chaud|pas\s+top)\b", cleaned):
+                w_m = re.search(r"\b(?:la\s+météo\s+était\s+.*|il\s+pleuvait.*|il\s+y\s+avait\s+.*)", text, re.IGNORECASE)
+                if w_m:
+                    notes_extracted.append(w_m.group(0).strip())
+            comm_match = re.search(r"\b(?:en\s+)?(?:commentaires?|remarques?)\s*(?:[:;,-]|\s+j[' ]?avais|\s+j[' ]?ai|\s+c[' ]?était)?\s*(.*)", text, re.IGNORECASE)
+            if comm_match and comm_match.group(1).strip():
+                notes_extracted.append(comm_match.group(1).strip())
+            elif ":" in text:
                 note_part = text.split(":", 1)[1].strip()
                 if note_part:
-                    update_params["notes"] = note_part
+                    notes_extracted.append(note_part)
             elif "à cause de" in cleaned:
-                update_params["notes"] = "à cause de " + cleaned.split("à cause de", 1)[1].strip()
+                notes_extracted.append("à cause de " + cleaned.split("à cause de", 1)[1].strip())
             elif "douleur" in cleaned:
                 d_idx = cleaned.find("douleur")
-                update_params["notes"] = cleaned[d_idx:].strip()
+                notes_extracted.append(cleaned[d_idx:].strip())
+            elif re.search(r"\b(?:un\s+peu\s+de\s+vent|pluie|froid|chaud|sensations|jambes)\b", cleaned):
+                # Capturer le contexte météo/sensation textuel
+                m_ctx = re.search(r"\b(il\s+y\s+avait.*?)(?:\.|$)", text, re.IGNORECASE)
+                if m_ctx:
+                    notes_extracted.append(m_ctx.group(1).strip())
+
+            if notes_extracted:
+                update_params["notes"] = " | ".join(notes_extracted)
+                update_params["remarques"] = update_params["notes"]
+                update_params["append_remarques"] = True
 
             return ParsedIntent(
                 intent=IntentType.UPDATE_SPORT_SESSION,
-                confidence=0.95,
+                confidence=0.96,
                 parameters=update_params,
                 raw_query=text,
             )
@@ -779,16 +903,35 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 9.3 Enregistrement d'une course terminée ("j'ai couru 8 km en 42 minutes...")
-        log_match = re.search(
-            r"(?:j[' ]?ai\s+couru|j[' ]?ai\s+fait|note\s+ma\s+séance)\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)\s+(?:en\s+)?([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)",
+        # 9.3 Enregistrement d'une course terminée
+        # Cas A : Durée avant distance (ex: "j'ai mis 45min et 30 sec pour faire 7km sur cette séance", "j'ai mis 45min 30 pour...")
+        mis_duree_match = re.search(
+            r"(?:j[' ]?ai\s+mis|mis)\s+([0-9]+)\s*min(?:utes?)?(?:\s*(?:et\s+)?([0-9]{1,2})\s*(?:sec(?:ondes?)?|s|\b))?\s+(?:pour\s+(?:faire|courir)\s+)?([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)",
             cleaned,
         )
-        if log_match:
-            dist = float(log_match.group(1).replace(",", "."))
-            duree_val = int(log_match.group(2))
-            duree_sec = duree_val * 60  # minutes en secondes
+        # Cas B : Distance avant durée (ex: "j'ai couru 8 km en 42 minutes", "j'ai fait 7km en 45min 30")
+        log_match = re.search(
+            r"(?:j[' ]?ai\s+couru|j[' ]?ai\s+fait|note\s+ma\s+séance)\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:km|bornes?|kilomètres?)\s+(?:en\s+)?([0-9]+)\s*(?:min(?:utes?)?|h(?:eures?)?)(?:\s*(?:et\s+)?([0-9]{1,2})\s*(?:sec(?:ondes?)?|s|\b))?",
+            cleaned,
+        )
+
+        if mis_duree_match or log_match:
+            if mis_duree_match:
+                mins = int(mis_duree_match.group(1))
+                secs = int(mis_duree_match.group(2)) if mis_duree_match.group(2) else 0
+                dist = float(mis_duree_match.group(3).replace(",", "."))
+                duree_sec = mins * 60 + secs
+            else:
+                dist = float(log_match.group(1).replace(",", "."))
+                mins = int(log_match.group(2))
+                secs = int(log_match.group(3)) if log_match.group(3) else 0
+                duree_sec = mins * 60 + secs
+
             params: Dict[str, Any] = {"distance_km": dist, "duration_seconds": duree_sec}
+
+            # Référence anaphorique contextuelle (ex: "sur cette séance", "pour cette course")
+            if re.search(r"\b(?:sur|pour|de)\s+cette\s+(?:séance|seance|course|sortie)\b", cleaned) or "cette séance" in cleaned:
+                params["contextual_session"] = True
 
             # Dénivelé optionnel (ex: "avec 80m de dénivelé", "120 de D+")
             d_plus_match = re.search(r"(?:avec\s+)?([0-9]+)\s*(?:m|mètres?)?\s*(?:de\s+)?(?:dénivelé|d\+)", cleaned)
@@ -939,19 +1082,28 @@ class IntentParser:
             )
 
         # 9.4 Consultation de séance ("qu'est-ce que j'ai comme séance aujourd'hui ?", "c'est quoi ma course de demain ?")
-        if re.search(r"(?:séance|course|footing|entraînement|entrainement)\s+(?:d[' ]|de\s+)?(aujourd[' ]?hui|demain|hier|ce soir)", cleaned) or \
-           re.search(r"(?:qu[' ]?est[- ]ce\s+que\s+j[' ]?ai\s+comme\s+séance|c[' ]?est\s+quoi\s+ma\s+course)", cleaned):
+        if re.search(r"(?:séance|course|footing|entraînement|entrainement)\s+(?:d[' ]|de\s+)?(aujourd[' ]?hui|demain|hier|ce soir|avant[- ]hier|après[- ]demain|apres[- ]demain)", cleaned) or \
+           re.search(r"(?:qu[' ]?est[- ]ce\s+que\s+j[' ]?ai\s+comme\s+séance|c[' ]?(?:est|était)\s+quoi\s+ma\s+(?:séance|course|sortie|footing))", cleaned):
+            resolved = resolve_date_expression(cleaned)
             target_date = "today"
             if "demain" in cleaned:
                 target_date = "demain"
             elif "hier" in cleaned:
                 target_date = "hier"
+            elif "avant-hier" in cleaned or "avant hier" in cleaned:
+                target_date = "avant-hier"
+            elif "aujourd" in cleaned or "ce jour" in cleaned:
+                target_date = "today"
+            elif resolved.target_date:
+                target_date = resolved.target_date.isoformat()
             return ParsedIntent(
                 intent=IntentType.GET_SPORT_SESSION,
                 confidence=0.92,
                 parameters={"target_date": target_date},
                 raw_query=text,
             )
+
+
 
         # 10. Second Cerveau & Notes compartimentées (Phase 6)
         # 10.1 Consultation de notes ("quelles sont mes idées de dev", "liste mes notes", "mes bugs")
@@ -988,6 +1140,49 @@ class IntentParser:
             )
 
         # 10.3 Capture & enregistrement d'une note (5 segments)
+        # a0) Note contextuelle multi-tours / anaphore sur les échanges récents
+        # (ex: "prend note de ces 3 derniers échanges. Il faut corriger", "prends note de ça", "note ces derniers échanges")
+        context_note_match = re.search(
+            r"^(?:ok\s+)?(?:prends?|fais?|ajoute?|enregistre?)\s+note\s+(?:de\s+)?(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça)(?:[\.:\-]\s*|\s+)?(.*)$",
+            cleaned,
+        ) or re.search(
+            r"^(?:note|enregistre)\s+(?:ces\s+(?:\d+\s+)?derniers?\s+échanges?|ça|tout\s+ça)(?:[\.:\-]\s*|\s+)?(.*)$",
+            cleaned,
+        )
+        if context_note_match:
+            extra_comment = context_note_match.group(1).strip()
+            history = (context or {}).get("history", [])
+
+            # Synthétiser le contenu à partir de l'historique des échanges
+            if history and isinstance(history, list):
+                turns = []
+                for turn in history[-6:]:
+                    if isinstance(turn, dict):
+                        role = "Alexis" if turn.get("role") == "user" else "Otis"
+                        turns.append(f"{role}: \"{turn.get('text', '')}\"")
+                synthesized_content = " | ".join(turns)
+                if extra_comment:
+                    synthesized_content = f"{extra_comment} (Contexte: {synthesized_content})"
+            else:
+                synthesized_content = extra_comment or text.strip()
+
+            # Catégorisation intelligente (bug_report si problème/correction mentionné, dev_idea sinon)
+            full_check_text = (cleaned + " " + synthesized_content).lower()
+            if any(w in full_check_text for w in ("corriger", "bug", "erreur", "ne fonctionne pas", "problème", "échec", "plantage")):
+                cat = NoteCategory.BUG_REPORT.value
+            else:
+                cat = NoteCategory.DEV_IDEA.value
+
+            return ParsedIntent(
+                intent=IntentType.SAVE_NOTE,
+                confidence=0.95,
+                parameters={
+                    "category": cat,
+                    "content": synthesized_content,
+                },
+                raw_query=text,
+            )
+
         # a) dev_idea : "à dev : ...", "idée dev : ...", "idée de dev : ...", "idée de code : ..."
         dev_match = re.search(r"^(?:(?:note\s+)?à\s+dev(?:\s*[:\-]\s*|\s+)|idée\s+(?:de\s+)?(?:dev|code)(?:\s*[:\-]\s*|\s+))(.*)$", cleaned)
         if dev_match:

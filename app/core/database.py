@@ -770,6 +770,7 @@ class DatabaseManager:
         self,
         session_type: Optional[str] = None,
         status: Optional[str] = None,
+        max_date: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Résout la dernière séance enregistrée (triée par date antichronologique puis id)."""
         conditions = []
@@ -781,6 +782,9 @@ class DatabaseManager:
         if status:
             conditions.append("statut = ?")
             params.append(status)
+        if max_date:
+            conditions.append("date <= ?")
+            params.append(max_date)
 
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         query = f"SELECT * FROM sport_sessions {where_clause} ORDER BY date DESC, id DESC LIMIT 1"

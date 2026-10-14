@@ -3,7 +3,7 @@ from datetime import date, datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks, File, UploadFile
 
 from app.config import settings
 from app.core.security import verify_api_key
@@ -13,6 +13,7 @@ from app.connectors.sheets.sport_models import (
     SportGamificationSummary,
     SportPeriodDashboard,
     SportSession,
+    SportSessionCreate,
     SportSessionsListResponse,
     SportSessionStatus,
     SportSessionType,
@@ -21,6 +22,8 @@ from app.connectors.sheets.sport_models import (
     SportTodayResponse,
     SportWeeklySummaryWithSessions,
 )
+from app.core.vision.sport_vision_service import get_sport_vision_service
+from app.core.date_resolver import parse_screenshot_date
 from app.core.sport_dashboard_service import (
     CoachTipProvider,
     aggregate_period,
@@ -259,9 +262,66 @@ async def patch_sport_session(
             "session": updated.model_dump(mode="json"),
         }
     except ValueError as exc:
+        logger.warning(f"Séance introuvable lors de la mise à jour ({target_date}) : {exc}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
+        )
+    except Exception as exc:
+        logger.error(f"Erreur lors de la mise à jour de la séance ({target_date}) : {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Échec de mise à jour de la séance : {exc}",
+        )
+
+
+@router.delete("/session/{session_id}")
+async def delete_sport_session_endpoint(
+    session_id: int,
+    connector=Depends(get_sport_connector_dep),
+):
+    """Supprime une séance sportive par son identifiant unique et met à jour la synthèse."""
+    deleted = connector.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Séance {session_id} introuvable.",
+        )
+    return {
+        "success": True,
+        "message": f"Séance {session_id} supprimée avec succès.",
+        "session_id": session_id,
+    }
+
+
+@router.patch("/session/id/{session_id}")
+async def patch_sport_session_by_id(
+    session_id: int,
+    payload: Dict[str, Any],
+    connector=Depends(get_sport_connector_dep),
+):
+    """Met à jour chirurgicalement les champs bruts d'une séance par son ID et recalcule les indicateurs."""
+    try:
+        updated = connector.update_session_by_id(
+            session_id=session_id,
+            updates=payload,
+        )
+        return {
+            "success": True,
+            "message": f"Séance {session_id} mise à jour.",
+            "session": updated.model_dump(mode="json"),
+        }
+    except ValueError as exc:
+        logger.warning(f"Séance {session_id} introuvable lors de la mise à jour : {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        logger.error(f"Erreur lors de la mise à jour de la séance {session_id} : {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Échec de mise à jour de la séance : {exc}",
         )
 
 
@@ -341,4 +401,142 @@ async def sync_strava_activity(
         "message": f"Activité Strava {strava_id} synchronisée",
         "distance_km": dist_km,
         "session": session.model_dump(),
+    }
+
+
+@router.post(
+    "/import-screenshot",
+    summary="Importe et extrait les métriques d'une séance depuis une capture d'écran via Gemini Vision",
+)
+async def import_sport_screenshot(
+    file: UploadFile = File(...),
+    reference_date: Optional[date] = Query(None, description="Date de référence pour la résolution relative (ex: Hier)"),
+    connector=Depends(get_sport_connector_dep),
+):
+    """Analyse une capture d'écran (Strava, Decathlon Coach, montre CW500 M...) et enregistre la séance."""
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fichier image vide.",
+        )
+
+    mime_type = file.content_type or "image/jpeg"
+    service = get_sport_vision_service()
+    ref_d = reference_date or date.today()
+
+    try:
+        vision_data = service.analyze_screenshot(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            reference_date=ref_d,
+        )
+    except Exception as exc:
+        logger.error(f"Erreur d'analyse vision de capture sportive : {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Échec de l'analyse d'image par Gemini Vision : {exc}",
+        )
+
+    if not vision_data or not vision_data.get("is_sport_session"):
+        msg = vision_data.get("message") if vision_data else None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=msg or "Cette image ne semble pas être une capture d'écran de séance sportive.",
+        )
+
+    # Résolution résiliente de la date (formats ISO, DD/MM/YYYY, '08 oct. 2026', relatif...)
+    raw_date = vision_data.get("date")
+    target_date = parse_screenshot_date(raw_date, reference_date=ref_d)
+    vision_data["date"] = target_date.isoformat()
+
+    app_src = vision_data.get("app_source", "Capture")
+    dist = vision_data.get("distance_km")
+    duree = vision_data.get("duree_secondes")
+    dplus = vision_data.get("denivele_d_plus", 0) or 0
+    fc_moy = vision_data.get("fc_moyenne")
+    fc_max = vision_data.get("fc_max")
+    titre = vision_data.get("titre") or "Course à pied"
+    type_str = vision_data.get("type_seance") or "EF"
+
+    # Normalisation du type de séance
+    matched_type = SportSessionType.EF
+    clean_tp = type_str.strip().lower()
+    if "fractionn" in clean_tp or "vma" in clean_tp or "intervalles" in clean_tp:
+        matched_type = SportSessionType.FRACTIONNE
+    elif "longue" in clean_tp:
+        matched_type = SportSessionType.SORTIE_LONGUE
+    elif "renfo" in clean_tp:
+        matched_type = SportSessionType.RENFORCEMENT
+    elif "vitesse" in clean_tp:
+        matched_type = SportSessionType.VITESSE
+    elif "course" in clean_tp:
+        matched_type = SportSessionType.COURSE
+    else:
+        try:
+            matched_type = SportSessionType(type_str)
+        except ValueError:
+            matched_type = SportSessionType.EF
+
+    # Déduplication : adapter une séance planifiée existante ou insérer une nouvelle
+    existing = connector.get_session(target_date)
+    if existing:
+        updates: Dict[str, Any] = {
+            "statut": "Réalisé",
+            "distance_km": dist,
+            "duree_secondes": duree,
+            "denivele_d_plus": dplus,
+        }
+        if fc_moy is not None:
+            updates["fc_moyenne"] = fc_moy
+        if fc_max is not None:
+            updates["fc_max"] = fc_max
+        if existing.programme:
+            updates["programme"] = existing.programme
+        else:
+            updates["programme"] = titre
+        if existing.type_seance and existing.type_seance != SportSessionType.EF:
+            updates["type_seance"] = existing.type_seance
+        else:
+            updates["type_seance"] = matched_type
+
+        note_tag = f"Import {app_src} : {titre}" if titre else f"Import {app_src}"
+        updates["notes"] = f"{existing.notes} | {note_tag}" if existing.notes else note_tag
+        saved_session = connector.update_session_by_id(existing.id, updates)
+    else:
+        new_payload = SportSessionCreate(
+            date=target_date,
+            statut=SportSessionStatus.REALISE,
+            type_seance=matched_type,
+            distance_km=dist,
+            duree_secondes=duree,
+            denivele_d_plus=dplus,
+            fc_moyenne=fc_moy,
+            fc_max=fc_max,
+            programme=titre,
+            notes=f"Import {app_src} : {titre}" if titre else f"Import {app_src}",
+        )
+        saved_session = connector.log_session(new_payload)
+
+    # Réponse vocale soignée d'Otis
+    duree_fmt = ""
+    if duree:
+        m = duree // 60
+        s = duree % 60
+        duree_fmt = f"en {m} min {s} s" if s else f"en {m} minutes"
+    dist_fmt = f"{dist} km" if dist is not None else ""
+    fc_fmt = f" avec une fréquence cardiaque moyenne de {fc_moy} bpm" if fc_moy else ""
+    dplus_fmt = f" (D+ {dplus} m)" if dplus else ""
+
+    spoken = (
+        f"Séance {app_src} importée avec succès : {dist_fmt} {duree_fmt}{dplus_fmt}{fc_fmt}. "
+        f"La séance est enregistrée dans ton carnet ! Comment étaient tes sensations ou ton ressenti d'effort (RPE de 1 à 10) ?"
+    )
+
+    return {
+        "success": True,
+        "app_source": app_src,
+        "session": saved_session.model_dump(mode="json"),
+        "extracted": vision_data,
+        "spoken_response": spoken,
     }

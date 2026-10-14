@@ -68,6 +68,7 @@ class SportSession(BaseModel):
     """Représente une séance de course à pied dans l'onglet 'Seances'."""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    id: Optional[int] = Field(None, description="Identifiant unique de la séance")
     date: dt_date
     semaine: int = Field(..., description="Numéro de semaine ISO (1-53)")
     statut: SportSessionStatus = SportSessionStatus.PLANIFIE

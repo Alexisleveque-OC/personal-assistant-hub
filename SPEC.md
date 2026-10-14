@@ -197,52 +197,64 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
       - Table `conversation_feedbacks` : logs des corrections manuelles ou orales.
       - Vue "Journal & Feedback" dans la PWA.
 
-- [ ] **Phase 6.5 : Migration Sport - Du Google Sheet vers la Base SQLite & Résolution Temporelle**
-  - [ ] **Migration Base de Données Sport :**
+- [x] **Phase 6.5 : Migration Sport - Du Google Sheet vers la Base SQLite & Résolution Temporelle**
+  - [x] **Migration Base de Données Sport :**
     - Schéma relationnel `sport_sessions` et `sport_weekly_summaries` dans SQLite.
     - Script one-off de migration et d'aspiration complète de l'historique depuis le Google Sheet actif.
     - Connecteur backend `SqlSportConnector` garantissant une latence < 1 ms et la fin des quotas d'API Google.
     - Outil de sauvegarde et d'export de secours (CSV / JSON).
-  - [ ] **Résolution Sémantique Temporelle ("Ma dernière séance") :**
+  - [x] **Résolution Sémantique Temporelle ("Ma dernière séance") :**
     - Résolution contextuelle dynamique de "ma dernière séance", "mon dernier footing" ou "ma dernière séance de renfo" par interrogation de la dernière entrée réelle en base (au lieu de supposer à tort `date.today()`).
-  - [ ] **Correctifs des Réponses Vocales & Formats de Dates :**
+  - [x] **Correctifs des Réponses Vocales & Formats de Dates :**
     - Suppression de la formulation hardcodée "Pour aujourd'hui..." lors de la consultation d'une séance passée ou future.
     - Remplacement des dates ISO brutes parlées ("2026-10-07") par des formulations orales naturelles ("du 7 octobre", "d'hier").
     - Support de l'infinitif ("modifier", "changer") et tolérance sur les déclinaisons de vocabulaire ("renfort", "renfo").
 
-- [ ] **Phase 7 : Otis Live Runner - Coach Vocal Temps Réel, Traqueur GPS Natif & Contrôle Spotify**
-  - [ ] **Tracking GPS Natif & Autonomie Totale (Capacitor / Android Foreground Service) :**
-    - Activation d'un *Foreground Service* natif avec notification persistante dans la barre d'état **uniquement pendant la séance active** (*« Otis, lance ma séance »* ou bouton « Démarrer »).
-    - Extinction automatique à l'arrêt : zéro impact sur la batterie en dehors des courses.
-    - Élimination des intermédiaires tiers (indépendance totale de Strava et Decathlon Coach) : calcul précis de la distance (Haversine), vitesse instantanée, allure au km, dénivelé D+ et temps réel sans pause artificielle.
-    - Stockage local de la trace (coordonnées GPS / format GPX/FIT) en base SQLite.
-  - [ ] **Affichage Cartographique Interactif en Direct & Tracé GPS (Leaflet / OpenStreetMap) :**
-    - Carte interactive intégrée dans la PWA Sport (Leaflet / tuiles OpenStreetMap légères et économes en bande passante).
-    - Point GPS en direct avec tracé continu du parcours (polyline dynamique) pendant la séance.
-    - Vue récapitulative post-course : tracé complet, dégradé de couleur selon l'allure (carte de rythme / splits kilométriques) et profil altimétrique.
-  - [ ] **Programmation de Fractionné & Guidage Audio en Direct (Comme Decathlon Coach) :**
-    - Création et planification de séances d'intervalles complexes : échauffement, répétitions fractionnées ($N \times$ temps/distance rapide + temps/distance de récupération), blocs au seuil et retour au calme.
-    - **Audio cues & décompte dans les oreilles :** bips d'alerte, décompte 3-2-1 avant chaque changement de phase, annonces vocales d'objectifs (*« Accélère ! Bloc 2 sur 6, 400m à 4'10/km »*, *« Trottine, récupération 1 minute »*).
-    - Régulateur d'allure vocal : alerte si vous partez trop vite ou trop lentement par rapport à l'allure cible.
-    - Bilan audio automatique à la fin du fractionné avec moyennes par bloc.
-  - [ ] **Checklist de Renforcement Dépliable (Validation Clic & Voix) :**
-    - Liste d'exercices structurée et interactive (accordéon dépliable par groupe musculaire dans l'onglet Sport : gainage, fentes, renforcement mollet/soléaire/tibial pour la périostite).
-    - **Double modalité de validation :**
-      - Au clic tactile sur les cases à cocher de la PWA.
-      - À la voix sans toucher le téléphone : *« Otis, coche le gainage planche »*, *« J'ai fait 3 séries de mollets sur une marche »*, *« Valide tous les exercices de renfo »*.
-    - Persistance SQLite des exercices réalisés et intégration automatique dans le volume de renforcement de la semaine.
-  - [ ] **Coach Vocal Temps Réel & Feedback Mains-Libres en Course :**
-    - Alertes audio automatiques à chaque kilomètre : allure moyenne du dernier kilomètre, distance parcourue, reste à parcourir.
-    - Écoute continue mains-libres dans les écouteurs : questionner Otis sur ses métriques à tout instant (*« Otis, j'en suis à combien ? »*, *« Quelle est mon allure moyenne ? »*) ou lui dicter des pensées/idées pour le Second Cerveau en courant.
-  - [ ] **Module Protecteur Blessure & Adaptation Dynamique du Plan (Gestion Périostite) :**
-    - Prise en compte immédiate des ressentis oraux de douleur en course ou au débrief (*« J'ai mal au tibia »*, *« Ma périostite me lance »*).
-    - Ajustement automatique du plan de la semaine : allègement de la sortie longue du weekend (-30% à -50%), suppression temporaire du dénivelé négatif (D-) et du fractionné, proposition de cross-training (vélo) et de renforcement adapté (soléaire/tibial).
-  - [ ] **Contrôle Musical Spotify Connect Mains-Libres :**
-    - Connexion OAuth2 avec l'API Spotify Web / Spotify Connect.
-    - Commandes vocales directes sans sortir le smartphone : *« Otis, mets ma playlist Running »*, *« Otis, morceau suivant »*, *« Otis, mets du son motivant »*.
-  - [ ] **Passerelle Montres Connectées (Garmin Connect & Ingestion .FIT) :**
-    - Ingestion et parsing des fichiers d'activité natifs `.FIT` de Garmin.
-    - Architecture prête pour synchronisation API Garmin Connect dès acquisition d'une montre de running.
+- [ ] **Phase 6.6 : Stabilisation, Corrections de Bugs & Évolution Sport / Chat Vocal**
+  - [ ] **Correcteur Temporel Universel :**
+    - Résolution unifiée et robuste des termes temporels relatifs (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire.
+  - [ ] **Détection Thématique Contextuelle par Mots-Clés :**
+    - Isolation thématique stricte (Sport/Running, Renforcement, Second Cerveau / Notes, Courses, Métadiscussion) pour éviter qu'une phrase comme *« prends note de ces 3 derniers échanges »* ne déclenche par erreur une mise à jour sportive.
+  - [ ] **Éditeur Manuel Complet des Séances de Sport (PWA) :**
+    - Formulaire d'édition manuelle de chaque champ d'une séance (distance, allure/durée, D+, RPE, notes, remarques, type de séance) accessible dans l'interface en cas de problème de saisie automatique ou vocale.
+  - [ ] **Correction de l'Envoi des Messages Vocaux & Ergonomie Push-to-Talk :**
+    - Diagnostic et correction des échecs d'envoi audio le matin (pipeline STT / blob audio).
+    - Correction du bug tactile / CSS où le bouton flottant Push-to-Talk se décale au toucher ou au scroll sur smartphone.
+  - [ ] **Fiabilisation du Mot-Clé de Réveil in-app (« Otis ») :**
+    - Résolution de la non-détection du wake-word quand l'application est ouverte sur mobile.
+    - Module de calibrage in-app multi-situations (échantillonnage de 5 à 10 prononciations dans différents contextes : voix au calme, essoufflé en courant, voix rapide, voix forte).
+    - Constitution d'un dictionnaire d'alias personnalisés propre à l'utilisateur et tolérances phonétiques courantes (*« autiste »*, *« notice »*, *« au tisse »*, *« hotis »*, *« dis otis »*).
+    - Gestion résiliente du redémarrage continu de `SpeechRecognition` sur mobile après silence ou mise en veille.
+  - [ ] **Correction de la Validation / Sauvegarde des Séances :**
+    - Résolution de l'erreur *« ❌ Échec. Réessayer »* lors de la sauvegarde du RPE et des notes d'une séance dans l'interface PWA Sport.
+  - [ ] **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Session Contextuelle) :**
+    - Fin du mode 100% "stateless" : mise en place d'un historique tampon des derniers tours de conversation pour maintenir le contexte (*« C'est l'application » ➔ Otis sait de quoi on parlait*).
+
+- [ ] **Phase 7 : Otis Live Runner - Coach Vocal Temps Réel & Traqueur GPS Natif**
+  *(Chaque sous-étape fait l'objet d'un déploiement en production et d'une validation utilisateur)*
+  - [ ] **Phase 7.0 : Socle Tracking GPS Haute Précision & Coach Vocal Temps Réel :**
+    - Échantillonnage GPS haute fréquence (**toutes les 2 secondes max**).
+    - Calcul de distance (Haversine), vitesse instantanée, allure lissée et D+ en direct.
+    - Tracé de polyline en direct sur carte interactive Leaflet / OpenStreetMap.
+    - Annonces vocales temps réel régulières (allure, distance, temps écoulé).
+    - Déploiement en production et validation utilisateur.
+  - [ ] **Phase 7.1 : Mode Fractionné & Séances d'Intervalles :**
+    - Programmation de blocs d'effort et de récupération ($N \times$ répétitions).
+    - Décompte audio 3-2-1, bips sonores et régulateur d'allure vocal en direct dans les écouteurs.
+    - Déploiement en production et validation utilisateur.
+  - [ ] **Phase 7.2 : Checklist de Renforcement Dépliable :**
+    - Accordéon dépliable interactif dans l'onglet Sport par groupe musculaire (gainage, étirements, protocole périostite tibiale).
+    - Double validation : case à cocher tactile ou commande vocale.
+    - Déploiement en production et validation utilisateur.
+  - [ ] **Phase 7.3 : Contrôle Musical Spotify Connect Mains-Libres :**
+    - Connexion OAuth2 Spotify et commandes vocales directes en course (*« Otis, lance ma playlist »*, *« Otis, morceau suivant »*).
+    - Déploiement en production et validation utilisateur.
+  - [ ] **Phase 7.4 : Programmation & Génération Automatique de Parcours :**
+    - Planification d'itinéraires intelligents selon le kilométrage cible souhaité.
+    - Déploiement en production et validation utilisateur.
+  - [ ] **Phase 7.5 : Synthèse & Finalisation Phase 7 :**
+    - Bilan post-séance complet, splits kilométriques et recette globale.
+    - Déploiement en production et validation utilisateur.
 
 - [ ] **Phase 8 : Connecteurs Organisationnels (Google Agenda & Google Tasks)**
   - [ ] Intégration Google Calendar API (événements du jour, échéances, dates importantes)
@@ -274,6 +286,10 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 - [ ] **Phase 13 : Domotique (Prises connectées & Scénarios)**
   - [ ] Intégration des APIs d'équipements connectés
   - [ ] Intentions de commande et de statut (`toggle_device`, `get_device_status`)
+
+- [ ] **Phase XXX (Reportée / Future) : Connecteur Montres Connectées & Capteurs Externes (Garmin / .FIT)**
+  - [ ] Ingestion et parsing des fichiers d'activité natifs `.FIT` de Garmin.
+  - [ ] Architecture prête pour synchronisation API Garmin Connect dès acquisition d'une montre de running (reporté à plus tard, non prioritaire).
 
 ---
 
