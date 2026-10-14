@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2.10+-E92063.svg?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-[![Tests Pytest](https://img.shields.io/badge/tests-414%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
+[![Tests Pytest](https://img.shields.io/badge/tests-508%20passed%20%7C%20100%25-brightgreen.svg?logo=pytest&logoColor=white)](https://docs.pytest.org/)
 [![Architecture Modulaire](https://img.shields.io/badge/architecture-Domain--First%20%7C%20APIRouters-purple.svg)](https://fastapi.tiangolo.com/tutorial/bigger-applications/)
 [![Code Style: TDD Strict](https://img.shields.io/badge/code%20style-TDD%20Strict-success.svg)](https://en.wikipedia.org/wiki/Test-driven_development)
 
@@ -103,16 +103,19 @@ personal-assistant-hub/
 * **Passerelle Strava :** Ingestion automatique d'activités via webhooks.
 
 ### 📱 3. Interface Mobile Vocale PWA & Conteneurisation — [🟢 Opérationnel]
-* **Web App PWA installable :** Micro réactif, synthèse vocale (TTS), Service Worker v12 avec mise en cache et fonctionnement hors-ligne.
+* **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker v20 avec mise en cache.
+* **File d'Attente Hors-Ligne & Auto-Retry :** Persistance locale robuste (IndexedDB) pour sauvegarder les messages texte et vocaux en zone blanche ou forêt, avec rejeu automatique et fluide dès le retour de la 4G/WiFi.
+* **Audio Focus & Ducking Casque (Mode Running) :** Atténuation du volume casque (musique/podcast) uniquement pendant la prise de parole d'Otis ou lors d'un enregistrement, sans bloquer le son en arrière-plan.
 * **Docker & CI/CD Cloud :** Image de production ultra-légère (`python:3.12-slim`), pipeline GitHub Actions déployant automatiquement sur chaque merge dans `main`.
 
 ### 🧠 4. Second Cerveau, Moteur Vocal & Auto-Apprentissage — [🟢 Opérationnel]
 * **Socle de persistance SQLite WAL (`hub_data.db`) :** Journal conversationnel d'audit (`conversation_logs`) avec capture de la latence, des tokens, du modèle et endpoints d'audit/feedbacks.
+* **Pipeline Vocal & Push-to-Talk Fiabilisé :** Détection tactile stable par Pointer Events, calibrage in-app du mot-clé de réveil « Otis » avec retour sonore Web Audio (carillon) et VAD mains-libres.
+* **Routage Sémantique Contextuel & Prise de Note Orale Naturelle :** Désambiguïsation stricte prévenant les faux positifs entre modules (sport, renfo, notes, courses). Support des prises de notes orales naturelles sans ponctuation (*« Ajoute une note juste pour penser à... »*).
 * **Auto-apprentissage vocal interactif (`teach_assistant`) :** Correction d'erreurs à la voix (*« Quand je dis renfort je veux dire renforcement »*), table `user_learnings` et injection dynamique des règles dans le prompt système sans toucher au code.
 * **Second Cerveau compartimenté & dynamique :** Classification automatique des notes en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`) et découverte de catégories personnalisées (voyage, cuisine, finances...).
 * **Ingestion multimodale visuelle (Gemini Flash Vision) :** Capture et envoi d'images/screenshots (`POST /api/v1/second-brain/notes/image`), extraction de résumés structurés et interception native du **coller presse-papier (Ctrl+V)** dans la PWA.
 * **Bouton d'annulation immédiate (« Undo ») :** Intention `undo_last_action` et composant flottant `#undo-toast` permettant d'annuler en 1 tap ou à la voix la dernière action (suppression d'une note créée par erreur, ajout de course, etc.).
-* **Pipeline Audio Direct & Normalisation Phonétique :** Traitement de flux audio bruts (`/api/v1/interact/audio`), VAD tolérant aux hésitations (1.5s - 2.5s) via Web Audio API, mode Push-to-Talk et filtre phonétique préventif (`phonetic_normalizer.py`).
 
 ---
 
@@ -139,6 +142,11 @@ personal-assistant-hub/
   - Résolution sémantique temporelle de *« ma dernière séance »* et des dates naturelles orales
   - Flexibilité grammaticale (infinitif) et tolérance lexicale (renfort, muscu, ppg)
   - Découplage de Google Sheets (`SPREADSHEET_SPORT_ID` optionnel) & outil d'export/backup JSON/CSV
+- [x] **Phase 6.6 : Audio Focus Casque, Pipeline Vocal & Résilience Mobile**
+  - Audio Focus & Ducking dynamique casque en mode running (atténuation musique/podcast uniquement si Otis parle)
+  - Pipeline Vocal PWA fiabilisé (Push-to-Talk Pointer Events, wake-word « Otis » calibrable in-app, VAD mains-libres et carillon Web Audio)
+  - File d'attente hors-ligne & synchronisation PWA (Offline Outbox IndexedDB + auto-retry dès reconnexion en forêt)
+  - Routage sémantique contextuel strict (désambiguïsation Sport/Notes/Courses) et prise de note orale naturelle sans ponctuation
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)

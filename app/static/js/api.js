@@ -22,18 +22,42 @@ export async function postInteract(queryText, sessionId = null) {
 export async function postInteractAudio(audioBlob, sessionId = null) {
   const finalSessionId = sessionId || getActiveSessionId();
   const formData = new FormData();
-  formData.append("audio_file", audioBlob, "recording.webm");
+
+  // Extension adaptée au type réel du Blob capté
+  const mime = (audioBlob && audioBlob.type ? audioBlob.type : "").toLowerCase();
+  let filename = "recording.webm";
+  if (mime.includes("mp4")) {
+    filename = "recording.mp4";
+  } else if (mime.includes("ogg")) {
+    filename = "recording.ogg";
+  } else if (mime.includes("wav")) {
+    filename = "recording.wav";
+  }
+
+  formData.append("audio_file", audioBlob, filename);
   formData.append("session_id", finalSessionId);
   const headers = {};
   if (state.apiKey) {
     headers["X-API-Key"] = state.apiKey;
   }
-  const res = await fetch("/api/v1/interact/audio", {
-    method: "POST",
-    headers: headers,
-    body: formData
-  });
-  return res;
+
+  // Protection contre les blocages réseau matinaux via AbortController (timeout 25s)
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 25000) : null;
+
+  try {
+    const res = await fetch("/api/v1/interact/audio", {
+      method: "POST",
+      headers: headers,
+      body: formData,
+      signal: controller ? controller.signal : undefined,
+    });
+    if (timeoutId) clearTimeout(timeoutId);
+    return res;
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    throw err;
+  }
 }
 export async function fetchSessionHistory(sessionId = null) {
   const finalSessionId = sessionId || getActiveSessionId();

@@ -246,12 +246,13 @@ async def interact_audio(
 ):
     """Reçoit un fichier audio, effectue la transcription STT multimodale avec Gemini,
     applique la normalisation phonétique et exécute l'intention associée."""
-    content_type = audio_file.content_type or ""
-    allowed_prefixes = ("audio/", "video/webm", "video/ogg")
+    raw_content_type = audio_file.content_type or ""
+    content_type = raw_content_type.split(";")[0].strip().lower()
+    allowed_prefixes = ("audio/", "video/webm", "video/ogg", "video/mp4")
     if not (content_type.startswith("audio/") or content_type in allowed_prefixes):
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Format de fichier non supporté ({content_type}). Veuillez fournir un fichier audio (WebM, WAV, OGG, MP3).",
+            detail=f"Format de fichier non supporté ({content_type}). Veuillez fournir un fichier audio (WebM, WAV, OGG, MP3, MP4).",
         )
 
     audio_bytes = await audio_file.read()

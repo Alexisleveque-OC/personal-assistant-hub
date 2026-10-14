@@ -701,6 +701,36 @@ class MealsShoppingConnector(BaseConnector):
         warning = warnings[0] if warnings else None
         return items[0], warning
 
+    def remove_shopping_item(self, item: str) -> bool:
+        """Supprime un article de la liste d'attente (Liste_Attente)."""
+        target = self._normalize(item)
+        ws = self._spreadsheet.worksheet("Liste_Attente")
+        all_vals = ws.get_all_values()
+        deleted = False
+
+        # Recherche de la ligne correspondante (1-indexed pour gspread)
+        for idx in range(len(all_vals), 1, -1):
+            row = all_vals[idx - 1]
+            if not row:
+                continue
+            cand_names = [self._normalize(col) for col in row[:2] if col]
+            if target in cand_names:
+                if hasattr(ws, "delete_rows"):
+                    ws.delete_rows(idx)
+                elif hasattr(ws, "delete_row"):
+                    ws.delete_row(idx)
+                deleted = True
+                break
+
+        # Mise à jour du cache mémoire
+        if getattr(self, "_shopping_cache", None) is not None and "waiting_list" in self._shopping_cache:
+            self._shopping_cache["waiting_list"] = [
+                it for it in self._shopping_cache["waiting_list"]
+                if self._normalize(it.item) != target
+            ]
+        self.invalidate_cache("shopping")
+        return deleted
+
     def add_recipe_ingredients_to_shopping_list(
         self,
         recipe_name: str,
