@@ -17,7 +17,7 @@
 | **Étape 2** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + calibrage in-app du mot-clé de réveil « Otis » | ✅ Fait | Validé par Alexis | ✅ 100% vert (478 tests) |
 | **Étape 3** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ✅ Fait | Validé par Alexis | ✅ 100% vert (493 tests) |
 | **Étape 4** | **File d'Attente Hors-Ligne & Synchronisation PWA (Offline Outbox) :** Sauvegarde locale immédiate si réseau coupé en forêt, indicateur d'attente et envoi automatique dès reconnexion | ✅ Fait | Validé par Alexis | ✅ 100% vert (507 tests) |
-| **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression, déploiement prod et recette utilisateur | 🟡 En cours | En cours | ⏳ TDD en cours |
+| **Étape 5** | **Test d'Intégration End-to-End (E2E) & Recette Finale :** Validation complète du cycle stabilisé, non-régression, déploiement prod et recette utilisateur | 🟡 En recette | Prêt pour recette finale Alexis | ✅ 100% vert (508 tests) |
 
 ---
 
@@ -95,8 +95,8 @@
 ---
 
 ### ⏳ Étape 5 : Test d'Intégration End-to-End (E2E) & Recette Finale
-* **Objectifs à réaliser :**
-  1. Écriture d'un test d'intégration E2E complet simulant le cycle de vie utilisateur :
-     - Import d'une séance (capture ou vocal) ➔ Recalcul ➔ Débriefing oral ➔ Prise de note sans collision.
-  2. Validation de l'absence de régression sur l'ensemble des 465+ tests.
-  3. Déploiement en production et validation par Alexis.
+* **Objectifs réalisés :**
+  1. Écriture du test d'intégration E2E complet ([tests/test_e2e_voice_focus_and_pipeline.py](file:///home/alexis/CODE/personal-assistant-hub/tests/test_e2e_voice_focus_and_pipeline.py)) simulant le cycle de vie utilisateur de bout en bout :
+     - Enregistrement d'une séance sportive vocale ➔ Débriefing ➔ Prise de note contextuelle sans collision de mutation ➔ Prise de note orale naturelle sans ponctuation sans collision avec les courses ➔ Ajout de courses avec vocabulaire de running ➔ Cohérence des assets PWA et Offline Outbox.
+  2. Validation de l'absence de régression sur l'ensemble des 508 tests (`pytest -v` à 100% vert).
+  3. Recette finale par Alexis avant fusion et déploiement.
