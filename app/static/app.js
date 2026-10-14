@@ -14,11 +14,12 @@ import {
   removeCustomWakeVariant,
 } from "./js/speech.js";
 import { fetchLlmStats } from "./js/api.js";
-import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage } from "./js/views/chat_view.js";
+import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse } from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView, switchSportSubview } from "./js/views/sport_view.js";
 import { initSecondBrainView, loadSecondBrainNotes, loadSecondBrainCategories } from "./js/views/second_brain_view.js";
+import { initOfflineSync, syncOutbox } from "./js/offline_outbox.js";
 
 // Export / Référence SpeechRecognition pour les vérifications de compatibilité
 export { SpeechRecognition };
@@ -333,4 +334,15 @@ document.addEventListener("DOMContentLoaded", () => {
       })
       .catch((err) => console.warn("[PWA] Service Worker registration failed:", err));
   }
+
+  // 12. Initialisation File d'Attente Hors-Ligne & Synchronisation PWA
+  const outboxIndicator = document.getElementById("offline-outbox-indicator");
+  if (outboxIndicator) {
+    outboxIndicator.addEventListener("click", () => {
+      syncOutbox();
+    });
+  }
+  initOfflineSync((item, data) => {
+    handleOfflineSyncedResponse(item, data);
+  });
 });

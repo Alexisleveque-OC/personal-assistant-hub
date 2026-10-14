@@ -1298,13 +1298,26 @@ class IntentParser:
                     raw_query=text,
                 )
 
-        # g) thought / note générale libre : "prends note pour ...", "note pour ... : ...", "note : ...", "à noter : ...", "pense-bête : ...", "ajoute une note : ..."
+        # g) thought / note générale libre :
+        # Couvre les formes avec séparateur écrit (":", "-") et les formulations orales naturelles ("pour...", "juste pour...", "disant que...", "que...", "de...")
         thought_match = re.search(
-            r"^(?:(?:ok\s+)?(?:(?:prends?|ajoute?|enregistre?|fais?|crée?)\s+)?(?:une\s+)?note(?:\s+(?:pour|sur|dans)\s+[^:\-]+)?\s*[:\-]\s*|(?:ok\s+)?prends?\s+note\s+(?:que|de|pour)\s+|(?:idée|note)\s+pour\s+plus\s+tard(?:\s*[:\-]\s*|\s+)|(?:idée|note|pense[- ]bête|réflexion)\s*[:\-]\s*|à\s+noter\s*[:\-]?\s+|note\s+que\s+)(.*)$",
+            r"^(?:ok\s+)?"
+            r"(?:"
+            r"(?:(?:prends?|ajoute?|enregistre?|fais?|crée?|mets?)\s+)?(?:une\s+)?note(?:\s+(?:pour|sur|dans)\s+[^:\-]+)?\s*[:\-]\s*"
+            r"|(?:prends?|ajoute?|enregistre?|fais?|crée?|mets?)\s+(?:une\s+)?note\b(?:\s+(?:juste\s+)?(?:pour|que|de|disant\s+que|comme\s+quoi)\s+|\s*[:\-]\s*|\s+)"
+            r"|(?:ok\s+)?prends?\s+note\s+(?:que|de|pour)\s+"
+            r"|(?:idée|note)\s+pour\s+plus\s+tard(?:\s*[:\-]\s*|\s+)"
+            r"|(?:idée|note|pense[- ]bête|réflexion)\s*[:\-]\s*"
+            r"|à\s+noter\s*[:\-]?\s+"
+            r"|note\s+que\s+"
+            r")(.*)$",
             cleaned,
         )
         if thought_match:
-            content = thought_match.group(1).strip()
+            raw_content = thought_match.group(1).strip()
+            # Nettoyage léger des prépositions orales en tête de contenu
+            cleaned_content = re.sub(r"^(?:juste\s+)?(?:pour\s+|que\s+|de\s+|disant\s+que\s+|comme\s+quoi\s+)", "", raw_content, flags=re.IGNORECASE).strip()
+            content = cleaned_content if cleaned_content else (raw_content or text.strip())
             full_note_check = (cleaned + " " + content).lower()
             if any(w in full_note_check for w in ("corriger", "bug", "erreur", "ne fonctionne pas", "ne marche pas", "problème", "échec", "plantage")):
                 cat = NoteCategory.BUG_REPORT.value
@@ -1318,7 +1331,7 @@ class IntentParser:
                 confidence=0.92,
                 parameters={
                     "category": cat,
-                    "content": content or text,
+                    "content": content,
                 },
                 raw_query=text,
             )

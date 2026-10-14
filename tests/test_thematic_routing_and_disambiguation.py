@@ -28,6 +28,29 @@ def test_alexis_multi_turn_note_never_triggers_sport_mutation():
 
 
 @pytest.mark.parametrize(
+    "phrase",
+    [
+        "Ajoute une note juste pour penser à vérifier la connexion.",
+        "Ajoute une note pour penser à vérifier la connexion",
+        "Ajoute une note juste pour penser à vérifier les chaussures",
+        "Prends une note pour penser à tester la reconnexion",
+        "Mets une note pour vérifier la 4G",
+        "Ajoute une note disant que la connexion est rétablie",
+        "Crée une note pour penser à acheter des piles",
+        "Enregistre une note pour demain penser à vérifier le serveur",
+    ],
+)
+def test_alexis_oral_notes_without_colon_never_trigger_shopping(phrase):
+    """Vérifie que les prises de notes orales sans deux-points sont bien captées en SAVE_NOTE et non en ADD_SHOPPING_ITEM."""
+    res = parser.parse(phrase)
+    assert res.intent == IntentType.SAVE_NOTE, f"Mauvais routage pour '{phrase}': {res.intent}"
+    assert res.intent != IntentType.ADD_SHOPPING_ITEM
+    assert res.intent != IntentType.LOG_SPORT_SESSION
+    assert res.parameters.get("content") is not None
+    assert len(res.parameters.get("content", "").strip()) > 0
+
+
+@pytest.mark.parametrize(
     "phrase,expected_category",
     [
         ("Prends note pour ma séance de course : penser à tester les nouvelles chaussures", NoteCategory.THOUGHT.value),

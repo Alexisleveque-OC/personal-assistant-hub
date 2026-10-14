@@ -2996,4 +2996,40 @@ body {
   min-height: 50px;
 }
 
+/* ==========================================================================
+   Témoin File d'attente Hors-Ligne (Offline Outbox)
+   ========================================================================== */
+.offline-outbox-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  animation: pulse-outbox 2.2s infinite ease-in-out;
+}
+
+.offline-outbox-badge:hover {
+  background: rgba(245, 158, 11, 0.25);
+  transform: translateY(-1px);
+}
+
+@keyframes pulse-outbox {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(0.97);
+  }
+}
+
+
 

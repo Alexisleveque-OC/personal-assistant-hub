@@ -1,10 +1,11 @@
-const CACHE_NAME = "pah-pwa-cache-v19";
+const CACHE_NAME = "pah-pwa-cache-v20";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
   "/static/app.js",
   "/static/js/config.js",
   "/static/js/audio_focus.js",
+  "/static/js/offline_outbox.js",
   "/static/js/api.js",
   "/static/js/speech.js",
   "/static/js/views/chat_view.js",
@@ -59,7 +60,7 @@ self.addEventListener("fetch", (event) => {
             spoken_response: "Vous êtes actuellement hors connexion. Veuillez vérifier votre réseau.",
             data: {}
           }),
-          { headers: { "Content-Type": "application/json" } }
+          { status: 503, headers: { "Content-Type": "application/json" } }
         );
       })
     );

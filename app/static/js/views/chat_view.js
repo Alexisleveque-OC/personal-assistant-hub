@@ -10,6 +10,7 @@ import {
 } from "../api.js";
 import { getActiveSessionId, resetActiveSessionId } from "../config.js";
 import { showToastInfo, showToastSuccess, showToastError } from "../toast.js";
+import { enqueueTextRequest, enqueueAudioRequest, syncOutbox } from "../offline_outbox.js";
 
 const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
@@ -198,6 +199,13 @@ function handleUndoToast(data) {
 
 export async function sendInteraction(text) {
   appendUserMessage(text);
+
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    await enqueueTextRequest(text);
+    appendAssistantMessage("⏳ Vous êtes actuellement hors-ligne (pas de réseau). Votre message a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
+    return;
+  }
+
   try {
     const res = await postInteract(text);
 
@@ -221,13 +229,25 @@ export async function sendInteraction(text) {
     if (it.includes("sport") || (data.data && data.data.session)) {
       window.dispatchEvent(new CustomEvent("sport-data-updated"));
     }
+
+    // Le réseau est pleinement fonctionnel : tenter de dépiler l'outbox s'il y a des requêtes en attente
+    syncOutbox();
   } catch (err) {
-    appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
+    console.warn("[Chat] Échec envoi interaction:", err);
+    await enqueueTextRequest(text);
+    appendAssistantMessage("⏳ Réseau indisponible. Votre message a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
   }
 }
 
 export async function sendAudioInteraction(audioBlob) {
   appendUserMessage("🎤 Envoi du message vocal...");
+
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    await enqueueAudioRequest(audioBlob);
+    appendAssistantMessage("⏳ Vous êtes actuellement hors-ligne (pas de réseau). Votre message vocal a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
+    return;
+  }
+
   try {
     const res = await postInteractAudio(audioBlob);
 
@@ -261,12 +281,38 @@ export async function sendAudioInteraction(audioBlob) {
     if (it.includes("sport") || (data.data && data.data.session)) {
       window.dispatchEvent(new CustomEvent("sport-data-updated"));
     }
+
+    // Le réseau est pleinement fonctionnel : tenter de dépiler l'outbox s'il y a des requêtes en attente
+    syncOutbox();
   } catch (err) {
+    console.warn("[Chat] Échec envoi audio:", err);
+    await enqueueAudioRequest(audioBlob);
     if (err && err.name === "AbortError") {
-      appendAssistantMessage("Délai de connexion dépassé (timeout). Le réseau est trop lent ou coupé.");
+      appendAssistantMessage("⏳ Délai réseau dépassé. Votre message vocal a été enregistré localement et sera transmis dès le retour d'une connexion stable.");
     } else {
-      appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
+      appendAssistantMessage("⏳ Réseau indisponible. Votre message vocal a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
     }
+  }
+}
+
+export function handleOfflineSyncedResponse(item, data) {
+  if (!data) return;
+
+  // Afficher la bulle utilisateur synchronisée pour que l'historique de la conversation soit complet
+  const userText = item.type === "text"
+    ? item.query
+    : (data.transcribed_text || data.user_transcription || "Message vocal");
+  appendUserMessage(`🔄 [Rattrapage] ${userText}`);
+
+  // Afficher la réponse d'Otis
+  const synMsg = `🔄 [Synchronisé] ${data.spoken_response}`;
+  appendAssistantMessage(synMsg);
+  speak(data.spoken_response);
+  handleUndoToast(data);
+
+  const it = data.intent ? (data.intent.intent || "") : "";
+  if (it.includes("sport") || (data.data && data.data.session)) {
+    window.dispatchEvent(new CustomEvent("sport-data-updated"));
   }
 }
 
