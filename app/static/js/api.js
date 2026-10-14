@@ -281,4 +281,26 @@ export async function uploadSecondBrainImage(imageFile, { caption = null, catego
   return await res.json();
 }
 
+export async function importSportScreenshot(imageFile) {
+  const formData = new FormData();
+  formData.append("file", imageFile);
+
+  const headers = {};
+  if (state.apiKey) {
+    headers["X-API-Key"] = state.apiKey;
+  }
+
+  const res = await fetch("/api/v1/sport/import-screenshot", {
+    method: "POST",
+    headers: headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || ("Erreur lors de l'import de la capture : " + res.status));
+  }
+  return await res.json();
+}
+
+
 

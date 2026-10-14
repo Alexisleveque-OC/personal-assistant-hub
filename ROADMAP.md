@@ -16,7 +16,7 @@
 | **Étape 1** | **Correcteur Temporel Universel :** Résolution unifiée des expressions relatives (*« hier »*, *« demain »*, *« dernier »*, *« ces 3 derniers jours »*) sans collision ni dérive calendaire | 🟢 Terminé | Validé par l'utilisateur | ✅ 8/8 tests dédiés (427/427 total) au vert |
 | **Étape 2** | **Détection Thématique Contextuelle par Mots-Clés :** Routage sémantique précis par domaine (Sport, Renfo, Second Cerveau/Notes, Courses, Métadiscussion) pour éliminer les faux positifs croisés | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 3** | **Éditeur Manuel Séances de Sport & Suppression (PWA) :** Modal d'édition des champs bruts (distance, durée, D+, RPE, météo, FC, notes, type) et bouton de suppression de séance avec confirmation pour assainir le carnet | 🟢 Terminé | Validé par l'utilisateur | ✅ 4/4 tests dédiés (455/455 total) au vert |
-| **Étape 3.1** | **Import Strava Fiabilisé & Observabilité Erreurs UI :** Synchro Strava fiabilisée avec bouton manuel et affichage de messages d'erreurs explicites (fin des échecs muets) | ⏳ À faire | En attente | ⏳ TDD à créer |
+| **Étape 3.1** | **Import Séances par Capture d'Écran (Gemini Vision) & Toasts UI :** Alternative universelle et gratuite à l'API Strava (Strava, Decathlon Coach, Montre CW500 M) + Système universel de toasts flottants (fin des échecs muets) | 🟢 Terminé | Validé par l'utilisateur | ✅ 10/10 tests dédiés (465/465 total) au vert |
 | **Étape 4** | **Pipeline Vocal PWA (Envoi Audio, Push-to-Talk & Wake-Word « Otis ») :** Diagnostic/fix de l'envoi de messages vocaux le matin + stabilisation tactile du bouton Push-to-Talk + tolérances phonétiques et réveil in-app sur « Otis » | ⏳ À faire | En attente | ⏳ TDD à créer |
 | **Étape 5** | **Correction Sauvegarde & Débriefing des Séances (Screens 2 & Nouveaux) :** Résolution de l'erreur *« ❌ Échec »*, suppression des doublons et fusion réelle de doublon | 🟢 Terminé | Validé par l'utilisateur | ✅ 5/5 tests dédiés (439/439 total) au vert |
 | **Étape 5.1** | **Persistance Débriefing Rétroactif, Préservation Sélective & FC :** Résolution de l'écrasement à 0/None, support complet FC (moy/max), persistance brute garantie et affichage Charge RPE & Météo | 🟢 Terminé | Validé par l'utilisateur | ✅ 7/7 tests dédiés (446/446 total) au vert |
@@ -94,20 +94,31 @@
 
 ---
 
-### ⏳ Étape 3.1 : Import Strava Fiabilisé & Observabilité des Erreurs dans l'UI
-* **Contexte & Problèmes soulevés :**
-  1. **Import Strava manquant :** Les séances enregistrées sur Strava ne remontent toujours pas dans le carnet d'entraînement local.
-  2. **Opacité et absence de messages d'erreur :** En cas de problème réseau, d'erreur serveur ou de rejet, l'utilisateur n'a aucun message explicite sur ce qui se passe ou se heurte à un simple *« Échec »* muet.
-* **Objectifs à réaliser :**
-  1. **Flux de Synchronisation Strava Résilient (`sport.py`, `strava_connector.py`) :**
-     - Auditer la chaîne de synchronisation Strava (gestion du refresh token OAuth2, polling/webhook, déduplication contre Strava ID, écriture dans `sport_sessions` SQLite).
-     - Bouton d'action manuelle de synchronisation Strava dans l'onglet Sport avec statut visuel temps réel (*« 🔄 Synchronisation en cours... »*, *« ✅ 2 activités importées »*, *« ⚠️ Token Strava expiré »*).
-  2. **Observabilité Totale & Toasts d'Erreurs Explicites dans la PWA :**
-     - Remplacer tous les messages génériques muets par des bannières/toasts détaillés affichant la cause exacte renvoyée par l'API (ex: statut HTTP, `detail` FastAPI, panne réseau ou champ manquant).
-     - Indiquer clairement à l'utilisateur ce qui se passe et l'action requise pour résoudre l'anomalie.
-* **Critères d'acceptation :**
-  - Les activités Strava sont importées automatiquement et manuellement dans SQLite avec distance, durée et allure.
-  - Toute anomalie (Strava, sauvegarde, réseau) produit un message clair, lisible et actionnable dans l'UI.
+### 🟢 Étape 3.1 : Import Universel par Capture d'Écran (Gemini Vision) & Observabilité UI (Toasts)
+* **Contexte & Décision d'Architecture :**
+  1. **Abandon de l'API Strava Payante :** Strava ayant rendu payant l'accès développeur à son API (réservé aux abonnements Summit payants), Alexis et l'assistant ont validé une alternative **100% gratuite, universelle et sans friction** : l'ingestion multimodale par capture d'écran via **Gemini Vision**.
+  2. **Support des 3 formats réels fournis par Alexis :**
+     - **Format 1 (Strava) :** Distance, durée, allure au km, D+, date relative (*« Aujourd'hui à... »* / *« Il y a 2 jours »*).
+     - **Format 2 (Decathlon Coach / Kiprun) :** Distance, durée (`31'23"`), D+, allure (`06'07"/km`), horodatage (`12/10/2026 - 12:55`).
+     - **Format 3 (Decathlon Connect / Montre CW500 M) :** Distance, durée (`0:33:07`), FC moyenne (`163 bpm`), allure, cadence (`170`), date (`08 oct. 2026`).
+  3. **Fin des échecs muets :** Remplacement de tous les `alert()` bloquants et des boutons rouges anonymes par un système universel de notifications flottantes (toasts) avec cause exacte renvoyée par le serveur.
+* **Réalisations :**
+  1. **Backend & IA Multimodale (`SportVisionService`, `sport.py`, `models.py`) :**
+     - Schéma Pydantic strict `SportScreenshotAnalysisResult` (validation typée des durées en secondes, distances, allures, FC moy/max, dénivelé).
+     - Service multimodal `SportVisionService` exploitant Gemini 2.5 Flash / Flash-Lite avec prompt calibré pour extraire instantanément les métriques clés de toute capture de course.
+     - Endpoint `POST /api/v1/sport/import-screenshot` avec déduplication intelligente : met à jour la séance prévue existante en conservant son programme technique, ou crée une nouvelle séance au statut `Réalisé`.
+     - Recalcul déterministe immédiat des indicateurs dérivés et des synthèses hebdomadaires.
+  2. **Système Universel de Toasts & Observabilité UI (`toast.js`, `style.css`) :**
+     - Module universel `showToast`, `showToastSuccess`, `showToastError`, `showToastWarning`, `showToastInfo` avec animations fluides et fermeture automatique.
+     - Remplacement complet des `alert()` et des échecs muets dans les cartes de sport.
+  3. **Expérience Utilisateur Mobile & Desktop (`sport_view.js`, `chat_view.js`, `index.html`) :**
+     - Bouton **« 📸 Importer capture »** dans l'en-tête de l'onglet Running & Coach (avec input file acceptant galeries mobiles ou appareils photos natifs).
+     - Support universel du collage direct (**Ctrl+V**) d'une capture d'écran sur l'onglet Sport ou dans le Chat.
+     - Bouton photo direct dans la barre de message d'Otis : l'import dans le chat déclenche la réponse vocale immédiate du coach.
+* **Critères d'acceptation validés :**
+  - 10/10 tests TDD dédiés au vert dans `tests/test_sport_screenshot_vision_import.py` (couvrant les formats Strava, Decathlon Coach, montre CW500 M, dates avec heures, formats ISO, slash, tirets et abréviations de mois).
+  - Non-régression totale : 465/465 tests passés à 100% au vert.
+  - Validé avec succès par Alexis sur des captures réelles (Strava et Decathlon Coach) avec correction automatique de date et débrief vocal.
 
 ---
 

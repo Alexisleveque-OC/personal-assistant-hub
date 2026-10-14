@@ -4,9 +4,15 @@ from app.core.vision.vision_service import (
     VisionService,
     get_vision_service,
 )
+from app.core.vision.sport_vision_service import (
+    SportVisionService,
+    get_sport_vision_service,
+)
 
 __all__ = [
     "analyze_image_for_second_brain",
     "VisionService",
     "get_vision_service",
+    "SportVisionService",
+    "get_sport_vision_service",
 ]

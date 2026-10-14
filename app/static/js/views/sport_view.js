@@ -1,6 +1,14 @@
 // Vue Sport Running, Mini-Coach Otis, Dashboard & Gamification
 import { state } from "../config.js";
 import {
+  showToast,
+  showToastSuccess,
+  showToastError,
+  showToastInfo,
+  showToastWarning,
+} from "../toast.js";
+import { speak } from "../speech.js";
+import {
   fetchSportTodayData,
   fetchSportDashboardData,
   fetchSportGamificationData,
@@ -9,11 +17,75 @@ import {
   patchSportSession,
   patchSportSessionById,
   deleteSportSession,
+  importSportScreenshot,
 } from "../api.js";
+
+export async function handleSportScreenshotUpload(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToastWarning("Le fichier sélectionné n'est pas une image valide.", "Format non supporté");
+    return;
+  }
+
+  const statusBox = document.getElementById("sport-import-status");
+  if (statusBox) {
+    statusBox.style.display = "block";
+    statusBox.style.background = "rgba(37, 99, 235, 0.1)";
+    statusBox.style.color = "var(--color-primary)";
+    statusBox.style.border = "1px solid rgba(37, 99, 235, 0.2)";
+    statusBox.innerHTML = "⏳ <strong>Analyse en cours par Otis...</strong> Extraction de la distance, durée, allure et métriques.";
+  }
+
+  const toastAnalyzing = showToastInfo("Analyse de la capture par Otis en cours...", "Analyse Otis", { duration: 0 });
+
+  try {
+    const data = await importSportScreenshot(file);
+    toastAnalyzing.dismiss();
+
+    const spokenMsg = data.spoken_response || "Votre séance de sport a été importée avec succès !";
+    showToastSuccess(spokenMsg, "Séance enregistrée ✅");
+
+    if (statusBox) {
+      statusBox.style.display = "block";
+      statusBox.style.background = "rgba(34, 197, 94, 0.12)";
+      statusBox.style.color = "#16a34a";
+      statusBox.style.border = "1px solid rgba(34, 197, 94, 0.3)";
+      statusBox.innerHTML = `✅ <strong>Séance enregistrée !</strong><br>${escapeHtml(spokenMsg)}`;
+    }
+
+    // Synthèse vocale si activée
+    if (state.ttsEnabled && typeof speak === "function") {
+      speak(spokenMsg);
+    }
+
+    // Rafraîchir les données et l'interface
+    if (typeof fetchSportToday === "function") fetchSportToday();
+    if (typeof fetchSportSessions === "function") fetchSportSessions();
+    if (typeof fetchSportSummaries === "function") fetchSportSummaries();
+    if (typeof fetchSportDashboard === "function") fetchSportDashboard();
+    window.dispatchEvent(new CustomEvent("sport-data-updated"));
+  } catch (err) {
+    toastAnalyzing.dismiss();
+    console.error("Erreur import screenshot sport:", err);
+    if (statusBox) {
+      statusBox.style.display = "block";
+      statusBox.style.background = "rgba(239, 68, 68, 0.1)";
+      statusBox.style.color = "#dc2626";
+      statusBox.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+      statusBox.innerHTML = `❌ <strong>Erreur lors de l'import :</strong> ${escapeHtml(err.message || "Impossible d'extraire les données.")}`;
+    }
+    showToastError(err.message || "Impossible d'extraire les données de la course.", "Échec de l'import");
+  }
+}
+
+function escapeHtml(str) {
+  return String(str || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[m]);
+}
 
 const sportTodayContainer = document.getElementById("sport-today-container");
 const sportSessionsContainer = document.getElementById("sport-sessions-container");
 const sportSummariesContainer = document.getElementById("sport-summaries-container");
+const sportImportContainer = document.getElementById("sport-import-container");
 const sportDashboardContainer = document.getElementById("sport-dashboard-container");
 const sportGamificationContainer = document.getElementById("sport-gamification-container");
 const sportCoachBubble = document.getElementById("sport-coach-bubble");
@@ -21,6 +93,7 @@ const sportCoachBubble = document.getElementById("sport-coach-bubble");
 const tabSportToday = document.getElementById("tab-sport-today");
 const tabSportSessions = document.getElementById("tab-sport-sessions");
 const tabSportSummaries = document.getElementById("tab-sport-summaries");
+const tabSportImport = document.getElementById("tab-sport-import");
 const tabSportDash = document.getElementById("tab-sport-dash");
 const tabSportGamification = document.getElementById("tab-sport-gamification");
 const sportTodayBadgeDate = document.getElementById("sport-today-badge-date");
@@ -30,12 +103,14 @@ export function switchSportSubview(subview) {
   if (tabSportToday) tabSportToday.classList.toggle("active", subview === "today");
   if (tabSportSessions) tabSportSessions.classList.toggle("active", subview === "sessions");
   if (tabSportSummaries) tabSportSummaries.classList.toggle("active", subview === "summaries");
+  if (tabSportImport) tabSportImport.classList.toggle("active", subview === "import");
   if (tabSportDash) tabSportDash.classList.toggle("active", subview === "dashboard");
   if (tabSportGamification) tabSportGamification.classList.toggle("active", subview === "gamification");
 
   if (sportTodayContainer) sportTodayContainer.style.display = subview === "today" ? "block" : "none";
   if (sportSessionsContainer) sportSessionsContainer.style.display = subview === "sessions" ? "block" : "none";
   if (sportSummariesContainer) sportSummariesContainer.style.display = subview === "summaries" ? "block" : "none";
+  if (sportImportContainer) sportImportContainer.style.display = subview === "import" ? "block" : "none";
   if (sportDashboardContainer) sportDashboardContainer.style.display = subview === "dashboard" ? "block" : "none";
   if (sportGamificationContainer) sportGamificationContainer.style.display = subview === "gamification" ? "block" : "none";
 
@@ -121,11 +196,16 @@ export function renderSportToday(data) {
       <div class="sport-session-card" style="text-align:center; padding:28px 16px;">
         <div style="font-size:2.2rem; margin-bottom:8px;">🛋️</div>
         <h3 style="font-size:1.15rem; font-weight:800; color:var(--color-text); margin-bottom:6px;">Journée de repos</h3>
-        <p style="font-size:0.88rem; color:var(--color-text-secondary); line-height:1.5;">
+        <p style="font-size:0.88rem; color:var(--color-text-secondary); line-height:1.5; margin-bottom:14px;">
           Aucune séance planifiée ou enregistrée aujourd'hui. Laisse ton corps et tes tibias se régénérer !
         </p>
+        <button type="button" class="btn-import-today-trigger btn-secondary" style="width:100%; display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:700;">
+          📸 Importer une course courue aujourd'hui
+        </button>
       </div>
     `;
+    const btn = sportTodayContainer.querySelector(".btn-import-today-trigger");
+    if (btn) btn.addEventListener("click", () => switchSportSubview("import"));
     return;
   }
 
@@ -265,7 +345,20 @@ export function renderSportToday(data) {
     `;
   });
 
+  html += `
+    <div style="margin-top:14px; text-align:center;">
+      <button type="button" class="btn-import-today-trigger btn-secondary" style="width:100%; font-size:0.86rem; padding:10px 14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:700;">
+        📸 Importer une séance par capture d'écran
+      </button>
+    </div>
+  `;
+
   sportTodayContainer.innerHTML = html;
+
+  const importTrigger = sportTodayContainer.querySelector(".btn-import-today-trigger");
+  if (importTrigger) {
+    importTrigger.addEventListener("click", () => switchSportSubview("import"));
+  }
 
   seances.forEach((s, idx) => {
     attachSportFeedbackHandlers(idx, s);
@@ -317,7 +410,7 @@ export function attachSportFeedbackHandlers(idx, session) {
     saveBtn.addEventListener("click", async () => {
       const textVal = notesInput ? notesInput.value.trim() : "";
       if (!selectedRpe && !textVal) {
-        alert("Veuillez choisir une note RPE ou saisir une remarque.");
+        showToastWarning("Veuillez choisir une note RPE ou saisir une remarque.", "Ressenti manquant");
         return;
       }
 
@@ -335,6 +428,7 @@ export function attachSportFeedbackHandlers(idx, session) {
         await patchSportSession(session.date, payload);
         saveBtn.textContent = "✅ Enregistré avec succès !";
         saveBtn.style.background = "var(--color-success)";
+        showToastSuccess("Débrief de séance enregistré avec succès !", "Ressenti sauvegardé");
         setTimeout(() => {
           fetchSportToday();
         }, 900);
@@ -344,6 +438,7 @@ export function attachSportFeedbackHandlers(idx, session) {
         saveBtn.textContent = "❌ Échec. Réessayer";
         saveBtn.title = err.message || "Erreur de communication";
         saveBtn.style.background = "var(--color-danger)";
+        showToastError(err.message || "Erreur de communication avec le serveur.", "Échec d'enregistrement");
       }
     });
   }
@@ -357,7 +452,7 @@ export function attachSportFeedbackHandlers(idx, session) {
     todayDelBtn.addEventListener("click", async () => {
       const sessionId = session.id;
       if (!sessionId) {
-        alert("ID de séance introuvable.");
+        showToastError("ID de séance introuvable.", "Erreur");
         return;
       }
       if (!confirm(`Supprimer la séance du jour (${session.type_seance || "Course"}) ?\n\nCette action est irréversible et recalculera automatiquement vos bilans.`)) return;
@@ -365,12 +460,13 @@ export function attachSportFeedbackHandlers(idx, session) {
       todayDelBtn.textContent = "⏳ Suppression...";
       try {
         await deleteSportSession(sessionId);
+        showToastSuccess("Séance supprimée et bilans hebdomadaires recalculés.", "Séance supprimée");
         await fetchSportToday();
         if (typeof fetchSportSummaries === "function") fetchSportSummaries();
         if (typeof fetchSportDashboard === "function") fetchSportDashboard();
         window.dispatchEvent(new CustomEvent("sport-data-updated"));
       } catch (err) {
-        alert("Erreur de suppression : " + err.message);
+        showToastError("Erreur de suppression : " + err.message, "Erreur");
         todayDelBtn.disabled = false;
         todayDelBtn.textContent = "🗑️ Supprimer";
       }
@@ -974,7 +1070,7 @@ function attachSessionActionHandlers() {
       if (session) {
         openEditSessionModal(session);
       } else {
-        alert("Séance introuvable pour modification.");
+        showToastError("Séance introuvable pour modification.", "Erreur");
       }
     });
   });
@@ -985,7 +1081,7 @@ function attachSessionActionHandlers() {
       const sessionId = btn.getAttribute("data-session-id");
       const session = cachedSessionsList.find(item => String(item.id) === String(sessionId));
       if (!sessionId) {
-        alert("Impossible de supprimer : ID de séance introuvable.");
+        showToastError("Impossible de supprimer : ID de séance introuvable.", "Erreur");
         return;
       }
 
@@ -1001,13 +1097,14 @@ function attachSessionActionHandlers() {
 
       try {
         await deleteSportSession(sessionId);
+        showToastSuccess(`La séance du ${dateStr} a été supprimée et vos bilans ont été recalculés.`, "Séance supprimée");
         await fetchSportSessions();
         if (typeof fetchSportToday === "function") fetchSportToday();
         if (typeof fetchSportSummaries === "function") fetchSportSummaries();
         if (typeof fetchSportDashboard === "function") fetchSportDashboard();
         window.dispatchEvent(new CustomEvent("sport-data-updated"));
       } catch (err) {
-        alert("Erreur lors de la suppression : " + err.message);
+        showToastError("Erreur lors de la suppression : " + err.message, "Erreur");
         btn.disabled = false;
         btn.innerHTML = oldText;
       }
@@ -1127,6 +1224,7 @@ async function saveEditedSession() {
   try {
     await patchSportSessionById(sessionId, payload);
     closeEditSessionModal();
+    showToastSuccess("Séance modifiée avec succès et bilans mis à jour.", "Séance mise à jour");
     // Rafraîchir les vues
     await fetchSportSessions();
     if (typeof fetchSportToday === "function") fetchSportToday();
@@ -1138,6 +1236,7 @@ async function saveEditedSession() {
       errBox.textContent = "Erreur lors de la modification : " + err.message;
       errBox.style.display = "block";
     }
+    showToastError("Erreur lors de la modification : " + err.message, "Échec");
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = oldBtnText;
@@ -1294,8 +1393,77 @@ export function initSportView() {
   if (tabSportToday) tabSportToday.addEventListener("click", () => switchSportSubview("today"));
   if (tabSportSessions) tabSportSessions.addEventListener("click", () => switchSportSubview("sessions"));
   if (tabSportSummaries) tabSportSummaries.addEventListener("click", () => switchSportSubview("summaries"));
+  if (tabSportImport) tabSportImport.addEventListener("click", () => switchSportSubview("import"));
   if (tabSportDash) tabSportDash.addEventListener("click", () => switchSportSubview("dashboard"));
   if (tabSportGamification) tabSportGamification.addEventListener("click", () => switchSportSubview("gamification"));
+
+  // Ingestion Visuelle de Course (Header & Sous-vue Dédiée)
+  const btnImportScreenshot = document.getElementById("btn-import-sport-screenshot");
+  const fileScreenshotInput = document.getElementById("file-sport-screenshot-input");
+  if (btnImportScreenshot && fileScreenshotInput) {
+    btnImportScreenshot.addEventListener("click", () => fileScreenshotInput.click());
+    fileScreenshotInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        handleSportScreenshotUpload(file);
+        fileScreenshotInput.value = "";
+      }
+    });
+  }
+
+  // Dropzone de la sous-vue Importer
+  const importDropzone = document.getElementById("sport-import-dropzone");
+  const importFileInput = document.getElementById("file-sport-import-view-input");
+  if (importDropzone && importFileInput) {
+    importDropzone.addEventListener("click", () => importFileInput.click());
+    importFileInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        handleSportScreenshotUpload(file);
+        importFileInput.value = "";
+      }
+    });
+
+    // Drag & Drop
+    importDropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      importDropzone.style.borderColor = "var(--color-primary-dark)";
+      importDropzone.style.background = "rgba(37, 99, 235, 0.1)";
+    });
+    importDropzone.addEventListener("dragleave", () => {
+      importDropzone.style.borderColor = "var(--color-primary)";
+      importDropzone.style.background = "rgba(37, 99, 235, 0.04)";
+    });
+    importDropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      importDropzone.style.borderColor = "var(--color-primary)";
+      importDropzone.style.background = "rgba(37, 99, 235, 0.04)";
+      const file = e.dataTransfer?.files?.[0];
+      if (file) {
+        handleSportScreenshotUpload(file);
+      }
+    });
+  }
+
+  // Support du collage (Paste / Ctrl+V) d'une capture d'écran sur l'onglet Sport
+  window.addEventListener("paste", (e) => {
+    const activeView = document.getElementById("view-sport");
+    if (!activeView || !activeView.classList.contains("active")) return;
+
+    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleSportScreenshotUpload(file);
+          break;
+        }
+      }
+    }
+  });
 
   // Écouteurs pour le modal d'édition manuelle de séance
   const modal = document.getElementById("modal-edit-sport-session");
@@ -1318,3 +1486,4 @@ export function initSportView() {
     }
   });
 }
+

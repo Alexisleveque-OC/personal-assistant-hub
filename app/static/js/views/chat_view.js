@@ -1,7 +1,15 @@
 // Vue Assistant Conversationnel / Chat & Vocal avec Persistance 20 Messages
 import { speak, showUndoToast, hideUndoToast } from "../speech.js";
-import { postInteract, postInteractAudio, fetchSessionHistory, postResetSession } from "../api.js";
+import {
+  postInteract,
+  postInteractAudio,
+  fetchSessionHistory,
+  postResetSession,
+  importSportScreenshot,
+  uploadSecondBrainImage,
+} from "../api.js";
 import { getActiveSessionId, resetActiveSessionId } from "../config.js";
+import { showToastInfo, showToastSuccess, showToastError } from "../toast.js";
 
 const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
@@ -256,6 +264,63 @@ export async function sendAudioInteraction(audioBlob) {
   }
 }
 
+export async function handleChatImageUpload(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToastError("Le fichier sélectionné n'est pas une image valide.", "Format non supporté");
+    return;
+  }
+
+  appendUserMessage("📸 Envoi d'une capture d'écran...");
+  const toastAnalyzing = showToastInfo("Analyse de la capture par Otis en cours...", "Analyse Otis", { duration: 0 });
+
+  // 1. Tenter d'abord l'analyse en séance de sport running
+  try {
+    const sportRes = await importSportScreenshot(file);
+    toastAnalyzing.dismiss();
+
+    const spokenMsg = sportRes.spoken_response || "Votre séance de sport a été importée avec succès !";
+    appendAssistantMessage(spokenMsg);
+    speak(spokenMsg);
+    showToastSuccess(spokenMsg, "Séance de course importée ✅");
+    window.dispatchEvent(new CustomEvent("sport-data-updated"));
+    return;
+  } catch (sportErr) {
+    const errText = String(sportErr.message || "");
+    const isExplicitNonSport = errText.includes("ne semble pas être une capture") || errText.includes("non_sport_running") || errText.includes("400") || errText.includes("422");
+
+    if (!isExplicitNonSport) {
+      // C'était une séance de sport ou une erreur technique, ne pas polluer les notes
+      toastAnalyzing.dismiss();
+      console.error("Erreur technique import capture sport:", sportErr);
+      const failMsg = `Désolé, l'analyse de votre capture de course a rencontré une erreur : ${sportErr.message}`;
+      appendAssistantMessage(failMsg);
+      showToastError(sportErr.message, "Erreur d'analyse sport");
+      return;
+    }
+    console.debug("Image non sportive, tentative d'archivage dans le Second Cerveau...");
+  }
+
+  // 2. Si ce n'est manifestement pas du sport, tenter comme note dans le Second Cerveau
+  try {
+    const brainRes = await uploadSecondBrainImage(file);
+    toastAnalyzing.dismiss();
+
+    const noteTitle = (brainRes.note && brainRes.note.title) ? brainRes.note.title : "Nouvelle note";
+    const noteMsg = `Cette image n'est pas une course à pied. Je l'ai enregistrée dans vos notes du Second Cerveau sous "${noteTitle}".`;
+    appendAssistantMessage(noteMsg);
+    speak(noteMsg);
+    showToastSuccess("Capture enregistrée dans vos notes.", "Second Cerveau ✅");
+    return;
+  } catch (brainErr) {
+    toastAnalyzing.dismiss();
+    console.error("Échec des deux analyses d'image:", brainErr);
+    const failMsg = "Désolé, je n'ai pas pu reconnaître de séance de sport ni de document exploitable dans cette image.";
+    appendAssistantMessage(failMsg);
+    showToastError("Impossible d'extraire les informations de l'image.", "Échec d'analyse");
+  }
+}
+
 export function initChatView() {
   // Réhydrater immédiatement les 20 derniers messages
   restoreChatHistory();
@@ -270,6 +335,40 @@ export function initChatView() {
       }
     });
   }
+
+  // Upload d'image direct depuis la barre de saisie
+  const btnChatUpload = document.getElementById("btn-chat-upload-image");
+  const fileChatInput = document.getElementById("chat-file-image-input");
+  if (btnChatUpload && fileChatInput) {
+    btnChatUpload.addEventListener("click", () => fileChatInput.click());
+    fileChatInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        handleChatImageUpload(file);
+        fileChatInput.value = "";
+      }
+    });
+  }
+
+  // Support du collage (Paste / Ctrl+V) d'une capture dans le Chat
+  window.addEventListener("paste", (e) => {
+    const activeView = document.getElementById("view-chat");
+    if (!activeView || !activeView.classList.contains("active")) return;
+
+    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleChatImageUpload(file);
+          break;
+        }
+      }
+    }
+  });
 
   // Bouton Nouveau fil dans le header
   const btnNewChat = document.getElementById("btn-new-chat");
@@ -295,3 +394,4 @@ export function initChatView() {
     });
   });
 }
+

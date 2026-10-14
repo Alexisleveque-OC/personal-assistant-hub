@@ -474,3 +474,89 @@ def format_natural_spoken_date(
         return f"du {date_label}"
     return date_label
 
+
+def parse_screenshot_date(raw_date: Any, reference_date: Optional[date] = None) -> date:
+    """Résout de façon résiliente la date extraite d'une capture d'écran sportive.
+
+    Supporte :
+    - date ou datetime natif
+    - Formats ISO : 'YYYY-MM-DD', 'YYYY-MM-DDTHH:MM:SS', 'YYYY-MM-DD HH:MM:SS'
+    - Formats français slash/tiret : 'DD/MM/YYYY', 'DD/MM/YY', 'DD-MM-YYYY', 'DD.MM.YYYY'
+    - Format avec heure : '12/10/2026 - 12:55', '12/10/2026 12:55'
+    - Formats textuels français : '08 oct. 2026', '8 oct 2026', '12 octobre 2026'
+    - Expressions relatives : 'hier', 'avant-hier', 'lundi', 'dimanche dernier'
+    - Repli propre sur reference_date (ou date.today()) si vide ou non résoluble.
+    """
+    ref_d = reference_date or date.today()
+    if not raw_date:
+        return ref_d
+
+    if isinstance(raw_date, datetime):
+        return raw_date.date()
+    if isinstance(raw_date, date):
+        return raw_date
+
+    val = str(raw_date).strip()
+    if not val:
+        return ref_d
+
+    # 1. ISO direct ou tronqué : YYYY-MM-DD (ex: 2026-10-12 ou 2026-10-12T12:55:00)
+    iso_match = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})", val)
+    if iso_match:
+        try:
+            return date(int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)))
+        except ValueError:
+            pass
+
+    # 2. Format numérique DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY (ex: '12/10/2026 - 12:55')
+    fr_num_match = re.search(r"\b(\d{1,2})[/\.-](\d{1,2})[/\.-](\d{2,4})\b", val)
+    if fr_num_match:
+        d = int(fr_num_match.group(1))
+        m = int(fr_num_match.group(2))
+        y = int(fr_num_match.group(3))
+        if y < 100:
+            y += 2000
+        try:
+            return date(y, m, d)
+        except ValueError:
+            pass
+
+    # 3. Format textuel avec nom ou abréviation de mois français (ex: '08 oct. 2026', '8 octobre 2026', '8 oct')
+    text_month_match = re.search(
+        r"\b(\d{1,2})\s+([a-zA-ZÀ-ÿ\.]+)(?:\s+(\d{4}))?",
+        val,
+        re.IGNORECASE,
+    )
+    if text_month_match:
+        d = int(text_month_match.group(1))
+        raw_m = text_month_match.group(2).lower().strip(". ")
+        y = int(text_month_match.group(3)) if text_month_match.group(3) else ref_d.year
+        month_map = {
+            "jan": 1, "janv": 1, "janvier": 1,
+            "fev": 2, "fév": 2, "fevr": 2, "févr": 2, "fevrier": 2, "février": 2,
+            "mar": 3, "mars": 3,
+            "avr": 4, "avril": 4,
+            "mai": 5,
+            "jui": 6, "juin": 6,
+            "juil": 7, "juillet": 7,
+            "aou": 8, "aoû": 8, "aout": 8, "août": 8,
+            "sep": 9, "sept": 9, "septembre": 9,
+            "oct": 10, "octobre": 10,
+            "nov": 11, "novembre": 11,
+            "dec": 12, "déc": 12, "decembre": 12, "décembre": 12,
+        }
+        month_num = month_map.get(raw_m) or month_map.get(raw_m[:3])
+        if month_num:
+            try:
+                return date(y, month_num, d)
+            except ValueError:
+                pass
+
+    # 4. Expressions relatives via resolve_date_expression ('hier', 'avant-hier', 'lundi dernier')
+    ref_dt = datetime.combine(ref_d, datetime.min.time())
+    resolved = resolve_date_expression(val, now=ref_dt)
+    if resolved and resolved.target_date:
+        return resolved.target_date
+
+    return ref_d
+

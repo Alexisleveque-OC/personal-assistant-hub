@@ -26,6 +26,9 @@
 </head>
 <body>
 
+  <!-- Toast Notification Container (Observabilité UI) -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
   <!-- Botanical Background Images -->
   <div class="botanical-bg" aria-hidden="true">
     <div class="botanical-img botanical-img-light"></div>
@@ -142,6 +145,10 @@
         </div>
 
         <form id="query-form" class="input-bar-form">
+          <input type="file" id="chat-file-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+          <button type="button" id="btn-chat-upload-image" class="btn-chat-action" title="Envoyer une photo ou capture d'écran" style="background:transparent; border:none; color:var(--color-text-secondary); cursor:pointer; padding:0 8px; font-size:1.15rem; display:flex; align-items:center;" aria-label="Envoyer une photo">
+            📸
+          </button>
           <input type="text" id="query-input" class="text-input-field" placeholder="Dictez ou écrivez un message..." autocomplete="off" />
           <button type="submit" class="btn-send" title="Envoyer">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -199,9 +206,17 @@
 
     <!-- VIEW 4: SPORT RUNNING & COACH OTIS -->
     <section id="view-sport" class="view-panel">
-      <div class="shopping-header">
-        <h2 class="section-title">Running & Coach</h2>
-        <span id="sport-today-badge-date" class="badge" style="font-size:0.8rem;">Aujourd'hui</span>
+      <div class="shopping-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <h2 class="section-title" style="margin:0;">Running & Coach</h2>
+          <span id="sport-today-badge-date" class="badge" style="font-size:0.8rem;">Aujourd'hui</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="file" id="file-sport-screenshot-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+          <button id="btn-import-sport-screenshot" class="btn-action-small" title="Importer une séance par capture d'écran Strava ou Decathlon">
+            📸 Importer capture
+          </button>
+        </div>
       </div>
 
       <!-- Segmented Sport Switcher -->
@@ -209,12 +224,60 @@
         <button class="seg-btn active" id="tab-sport-today" data-subview="today">Aujourd'hui</button>
         <button class="seg-btn" id="tab-sport-sessions" data-subview="sessions">Séances</button>
         <button class="seg-btn" id="tab-sport-summaries" data-subview="summaries">Semaines</button>
+        <button class="seg-btn" id="tab-sport-import" data-subview="import">📸 Importer</button>
         <button class="seg-btn" id="tab-sport-dash" data-subview="dashboard">Dashboard</button>
         <button class="seg-btn" id="tab-sport-gamification" data-subview="gamification">Trophées 🏆</button>
       </div>
 
       <!-- Bulle Conseil Coach Otis -->
       <div id="sport-coach-bubble" class="coach-bubble" style="display:none;"></div>
+
+      <!-- Subview: Importer une séance par capture d'écran (Étape 3.1) -->
+      <div id="sport-import-container" style="display:none;">
+        <div class="sport-session-card" style="padding:22px 16px; margin-bottom:16px;">
+          <div style="text-align:center; margin-bottom:18px;">
+            <div style="font-size:2.4rem; margin-bottom:8px;">📸</div>
+            <h3 style="font-size:1.15rem; font-weight:800; margin:0 0 6px 0; color:var(--color-text);">Importer une Séance de Course</h3>
+            <p style="font-size:0.85rem; color:var(--color-text-secondary); margin:0; line-height:1.45;">
+              Prenez ou importez une capture d'écran depuis votre téléphone. Otis extrait automatiquement votre distance, allure, durée, dénivelé et fréquence cardiaque.
+            </p>
+          </div>
+
+          <!-- Zone de Drop & Sélection Tactile -->
+          <div id="sport-import-dropzone" class="sport-dropzone" style="border:2px dashed var(--color-primary); border-radius:12px; padding:28px 16px; text-align:center; background:rgba(37, 99, 235, 0.04); cursor:pointer; transition:all 0.2s ease;">
+            <input type="file" id="file-sport-import-view-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+            <div style="font-size:2.2rem; margin-bottom:10px;">🖼️</div>
+            <div style="font-weight:700; font-size:0.95rem; color:var(--color-primary); margin-bottom:4px;">
+              Touchez ici pour choisir une capture d'écran
+            </div>
+            <div style="font-size:0.8rem; color:var(--color-text-muted); margin-bottom:14px;">
+              Glissez une image ou appuyez pour ouvrir la galerie / appareil photo
+            </div>
+            <button type="button" class="btn-primary" style="pointer-events:none; padding:8px 18px; font-size:0.85rem;">
+              📁 Parcourir mes photos
+            </button>
+          </div>
+
+          <!-- Statut d'analyse en direct -->
+          <div id="sport-import-status" style="display:none; margin-top:16px; padding:12px; border-radius:8px; font-size:0.85rem; text-align:center;"></div>
+
+          <!-- Rappel visuel des 3 formats compatibles -->
+          <div style="margin-top:22px; display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
+            <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; padding:10px; font-size:0.8rem; text-align:center;">
+              <strong style="color:#fc5200; display:block; margin-bottom:3px;">🟠 Strava</strong>
+              <span style="font-size:0.74rem; color:var(--color-text-secondary);">Distance, durée, allure, D+</span>
+            </div>
+            <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; padding:10px; font-size:0.8rem; text-align:center;">
+              <strong style="color:#0284c7; display:block; margin-bottom:3px;">🔵 Decathlon Coach</strong>
+              <span style="font-size:0.74rem; color:var(--color-text-secondary);">Kiprun, 31'23", 06'07"/km</span>
+            </div>
+            <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; padding:10px; font-size:0.8rem; text-align:center;">
+              <strong style="color:#10b981; display:block; margin-bottom:3px;">⌚ Montre CW500</strong>
+              <span style="font-size:0.74rem; color:var(--color-text-secondary);">Cardio BPM, cadence, date</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Subview: Séance du jour -->
       <div id="sport-today-container">
