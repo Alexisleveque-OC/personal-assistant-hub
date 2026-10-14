@@ -12,6 +12,7 @@ export const state = {
   vadSilenceMs: parseInt(localStorage.getItem("pah_vad_silence_ms") || "2000", 10),
   pushToTalk: localStorage.getItem("pah_push_to_talk") === "true",
   wakeWordEnabled: localStorage.getItem("pah_wake_word_enabled") === "true",
+  wakeWordCustomVariants: JSON.parse(localStorage.getItem("pah_wake_word_custom_variants") || "[]"),
 };
 
 export function getStoredCheckedItems() {

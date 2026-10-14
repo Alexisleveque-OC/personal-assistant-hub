@@ -715,13 +715,97 @@ body {
   }
 }
 
-/* Bouton Microphone & Formulaire */
+/* Bouton Microphone & Formulaire Push-to-Talk Fixé */
+#view-chat {
+  padding-bottom: 240px;
+}
+
 .voice-dock {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  margin-top: 20px;
+  gap: 8px;
+  position: fixed;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 560px;
+  z-index: 45;
+  background: var(--color-nav-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 8px 14px 10px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+.wake-word-indicator {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  transition: all 0.25s ease;
+}
+
+.wake-word-indicator .wake-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+  display: inline-block;
+  transition: background 0.3s ease;
+}
+
+.wake-word-indicator.listening {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.08);
+  color: #16a34a;
+}
+
+.wake-word-indicator.listening .wake-dot {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: pulseGreen 1.6s infinite;
+}
+
+.wake-word-indicator.paused {
+  border-color: rgba(234, 179, 8, 0.4);
+  background: rgba(234, 179, 8, 0.08);
+  color: #ca8a04;
+}
+
+.wake-word-indicator.paused .wake-dot {
+  background: #eab308;
+}
+
+.wake-word-indicator.triggered {
+  border-color: #22c55e;
+  background: #22c55e;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.wake-word-indicator.triggered .wake-dot {
+  background: #ffffff;
+}
+
+@keyframes pulseGreen {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
 }
 
 .mic-wrapper {
@@ -729,6 +813,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .mic-pulse-ring {
@@ -766,6 +854,11 @@ body {
   transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
   z-index: 2;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
 }
 
 .btn-mic-main svg {

@@ -7,6 +7,11 @@ import {
   speak,
   initSpeechRecognition,
   setWakeWordEnabled,
+  startWakeWordCalibration,
+  updateWakeWordIndicator,
+  setupMicButtonBehavior,
+  addCustomWakeVariant,
+  removeCustomWakeVariant,
 } from "./js/speech.js";
 import { fetchLlmStats } from "./js/api.js";
 import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage } from "./js/views/chat_view.js";
@@ -169,9 +174,92 @@ document.addEventListener("DOMContentLoaded", () => {
       if (vadSilenceSelect) vadSilenceSelect.value = String(state.vadSilenceMs || 2000);
       populateVoiceList(voiceSelect);
       refreshLlmStats();
+      renderCalibrationChips();
       if (settingsModal) settingsModal.classList.add("active");
     });
   }
+
+  // 9.1 Module de Calibrage Wake-Word In-App
+  const btnStartCalibration = document.getElementById("btn-start-calibration");
+  const calibrationStatus = document.getElementById("calibration-status");
+  const calibrationResults = document.getElementById("calibration-results");
+  const btnAddCustomWake = document.getElementById("btn-add-custom-wake-variant");
+  const inputCustomWake = document.getElementById("input-custom-wake-variant");
+
+  function renderCalibrationChips() {
+    if (!calibrationResults) return;
+    calibrationResults.innerHTML = "";
+    const list = state.wakeWordCustomVariants || [];
+    if (list.length === 0) {
+      calibrationResults.innerHTML = '<span style="font-size:0.75rem; color:var(--color-text-secondary);">Variantes par défaut actives. Ajoutez vos prononciations ci-dessus.</span>';
+      return;
+    }
+    list.forEach((v) => {
+      const chip = document.createElement("span");
+      chip.className = "calibration-chip";
+      chip.style.cssText = "display:inline-flex; align-items:center; gap:6px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; padding:3px 8px; font-size:0.75rem;";
+      chip.innerHTML = `<span>✓ ${v}</span>`;
+      const btnDel = document.createElement("button");
+      btnDel.type = "button";
+      btnDel.textContent = "×";
+      btnDel.title = "Supprimer cette variante";
+      btnDel.style.cssText = "background:none; border:none; color:var(--color-text-secondary); cursor:pointer; font-size:0.85rem; padding:0 2px; line-height:1;";
+      btnDel.addEventListener("click", () => {
+        removeCustomWakeVariant(v);
+        renderCalibrationChips();
+      });
+      chip.appendChild(btnDel);
+      calibrationResults.appendChild(chip);
+    });
+  }
+
+  if (btnAddCustomWake && inputCustomWake) {
+    const handleAddManual = () => {
+      const val = inputCustomWake.value.trim();
+      if (!val) return;
+      addCustomWakeVariant(val);
+      inputCustomWake.value = "";
+      renderCalibrationChips();
+      if (calibrationStatus) calibrationStatus.textContent = `Ajouté : « ${val} »`;
+    };
+    btnAddCustomWake.addEventListener("click", handleAddManual);
+    inputCustomWake.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddManual();
+      }
+    });
+  }
+
+  if (btnStartCalibration) {
+    btnStartCalibration.addEventListener("click", () => {
+      if (calibrationStatus) calibrationStatus.textContent = "Écoute en cours... Dites « Otis »";
+      startWakeWordCalibration(
+        (status, msg) => {
+          if (calibrationStatus) calibrationStatus.textContent = msg;
+        },
+        (success, resultText) => {
+          if (success) {
+            if (calibrationStatus) calibrationStatus.textContent = `Enregistré : « ${resultText} »`;
+            renderCalibrationChips();
+          } else {
+            if (calibrationStatus) calibrationStatus.textContent = `Échec : ${resultText}`;
+          }
+        }
+      );
+    });
+  }
+
+  // Clic direct sur l'indicateur pour ouvrir les réglages et le calibrage
+  const wakeWordIndicator = document.getElementById("wake-word-indicator");
+  if (wakeWordIndicator) {
+    wakeWordIndicator.addEventListener("click", () => {
+      if (btnSettings) btnSettings.click();
+    });
+  }
+
+  // Initialisation du statut visuel du Wake-Word
+  updateWakeWordIndicator();
 
   if (btnCloseSettings) {
     btnCloseSettings.addEventListener("click", () => {
@@ -192,6 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (pushToTalkToggle) {
         state.pushToTalk = pushToTalkToggle.checked;
         localStorage.setItem("pah_push_to_talk", state.pushToTalk ? "true" : "false");
+        setupMicButtonBehavior();
       }
 
       if (wakeWordToggle) {

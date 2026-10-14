@@ -23,9 +23,9 @@ def normalize_phonetics(raw_text: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # 2. Confusion sur le prénom Otis ("autiste", "notice", "hotis", "hostis")
+    # 2. Confusion sur le prénom Otis ("autiste", "notice", "hotis", "hostis", "au tisse", "oh tisse", "aux tisse", "hautisse")
     text = re.sub(
-        r"\b(?:autiste|notice|hotis|hostis)\b",
+        r"\b(?:autiste|notice|hotis|hostis|au\s+tisse|oh\s+tisse|aux\s+tisse|hautisse)\b",
         "Otis",
         text,
         flags=re.IGNORECASE,

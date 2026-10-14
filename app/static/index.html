@@ -134,6 +134,10 @@
 
       <!-- Big Mic & Input Dock -->
       <div class="voice-dock">
+        <div id="wake-word-indicator" class="wake-word-indicator" style="cursor:pointer;" title="Cliquez pour configurer ou étalonner le mot-clé Otis">
+          <span class="wake-dot"></span>
+          <span class="wake-label">Otis à l'écoute</span>
+        </div>
         <div class="mic-wrapper" id="mic-wrapper">
           <div class="mic-pulse-ring"></div>
           <button id="mic-btn" class="btn-mic-main" title="Parler à l'assistant" aria-label="Microphone">
@@ -441,6 +445,25 @@
             <input type="checkbox" id="wake-word-toggle" />
             <span>Détection continue du mot-clé de réveil (« Otis »)</span>
           </label>
+          <div class="wake-calibration-section" style="margin-top: 10px; margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 6px; border: 1px dashed var(--color-border);">
+            <label class="form-label" style="font-size:0.8rem; font-weight:600; margin-bottom:2px;">Calibrage phonétique « Otis » (voix essoufflée / running)</label>
+            <p style="font-size:0.75rem; color:var(--color-text-secondary); margin:4px 0 8px 0;">
+              Prononcez « Otis » à haute voix pour enregistrer vos variantes de prononciation.
+            </p>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button type="button" id="btn-start-calibration" class="btn-action-sm" style="padding:6px 10px; font-size:0.8rem; border-radius:6px; background:var(--color-primary); color:#ffffff; border:none; cursor:pointer;">
+                🎤 Étalonner au micro
+              </button>
+              <span id="calibration-status" style="font-size:0.78rem; color:var(--color-text-secondary);">Prêt</span>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:10px;">
+              <input type="text" id="input-custom-wake-variant" class="form-input" placeholder="Ajouter une variante manuelle (ex: autisse, notice)..." style="font-size:0.8rem; padding:6px 10px; flex:1;" />
+              <button type="button" id="btn-add-custom-wake-variant" class="btn-action-sm" style="padding:6px 12px; font-size:0.8rem; border-radius:6px; background:var(--color-primary); color:#ffffff; border:none; cursor:pointer; white-space:nowrap;">
+                ➕ Ajouter
+              </button>
+            </div>
+            <div id="calibration-results" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+          </div>
           <div style="margin-top: 8px;">
             <label class="form-label" for="vad-silence-select" style="font-size:0.8rem;">Délai de silence tolérant (temps d'hésitation) :</label>
             <select id="vad-silence-select" class="form-input" style="font-size:0.85rem;">

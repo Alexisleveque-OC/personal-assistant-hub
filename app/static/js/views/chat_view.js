@@ -237,16 +237,18 @@ export async function sendAudioInteraction(audioBlob) {
     }
 
     if (!res.ok) {
-      appendAssistantMessage(`Erreur serveur (${res.status}).`);
+      const errData = await res.json().catch(() => ({}));
+      appendAssistantMessage(errData.detail || `Erreur serveur (${res.status}) lors du traitement vocal.`);
       return;
     }
 
     const data = await res.json();
 
-    // Remplacer le texte temporaire par la transcription exacte
+    // Remplacer le texte temporaire par la transcription exacte (transcribed_text ou user_transcription)
     const lastUserBubble = chatStream.querySelector(".chat-bubble.user:last-of-type");
-    if (lastUserBubble && data.user_transcription) {
-      const fullText = `🎤 ${data.user_transcription}`;
+    const transcription = data.transcribed_text || data.user_transcription;
+    if (lastUserBubble && transcription) {
+      const fullText = `🎤 ${transcription}`;
       lastUserBubble.textContent = fullText;
       updateLastUserMessage(fullText);
     }
@@ -260,7 +262,11 @@ export async function sendAudioInteraction(audioBlob) {
       window.dispatchEvent(new CustomEvent("sport-data-updated"));
     }
   } catch (err) {
-    appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
+    if (err && err.name === "AbortError") {
+      appendAssistantMessage("Délai de connexion dépassé (timeout). Le réseau est trop lent ou coupé.");
+    } else {
+      appendAssistantMessage("Impossible de joindre le serveur. Vérifiez la connexion.");
+    }
   }
 }
 
