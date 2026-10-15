@@ -251,9 +251,12 @@ async def handle_sport_intent(
                     spoken += f" Ressenti noté à {rpe}/10."
                 else:
                     spoken += " Quel était votre ressenti sur 10 ?"
-            elif type_seance == SportSessionType.RENFORCEMENT or dist is None:
+            elif type_seance == SportSessionType.RENFORCEMENT:
                 charge_txt = f" (charge RPE de {new_session.charge_rpe})" if new_session.charge_rpe else ""
                 spoken = f"C'est enregistré ! Votre séance de renforcement musculaire de {minutes} minutes{charge_txt} a bien été ajoutée au carnet."
+            elif dist is None:
+                type_label = new_session.type_seance.value if hasattr(new_session.type_seance, "value") else str(new_session.type_seance)
+                spoken = f"C'est enregistré ! Votre séance de {type_label} de {minutes} minutes a bien été ajoutée au carnet."
             else:
                 dist_disp = str(dist).replace(".", ",")
                 allure = new_session.allure_formatted or ""

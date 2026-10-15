@@ -17,6 +17,7 @@ import {
   patchSportSession,
   patchSportSessionById,
   deleteSportSession,
+  createSportSession,
   importSportScreenshot,
 } from "../api.js";
 
@@ -1117,6 +1118,7 @@ function openEditSessionModal(session) {
   if (!modal) return;
 
   const idInput = document.getElementById("edit-session-id");
+  const dateInput = document.getElementById("edit-session-date");
   const dateBadge = document.getElementById("edit-session-date-badge");
   const typeSelect = document.getElementById("edit-session-type");
   const statutSelect = document.getElementById("edit-session-statut");
@@ -1138,7 +1140,8 @@ function openEditSessionModal(session) {
   }
 
   idInput.value = session.id || "";
-  dateBadge.textContent = formatDateFr(session.date);
+  if (dateInput) dateInput.value = session.date || "";
+  if (dateBadge) dateBadge.textContent = formatDateFr(session.date);
   typeSelect.value = session.type_seance || "EF";
   statutSelect.value = session.statut || "Réalisé";
   distInput.value = session.distance_km != null ? session.distance_km : "";
@@ -1183,6 +1186,8 @@ async function saveEditedSession() {
     return;
   }
 
+  const dateInput = document.getElementById("edit-session-date");
+  const dateVal = dateInput ? dateInput.value : "";
   const typeVal = document.getElementById("edit-session-type").value;
   const statutVal = document.getElementById("edit-session-statut").value;
   const distStr = document.getElementById("edit-session-distance").value.trim();
@@ -1217,6 +1222,10 @@ async function saveEditedSession() {
     remarques: remVal,
   };
 
+  if (dateVal) {
+    payload.date = dateVal;
+  }
+
   const oldBtnText = saveBtn.textContent;
   saveBtn.disabled = true;
   saveBtn.textContent = "Enregistrement en cours...";
@@ -1237,6 +1246,119 @@ async function saveEditedSession() {
       errBox.style.display = "block";
     }
     showToastError("Erreur lors de la modification : " + err.message, "Échec");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = oldBtnText;
+  }
+}
+
+function openCreateSessionModal() {
+  const modal = document.getElementById("modal-create-sport-session");
+  if (!modal) return;
+
+  const dateInput = document.getElementById("create-session-date");
+  const typeSelect = document.getElementById("create-session-type");
+  const statutSelect = document.getElementById("create-session-statut");
+  const distInput = document.getElementById("create-session-distance");
+  const dplusInput = document.getElementById("create-session-dplus");
+  const dureeMinInput = document.getElementById("create-session-duree-min");
+  const dureeSecInput = document.getElementById("create-session-duree-sec");
+  const rpeInput = document.getElementById("create-session-rpe");
+  const fcMoyInput = document.getElementById("create-session-fc-moy");
+  const progInput = document.getElementById("create-session-programme");
+  const remTextarea = document.getElementById("create-session-remarques");
+  const errBox = document.getElementById("create-session-error-msg");
+
+  if (errBox) {
+    errBox.style.display = "none";
+    errBox.textContent = "";
+  }
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  if (dateInput) dateInput.value = todayStr;
+  if (typeSelect) typeSelect.value = "EF";
+  if (statutSelect) statutSelect.value = "Réalisé";
+  if (distInput) distInput.value = "";
+  if (dplusInput) dplusInput.value = "";
+  if (dureeMinInput) dureeMinInput.value = "";
+  if (dureeSecInput) dureeSecInput.value = "";
+  if (rpeInput) rpeInput.value = "";
+  if (fcMoyInput) fcMoyInput.value = "";
+  if (progInput) progInput.value = "";
+  if (remTextarea) remTextarea.value = "";
+
+  modal.classList.add("active");
+}
+
+function closeCreateSessionModal() {
+  const modal = document.getElementById("modal-create-sport-session");
+  if (modal) modal.classList.remove("active");
+}
+
+async function saveCreatedSession() {
+  const errBox = document.getElementById("create-session-error-msg");
+  const saveBtn = document.getElementById("btn-save-create-session");
+
+  const dateVal = document.getElementById("create-session-date").value;
+  if (!dateVal) {
+    if (errBox) {
+      errBox.textContent = "Veuillez sélectionner une date pour la séance.";
+      errBox.style.display = "block";
+    }
+    return;
+  }
+
+  const typeVal = document.getElementById("create-session-type").value;
+  const statutVal = document.getElementById("create-session-statut").value;
+  const distStr = document.getElementById("create-session-distance").value.trim();
+  const dplusStr = document.getElementById("create-session-dplus").value.trim();
+  const minStr = document.getElementById("create-session-duree-min").value.trim();
+  const secStr = document.getElementById("create-session-duree-sec").value.trim();
+  const rpeStr = document.getElementById("create-session-rpe").value.trim();
+  const fcMoyStr = document.getElementById("create-session-fc-moy").value.trim();
+  const progVal = document.getElementById("create-session-programme").value.trim();
+  const remVal = document.getElementById("create-session-remarques").value.trim();
+
+  let totalSec = null;
+  if (minStr !== "" || secStr !== "") {
+    const mins = parseInt(minStr, 10) || 0;
+    const secs = parseInt(secStr, 10) || 0;
+    totalSec = mins * 60 + secs;
+  }
+
+  const payload = {
+    date: dateVal,
+    statut: statutVal,
+    type_seance: typeVal,
+    distance_km: distStr !== "" ? parseFloat(distStr) : null,
+    duree_secondes: totalSec,
+    denivele_d_plus: dplusStr !== "" ? parseInt(dplusStr, 10) : 0,
+    ressenti_rpe: rpeStr !== "" ? parseInt(rpeStr, 10) : null,
+    fc_moyenne: fcMoyStr !== "" ? parseInt(fcMoyStr, 10) : null,
+    programme: progVal,
+    remarques: remVal,
+    notes: remVal,
+  };
+
+  const oldBtnText = saveBtn.textContent;
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Création en cours...";
+
+  try {
+    await createSportSession(payload);
+    closeCreateSessionModal();
+    showToastSuccess("Séance enregistrée avec succès.", "Nouvelle séance créée");
+    await fetchSportSessions();
+    if (typeof fetchSportToday === "function") fetchSportToday();
+    if (typeof fetchSportSummaries === "function") fetchSportSummaries();
+    if (typeof fetchSportDashboard === "function") fetchSportDashboard();
+    window.dispatchEvent(new CustomEvent("sport-data-updated"));
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = "Erreur lors de la création : " + err.message;
+      errBox.style.display = "block";
+    }
+    showToastError("Erreur lors de la création : " + err.message, "Échec");
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = oldBtnText;
@@ -1474,6 +1596,20 @@ export function initSportView() {
   if (modal) {
     modal.addEventListener("click", (e) => {
       if (e.target === modal) closeEditSessionModal();
+    });
+  }
+
+  // Écouteurs pour le modal de création manuelle de séance
+  const addBtn = document.getElementById("btn-add-sport-session-inline");
+  const createModal = document.getElementById("modal-create-sport-session");
+  const cancelCreateBtn = document.getElementById("btn-cancel-create-session");
+  const saveCreateBtn = document.getElementById("btn-save-create-session");
+  if (addBtn) addBtn.addEventListener("click", openCreateSessionModal);
+  if (cancelCreateBtn) cancelCreateBtn.addEventListener("click", closeCreateSessionModal);
+  if (saveCreateBtn) saveCreateBtn.addEventListener("click", saveCreatedSession);
+  if (createModal) {
+    createModal.addEventListener("click", (e) => {
+      if (e.target === createModal) closeCreateSessionModal();
     });
   }
 
