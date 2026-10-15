@@ -483,6 +483,22 @@ async def import_sport_screenshot(
 
     # Résolution résiliente de la date (formats ISO, DD/MM/YYYY, '08 oct. 2026', relatif...)
     raw_date = vision_data.get("date")
+    has_explicit_date = bool(raw_date and str(raw_date).strip().lower() not in ("none", "null", ""))
+
+    # Garde-fou 1 : Si aucune date n'a été détectée dans l'image et qu'aucune date de référence n'a été fournie,
+    # vérifier si une séance réalisée existe déjà aujourd'hui pour ne jamais l'écraser par accident.
+    if not has_explicit_date and reference_date is None:
+        today_session = connector.get_session(ref_d)
+        if today_session and today_session.statut == SportSessionStatus.REALISE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Impossible d'extraire la date de la séance depuis la capture d'écran. "
+                    f"Une séance réalisée existe déjà pour aujourd'hui ({today_session.distance_km} km). "
+                    f"L'import automatique est bloqué pour protéger vos données. Veuillez préciser la date manuellement."
+                ),
+            )
+
     target_date = parse_screenshot_date(raw_date, reference_date=ref_d)
     vision_data["date"] = target_date.isoformat()
 
@@ -514,9 +530,25 @@ async def import_sport_screenshot(
         except ValueError:
             matched_type = SportSessionType.EF
 
-    # Déduplication : adapter une séance planifiée existante ou insérer une nouvelle
+    # Déduplication intelligente : adapter une séance planifiée existante ou insérer une nouvelle
     existing = connector.get_session(target_date)
+    should_update_existing = False
+
     if existing:
+        if existing.statut in (SportSessionStatus.PLANIFIE, "Prévu"):
+            # Séance planifiée : on l'adapte normalement en séance réalisée
+            should_update_existing = True
+        elif existing.statut == SportSessionStatus.REALISE:
+            # Séance déjà réalisée : vérifier si c'est un ré-import de la même séance (distance très similaire)
+            existing_dist = existing.distance_km or 0.0
+            new_dist = dist or 0.0
+            if abs(existing_dist - new_dist) < 0.2:
+                should_update_existing = True
+            else:
+                # Deuxième séance distincte à la même date : créer une nouvelle entrée pour préserver les deux
+                should_update_existing = False
+
+    if existing and should_update_existing:
         updates: Dict[str, Any] = {
             "statut": "Réalisé",
             "distance_km": dist,
@@ -536,6 +568,10 @@ async def import_sport_screenshot(
         else:
             updates["type_seance"] = matched_type
 
+        # Conserver impérativement les remarques existantes de l'utilisateur
+        if existing.remarques:
+            updates["remarques"] = existing.remarques
+
         note_tag = f"Import {app_src} : {titre}" if titre else f"Import {app_src}"
         updates["notes"] = f"{existing.notes} | {note_tag}" if existing.notes else note_tag
         saved_session = connector.update_session_by_id(existing.id, updates)
@@ -550,6 +586,7 @@ async def import_sport_screenshot(
             fc_moyenne=fc_moy,
             fc_max=fc_max,
             programme=titre,
+            remarques="",
             notes=f"Import {app_src} : {titre}" if titre else f"Import {app_src}",
         )
         saved_session = connector.log_session(new_payload)
