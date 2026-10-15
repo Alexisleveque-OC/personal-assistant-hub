@@ -592,8 +592,8 @@
         </div>
 
         <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-meteo">Météo (1-10)</label>
-          <input type="number" id="edit-session-meteo" class="form-input" min="1" max="10" step="1" placeholder="1 à 10" />
+          <label class="form-label" for="edit-session-meteo">Difficulté Météo (1=Idéale ☀️, 10=Tempête ⛈️)</label>
+          <input type="number" id="edit-session-meteo" class="form-input" min="1" max="10" step="1" placeholder="1=☀️ à 10=⛈️" />
         </div>
       </div>
 
@@ -703,8 +703,20 @@
         </div>
 
         <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-meteo">Difficulté Météo (1-10)</label>
+          <input type="number" id="create-session-meteo" class="form-input" min="1" max="10" step="1" placeholder="1=☀️ à 10=⛈️" />
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" for="create-session-fc-moy">FC Moyenne (bpm)</label>
           <input type="number" id="create-session-fc-moy" class="form-input" min="30" max="250" placeholder="ex: 150" />
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-fc-max">FC Max (bpm)</label>
+          <input type="number" id="create-session-fc-max" class="form-input" min="30" max="250" placeholder="ex: 170" />
         </div>
       </div>
 
@@ -728,6 +740,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=14.0"></script>
+  <script type="module" src="/static/app.js?v=15.0"></script>
 </body>
 </html>

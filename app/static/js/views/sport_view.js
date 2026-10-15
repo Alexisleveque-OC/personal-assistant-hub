@@ -376,10 +376,11 @@ export function getMeteoBadge(note) {
   if (!note && note !== 0) return "-";
   const n = Number(note);
   let icon = "🌤️";
-  if (n >= 8) icon = "☀️";
-  else if (n >= 5) icon = "🌤️";
-  else if (n >= 3) icon = "⛅";
-  else icon = "🌧️";
+  if (n <= 2) icon = "☀️";
+  else if (n <= 4) icon = "🌤️";
+  else if (n <= 6) icon = "🌦️";
+  else if (n <= 8) icon = "🌧️";
+  else icon = "⛈️";
   return `${icon} ${n}/10`;
 }
 
@@ -1264,6 +1265,7 @@ function openCreateSessionModal() {
   const dureeMinInput = document.getElementById("create-session-duree-min");
   const dureeSecInput = document.getElementById("create-session-duree-sec");
   const rpeInput = document.getElementById("create-session-rpe");
+  const meteoInput = document.getElementById("create-session-meteo");
   const fcMoyInput = document.getElementById("create-session-fc-moy");
   const progInput = document.getElementById("create-session-programme");
   const remTextarea = document.getElementById("create-session-remarques");
@@ -1283,6 +1285,7 @@ function openCreateSessionModal() {
   if (dureeMinInput) dureeMinInput.value = "";
   if (dureeSecInput) dureeSecInput.value = "";
   if (rpeInput) rpeInput.value = "";
+  if (meteoInput) meteoInput.value = "";
   if (fcMoyInput) fcMoyInput.value = "";
   if (progInput) progInput.value = "";
   if (remTextarea) remTextarea.value = "";
@@ -1315,6 +1318,7 @@ async function saveCreatedSession() {
   const minStr = document.getElementById("create-session-duree-min").value.trim();
   const secStr = document.getElementById("create-session-duree-sec").value.trim();
   const rpeStr = document.getElementById("create-session-rpe").value.trim();
+  const meteoStr = document.getElementById("create-session-meteo") ? document.getElementById("create-session-meteo").value.trim() : "";
   const fcMoyStr = document.getElementById("create-session-fc-moy").value.trim();
   const progVal = document.getElementById("create-session-programme").value.trim();
   const remVal = document.getElementById("create-session-remarques").value.trim();
@@ -1334,6 +1338,7 @@ async function saveCreatedSession() {
     duree_secondes: totalSec,
     denivele_d_plus: dplusStr !== "" ? parseInt(dplusStr, 10) : 0,
     ressenti_rpe: rpeStr !== "" ? parseInt(rpeStr, 10) : null,
+    meteo_note: meteoStr !== "" ? parseInt(meteoStr, 10) : null,
     fc_moyenne: fcMoyStr !== "" ? parseInt(fcMoyStr, 10) : null,
     programme: progVal,
     remarques: remVal,
