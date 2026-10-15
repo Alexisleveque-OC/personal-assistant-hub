@@ -201,4 +201,57 @@ def test_local_parser_detects_log_planned_session_confirmation():
     assert p4.parameters.get("ressenti_rpe") == 7
 
 
+def test_local_parser_detects_log_fractionne_session_without_distance():
+    """Détecte le logging d'une séance de fractionné sans distance explicite."""
+    parser = IntentParser()
+
+    p1 = parser.parse("J'ai fait une séance de fractionné")
+    assert p1.intent == IntentType.LOG_SPORT_SESSION
+    assert p1.parameters.get("type_seance") == "Fractionné"
+
+    p2 = parser.parse("J'ai fait un fractionné")
+    assert p2.intent == IntentType.LOG_SPORT_SESSION
+    assert p2.parameters.get("type_seance") == "Fractionné"
+
+    p3 = parser.parse("J'ai fait une séance de fractionné. Est-ce que tu peux m'en enregistrer une s'il te plaît ?")
+    assert p3.intent == IntentType.LOG_SPORT_SESSION
+    assert p3.parameters.get("type_seance") == "Fractionné"
+
+    p4 = parser.parse("Enregistre une séance de fractionné")
+    assert p4.intent == IntentType.LOG_SPORT_SESSION
+    assert p4.parameters.get("type_seance") == "Fractionné"
+
+
+@pytest.mark.asyncio
+async def test_handle_sport_intent_fractionne_without_distance_speaks_fractionne_not_renforcement(tmp_path):
+    """Garantit qu'une séance de Fractionné sans distance n'est JAMAIS qualifiée de renforcement musculaire."""
+    from app.handlers.sport_handler import handle_sport_intent
+    from app.connectors.sqlite.sport_connector import SqlSportConnector
+    from app.core.database import DatabaseManager
+
+    db = DatabaseManager(db_path=str(tmp_path / "test_frac.db"))
+    db.init_db()
+    connector = SqlSportConnector(db_manager=db)
+
+    parsed = ParsedIntent(
+        intent=IntentType.LOG_SPORT_SESSION,
+        confidence=0.95,
+        parameters={"type_seance": "Fractionné"},
+        raw_query="J'ai fait une séance de fractionné. Est-ce que tu peux m'en enregistrer une s'il te plaît ?",
+    )
+
+    spoken, data = await handle_sport_intent(
+        parsed=parsed,
+        raw_query=parsed.raw_query,
+        session_ctx={},
+        sport_connector=connector,
+        data={},
+    )
+
+    assert "Fractionné" in spoken
+    assert "renforcement musculaire" not in spoken
+    assert data["session"]["type_seance"] == "Fractionné"
+
+
+
 

@@ -226,6 +226,12 @@ def test_import_screenshot_rejects_non_sport_image(temp_sport_env):
         ("08 oct. 2026", "2026-10-08"),
         ("8 octobre 2026", "2026-10-08"),
         ("2026-10-12", "2026-10-12"),
+        ("14/10", "2026-10-14"),
+        ("14/10 à 18:30", "2026-10-14"),
+        ("14 oct.", "2026-10-14"),
+        ("Mercredi 14", "2026-10-14"),
+        ("mercredi", "2026-10-14"),
+        ("Hier", "2026-10-14"),
     ],
 )
 def test_import_screenshot_date_formats_resilience(temp_sport_env, raw_date_input, expected_date_str):
@@ -251,7 +257,7 @@ def test_import_screenshot_date_formats_resilience(temp_sport_env, raw_date_inpu
         mock_vision.return_value = fake_vision_result
 
         response = client.post(
-            "/api/v1/sport/import-screenshot",
+            "/api/v1/sport/import-screenshot?reference_date=2026-10-15",
             headers=API_HEADERS,
             files={"file": ("screenshot.jpg", fake_image_file, "image/jpeg")},
         )
@@ -260,3 +266,4 @@ def test_import_screenshot_date_formats_resilience(temp_sport_env, raw_date_inpu
         data = response.json()
         saved = data["session"]
         assert saved["date"] == expected_date_str
+

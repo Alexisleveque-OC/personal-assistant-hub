@@ -88,3 +88,31 @@ def test_resolve_no_date_expression():
     res = resolve_date_expression("on mange quoi ?", now=ref_dt)
     assert res.target_date is None
     assert res.period == "prochain"
+
+
+def test_parse_screenshot_date_past_weekdays():
+    """Garantit que les noms de jours extraits d'une capture sportive résolvent dans le passé."""
+    from app.core.date_resolver import parse_screenshot_date
+    ref = date(2026, 10, 15)  # Jeudi 15 Octobre 2026
+
+    # 'mercredi' depuis un jeudi doit donner hier (14/10), JAMAIS mercredi prochain (21/10)
+    assert parse_screenshot_date("mercredi", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("Mercredi", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("mardi", reference_date=ref) == date(2026, 10, 13)
+    assert parse_screenshot_date("dimanche", reference_date=ref) == date(2026, 10, 11)
+
+
+def test_parse_screenshot_date_decathlon_formats():
+    """Vérifie la robustesse face aux formats textuels de Decathlon Coach & Connect."""
+    from app.core.date_resolver import parse_screenshot_date
+    ref = date(2026, 10, 15)
+
+    assert parse_screenshot_date("Mercredi 14", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("mercredi 14 oct", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("14/10", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("14/10 à 18:30", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("14/10 - 18h30", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("Hier, 18:45", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("Course à pied - 14 oct.", reference_date=ref) == date(2026, 10, 14)
+    assert parse_screenshot_date("Course à pied du 14 octobre", reference_date=ref) == date(2026, 10, 14)
+

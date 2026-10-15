@@ -335,3 +335,81 @@ def test_interact_plan_weekly_training_offline_speaks_error(client, mock_sport_c
     assert "hors-ligne" in spoken.lower() or "gemini" in spoken.lower()
 
 
+def test_patch_sport_session_date_and_recalculate_week(isolate_sqlite_database):
+    """Vérifie que la modification de date via patch_sport_session_by_id recalcule la semaine et les synthèses."""
+    from app.connectors.sqlite.sport_connector import SqlSportConnector
+    from app.connectors.sheets.sport_models import SportSessionCreate, SportSessionType, SportSessionStatus
+
+    connector = SqlSportConnector(db_manager=isolate_sqlite_database)
+    set_sport_connector(connector)
+    test_client = TestClient(app)
+
+    # Créer une séance le jeudi 15/10/2026 (Semaine 42)
+    s = connector.log_session(SportSessionCreate(
+        date=date(2026, 10, 15),
+        type_seance=SportSessionType.EF,
+        distance_km=6.0,
+        duree_secondes=2160,
+        statut=SportSessionStatus.REALISE,
+    ))
+
+    # Modifier la date vers le mercredi 14/10/2026 (Semaine 42)
+    resp = test_client.patch(
+        f"/api/v1/sport/session/id/{s.id}",
+        json={"date": "2026-10-14"},
+        headers={"X-API-Key": "test_key"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["session"]["date"] == "2026-10-14"
+
+    # Déplacer vers une autre semaine (ex: 2026-10-04, Semaine 40)
+    resp2 = test_client.patch(
+        f"/api/v1/sport/session/id/{s.id}",
+        json={"date": "2026-10-04"},
+        headers={"X-API-Key": "test_key"},
+    )
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["session"]["date"] == "2026-10-04"
+    assert data2["session"]["semaine"] == 40
+    set_sport_connector(None)
+
+
+def test_create_sport_session_endpoint(isolate_sqlite_database):
+    """Vérifie l'endpoint POST /api/v1/sport/session pour créer manuellement une séance."""
+    from app.connectors.sqlite.sport_connector import SqlSportConnector
+
+    connector = SqlSportConnector(db_manager=isolate_sqlite_database)
+    set_sport_connector(connector)
+    test_client = TestClient(app)
+
+    payload = {
+        "date": "2026-10-14",
+        "statut": "Réalisé",
+        "type_seance": "Fractionné",
+        "distance_km": 5.5,
+        "duree_secondes": 1900,
+        "denivele_d_plus": 25,
+        "ressenti_rpe": 7,
+        "programme": "Fractionné 10x 30/30",
+        "remarques": "Bonnes sensations",
+    }
+    resp = test_client.post(
+        "/api/v1/sport/session",
+        json=payload,
+        headers={"X-API-Key": "test_key"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["success"] is True
+    saved = data["session"]
+    assert saved["date"] == "2026-10-14"
+    assert saved["type_seance"] == "Fractionné"
+    assert saved["distance_km"] == 5.5
+    assert saved["statut"] == "Réalisé"
+    set_sport_connector(None)
+
+
+
