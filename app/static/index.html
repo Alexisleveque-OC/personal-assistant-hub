@@ -226,6 +226,9 @@
           <button id="btn-import-sport-screenshot" class="btn-action-small" title="Importer une séance par capture d'écran Strava ou Decathlon">
             📸 Importer capture
           </button>
+          <button id="btn-add-sport-session-inline" class="btn-action-small" title="Créer ou planifier une séance manuellement">
+            ➕ Nouvelle séance
+          </button>
         </div>
       </div>
 
@@ -525,6 +528,11 @@
 
       <input type="hidden" id="edit-session-id" />
 
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="edit-session-date">Date de la séance</label>
+        <input type="date" id="edit-session-date" class="form-input" required />
+      </div>
+
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" for="edit-session-type">Type de séance</label>
@@ -620,6 +628,106 @@
     </div>
   </div>
 
-  <script type="module" src="/static/app.js?v=13.0"></script>
+  <!-- Modal de Création Manuelle de Séance Sportive -->
+  <div id="modal-create-sport-session" class="modal-overlay">
+    <div class="modal-box" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
+      <h3 class="modal-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="display:flex; align-items:center; gap:8px;">
+          <span>➕</span> Nouvelle séance
+        </span>
+      </h3>
+      <p style="font-size:0.8rem; color:var(--color-text-secondary); margin-bottom:14px;">
+        Enregistrez une séance terminée ou planifiez un entraînement à venir.
+      </p>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="create-session-date">Date de la séance</label>
+        <input type="date" id="create-session-date" class="form-input" required />
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-type">Type de séance</label>
+          <select id="create-session-type" class="form-input">
+            <option value="EF" selected>🏃 EF (Endurance Fondamentale)</option>
+            <option value="Sortie Longue">🏔️ Sortie Longue</option>
+            <option value="Fractionné">⚡ Fractionné</option>
+            <option value="Renforcement">🏋️ Renforcement</option>
+            <option value="Course">👟 Course</option>
+            <option value="Vitesse">🚀 Vitesse</option>
+            <option value="Tempo">🔥 Tempo</option>
+            <option value="Récup">🌱 Récup</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-statut">Statut</label>
+          <select id="create-session-statut" class="form-input">
+            <option value="Réalisé" selected>✅ Réalisé</option>
+            <option value="Prévu">📅 Prévu</option>
+            <option value="Repos">🛋️ Repos</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-distance">Distance (km)</label>
+          <input type="number" id="create-session-distance" class="form-input" step="0.01" min="0" placeholder="ex: 6.0" />
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-dplus">Dénivelé D+ (m)</label>
+          <input type="number" id="create-session-dplus" class="form-input" step="1" min="0" placeholder="ex: 30" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">Durée</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div style="flex:1; display:flex; align-items:center; gap:6px;">
+            <input type="number" id="create-session-duree-min" class="form-input" min="0" placeholder="0" />
+            <span style="font-size:0.85rem; color:var(--color-text-secondary); font-weight:600;">min</span>
+          </div>
+          <div style="flex:1; display:flex; align-items:center; gap:6px;">
+            <input type="number" id="create-session-duree-sec" class="form-input" min="0" max="59" placeholder="0" />
+            <span style="font-size:0.85rem; color:var(--color-text-secondary); font-weight:600;">sec</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-rpe">Ressenti RPE (1-10)</label>
+          <input type="number" id="create-session-rpe" class="form-input" min="1" max="10" step="1" placeholder="1 à 10" />
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="create-session-fc-moy">FC Moyenne (bpm)</label>
+          <input type="number" id="create-session-fc-moy" class="form-input" min="30" max="250" placeholder="ex: 150" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label" for="create-session-programme">Programme technique</label>
+        <input type="text" id="create-session-programme" class="form-input" placeholder="ex: Footing allure modérée..." />
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" for="create-session-remarques">Remarques & Sensations</label>
+        <textarea id="create-session-remarques" class="form-input" rows="2" placeholder="Sensations, alertes périostite..."></textarea>
+      </div>
+
+      <div id="create-session-error-msg" style="display:none; color:#ef4444; font-size:0.82rem; margin-bottom:12px; padding:8px 10px; background:rgba(239, 68, 68, 0.1); border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);"></div>
+
+      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" id="btn-cancel-create-session" class="btn-secondary">Annuler</button>
+        <button type="button" id="btn-save-create-session" class="btn-primary">Créer la séance</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script type="module" src="/static/app.js?v=14.0"></script>
 </body>
 </html>

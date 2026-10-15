@@ -955,11 +955,13 @@ class IntentParser:
                 raw_query=text,
             )
 
-        # 9.3 bis Confirmation / validation d'une séance ("j'ai fait ma séance d'aujourd'hui", "j'ai fait mon fractionné", "j'ai fait ça...")
+        # 9.3 bis Confirmation / validation d'une séance ("j'ai fait ma séance d'aujourd'hui", "j'ai fait mon fractionné", "j'ai fait une séance de fractionné", "j'ai fait ça...")
         confirm_seance_match = re.search(
-            r"(?:j[' ]?ai\s+fait|j[' ]?ai\s+terminé|valide|coche)\s+(?:ma|la|mon)?\s*(?:séance|seance|sortie|footing|fractionné|fractionne|course|entrainement|entraînement|renfo|renforcement|ça)(?:\s+(?:d[' ]aujourd[' ]hui|d[' ]hier|prévue|prevue))?",
+            r"(?:j[' ]?ai\s+(?:fait|terminé)|valide|coche|enregistre[rz]?|ajoute[rz]?|log(?:ge[rz]?)?)\s+(?:ma|la|mon|une?|cette)?\s*(?:séance\s+(?:de\s+)?)?(?:séance|seance|sortie(?:\s+longue)?|footing|fractionné|fractionne|course|entrainement|entraînement|renfo|renforcement|ça)\b",
             cleaned,
-        ) or re.search(r"^j[' ]?ai\s+fait\s+ça\b", cleaned)
+        ) or re.search(r"^j[' ]?ai\s+fait\s+ça\b", cleaned) or (
+            re.search(r"\b(?:séance|fractionné|fractionne)\b", cleaned) and re.search(r"(?:enregistre[rz]?|note[rz]?|ajoute[rz]?)\b", cleaned)
+        )
         if confirm_seance_match:
             params: Dict[str, Any] = {"validate_planned": True}
             if "hier" in cleaned:

@@ -166,6 +166,21 @@ export async function deleteSportSession(sessionId) {
   return await res.json();
 }
 
+export async function createSportSession(payload) {
+  const res = await fetch("/api/v1/sport/session", {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const detailMsg = errJson && errJson.detail ? errJson.detail : ("Échec de la création (" + res.status + ")");
+    throw new Error(detailMsg);
+  }
+  return await res.json();
+}
+
+
 export async function resetShoppingList() {
   const res = await fetch("/api/v1/meals/shopping/reset", {
     method: "POST",

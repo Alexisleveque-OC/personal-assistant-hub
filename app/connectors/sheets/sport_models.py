@@ -252,11 +252,12 @@ class SportWeeklySummary(BaseModel):
 
 
 class SportSessionCreate(BaseModel):
-    """Payload pour enregistrer une séance réalisée."""
+    """Payload pour enregistrer une séance réalisée ou planifiée."""
     date: Optional[dt_date] = None
+    statut: SportSessionStatus = SportSessionStatus.REALISE
     type_seance: SportSessionType = SportSessionType.EF
     distance_km: Optional[float] = Field(None, ge=0.0)
-    duree_secondes: int = Field(..., gt=0)
+    duree_secondes: Optional[int] = Field(None, ge=0)
     denivele_d_plus: Optional[int] = Field(0, ge=0)
     ressenti_rpe: Optional[int] = Field(None, ge=1, le=10)
     fc_moyenne: Optional[int] = Field(None, ge=30, le=250, description="Fréquence cardiaque moyenne (bpm)")
@@ -266,6 +267,21 @@ class SportSessionCreate(BaseModel):
     remarques: Optional[str] = ""
     notes: Optional[str] = ""
     strava_id: Optional[str] = None
+
+    @field_validator("statut", mode="before")
+    @classmethod
+    def normalize_statut(cls, val: Any) -> Any:
+        if isinstance(val, str):
+            clean = val.strip().lower()
+            if "réalisé" in clean or "realise" in clean:
+                return SportSessionStatus.REALISE
+            if "planifié" in clean or "planifie" in clean or "prévu" in clean or "prevu" in clean:
+                return SportSessionStatus.PLANIFIE
+            if "repos" in clean:
+                return SportSessionStatus.REPOS
+            if "annulé" in clean or "annule" in clean:
+                return SportSessionStatus.ANNULE
+        return val
 
     @model_validator(mode="before")
     @classmethod

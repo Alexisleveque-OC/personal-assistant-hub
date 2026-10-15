@@ -218,9 +218,9 @@ class SqlSportConnector(BaseConnector):
             updates = {
                 "statut": SportSessionStatus.REALISE.value,
                 "type_seance": final_type.value,
-                "distance_km": session_data.distance_km,
-                "denivele_d_plus": session_data.denivele_d_plus or 0,
-                "duree_secondes": session_data.duree_secondes,
+                "distance_km": session_data.distance_km if session_data.distance_km is not None else existing.get("distance_km"),
+                "denivele_d_plus": session_data.denivele_d_plus if session_data.denivele_d_plus else existing.get("denivele_d_plus", 0),
+                "duree_secondes": session_data.duree_secondes if session_data.duree_secondes else existing.get("duree_secondes"),
                 "ressenti_rpe": session_data.ressenti_rpe,
                 "fc_moyenne": session_data.fc_moyenne,
                 "fc_max": session_data.fc_max,
@@ -395,16 +395,27 @@ class SqlSportConnector(BaseConnector):
             update_dict["type_seance"] = t_val.value if hasattr(t_val, "value") else str(t_val)
 
         # Protection stricte : exclusion des champs calculés
-        forbidden_computed = ["allure_moyenne", "allure_formatted", "vitesse_kmh", "km_effort", "charge_rpe", "semaine", "annee"]
+        forbidden_computed = ["allure_moyenne", "allure_formatted", "vitesse_kmh", "km_effort", "charge_rpe", "annee"]
         for fc in forbidden_computed:
             update_dict.pop(fc, None)
 
+        # Recalcul de la semaine ISO si la date est modifiée
+        new_date = None
+        if "date" in update_dict:
+            t_cand = _parse_date(update_dict["date"])
+            if t_cand:
+                new_date = t_cand
+                update_dict["date"] = new_date.isoformat()
+                update_dict["semaine"] = new_date.isocalendar()[1]
+
         self.db.update_sport_session(session_id, update_dict)
 
-        # Mettre à jour la synthèse de la semaine
-        t_date = _parse_date(existing["date"])
-        if t_date:
-            self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.year)
+        # Mettre à jour la synthèse de l'ancienne et de la nouvelle semaine
+        old_date = _parse_date(existing["date"])
+        if old_date:
+            self.get_weekly_summary(week_num=old_date.isocalendar()[1], year=old_date.year)
+        if new_date and (old_date is None or (new_date.isocalendar()[1] != old_date.isocalendar()[1] or new_date.year != old_date.year)):
+            self.get_weekly_summary(week_num=new_date.isocalendar()[1], year=new_date.year)
 
         saved_row = self.db.get_sport_session_by_id(session_id)
         if not saved_row:

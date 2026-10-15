@@ -225,6 +225,42 @@ async def get_sport_summaries(
     )
 
 
+@router.post(
+    "/session",
+    status_code=status.HTTP_201_CREATED,
+    summary="Crée manuellement une séance sportive (réalisée ou planifiée)",
+)
+async def create_sport_session_endpoint(
+    payload: SportSessionCreate,
+    connector=Depends(get_sport_connector_dep),
+):
+    """Crée manuellement une séance sportive avec validation Pydantic stricte."""
+    try:
+        if payload.statut == SportSessionStatus.PLANIFIE:
+            session = connector.plan_session(
+                session_date=payload.date,
+                type_seance=payload.type_seance,
+                distance_km=payload.distance_km,
+                programme=payload.programme,
+                remarques=payload.remarques,
+                notes=payload.notes,
+            )
+        else:
+            session = connector.log_session(payload)
+
+        return {
+            "success": True,
+            "message": "Séance créée avec succès.",
+            "session": session.model_dump(mode="json"),
+        }
+    except Exception as exc:
+        logger.error(f"Erreur création manuelle de séance : {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Échec de création de la séance : {exc}",
+        )
+
+
 @router.patch("/session/{target_date}")
 async def patch_sport_session(
     target_date: date,
