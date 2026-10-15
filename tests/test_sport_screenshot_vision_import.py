@@ -24,7 +24,7 @@ from app.main import app
 from app.core.database import DatabaseManager
 from app.core.dependencies import set_database_manager, set_sport_connector
 from app.connectors.sqlite.sport_connector import SqlSportConnector
-from app.connectors.sheets.sport_models import SportSessionType, SportSessionStatus
+from app.connectors.sheets.sport_models import SportSessionType, SportSessionStatus, SportSessionCreate
 
 client = TestClient(app)
 API_HEADERS = {"X-API-Key": "test_api_key"}
@@ -266,4 +266,112 @@ def test_import_screenshot_date_formats_resilience(temp_sport_env, raw_date_inpu
         data = response.json()
         saved = data["session"]
         assert saved["date"] == expected_date_str
+
+
+def test_sport_vision_service_prompt_decathlon_date_guidance():
+    """Vérifie que le prompt Gemini Vision inclut le ciblage de date 'JJ/MM/AAAA - HH:MM' sous le titre Decathlon Coach."""
+    from app.core.vision.sport_vision_service import SportVisionService
+    service = SportVisionService()
+    prompt = service.build_prompt(reference_date=date(2026, 10, 15))
+    assert "JJ/MM/AAAA" in prompt or "12/10/2026" in prompt
+    assert "COURSE À PIED" in prompt
+    assert "date" in prompt
+
+
+def test_import_screenshot_without_date_protects_existing_realised_session(temp_sport_env):
+    """Vérifie qu'un screenshot sans date détectée ne vient JAMAIS écraser une séance déjà réalisée."""
+    db_mgr, connector = temp_sport_env
+
+    # 1. Séance existante déjà réalisée aujourd'hui
+    existing_session = connector.log_session(
+        SportSessionCreate(
+            date=date(2026, 10, 15),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.COURSE,
+            distance_km=6.01,
+            duree_secondes=2132,
+            remarques="Remarques précieuses de l'utilisateur à ne pas écraser",
+        )
+    )
+
+    # 2. Capture dont la date n'a pas pu être extraite (date = None)
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": None,
+        "type_seance": "Course",
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+        "titre": "COURSE À PIED",
+    }
+    fake_image_file = BytesIO(b"fake_bytes")
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", fake_image_file, "image/jpeg")},
+        )
+
+        # Doit être rejeté pour protéger les données
+        assert response.status_code == 400
+        assert "protéger vos données" in response.json()["detail"].lower() or "séance réalisée existe déjà" in response.json()["detail"].lower()
+
+    # 3. Vérifier que la séance originale du 15/10 est restée STRICTEMENT intacte
+    fresh_session = connector.get_session(date(2026, 10, 15))
+    assert fresh_session.distance_km == 6.01
+    assert fresh_session.duree_secondes == 2132
+    assert "Remarques précieuses" in fresh_session.remarques
+
+
+def test_import_screenshot_with_different_realised_creates_distinct_session(temp_sport_env):
+    """Vérifie qu'un screenshot à une date où une séance réalisée différente existe ne l'écrase pas mais crée une session distincte."""
+    db_mgr, connector = temp_sport_env
+
+    # 1. Séance existante déjà réalisée le 12 octobre
+    connector.log_session(
+        SportSessionCreate(
+            date=date(2026, 10, 12),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.SORTIE_LONGUE,
+            distance_km=10.0,
+            duree_secondes=3600,
+            remarques="Course du matin",
+        )
+    )
+
+    # 2. Capture avec date explicite 12/10/2026 mais séance différente (5.12 km)
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": "2026-10-12",
+        "type_seance": "Course",
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+        "titre": "COURSE À PIED",
+    }
+    fake_image_file = BytesIO(b"fake_bytes")
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", fake_image_file, "image/jpeg")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session"]["distance_km"] == 5.12
+
+    # Vérifier que les deux séances coexistent dans la base pour le 12/10
+    sessions_12 = [s for s in connector.get_all_sessions() if s.date == date(2026, 10, 12)]
+    assert len(sessions_12) == 2
+    distances = {s.distance_km for s in sessions_12}
+    assert 10.0 in distances
+    assert 5.12 in distances
+
 
