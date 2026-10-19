@@ -747,7 +747,7 @@ body {
 }
 
 .wake-word-indicator {
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
@@ -758,6 +758,30 @@ body {
   border: 1px solid var(--color-border);
   color: var(--color-text-secondary);
   transition: all 0.25s ease;
+  user-select: none;
+  cursor: pointer;
+}
+
+.wake-word-indicator:hover {
+  filter: brightness(1.05);
+}
+
+.wake-word-indicator.disabled {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+.wake-word-indicator.disabled:hover {
+  opacity: 1;
+  border-color: var(--color-primary);
+}
+
+.wake-word-indicator.disabled .wake-dot {
+  background: #9ca3af;
+  box-shadow: none;
+  animation: none;
 }
 
 .wake-word-indicator .wake-dot {
