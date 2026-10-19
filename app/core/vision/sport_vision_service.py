@@ -86,7 +86,7 @@ GEMINI_SPORT_VISION_SCHEMA = {
             "description": "Motif de rejet si non sportive ou remarques particulières",
         },
     },
-    "required": ["is_sport_session", "app_source"],
+    "required": ["is_sport_session", "app_source", "date", "distance_km", "duree_secondes"],
 }
 
 

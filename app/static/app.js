@@ -7,12 +7,14 @@ import {
   speak,
   initSpeechRecognition,
   setWakeWordEnabled,
+  toggleWakeWord,
   startWakeWordCalibration,
   updateWakeWordIndicator,
   setupMicButtonBehavior,
   addCustomWakeVariant,
   removeCustomWakeVariant,
 } from "./js/speech.js";
+import { showToastSuccess, showToastInfo } from "./js/toast.js";
 import { fetchLlmStats } from "./js/api.js";
 import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse } from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
@@ -251,11 +253,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Clic direct sur l'indicateur pour ouvrir les réglages et le calibrage
+  // Clic direct sur l'indicateur pour basculer instantanément le Wake-Word (mains-libres vs micro au clic)
   const wakeWordIndicator = document.getElementById("wake-word-indicator");
   if (wakeWordIndicator) {
     wakeWordIndicator.addEventListener("click", () => {
-      if (btnSettings) btnSettings.click();
+      const isNowEnabled = toggleWakeWord();
+      if (isNowEnabled) {
+        showToastInfo("Mains-libres 'Otis' activé (l'écoute continue peut baisser la musique sur mobile).", "Otis à l'écoute");
+      } else {
+        showToastSuccess("Mode au clic activé : micro coupé, votre musique joue à 100% de volume.", "Micro au clic");
+      }
+    });
+  }
+
+  // Écouteur direct du switch dans la modale de réglages
+  if (wakeWordToggle) {
+    wakeWordToggle.addEventListener("change", (e) => {
+      setWakeWordEnabled(e.target.checked);
+      if (e.target.checked) {
+        showToastInfo("Mains-libres 'Otis' activé.", "Otis à l'écoute");
+      } else {
+        showToastSuccess("Mode au clic activé : micro coupé, musique à 100%.", "Micro au clic");
+      }
     });
   }
 

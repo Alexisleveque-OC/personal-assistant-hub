@@ -582,13 +582,15 @@ export function updateWakeWordIndicator(statusOverride = null) {
   const indicator = document.getElementById("wake-word-indicator");
   if (!indicator) return;
 
-  if (!state.wakeWordEnabled) {
-    indicator.style.display = "none";
-    return;
-  }
-
   indicator.style.display = "inline-flex";
   const label = indicator.querySelector(".wake-label");
+
+  if (!state.wakeWordEnabled) {
+    indicator.className = "wake-word-indicator disabled";
+    indicator.title = "Mode Micro au clic (musique protégée). Cliquez pour activer le mot-clé mains-libres 'Otis'.";
+    if (label) label.textContent = "Micro au clic";
+    return;
+  }
 
   if (statusOverride === "triggered") {
     indicator.className = "wake-word-indicator triggered";
@@ -604,21 +606,39 @@ export function updateWakeWordIndicator(statusOverride = null) {
     (typeof document !== "undefined" && document.hidden)
   ) {
     indicator.className = "wake-word-indicator paused";
+    indicator.title = "Mains-libres en pause. Cliquez pour désactiver.";
     if (label) label.textContent = "Otis en pause";
   } else {
     indicator.className = "wake-word-indicator listening";
+    indicator.title = "Mains-libres actif. Cliquez pour désactiver et protéger votre musique.";
     if (label) label.textContent = "Otis à l'écoute";
   }
 }
 
 export function setWakeWordEnabled(enabled) {
   state.wakeWordEnabled = !!enabled;
-  updateWakeWordIndicator();
+  try {
+    localStorage.setItem("pah_wake_word_enabled", state.wakeWordEnabled ? "true" : "false");
+  } catch (e) {}
+
   if (state.wakeWordEnabled) {
     startWakeWordDetection(onWakeWordCallback || defaultWakeTrigger);
   } else {
     stopWakeWordDetection();
+    audioFocusManager.releaseAllDucking();
   }
+  updateWakeWordIndicator();
+}
+
+export function toggleWakeWord() {
+  const next = !state.wakeWordEnabled;
+  setWakeWordEnabled(next);
+
+  // Synchroniser la case à cocher des réglages si présente dans le DOM
+  const toggle = document.getElementById("wake-word-toggle");
+  if (toggle) toggle.checked = next;
+
+  return next;
 }
 
 export function pauseWakeWordDetector() {
