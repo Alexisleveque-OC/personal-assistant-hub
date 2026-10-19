@@ -283,9 +283,10 @@ def test_import_screenshot_without_date_protects_existing_realised_session(temp_
     db_mgr, connector = temp_sport_env
 
     # 1. Séance existante déjà réalisée aujourd'hui
+    today = date.today()
     existing_session = connector.log_session(
         SportSessionCreate(
-            date=date(2026, 10, 15),
+            date=today,
             statut=SportSessionStatus.REALISE,
             type_seance=SportSessionType.COURSE,
             distance_km=6.01,
@@ -319,8 +320,8 @@ def test_import_screenshot_without_date_protects_existing_realised_session(temp_
         assert response.status_code == 400
         assert "protéger vos données" in response.json()["detail"].lower() or "séance réalisée existe déjà" in response.json()["detail"].lower()
 
-    # 3. Vérifier que la séance originale du 15/10 est restée STRICTEMENT intacte
-    fresh_session = connector.get_session(date(2026, 10, 15))
+    # 3. Vérifier que la séance originale d'aujourd'hui est restée STRICTEMENT intacte
+    fresh_session = connector.get_session(today)
     assert fresh_session.distance_km == 6.01
     assert fresh_session.duree_secondes == 2132
     assert "Remarques précieuses" in fresh_session.remarques
@@ -373,5 +374,18 @@ def test_import_screenshot_with_different_realised_creates_distinct_session(temp
     distances = {s.distance_km for s in sessions_12}
     assert 10.0 in distances
     assert 5.12 in distances
+
+
+def test_gemini_sport_vision_schema_requires_essential_metrics():
+    """Vérifie que le schéma JSON pour Gemini Vision force la présence de date, distance_km et duree_secondes."""
+    from app.core.vision.sport_vision_service import GEMINI_SPORT_VISION_SCHEMA
+
+    required = GEMINI_SPORT_VISION_SCHEMA.get("required", [])
+    assert "is_sport_session" in required
+    assert "app_source" in required
+    assert "date" in required, "Le champ 'date' doit être impérativement dans required pour forcer Gemini à l'extraire"
+    assert "distance_km" in required, "Le champ 'distance_km' doit être requis"
+    assert "duree_secondes" in required, "Le champ 'duree_secondes' doit être requis"
+
 
 
