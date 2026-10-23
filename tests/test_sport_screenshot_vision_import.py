@@ -16,7 +16,7 @@ Couvre :
 """
 from datetime import date
 from io import BytesIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
@@ -232,6 +232,8 @@ def test_import_screenshot_rejects_non_sport_image(temp_sport_env):
         ("Mercredi 14", "2026-10-14"),
         ("mercredi", "2026-10-14"),
         ("Hier", "2026-10-14"),
+        ("Aujourd'hui à 12:56 · La Rochelle, Charente-Maritime", "2026-10-15"),
+        ("Hier à 12:56 · La Rochelle, Charente-Maritime", "2026-10-14"),
     ],
 )
 def test_import_screenshot_date_formats_resilience(temp_sport_env, raw_date_input, expected_date_str):
@@ -389,3 +391,334 @@ def test_gemini_sport_vision_schema_requires_essential_metrics():
 
 
 
+
+
+def test_gemini_sport_vision_schema_allows_null_for_unreadable_metrics():
+    """Vérifie que date, distance_km et duree_secondes acceptent null pour ne jamais forcer Gemini à inventer une valeur."""
+    from app.core.vision.sport_vision_service import GEMINI_SPORT_VISION_SCHEMA
+
+    props = GEMINI_SPORT_VISION_SCHEMA["properties"]
+    for field in ("date", "distance_km", "duree_secondes"):
+        assert props[field].get("nullable") is True, f"Le champ '{field}' doit être nullable"
+
+
+def _make_vision_client(api_key: str = "fake_key") -> MagicMock:
+    fake_client = MagicMock()
+    fake_client.api_key = api_key
+    fake_client.get_candidate_models.return_value = ["gemini-test-flash"]
+    return fake_client
+
+
+@pytest.mark.asyncio
+async def test_analyze_screenshot_raises_explicit_error_without_api_key():
+    """Vérifie qu'une clé Gemini absente lève une erreur explicite au lieu d'un faux rejet 'image non sportive'."""
+    from app.core.vision.sport_vision_service import SportVisionService, VisionServiceUnavailableError
+
+    service = SportVisionService(gemini_client=_make_vision_client(api_key=""))
+    with pytest.raises(VisionServiceUnavailableError, match="GEMINI_API_KEY"):
+        await service.analyze_screenshot(image_bytes=b"img", reference_date=date(2026, 10, 15))
+
+
+@pytest.mark.asyncio
+async def test_analyze_screenshot_raises_explicit_error_when_all_models_fail():
+    """Vérifie que l'échec de tous les modèles lève une erreur listant les modèles tentés et la dernière erreur."""
+    from app.core.vision.sport_vision_service import SportVisionService, VisionServiceUnavailableError
+
+    service = SportVisionService(gemini_client=_make_vision_client())
+    error_response = MagicMock(status_code=500, text="Internal error")
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = error_response
+        with pytest.raises(VisionServiceUnavailableError) as exc_info:
+            await service.analyze_screenshot(image_bytes=b"img", reference_date=date(2026, 10, 15))
+
+    message = str(exc_info.value)
+    assert "gemini-test-flash" in message
+    assert "500" in message
+
+
+@pytest.mark.asyncio
+async def test_analyze_screenshot_keeps_null_date_when_not_visible():
+    """Vérifie qu'une date null renvoyée par Gemini n'est pas remplacée par la date du jour dans le service."""
+    import json
+    from app.core.vision.sport_vision_service import SportVisionService
+
+    service = SportVisionService(gemini_client=_make_vision_client())
+    payload = {"is_sport_session": True, "app_source": "Strava", "date": None, "distance_km": 5.0, "duree_secondes": 1800}
+    ok_response = MagicMock(status_code=200)
+    ok_response.json.return_value = {"candidates": [{"content": {"parts": [{"text": json.dumps(payload)}]}}]}
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = ok_response
+        result = await service.analyze_screenshot(image_bytes=b"img", reference_date=date(2026, 10, 15))
+
+    assert result["date"] is None
+    assert result["distance_km"] == 5.0
+
+
+def test_import_screenshot_returns_503_when_vision_unavailable(temp_sport_env):
+    """Vérifie qu'une panne Gemini Vision remonte en 503 explicite (et non en rejet 400 'image non sportive')."""
+    from app.core.vision.sport_vision_service import VisionServiceUnavailableError
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.side_effect = VisionServiceUnavailableError("Tous les modèles Gemini Vision ont échoué : gemini-test-flash (429)")
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 503
+    assert "gemini-test-flash" in response.json()["detail"]
+
+
+def test_import_screenshot_without_date_never_defaults_to_today(temp_sport_env):
+    """Vérifie qu'une capture sans date lisible n'est jamais enregistrée à la date du jour, même sans séance existante."""
+    db_mgr, connector = temp_sport_env
+
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": None,
+        "type_seance": "Course",
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+        "titre": "COURSE À PIED",
+    }
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"].lower()
+    assert "date" in detail
+    assert "ne semble pas être une capture" not in detail
+    assert connector.get_all_sessions() == []
+
+
+def test_import_screenshot_without_date_uses_explicit_reference_date(temp_sport_env):
+    """Vérifie qu'une date fournie explicitement par l'utilisateur (reference_date) est utilisée quand la capture n'en contient pas."""
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": None,
+        "type_seance": "Course",
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+        "titre": "COURSE À PIED",
+    }
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot?reference_date=2026-10-12",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["session"]["date"] == "2026-10-12"
+
+
+def _cw500_vision_result(fc_moyenne=163):
+    return {
+        "is_sport_session": True,
+        "app_source": "Decathlon Connect (CW500 M)",
+        "date": "2026-10-12",
+        "type_seance": "EF",
+        "distance_km": 4.9,
+        "duree_secondes": 1987,
+        "fc_moyenne": fc_moyenne,
+        "fc_max": None,
+        "cadence_spm": 170,
+        "titre": "Course à pied",
+    }
+
+
+def test_import_cw500_on_existing_realised_session_only_merges_heart_rate(temp_sport_env):
+    """Vérifie qu'une capture CW500 complète uniquement la FC d'une séance déjà réalisée (distance/durée de la montre non fiables)."""
+    db_mgr, connector = temp_sport_env
+    connector.log_session(
+        SportSessionCreate(
+            date=date(2026, 10, 12),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.FRACTIONNE,
+            distance_km=5.12,
+            duree_secondes=1883,
+            denivele_d_plus=31,
+            remarques="Bonnes sensations",
+        )
+    )
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = _cw500_vision_result()
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    saved = response.json()["session"]
+    assert saved["fc_moyenne"] == 163
+    assert saved["distance_km"] == 5.12
+    assert saved["duree_secondes"] == 1883
+    assert saved["denivele_d_plus"] == 31
+    assert saved["type_seance"] == "Fractionné"
+    assert "Bonnes sensations" in saved["remarques"]
+    assert "163" in response.json()["spoken_response"]
+
+    sessions_12 = [s for s in connector.get_all_sessions() if s.date == date(2026, 10, 12)]
+    assert len(sessions_12) == 1, "Aucun doublon ne doit être créé par l'import CW500"
+
+
+def test_import_cw500_without_heart_rate_on_existing_session_is_rejected(temp_sport_env):
+    """Vérifie qu'une capture CW500 sans FC lisible sur une séance existante est rejetée explicitement sans rien modifier."""
+    db_mgr, connector = temp_sport_env
+    connector.log_session(
+        SportSessionCreate(
+            date=date(2026, 10, 12),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.EF,
+            distance_km=5.12,
+            duree_secondes=1883,
+        )
+    )
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = _cw500_vision_result(fc_moyenne=None)
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 400
+    assert "fréquence cardiaque" in response.json()["detail"].lower()
+    sessions_12 = [s for s in connector.get_all_sessions() if s.date == date(2026, 10, 12)]
+    assert len(sessions_12) == 1
+    assert sessions_12[0].fc_moyenne is None
+
+
+def test_import_cw500_on_planned_session_marks_realised_with_duration_and_heart_rate_only(temp_sport_env):
+    """Vérifie qu'une capture CW500 sur une séance prévue la passe en Réalisé avec durée + FC, sans importer la distance de la montre."""
+    db_mgr, connector = temp_sport_env
+    connector.plan_session(
+        session_date=date(2026, 10, 12),
+        type_seance=SportSessionType.FRACTIONNE,
+        distance_km=6.0,
+        programme="Fractionné 10x 30/30",
+    )
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = _cw500_vision_result()
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    saved = response.json()["session"]
+    assert saved["statut"] == "Réalisé"
+    assert saved["duree_secondes"] == 1987
+    assert saved["fc_moyenne"] == 163
+    assert saved["distance_km"] != 4.9, "La distance CW500 n'est pas fiable et ne doit pas être importée"
+    assert saved["type_seance"] == "Fractionné"
+    assert "Fractionné 10x 30/30" in saved["programme"]
+
+    sessions_12 = [s for s in connector.get_all_sessions() if s.date == date(2026, 10, 12)]
+    assert len(sessions_12) == 1
+
+
+def test_import_screenshot_zero_heart_rate_never_overwrites_existing_value(temp_sport_env):
+    """Vérifie qu'une FC à 0 renvoyée par Gemini (valeur absente de la capture) n'écrase jamais une FC existante."""
+    db_mgr, connector = temp_sport_env
+    connector.log_session(
+        SportSessionCreate(
+            date=date(2026, 10, 12),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.EF,
+            distance_km=5.12,
+            duree_secondes=1883,
+            fc_moyenne=163,
+        )
+    )
+
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": "2026-10-12",
+        "type_seance": "EF",
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+        "denivele_d_plus": 31,
+        "fc_moyenne": 0,
+        "fc_max": 0,
+        "titre": "Course à pied",
+    }
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot_coach.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    saved = response.json()["session"]
+    assert saved["fc_moyenne"] == 163
+    assert saved["fc_max"] is None
+
+
+def test_import_cw500_zero_max_heart_rate_is_ignored(temp_sport_env):
+    """Vérifie qu'une FC max à 0 sur une capture CW500 n'est pas enregistrée."""
+    db_mgr, connector = temp_sport_env
+    connector.log_session(
+        SportSessionCreate(
+            date=date(2026, 10, 12),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.EF,
+            distance_km=5.12,
+            duree_secondes=1883,
+        )
+    )
+    cw500 = _cw500_vision_result()
+    cw500["fc_max"] = 0
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = cw500
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    saved = response.json()["session"]
+    assert saved["fc_moyenne"] == 163
+    assert saved["fc_max"] is None
+    assert "max" not in response.json()["spoken_response"]
+
+
+def test_gemini_sport_vision_schema_allows_null_heart_rate():
+    """Vérifie que les FC acceptent null pour que Gemini ne renvoie pas 0 quand elles sont absentes."""
+    from app.core.vision.sport_vision_service import GEMINI_SPORT_VISION_SCHEMA
+
+    props = GEMINI_SPORT_VISION_SCHEMA["properties"]
+    for field in ("fc_moyenne", "fc_max"):
+        assert props[field].get("nullable") is True, f"Le champ '{field}' doit être nullable"
