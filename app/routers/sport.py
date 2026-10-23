@@ -22,7 +22,7 @@ from app.connectors.sheets.sport_models import (
     SportTodayResponse,
     SportWeeklySummaryWithSessions,
 )
-from app.core.vision.sport_vision_service import get_sport_vision_service
+from app.core.vision.sport_vision_service import get_sport_vision_service, VisionServiceUnavailableError
 from app.core.date_resolver import parse_screenshot_date
 from app.core.sport_dashboard_service import (
     CoachTipProvider,
@@ -462,10 +462,16 @@ async def import_sport_screenshot(
     ref_d = reference_date or date.today()
 
     try:
-        vision_data = service.analyze_screenshot(
+        vision_data = await service.analyze_screenshot(
             image_bytes=image_bytes,
             mime_type=mime_type,
             reference_date=ref_d,
+        )
+    except VisionServiceUnavailableError as exc:
+        logger.error(f"Gemini Vision indisponible pour l'import de capture sportive : {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
         )
     except Exception as exc:
         logger.error(f"Erreur d'analyse vision de capture sportive : {exc}", exc_info=True)
@@ -486,7 +492,7 @@ async def import_sport_screenshot(
     has_explicit_date = bool(raw_date and str(raw_date).strip().lower() not in ("none", "null", ""))
 
     # Garde-fou 1 : Si aucune date n'a été détectée dans l'image et qu'aucune date de référence n'a été fournie,
-    # vérifier si une séance réalisée existe déjà aujourd'hui pour ne jamais l'écraser par accident.
+    # ne JAMAIS retomber sur la date du jour : l'utilisateur doit préciser la date (paramètre reference_date).
     if not has_explicit_date and reference_date is None:
         today_session = connector.get_session(ref_d)
         if today_session and today_session.statut == SportSessionStatus.REALISE:
@@ -498,6 +504,13 @@ async def import_sport_screenshot(
                     f"L'import automatique est bloqué pour protéger vos données. Veuillez préciser la date manuellement."
                 ),
             )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Impossible d'extraire la date de la séance depuis la capture d'écran ({vision_data.get('app_source', 'source inconnue')}). "
+                f"Aucune séance n'a été enregistrée. Veuillez préciser la date manuellement."
+            ),
+        )
 
     target_date = parse_screenshot_date(raw_date, reference_date=ref_d)
     vision_data["date"] = target_date.isoformat()
@@ -506,8 +519,9 @@ async def import_sport_screenshot(
     dist = vision_data.get("distance_km")
     duree = vision_data.get("duree_secondes")
     dplus = vision_data.get("denivele_d_plus", 0) or 0
-    fc_moy = vision_data.get("fc_moyenne")
-    fc_max = vision_data.get("fc_max")
+    # Gemini renvoie parfois 0 pour une FC absente de la capture : 0 signifie « non mesurée »
+    fc_moy = vision_data.get("fc_moyenne") or None
+    fc_max = vision_data.get("fc_max") or None
     titre = vision_data.get("titre") or "Course à pied"
     type_str = vision_data.get("type_seance") or "EF"
 
@@ -529,6 +543,79 @@ async def import_sport_screenshot(
             matched_type = SportSessionType(type_str)
         except ValueError:
             matched_type = SportSessionType.EF
+
+    # Decathlon Connect (montre CW500 M) : seule la fréquence cardiaque est fiable.
+    # Si une séance réalisée existe déjà à cette date, on ne fusionne que la FC (jamais de doublon).
+    app_src_lower = str(app_src).lower()
+    is_heart_rate_only_source = "cw500" in app_src_lower or "decathlon connect" in app_src_lower
+    if is_heart_rate_only_source:
+        realised_same_day = [
+            s for s in connector.get_all_sessions()
+            if s.date == target_date and s.statut == SportSessionStatus.REALISE
+        ]
+        if realised_same_day:
+            target_session = max(realised_same_day, key=lambda s: s.id or 0)
+            if fc_moy is None and fc_max is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Aucune fréquence cardiaque lisible sur la capture {app_src} du {target_date.strftime('%d/%m/%Y')}. "
+                        f"La séance existante n'a pas été modifiée."
+                    ),
+                )
+            hr_updates: Dict[str, Any] = {}
+            if fc_moy is not None:
+                hr_updates["fc_moyenne"] = fc_moy
+            if fc_max is not None:
+                hr_updates["fc_max"] = fc_max
+            note_tag = f"FC importée depuis {app_src}"
+            hr_updates["notes"] = f"{target_session.notes} | {note_tag}" if target_session.notes else note_tag
+            saved_session = connector.update_session_by_id(target_session.id, hr_updates)
+
+            fc_parts = []
+            if fc_moy is not None:
+                fc_parts.append(f"moyenne {fc_moy} bpm")
+            if fc_max is not None:
+                fc_parts.append(f"max {fc_max} bpm")
+            spoken = (
+                f"Fréquence cardiaque ({', '.join(fc_parts)}) ajoutée à ta séance du {target_date.strftime('%d/%m/%Y')}. "
+                f"Distance et durée existantes conservées."
+            )
+            return {
+                "success": True,
+                "app_source": app_src,
+                "session": saved_session.model_dump(mode="json"),
+                "extracted": vision_data,
+                "spoken_response": spoken,
+            }
+
+        # Séance seulement prévue : on la passe en Réalisé avec durée + FC, sans la distance de la montre
+        planned = connector.get_session(target_date)
+        if planned and planned.statut in (SportSessionStatus.PLANIFIE, "Prévu"):
+            planned_updates: Dict[str, Any] = {"statut": "Réalisé"}
+            if duree is not None:
+                planned_updates["duree_secondes"] = duree
+            if fc_moy is not None:
+                planned_updates["fc_moyenne"] = fc_moy
+            if fc_max is not None:
+                planned_updates["fc_max"] = fc_max
+            note_tag = f"Durée et FC importées depuis {app_src} (distance montre ignorée)"
+            planned_updates["notes"] = f"{planned.notes} | {note_tag}" if planned.notes else note_tag
+            saved_session = connector.update_session_by_id(planned.id, planned_updates)
+
+            duree_txt = f"{duree // 60} min {duree % 60} s" if duree else "durée non lisible"
+            fc_txt = f", FC moyenne {fc_moy} bpm" if fc_moy is not None else ""
+            spoken = (
+                f"Séance du {target_date.strftime('%d/%m/%Y')} passée en réalisée : {duree_txt}{fc_txt}. "
+                f"La distance de la montre est ignorée, pense à la corriger si besoin."
+            )
+            return {
+                "success": True,
+                "app_source": app_src,
+                "session": saved_session.model_dump(mode="json"),
+                "extracted": vision_data,
+                "spoken_response": spoken,
+            }
 
     # Déduplication intelligente : adapter une séance planifiée existante ou insérer une nouvelle
     existing = connector.get_session(target_date)

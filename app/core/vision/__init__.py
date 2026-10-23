@@ -6,6 +6,7 @@ from app.core.vision.vision_service import (
 )
 from app.core.vision.sport_vision_service import (
     SportVisionService,
+    VisionServiceUnavailableError,
     get_sport_vision_service,
 )
 
@@ -14,5 +15,6 @@ __all__ = [
     "VisionService",
     "get_vision_service",
     "SportVisionService",
+    "VisionServiceUnavailableError",
     "get_sport_vision_service",
 ]
