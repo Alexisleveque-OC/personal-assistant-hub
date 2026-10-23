@@ -1,29 +1,35 @@
-# Roadmap - Extraction de Date Gemini Vision & Gestion Micro / Audio Focus (Ducking Musique)
+# Roadmap - Fiabilisation de l'Import de Captures Sportives (Gemini Vision)
 
-Cette roadmap détaille les étapes d'implémentation pour résoudre :
-1. **Extraction de date garantie sur les captures** : Rendre obligatoire le champ `date` (ainsi que `distance_km`, `duree_secondes`) dans le JSON Schema Gemini Vision pour contraindre le modèle à extraire systématiquement la date affichée (notamment `12/10/2026 - 12:55` sur Decathlon Coach).
-2. **Audio Focus & Contrôle du Micro (Musique baissée en continu)** : Sur mobile, l'écoute permanente du mot-clé "Otis" (`SpeechRecognition`) réquisitionne le micro et force le système Android à baisser la musique (Spotify, Deezer) en permanence. La musique ne doit baisser QUE lorsqu'Alexis parle activement ou qu'Otis répond, avec un contrôle direct (toggle/bouton) sur l'écoute continue.
+Cette roadmap corrige les imports de captures (Decathlon Coach, Strava, CW500 M) enregistrés à la mauvaise date ou en échec silencieux :
+1. **Date inventée / date du jour par défaut** : le schéma Gemini force une date non-nullable alors que le prompt demande `null` si invisible, et la route retombe silencieusement sur `date.today()` quand aucune date n'est extraite.
+2. **Échecs masqués** : si tous les modèles Gemini échouent (quota, 404, timeout) ou si la clé est absente, le service renvoie un faux rejet « image non sportive » au lieu d'une erreur technique explicite.
+3. **Blocage du serveur** : appel HTTP synchrone (`httpx.Client`) dans une route async, jusqu'à 7 modèles × 25 s.
+5. **FC à 0 → erreur 500** : FC absente renvoyée à `0` par Gemini, écrite en base puis rejetée à la relecture (`fc >= 30`).
+4. **Doublons Decathlon Connect (CW500 M)** : distance/durée de la montre non fiables (ex: 4,9 km vs 5,12 km Coach) → l'écart > 0,2 km créait une seconde séance au lieu de compléter la FC.
 
 ---
 
 ## Étapes d'Implémentation
 
-### [x] Étape 1 : Rendre Obligatoires les Métriques Clés (`date`, `distance_km`, `duree_secondes`) dans `GEMINI_SPORT_VISION_SCHEMA`
-- [x] Mettre à jour `GEMINI_SPORT_VISION_SCHEMA` dans `app/core/vision/sport_vision_service.py` pour inclure `date`, `distance_km`, `duree_secondes` dans `required`.
-- [x] Écrire un test unitaire dans `tests/test_sport_screenshot_vision_import.py` vérifiant la présence de ces champs requis dans le schéma.
-- [x] Valider l'extraction réelle sur l'image de capture Decathlon Coach.
+### [x] Étape 1 : Fiabilisation Backend (TDD) - en attente de validation utilisateur
+- [x] Rendre `date`, `distance_km`, `duree_secondes` **nullables** dans `GEMINI_SPORT_VISION_SCHEMA` (toujours `required` : le modèle doit statuer, mais peut répondre `null` au lieu d'inventer).
+- [x] Fail-fast : lever `VisionServiceUnavailableError` (clé absente ou tous les modèles en échec, avec la liste des modèles tentés et la dernière erreur) au lieu du faux rejet `_fallback_analysis`. La route répond **503** avec ce détail.
+- [x] Ne plus jamais retomber sur la date du jour : sans date extraite ni `reference_date` explicite, la route répond **400** en demandant la date, sans rien enregistrer.
+- [x] Passer l'appel Gemini en `httpx.AsyncClient` (`analyze_screenshot` async).
+- [x] Decathlon Connect (CW500 M) : si une séance réalisée existe à la date, ne fusionner **que la FC** (moyenne/max) ; rejet explicite si aucune FC lisible. Séance seulement prévue → passage en Réalisé avec **durée + FC** (distance montre ignorée). Import complet uniquement si aucune séance n'existe ce jour-là.
+- [x] FC absente renvoyée à `0` par Gemini : `fc_moyenne`/`fc_max` nullables dans le schéma et `0` traité comme « non mesurée » (évitait l'écrasement d'une FC existante et une erreur 500 à la relecture, validation Pydantic `>= 30`).
+- [x] Couvrir les libellés Strava relatifs réels (« Aujourd'hui à 12:56 · La Rochelle », « Hier à 12:56 »).
+
+### [ ] Étape 2 : Frontend - Saisie de la Date Manquante
+- [ ] Quand l'API signale une date introuvable, proposer un sélecteur de date et renvoyer la capture avec `reference_date`.
+- [ ] Afficher explicitement la date retenue dans la confirmation d'import (ex: « importée au lundi 12 octobre ») pour rendre toute erreur visible immédiatement.
+
+### [ ] Étape 3 : Validation Réelle & Test E2E
+- [ ] Validation sur captures réelles (Decathlon Coach, Strava/CW500 M, capture sans date) - captures non commitées.
+- [ ] Test d'intégration E2E du flux complet (date manquante → saisie → import).
+- [ ] Suite complète `pytest -v` à 100 % verte.
 
 ---
 
-### [x] Étape 2 : Révision du Micro & Audio Focus (Protection de la Musique)
-- [x] Par défaut, configurer `wakeWordEnabled = false` dans `app/static/js/config.js` et `localStorage` pour ne jamais monopoliser le micro ni baisser la musique au lancement de l'application.
-- [x] Transformer le badge `#wake-word-indicator` dans `app/static/index.html` et `speech.js` en interrupteur interactif direct (Toggle On/Off) :
-  - Mode Bouton Micro / Push-to-Talk (Recommandé en musique) : Le micro est 100% coupé, la musique joue à plein volume. Un appui sur le micro active l'écoute + le ducking, puis relâche tout à la fin de la réponse vocale.
-  - Mode Écoute Continue (Mains-libres) : Activé uniquement si l'utilisateur clique explicitement sur l'indicateur.
-- [x] Garantir la libération immédiate du micro (`mediaRecorder`, `audioStream` et `SpeechRecognition`) et de tout verrou audio focus à la fin de chaque échange vocal.
-
----
-
-### [x] Étape 3 : Tests de Non-Régression & Validation Globale
-- [x] Lancer la suite complète de tests (`pytest -v`) : 525 tests passés avec succès à 100%.
-- [x] Validation manuelle de la PWA et des imports.
+## Hors Périmètre (à traiter séparément)
+- **Fuseau horaire serveur** : aucun `TZ` n'est configuré dans le conteneur (Cloud Run = UTC). Entre 00h et 02h (heure de Paris), `date.today()` renvoie la veille pour toute l'application (repas, sport, « Aujourd'hui » des captures).
