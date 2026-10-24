@@ -5,9 +5,9 @@ import {
   postInteractAudio,
   fetchSessionHistory,
   postResetSession,
-  importSportScreenshot,
   uploadSecondBrainImage,
 } from "../api.js";
+import { importSportScreenshotWithDatePrompt, DATE_CANCELLED_CODE } from "../screenshot_import.js";
 import { getActiveSessionId, resetActiveSessionId } from "../config.js";
 import { showToastInfo, showToastSuccess, showToastError } from "../toast.js";
 import { enqueueTextRequest, enqueueAudioRequest, syncOutbox } from "../offline_outbox.js";
@@ -328,7 +328,9 @@ export async function handleChatImageUpload(file) {
 
   // 1. Tenter d'abord l'analyse en séance de sport running
   try {
-    const sportRes = await importSportScreenshot(file);
+    const sportRes = await importSportScreenshotWithDatePrompt(file, {
+      onDatePrompt: () => toastAnalyzing.dismiss(),
+    });
     toastAnalyzing.dismiss();
 
     const spokenMsg = sportRes.spoken_response || "Votre séance de sport a été importée avec succès !";
@@ -338,6 +340,11 @@ export async function handleChatImageUpload(file) {
     window.dispatchEvent(new CustomEvent("sport-data-updated"));
     return;
   } catch (sportErr) {
+    if (sportErr.code === DATE_CANCELLED_CODE) {
+      toastAnalyzing.dismiss();
+      appendAssistantMessage(sportErr.message);
+      return;
+    }
     const errText = String(sportErr.message || "");
     const isExplicitNonSport = errText.includes("ne semble pas être une capture") || errText.includes("non_sport_running") || errText.includes("400") || errText.includes("422");
 

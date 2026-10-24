@@ -23,7 +23,7 @@ from app.connectors.sheets.sport_models import (
     SportWeeklySummaryWithSessions,
 )
 from app.core.vision.sport_vision_service import get_sport_vision_service, VisionServiceUnavailableError
-from app.core.date_resolver import parse_screenshot_date
+from app.core.date_resolver import parse_screenshot_date, format_natural_spoken_date
 from app.core.sport_dashboard_service import (
     CoachTipProvider,
     aggregate_period,
@@ -440,6 +440,10 @@ async def sync_strava_activity(
     }
 
 
+# Code d'erreur stable permettant au frontend de proposer la saisie manuelle de la date
+DATE_MISSING_ERROR_HEADERS = {"X-Error-Code": "screenshot_date_missing"}
+
+
 @router.post(
     "/import-screenshot",
     summary="Importe et extrait les métriques d'une séance depuis une capture d'écran via Gemini Vision",
@@ -503,6 +507,7 @@ async def import_sport_screenshot(
                     f"Une séance réalisée existe déjà pour aujourd'hui ({today_session.distance_km} km). "
                     f"L'import automatique est bloqué pour protéger vos données. Veuillez préciser la date manuellement."
                 ),
+                headers=DATE_MISSING_ERROR_HEADERS,
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -510,10 +515,12 @@ async def import_sport_screenshot(
                 f"Impossible d'extraire la date de la séance depuis la capture d'écran ({vision_data.get('app_source', 'source inconnue')}). "
                 f"Aucune séance n'a été enregistrée. Veuillez préciser la date manuellement."
             ),
+            headers=DATE_MISSING_ERROR_HEADERS,
         )
 
     target_date = parse_screenshot_date(raw_date, reference_date=ref_d)
     vision_data["date"] = target_date.isoformat()
+    spoken_date = format_natural_spoken_date(target_date, reference_date=date.today())
 
     app_src = vision_data.get("app_source", "Capture")
     dist = vision_data.get("distance_km")
@@ -578,7 +585,7 @@ async def import_sport_screenshot(
             if fc_max is not None:
                 fc_parts.append(f"max {fc_max} bpm")
             spoken = (
-                f"Fréquence cardiaque ({', '.join(fc_parts)}) ajoutée à ta séance du {target_date.strftime('%d/%m/%Y')}. "
+                f"Fréquence cardiaque ({', '.join(fc_parts)}) ajoutée à ta séance {spoken_date}. "
                 f"Distance et durée existantes conservées."
             )
             return {
@@ -606,7 +613,7 @@ async def import_sport_screenshot(
             duree_txt = f"{duree // 60} min {duree % 60} s" if duree else "durée non lisible"
             fc_txt = f", FC moyenne {fc_moy} bpm" if fc_moy is not None else ""
             spoken = (
-                f"Séance du {target_date.strftime('%d/%m/%Y')} passée en réalisée : {duree_txt}{fc_txt}. "
+                f"Séance {spoken_date} passée en réalisée : {duree_txt}{fc_txt}. "
                 f"La distance de la montre est ignorée, pense à la corriger si besoin."
             )
             return {
@@ -689,7 +696,7 @@ async def import_sport_screenshot(
     dplus_fmt = f" (D+ {dplus} m)" if dplus else ""
 
     spoken = (
-        f"Séance {app_src} importée avec succès : {dist_fmt} {duree_fmt}{dplus_fmt}{fc_fmt}. "
+        f"Séance {app_src} {spoken_date} importée avec succès : {dist_fmt} {duree_fmt}{dplus_fmt}{fc_fmt}. "
         f"La séance est enregistrée dans ton carnet ! Comment étaient tes sensations ou ton ressenti d'effort (RPE de 1 à 10) ?"
     )
 
