@@ -100,7 +100,7 @@ def test_e2e_complete_voice_and_resilience_pipeline():
     # -------------------------------------------------------------------------
     res_sw = client.get("/sw.js")
     assert res_sw.status_code == 200
-    assert "pah-pwa-cache-v20" in res_sw.text
+    assert "pah-pwa-cache-v21" in res_sw.text
     assert "/static/js/offline_outbox.js" in res_sw.text
     assert "status: 503" in res_sw.text
 

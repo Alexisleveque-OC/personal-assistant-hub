@@ -722,3 +722,98 @@ def test_gemini_sport_vision_schema_allows_null_heart_rate():
     props = GEMINI_SPORT_VISION_SCHEMA["properties"]
     for field in ("fc_moyenne", "fc_max"):
         assert props[field].get("nullable") is True, f"Le champ '{field}' doit être nullable"
+
+
+def test_import_screenshot_without_date_exposes_machine_readable_error_code(temp_sport_env):
+    """Vérifie que le refus pour date manquante expose un code d'erreur stable (X-Error-Code) exploitable par le frontend."""
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": None,
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+    }
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 400
+    assert response.headers.get("X-Error-Code") == "screenshot_date_missing"
+
+
+def test_import_screenshot_without_date_and_realised_today_exposes_same_error_code(temp_sport_env):
+    """Vérifie que le garde-fou 'séance réalisée aujourd'hui' expose aussi le code screenshot_date_missing."""
+    db_mgr, connector = temp_sport_env
+    connector.log_session(
+        SportSessionCreate(
+            date=date.today(),
+            statut=SportSessionStatus.REALISE,
+            type_seance=SportSessionType.EF,
+            distance_km=6.0,
+            duree_secondes=2100,
+        )
+    )
+    fake_vision_result = {
+        "is_sport_session": True,
+        "app_source": "Decathlon Coach",
+        "date": None,
+        "distance_km": 5.12,
+        "duree_secondes": 1883,
+    }
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = fake_vision_result
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 400
+    assert response.headers.get("X-Error-Code") == "screenshot_date_missing"
+
+
+@pytest.mark.parametrize(
+    "vision_result,existing",
+    [
+        ({"app_source": "Strava", "distance_km": 5.09, "duree_secondes": 1840}, None),
+        ({"app_source": "Decathlon Connect (CW500 M)", "distance_km": 4.9, "duree_secondes": 1987, "fc_moyenne": 163}, "realise"),
+        ({"app_source": "Decathlon Connect (CW500 M)", "distance_km": 4.9, "duree_secondes": 1987, "fc_moyenne": 163}, "prevu"),
+    ],
+)
+def test_import_screenshot_confirmation_states_retained_date(temp_sport_env, vision_result, existing):
+    """Vérifie que la confirmation vocale annonce explicitement la date retenue, quel que soit le chemin d'import."""
+    db_mgr, connector = temp_sport_env
+    if existing == "realise":
+        connector.log_session(
+            SportSessionCreate(
+                date=date(2026, 10, 12),
+                statut=SportSessionStatus.REALISE,
+                type_seance=SportSessionType.EF,
+                distance_km=5.12,
+                duree_secondes=1883,
+            )
+        )
+    elif existing == "prevu":
+        connector.plan_session(session_date=date(2026, 10, 12), type_seance=SportSessionType.EF, distance_km=5.0)
+
+    payload = {"is_sport_session": True, "date": "2026-10-12", "type_seance": "EF", **vision_result}
+
+    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
+        mock_vision.return_value = payload
+
+        response = client.post(
+            "/api/v1/sport/import-screenshot",
+            headers=API_HEADERS,
+            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
+        )
+
+    assert response.status_code == 200
+    assert "lundi 12 octobre" in response.json()["spoken_response"]
