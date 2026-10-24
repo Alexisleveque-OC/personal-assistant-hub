@@ -32,6 +32,7 @@ GEMINI_SPORT_VISION_SCHEMA = {
         "date": {
             "type": "STRING",
             "description": "Date de la séance au format ISO YYYY-MM-DD",
+            "nullable": True,
         },
         "heure_depart": {
             "type": "STRING",
@@ -44,10 +45,12 @@ GEMINI_SPORT_VISION_SCHEMA = {
         "distance_km": {
             "type": "NUMBER",
             "description": "Distance parcourue en kilomètres (ex: 5.12)",
+            "nullable": True,
         },
         "duree_secondes": {
             "type": "INTEGER",
             "description": "Durée active de déplacement convertie en total de secondes (ex: 31'23\" -> 1883)",
+            "nullable": True,
         },
         "denivele_d_plus": {
             "type": "INTEGER",
@@ -64,10 +67,12 @@ GEMINI_SPORT_VISION_SCHEMA = {
         "fc_moyenne": {
             "type": "INTEGER",
             "description": "Fréquence cardiaque moyenne en bpm (ex: 163)",
+            "nullable": True,
         },
         "fc_max": {
             "type": "INTEGER",
             "description": "Fréquence cardiaque maximale en bpm si visible",
+            "nullable": True,
         },
         "cadence_spm": {
             "type": "INTEGER",
@@ -88,6 +93,10 @@ GEMINI_SPORT_VISION_SCHEMA = {
     },
     "required": ["is_sport_session", "app_source", "date", "distance_km", "duree_secondes"],
 }
+
+
+class VisionServiceUnavailableError(RuntimeError):
+    """Gemini Vision est inaccessible (clé absente, quota, modèles indisponibles)."""
 
 
 class SportVisionService:
@@ -139,17 +148,21 @@ class SportVisionService:
             "     * 'EF' par défaut pour les footings d'endurance fondamentale.\n"
         )
 
-    def analyze_screenshot(
+    async def analyze_screenshot(
         self,
         image_bytes: bytes,
         mime_type: str = "image/jpeg",
         reference_date: Optional[date] = None,
     ) -> Dict[str, Any]:
-        """Appelle Gemini Vision et retourne le dictionnaire de métriques extraites."""
+        """Appelle Gemini Vision et retourne le dictionnaire de métriques extraites.
+
+        Lève VisionServiceUnavailableError si la clé est absente ou si tous les modèles échouent.
+        """
         client = self.gemini_client
         if not client or not client.api_key:
-            logger.warning("[SportVisionService] Clé Gemini absente, fallback mock local.")
-            return self._fallback_analysis(reference_date)
+            raise VisionServiceUnavailableError(
+                "Analyse de capture impossible : aucune clé GEMINI_API_KEY n'est configurée sur le serveur."
+            )
 
         prompt = self.build_prompt(reference_date)
         b64_img = base64.b64encode(image_bytes).decode("utf-8")
@@ -193,49 +206,41 @@ class SportVisionService:
             if clean and clean not in to_try and not any(old in clean for old in ("2.5", "1.5", "2.0")):
                 to_try.append(clean)
 
-        for model_name in to_try:
-            url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent?key={client.api_key}"
-            try:
-                with httpx.Client(timeout=25.0) as http_client:
-                    resp = http_client.post(url, json=payload)
-                    if resp.status_code == 200:
-                        res_json = resp.json()
-                        cands = res_json.get("candidates", [])
-                        if cands:
-                            raw_text = cands[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                            parsed = json.loads(raw_text)
-                            if parsed.get("date"):
-                                parsed["date"] = parse_screenshot_date(parsed["date"], reference_date=reference_date).isoformat()
-                            if hasattr(client, "set_active_working_model"):
-                                client.set_active_working_model(model_name)
-                            return parsed
-                    elif resp.status_code in (429, 503):
-                        if hasattr(client, "mark_model_temporarily_unavailable"):
-                            client.mark_model_temporarily_unavailable(model_name, 30.0)
-                        logger.warning(
-                            f"[SportVisionService] Modèle {model_name} indisponible ({resp.status_code}), tentative candidat suivant..."
-                        )
-                        continue
-                    else:
-                        logger.warning(
-                            f"[SportVisionService] Modèle {model_name} erreur ({resp.status_code}): {resp.text[:150]}"
-                        )
-                        continue
-            except Exception as exc:
-                logger.warning(f"[SportVisionService] Échec appel {model_name} : {exc}")
-                continue
+        failures: list[str] = []
+        async with httpx.AsyncClient(timeout=25.0) as http_client:
+            for model_name in to_try:
+                url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent?key={client.api_key}"
+                try:
+                    resp = await http_client.post(url, json=payload)
+                except Exception as exc:
+                    logger.warning(f"[SportVisionService] Échec appel {model_name} : {exc}")
+                    failures.append(f"{model_name} ({type(exc).__name__}: {exc})")
+                    continue
 
-        logger.error("[SportVisionService] Tous les modèles Gemini Vision ont échoué, repli local.")
-        return self._fallback_analysis(reference_date)
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    cands = res_json.get("candidates", [])
+                    if not cands:
+                        failures.append(f"{model_name} (réponse sans candidat)")
+                        continue
+                    raw_text = cands[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    parsed = json.loads(raw_text)
+                    if parsed.get("date"):
+                        parsed["date"] = parse_screenshot_date(parsed["date"], reference_date=reference_date).isoformat()
+                    if hasattr(client, "set_active_working_model"):
+                        client.set_active_working_model(model_name)
+                    return parsed
 
-    def _fallback_analysis(self, reference_date: Optional[date] = None) -> Dict[str, Any]:
-        ref_d = reference_date or date.today()
-        return {
-            "is_sport_session": False,
-            "app_source": "Inconnu",
-            "date": ref_d.isoformat(),
-            "message": "Impossible d'analyser la capture d'écran sans connexion à Gemini Vision.",
-        }
+                if resp.status_code in (429, 503) and hasattr(client, "mark_model_temporarily_unavailable"):
+                    client.mark_model_temporarily_unavailable(model_name, 30.0)
+                logger.warning(
+                    f"[SportVisionService] Modèle {model_name} erreur ({resp.status_code}): {resp.text[:150]}"
+                )
+                failures.append(f"{model_name} ({resp.status_code})")
+
+        raise VisionServiceUnavailableError(
+            "Tous les modèles Gemini Vision ont échoué : " + ", ".join(failures)
+        )
 
 
 _sport_vision_service_instance: Optional[SportVisionService] = None
