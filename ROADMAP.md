@@ -11,7 +11,7 @@ Cette roadmap corrige les imports de captures (Decathlon Coach, Strava, CW500 M)
 
 ## Étapes d'Implémentation
 
-### [x] Étape 1 : Fiabilisation Backend (TDD) - en attente de validation utilisateur
+### [x] Étape 1 : Fiabilisation Backend (TDD)
 - [x] Rendre `date`, `distance_km`, `duree_secondes` **nullables** dans `GEMINI_SPORT_VISION_SCHEMA` (toujours `required` : le modèle doit statuer, mais peut répondre `null` au lieu d'inventer).
 - [x] Fail-fast : lever `VisionServiceUnavailableError` (clé absente ou tous les modèles en échec, avec la liste des modèles tentés et la dernière erreur) au lieu du faux rejet `_fallback_analysis`. La route répond **503** avec ce détail.
 - [x] Ne plus jamais retomber sur la date du jour : sans date extraite ni `reference_date` explicite, la route répond **400** en demandant la date, sans rien enregistrer.
@@ -20,14 +20,18 @@ Cette roadmap corrige les imports de captures (Decathlon Coach, Strava, CW500 M)
 - [x] FC absente renvoyée à `0` par Gemini : `fc_moyenne`/`fc_max` nullables dans le schéma et `0` traité comme « non mesurée » (évitait l'écrasement d'une FC existante et une erreur 500 à la relecture, validation Pydantic `>= 30`).
 - [x] Couvrir les libellés Strava relatifs réels (« Aujourd'hui à 12:56 · La Rochelle », « Hier à 12:56 »).
 
-### [ ] Étape 2 : Frontend - Saisie de la Date Manquante
-- [ ] Quand l'API signale une date introuvable, proposer un sélecteur de date et renvoyer la capture avec `reference_date`.
-- [ ] Afficher explicitement la date retenue dans la confirmation d'import (ex: « importée au lundi 12 octobre ») pour rendre toute erreur visible immédiatement.
+### [x] Étape 2 : Frontend - Saisie de la Date Manquante
+- [x] Code d'erreur stable `X-Error-Code: screenshot_date_missing` sur les refus pour date manquante (pas de détection par texte côté front).
+- [x] Module `static/js/screenshot_import.js` partagé (Chat + vue Sport) : modale de choix de date (aujourd'hui par défaut, futur interdit) puis renvoi de la capture avec `reference_date`. Annulation explicite sans erreur.
+- [x] Afficher explicitement la date retenue dans la confirmation d'import (ex: « Séance Strava du lundi 12 octobre importée ») sur les 3 chemins (import complet, FC CW500, séance prévue CW500).
+- [x] Cache PWA `pah-pwa-cache-v21` + précache du nouveau module.
+- Limite connue : le renvoi relance une analyse Gemini (cas rare, ~3 s et un appel de quota en plus).
 
-### [ ] Étape 3 : Validation Réelle & Test E2E
-- [ ] Validation sur captures réelles (Decathlon Coach, Strava/CW500 M, capture sans date) - captures non commitées.
-- [ ] Test d'intégration E2E du flux complet (date manquante → saisie → import).
-- [ ] Suite complète `pytest -v` à 100 % verte.
+### [x] Étape 3 : Validation Réelle & Test E2E
+- [x] Validation sur captures réelles via Gemini Vision (Decathlon Coach, Strava, CW500 M, capture Strava recadrée sans date) - captures non commitées.
+- [x] Test d'intégration E2E `tests/test_e2e_screenshot_import.py` (date manquante → saisie → Coach → CW500 → panne Gemini, sur une seule séance).
+- [x] Suite complète `pytest -v` à 100 % verte (546 tests).
+- [ ] Test manuel utilisateur en production (PWA mobile).
 
 ---
 
