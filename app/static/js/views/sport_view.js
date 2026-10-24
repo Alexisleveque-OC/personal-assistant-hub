@@ -18,8 +18,8 @@ import {
   patchSportSessionById,
   deleteSportSession,
   createSportSession,
-  importSportScreenshot,
 } from "../api.js";
+import { importSportScreenshotWithDatePrompt, DATE_CANCELLED_CODE } from "../screenshot_import.js";
 
 export async function handleSportScreenshotUpload(file) {
   if (!file) return;
@@ -40,7 +40,9 @@ export async function handleSportScreenshotUpload(file) {
   const toastAnalyzing = showToastInfo("Analyse de la capture par Otis en cours...", "Analyse Otis", { duration: 0 });
 
   try {
-    const data = await importSportScreenshot(file);
+    const data = await importSportScreenshotWithDatePrompt(file, {
+      onDatePrompt: () => toastAnalyzing.dismiss(),
+    });
     toastAnalyzing.dismiss();
 
     const spokenMsg = data.spoken_response || "Votre séance de sport a été importée avec succès !";
@@ -67,6 +69,11 @@ export async function handleSportScreenshotUpload(file) {
     window.dispatchEvent(new CustomEvent("sport-data-updated"));
   } catch (err) {
     toastAnalyzing.dismiss();
+    if (err.code === DATE_CANCELLED_CODE) {
+      if (statusBox) statusBox.style.display = "none";
+      showToastInfo(err.message, "Import annulé");
+      return;
+    }
     console.error("Erreur import screenshot sport:", err);
     if (statusBox) {
       statusBox.style.display = "block";
