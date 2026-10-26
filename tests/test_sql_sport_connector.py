@@ -249,3 +249,48 @@ async def test_sql_sport_connector_execute_action(temp_sql_connector):
     res = await temp_sql_connector.execute_action("get_session", {"target_date": today.isoformat()})
     assert res is not None
     assert res["type_seance"] == "EF"
+
+
+def test_plan_session_never_overwrites_a_completed_session(temp_sql_connector):
+    """Une séance réalisée ne doit jamais être transformée en séance prévue (bug du planning hebdo)."""
+    db = temp_sql_connector.db
+    done_id = db.add_sport_session({
+        "date": "2026-10-19", "statut": "Réalisé", "type_seance": "EF", "distance_km": 5.0, "ressenti_rpe": 4,
+    })
+
+    planned = temp_sql_connector.plan_session(
+        SportSessionPlan(date=date(2026, 10, 19), type_seance=SportSessionType.FRACTIONNE, distance_km_cible=6.0)
+    )
+
+    done = db.get_sport_session_by_id(done_id)
+    assert (done["statut"], done["type_seance"], done["distance_km"], done["ressenti_rpe"]) == ("Réalisé", "EF", 5.0, 4)
+    assert planned.id != done_id
+    assert (planned.statut, planned.type_seance, planned.distance_km) == (
+        SportSessionStatus.PLANIFIE, SportSessionType.FRACTIONNE, 6.0,
+    )
+
+
+def test_plan_session_replans_an_existing_planned_session(temp_sql_connector):
+    """Re-planifier un jour déjà prévu met à jour la séance prévue, sans doublon."""
+    first = temp_sql_connector.plan_session(SportSessionPlan(date=date(2026, 10, 20), type_seance=SportSessionType.EF))
+    second = temp_sql_connector.plan_session(
+        SportSessionPlan(date=date(2026, 10, 20), type_seance=SportSessionType.SORTIE_LONGUE)
+    )
+    assert second.id == first.id
+    assert second.type_seance == SportSessionType.SORTIE_LONGUE
+    assert len(temp_sql_connector.db.get_sport_sessions(start_date="2026-10-20", end_date="2026-10-20")) == 1
+
+
+def test_plan_weekly_sessions_skips_days_already_completed(temp_sql_connector):
+    """Le planning hebdo n'ajoute rien sur un jour où une séance est déjà réalisée."""
+    db = temp_sql_connector.db
+    done_id = db.add_sport_session({"date": "2026-10-19", "statut": "Réalisé", "type_seance": "EF", "distance_km": 5.0})
+
+    inserted = temp_sql_connector.plan_weekly_sessions([
+        SportSessionPlan(date=date(2026, 10, 19), type_seance=SportSessionType.FRACTIONNE),
+        SportSessionPlan(date=date(2026, 10, 21), type_seance=SportSessionType.RENFORCEMENT),
+    ])
+
+    assert [s.date for s in inserted] == [date(2026, 10, 21)]
+    monday = db.get_sport_sessions(start_date="2026-10-19", end_date="2026-10-19")
+    assert [(s["id"], s["statut"], s["type_seance"]) for s in monday] == [(done_id, "Réalisé", "EF")]
