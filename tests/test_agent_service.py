@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 
+from app.connectors.sheets.sport_models import SportSessionType
 from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.agent.agent_service import AgentLoopLimitError, AgentResponseError, AgentService, ConversationTurn
 from app.core.agent.llm import AgentUnavailableError, LLMTurn
@@ -143,3 +144,18 @@ async def test_empty_answer_raises_explicit_error(db):
     llm = ScriptedLLM([LLMTurn(parts=[{"text": "  "}], finish_reason="STOP")])
     with pytest.raises(AgentResponseError, match="vide"):
         await _service(db, llm).run("Quelque chose")
+
+
+@pytest.mark.asyncio
+async def test_types_cited_in_the_query_and_recent_user_turns_are_given_to_the_sport_tools(db):
+    tools = SportTools(SqlSportConnector(db_manager=db), today=lambda: TODAY)
+    service = AgentService(llm=ScriptedLLM([text_turn("Ok")]), registry=build_sport_registry(tools), sport_tools=tools)
+
+    await service.run("il fallait mettre son RPE à 3", history=[
+        ConversationTurn(role="user", text="Le footing de samedi"),
+        ConversationTurn(role="assistant", text="Ton renfo ?"),
+        ConversationTurn(role="user", text="Non, je parlais de ma séance de renforcement"),
+        ConversationTurn(role="assistant", text="D'accord."),
+    ])
+
+    assert tools.cited_types == {SportSessionType.RENFORCEMENT}  # phrase courante + dernier tour utilisateur

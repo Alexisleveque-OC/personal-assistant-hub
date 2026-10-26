@@ -4,9 +4,9 @@ Contrairement au connecteur (qui fusionne par date pour le flux legacy), ces out
 création stricte, aucune valeur inventée, instantané avant chaque mutation pour l'annulation.
 """
 from datetime import date
-from typing import Callable, List
+from typing import Callable, FrozenSet, List
 
-from app.connectors.sheets.sport_models import SportSessionStatus
+from app.connectors.sheets.sport_models import SportSessionStatus, SportSessionType
 from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.agent.tools.sport_models import (
     FindSessionsArgs,
@@ -18,10 +18,11 @@ from app.core.agent.tools.sport_models import (
     UndoSnapshot,
     UpdateSessionArgs,
 )
+from app.core.agent.tools.tool_error import ToolError
 from app.core.clock import paris_today
 
 
-class SportToolError(Exception):
+class SportToolError(ToolError):
     """Erreur métier explicite renvoyée à l'agent (jamais masquée)."""
 
 
@@ -36,6 +37,8 @@ class SportTools:
         self.connector = connector
         self.db = connector.db
         self.today = today
+        # Types de séance nommés par l'utilisateur dans la conversation en cours (cf. `session_types`).
+        self.cited_types: FrozenSet[SportSessionType] = frozenset()
 
     def find_sport_sessions(self, args: FindSessionsArgs) -> List[SessionView]:
         rows = self.db.get_sport_sessions(
@@ -53,6 +56,7 @@ class SportTools:
 
     def update_sport_session(self, args: UpdateSessionArgs) -> MutationResult:
         before = SessionRow.model_validate(self._raw_row(args.session_id))
+        self._check_unambiguous(before)
         updated = self.connector.update_session_by_id(args.session_id, args.changes.model_dump(exclude_none=True))
         return MutationResult(
             session=SessionView.from_session(updated),
@@ -118,6 +122,17 @@ class SportTools:
     def _refresh_week(self, day: date) -> None:
         # Même convention que le connecteur : semaine ISO + année civile.
         self.connector.get_weekly_summary(week_num=day.isocalendar()[1], year=day.year)
+
+    def _check_unambiguous(self, target: SessionRow) -> None:
+        """Un jour à plusieurs séances : l'utilisateur doit avoir nommé le type de la cible, sinon on demande."""
+        day = date.fromisoformat(target.date)
+        same_day = self.db.get_sport_sessions(start_date=day, end_date=day)
+        if len(same_day) > 1 and target.type_seance not in {t.value for t in self.cited_types}:
+            types = ", ".join(row["type_seance"] for row in same_day)
+            raise SportToolError(
+                f"Plusieurs séances le {day:%d/%m} ({types}) et l'utilisateur n'a pas précisé laquelle : "
+                "ne modifie rien et demande-lui de quelle séance il parle."
+            )
 
     def _raw_row(self, session_id: int) -> dict:
         row = self.db.get_sport_session_by_id(session_id)

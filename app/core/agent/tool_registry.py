@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.core.agent.gemini_schema import to_gemini_schema
 from app.core.agent.tools.sport_models import MutationResult, SessionView
-from app.core.agent.tools.sport_tools import SportToolError
+from app.core.agent.tools.tool_error import ToolError
 from app.core.agent.undo import AgentUndo
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class ToolRegistry:
         except ValidationError as exc:
             details = "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors())
             return self._failure(name, raw_args, f"Arguments invalides pour {name} : {details}")
-        except SportToolError as exc:
+        except ToolError as exc:
             return self._failure(name, raw_args, str(exc))
 
         if isinstance(result, MutationResult):

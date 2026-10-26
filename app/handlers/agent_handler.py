@@ -1,6 +1,5 @@
 """Handler de l'agent LLM à outils (Phase 6.8) : routage depuis /interact et mise en forme de la réponse."""
 import logging
-import re
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
@@ -10,13 +9,16 @@ from app.core.agent.errors import AgentError, AgentUnavailableError
 from app.core.agent.factory import build_agent_service, build_undo_service
 from app.core.agent.agent_service import ConversationTurn
 from app.core.agent.tool_registry import ToolExecution
+from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.undo import UndoError, UndoJournal
 from app.core.database import get_database_manager
 from app.core.models import IntentType, ParsedIntent
+from app.handlers.fast_lane import FAST_LANE_INTENTS, is_fast_lane
 
 logger = logging.getLogger(__name__)
 
-# Intentions confiées à l'agent ; les autres (courses, repas, notes listées, apprentissage…) restent sur les regex.
+# Intentions confiées à l'agent. Les intentions de la voie rapide (`FAST_LANE_INTENTS`) n'y vont que si la phrase
+# est ambiguë ; les autres (notes listées, apprentissage, confirmations en attente…) restent sur les regex.
 AGENT_ROUTED_INTENTS = frozenset({
     IntentType.UNKNOWN,
     IntentType.GET_SPORT_SESSION,
@@ -25,12 +27,12 @@ AGENT_ROUTED_INTENTS = frozenset({
     IntentType.UPDATE_SPORT_SESSION,
     IntentType.PLAN_WEEKLY_TRAINING,
     IntentType.SAVE_NOTE,
+    IntentType.SET_MEAL_PLAN,
+    IntentType.GET_RECIPE_INGREDIENTS,
+    IntentType.ADD_RECIPE_INGREDIENTS,
+    IntentType.MARK_SHOPPING_BOUGHT,
+    IntentType.CHECK_SHOPPING_COMPLETION,
 })
-# Garde-fou de la voie rapide « ajoute X » : une phrase de sport n'est jamais un article de courses.
-_SPORT_WORDS = re.compile(
-    r"\b(?:séances?|seances?|entra[iî]nements?|footing|fractionn[ée]|renfo|renforcement|sortie\s+longue|course\s+à\s+pied)\b",
-    re.IGNORECASE,
-)
 
 
 class AgentTurnOutcome(BaseModel):
@@ -40,11 +42,14 @@ class AgentTurnOutcome(BaseModel):
     llm_model: Optional[str] = None
 
 
-def routes_to_agent(parsed: ParsedIntent, query: str) -> bool:
+def routes_to_agent(parsed: ParsedIntent, query: str, awaiting_agent_reply: bool = False) -> bool:
+    """`awaiting_agent_reply` : le tour précédent de l'agent posait une question (« d'accord » y répond)."""
     if settings.nlu_mode != "agent":
         return False
-    if parsed.intent == IntentType.ADD_SHOPPING_ITEM:
-        return bool(_SPORT_WORDS.search(query))
+    if parsed.intent in FAST_LANE_INTENTS:
+        return not is_fast_lane(parsed, query)
+    if awaiting_agent_reply and parsed.intent == IntentType.SMALL_TALK:
+        return True
     return parsed.intent in AGENT_ROUTED_INTENTS
 
 
@@ -57,10 +62,10 @@ def routes_to_agent_undo(parsed: ParsedIntent, session_ctx: Dict[str, Any]) -> b
     )
 
 
-def handle_agent_undo(query: str, session_id: str, sport_connector: Any) -> AgentTurnOutcome:
+def handle_agent_undo(query: str, session_id: str, sport_connector: Any, meals_connector: Any = None) -> AgentTurnOutcome:
     """Annulation déterministe (sans LLM) du dernier tour d'actions de l'agent."""
     try:
-        outcome = build_undo_service(sport_connector).undo_last(session_id)
+        outcome = build_undo_service(sport_connector, meals_connector).undo_last(session_id)
     except (UndoError, AgentUnavailableError) as exc:
         return AgentTurnOutcome(
             parsed=ParsedIntent(
@@ -82,16 +87,19 @@ def handle_agent_undo(query: str, session_id: str, sport_connector: Any) -> Agen
 
 
 async def handle_agent_turn(
-    query: str, session_id: str, session_ctx: Dict[str, Any], sport_connector: Any
+    query: str, session_id: str, session_ctx: Dict[str, Any], sport_connector: Any, meals_connector: Any = None,
 ) -> AgentTurnOutcome:
     history = [
         ConversationTurn(role=h["role"], text=h["text"])
         for h in session_ctx.get("history", [])
         if h.get("role") in ("user", "assistant") and h.get("text")
     ]
+    # Une clarification regex en attente (ex. choix de rayon) est obsolète dès que l'agent reprend la main.
+    session_ctx.pop("pending_action", None)
+    meals_tools = MealsTools(meals_connector, confirmable_dishes=session_ctx.pop("meal_confirmation_pending", []))
     service = None
     try:
-        service = build_agent_service(sport_connector, session_id, "last_undoable_action" in session_ctx)
+        service = build_agent_service(sport_connector, session_id, "last_undoable_action" in session_ctx, meals_tools)
         reply = await service.run(query, history)
     except AgentError as exc:
         logger.error(f"Agent en échec ({type(exc).__name__}) : {exc}")
@@ -106,6 +114,10 @@ async def handle_agent_turn(
         )
 
     _journalize(session_id, session_ctx, reply.executions)
+    if "?" in reply.text:
+        session_ctx["agent_awaiting_reply"] = True
+    if meals_tools.refused_dishes:
+        session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
     return AgentTurnOutcome(
         parsed=ParsedIntent(
             intent=IntentType.AGENT,
@@ -139,6 +151,8 @@ def _response_data(executions: List[ToolExecution]) -> Dict[str, Any]:
             data["session"] = execution.response.get("session") or created[-1]
         if "note_id" in execution.response:
             data.update(note_id=execution.response["note_id"], category=execution.response["category"])
+        if execution.response.get("ajoutes"):
+            data.setdefault("items", []).extend(execution.response["ajoutes"])  # toast « article(s) ajouté(s) »
     return data
 
 

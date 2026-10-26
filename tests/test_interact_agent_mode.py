@@ -1,5 +1,5 @@
 """Tests du branchement de l'agent dans /interact derrière l'interrupteur NLU_MODE (Phase 6.8 - Étape 3)."""
-from datetime import date
+from datetime import date, timedelta
 import json
 
 import pytest
@@ -238,3 +238,112 @@ def test_failure_message_after_mutation_offers_undo(db, agent_mode):
 
     _ask("annule ça", session_id="undo-after-failure")
     assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] is None
+
+
+# --- Étape 5 : courses & repas -----------------------------------------------------------------------------------
+
+@pytest.fixture
+def meals_sheet():
+    from app.connectors.sheets.meals_connector import MealsShoppingConnector
+    from app.core.dependencies import set_meals_connector
+    from tests.meals_fakes import MealsSheetState, build_meals_spreadsheet
+
+    sheet = build_meals_spreadsheet(MealsSheetState(today=date.today(), waiting=[("Lait", False), ("Pain", False)]))
+    set_meals_connector(MealsShoppingConnector(spreadsheet=sheet))
+    return sheet
+
+
+def test_shopping_action_goes_to_the_agent_with_meals_tools(db, agent_mode, meals_sheet):
+    from tests.meals_fakes import waiting_rows
+
+    llm = ScriptedLLM([
+        call_turn({"name": "remove_shopping_items", "args": {"noms": ["pain"]}}),
+        text_turn("J'ai retiré le pain de la liste."),
+    ])
+    set_agent_llm(llm)
+
+    body = _ask("Enlève le pain de la liste de courses", session_id="meals-remove")
+
+    assert body["intent"]["intent"] == "agent"
+    assert waiting_rows(meals_sheet) == [("Lait", False)]
+    declared = {d["name"] for d in llm.requests[0]["tools"]}
+    assert {"get_shopping_list", "add_shopping_items", "check_shopping_items", "remove_shopping_items",
+            "clear_bought_shopping_items", "get_meal_plan", "set_meal", "get_recipe"} <= declared
+
+
+def test_agent_shopping_add_shows_undo_toast_and_plain_undo_restores(db, agent_mode, meals_sheet):
+    from tests.meals_fakes import waiting_rows
+
+    set_agent_llm(ScriptedLLM([
+        call_turn({"name": "add_shopping_items", "args": {"articles": [{"nom": "beurre"}]}}),
+        text_turn("Beurre ajouté au rayon Frais."),
+    ]))
+    added = _ask("Ajoute du beurre pour ce soir", session_id="meals-undo")
+    assert [it["nom"] for it in added["data"]["items"]] == ["Beurre"]  # toast « 1 article(s) ajouté(s) »
+
+    undone = _ask("annule ça", session_id="meals-undo")
+
+    assert "Beurre" in undone["spoken_response"]
+    assert waiting_rows(meals_sheet) == [("Lait", False), ("Pain", False)]
+
+
+def test_pwa_phrases_stay_on_the_fast_lane(db, agent_mode, meals_sheet):
+    set_agent_llm(ScriptedLLM([]))  # tout appel au LLM ferait échouer le test
+
+    for query, intent in [
+        ("Donne-moi la liste de courses", "get_shopping_list"),
+        ("Qu'est-ce qu'on mange aujourd'hui ?", "get_meal_plan"),
+        ("Vide la liste de courses", "clear_shopping_list"),
+    ]:
+        assert _ask(query, session_id="pwa")["intent"]["intent"] == intent
+
+
+def test_short_answer_to_an_agent_question_goes_back_to_the_agent(db, agent_mode, meals_sheet):
+    llm = ScriptedLLM([
+        text_turn("La raclette n'est pas dans ton carnet de recettes. Je la planifie quand même demain soir ?"),
+        text_turn("C'est planifié."),
+    ])
+    set_agent_llm(llm)
+
+    _ask("Mets une raclette demain soir", session_id="meals-confirm")
+    body = _ask("D'accord", session_id="meals-confirm")
+
+    assert body["intent"]["intent"] == "agent"
+    assert len(llm.requests) == 2
+
+
+def test_small_talk_without_pending_agent_question_stays_local(db, agent_mode, meals_sheet):
+    set_agent_llm(ScriptedLLM([text_turn("J'ai retiré le pain.")]))
+
+    _ask("Enlève le pain de la liste de courses", session_id="meals-thanks")
+    body = _ask("Merci", session_id="meals-thanks")
+
+    assert body["intent"]["intent"] == "small_talk"
+
+
+def test_agent_turn_discards_a_stale_legacy_pending_action(db, agent_mode, meals_sheet):
+    set_agent_llm(ScriptedLLM([text_turn("Quel plat veux-tu demain ?")]))
+    session = get_session_manager().get_session("meals-stale")
+    session["pending_action"] = {"type": "clarify_shopping_rayon", "item": "Papier cadeau", "suggested_rayons": ["Divers"]}
+
+    _ask("Change le menu de demain", session_id="meals-stale")
+
+    assert "pending_action" not in get_session_manager().get_session("meals-stale")
+
+
+def test_off_book_dish_is_only_planned_after_the_user_confirms(db, agent_mode, meals_sheet):
+    from tests.meals_fakes import planned_meals
+
+    tomorrow = date.today() + timedelta(days=1)
+    set_meal = {"name": "set_meal", "args": {"date": tomorrow.isoformat(), "moment": "soir", "plat": "Raclette", "hors_carnet_confirme": True}}
+    set_agent_llm(ScriptedLLM([
+        call_turn(set_meal), text_turn("La raclette n'est pas dans ton carnet. Je la planifie quand même ?"),
+        call_turn(set_meal), text_turn("C'est planifié pour demain soir."),
+    ]))
+    key = tomorrow.strftime("%d/%m/%Y")
+
+    _ask("Mets une raclette demain soir", session_id="meals-offbook")
+    assert planned_meals(meals_sheet)[key][1] == ""
+
+    _ask("Oui, vas-y.", session_id="meals-offbook")
+    assert planned_meals(meals_sheet)[key][1] == "Raclette"

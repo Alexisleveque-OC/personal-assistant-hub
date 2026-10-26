@@ -29,3 +29,23 @@ def test_prompt_flags_days_with_several_sessions():
 def test_prompt_without_ambiguous_day_has_no_warning_section():
     prompt = build_system_prompt(date(2026, 10, 26), [_view(3, date(2026, 10, 24), SportSessionType.EF)])
     assert "plusieurs séances" not in prompt.split("Séances récentes")[1]
+
+
+def test_prompt_has_shopping_meals_and_note_rules():
+    prompt = build_system_prompt(date(2026, 10, 26), [])
+    rules = prompt.split("Aujourd'hui :")[0]
+    assert "Courses et repas" in rules
+    assert "rayons_disponibles" in rules and "hors_carnet_confirme" in rules
+    assert "get_recipe" in rules and "add_shopping_items" in rules
+    assert "toujours en français" in rules
+
+
+def test_sessions_sharing_a_day_are_flagged_on_their_own_line():
+    prompt = build_system_prompt(date(2026, 10, 26), [
+        _view(2, date(2026, 10, 25), SportSessionType.EF),
+        _view(1, date(2026, 10, 25), SportSessionType.RENFORCEMENT),
+        _view(3, date(2026, 10, 24), SportSessionType.EF),
+    ])
+    lines = {line.split(" | ")[0]: line for line in prompt.splitlines() if line.startswith("- id=")}
+    assert "AMBIGU" in lines["- id=2"] and "AMBIGU" in lines["- id=1"]
+    assert "AMBIGU" not in lines["- id=3"]

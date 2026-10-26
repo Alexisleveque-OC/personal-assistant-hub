@@ -7,6 +7,7 @@ from app.core.agent.errors import AgentError, AgentLoopLimitError, AgentResponse
 from app.core.agent.llm import AgentLLM
 from app.core.agent.prompt import build_system_prompt
 from app.core.agent.tool_registry import ToolExecution, ToolRegistry
+from app.core.agent.tools.session_types import cited_session_types
 from app.core.agent.tools.sport_models import FindSessionsArgs
 from app.core.agent.tools.sport_tools import SportTools
 from app.core.agent.undo import AgentUndo
@@ -39,6 +40,8 @@ class AgentService:
         self.max_llm_calls = max_llm_calls
 
     async def run(self, query: str, history: Sequence[ConversationTurn] = ()) -> AgentReply:
+        previous_user_turns = [turn.text for turn in history if turn.role == "user"][-1:]
+        self.sport_tools.cited_types = frozenset(cited_session_types([query, *previous_user_turns]))
         recent = self.sport_tools.find_sport_sessions(FindSessionsArgs(limit=RECENT_SESSIONS_LIMIT))
         system_instruction = build_system_prompt(self.sport_tools.today(), recent)
         contents: List[Dict[str, Any]] = [

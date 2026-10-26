@@ -117,12 +117,13 @@ async def interact(
     parsed = intent_parser.parse(normalized_query, context=session_ctx)
 
     handled = None
+    awaiting_agent_reply = session_ctx.pop("agent_awaiting_reply", False)
     # 2a. Mode agent (NLU_MODE=agent) : hors voie rapide, Gemini raisonne et agit via ses outils
     if routes_to_agent_undo(parsed, session_ctx):
-        outcome = handle_agent_undo(request.query, session_id, sport_connector)
+        outcome = handle_agent_undo(request.query, session_id, sport_connector, connector)
         parsed, handled = outcome.parsed, (outcome.spoken, outcome.data)
-    elif routes_to_agent(parsed, request.query):
-        outcome = await handle_agent_turn(request.query, session_id, session_ctx, sport_connector)
+    elif routes_to_agent(parsed, request.query, awaiting_agent_reply):
+        outcome = await handle_agent_turn(request.query, session_id, session_ctx, sport_connector, connector)
         parsed, used_llm_model = outcome.parsed, outcome.llm_model
         handled = (outcome.spoken, outcome.data)
 

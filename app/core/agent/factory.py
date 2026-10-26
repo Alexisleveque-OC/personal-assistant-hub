@@ -1,4 +1,4 @@
-"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, notes et LLM Gemini."""
+"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, notes et LLM Gemini."""
 from typing import Any, Optional
 
 from app.connectors.sqlite.sport_connector import SqlSportConnector
@@ -6,6 +6,8 @@ from app.core.agent.agent_service import AgentService
 from app.core.agent.errors import AgentUnavailableError
 from app.core.agent.llm import AgentLLM, GeminiAgentLLM
 from app.core.agent.tool_registry import ToolRegistry
+from app.core.agent.tools.meals_registry import meals_tool_definitions
+from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.tools.note_tools import note_tool_definitions
 from app.core.agent.tools.sport_planning import WeeklyPlanningTool, weekly_planning_tool_definitions
 from app.core.agent.tools.sport_registry import sport_tool_definitions
@@ -37,20 +39,28 @@ def _sport_tools(sport_connector: Any) -> SportTools:
     return SportTools(sport_connector)
 
 
-def build_undo_service(sport_connector: Any) -> UndoService:
+def build_undo_service(sport_connector: Any, meals_connector: Any = None) -> UndoService:
     db = get_database_manager()
-    return UndoService(sport_tools=_sport_tools(sport_connector), db=db, journal=UndoJournal(db))
+    return UndoService(
+        sport_tools=_sport_tools(sport_connector), db=db, journal=UndoJournal(db), meals_tools=MealsTools(meals_connector),
+    )
 
 
-def build_agent_service(sport_connector: Any, session_id: str, legacy_action_pending: bool) -> AgentService:
-    """`legacy_action_pending` : la dernière action de la session vient du flux regex (ex. ajout aux courses)."""
+def build_agent_service(
+    sport_connector: Any, session_id: str, legacy_action_pending: bool, meals_tools: MealsTools,
+) -> AgentService:
+    """`legacy_action_pending` : la dernière action de la session vient du flux regex (ex. ajout aux courses).
+
+    `meals_tools` sans connecteur (classeur non configuré) : les outils repas & courses répondent par une erreur explicite.
+    """
     sport_tools = _sport_tools(sport_connector)
     db = get_database_manager()
     weekly_tool = WeeklyPlanningTool(sport_tools, SportCoachService(connector=sport_connector))
-    undo_service = UndoService(sport_tools=sport_tools, db=db, journal=UndoJournal(db))
+    undo_service = UndoService(sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools)
     registry = ToolRegistry(
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)
+        + meals_tool_definitions(meals_tools)
         + note_tool_definitions(db)
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )

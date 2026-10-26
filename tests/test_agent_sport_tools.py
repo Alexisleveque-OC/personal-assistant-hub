@@ -8,6 +8,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
+from app.connectors.sheets.sport_models import SportSessionType
 from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.agent.tools.sport_models import (
     FindSessionsArgs,
@@ -85,6 +86,7 @@ def test_get_unknown_id_raises_explicit_error(tools):
 # --- update_sport_session ------------------------------------------------------
 
 def test_update_targets_only_the_given_id(db, tools):
+    tools.cited_types = frozenset({SportSessionType.RENFORCEMENT})  # « mon renfo de dimanche »
     renfo = _seed(db, "2026-10-18", "Renforcement")
     ef = _seed(db, "2026-10-18", "EF", ressenti_rpe=4)
 
@@ -200,3 +202,26 @@ def test_undo_on_missing_session_raises(db, tools):
 def test_default_clock_is_paris(db):
     from app.core.clock import paris_today
     assert SportTools(SqlSportConnector(db_manager=db)).today() == paris_today()
+
+
+def test_update_on_a_day_with_several_sessions_requires_the_type_cited_by_the_user(db, tools):
+    ef = _seed(db, "2026-10-18", "EF")
+    _seed(db, "2026-10-18", "Renforcement")
+    changes = {"ressenti_rpe": 6}
+
+    with pytest.raises(SportToolError, match="Plusieurs séances"):
+        tools.update_sport_session(UpdateSessionArgs(session_id=ef, changes=changes))
+    tools.cited_types = frozenset({SportSessionType.RENFORCEMENT})
+    with pytest.raises(SportToolError, match="Plusieurs séances"):
+        tools.update_sport_session(UpdateSessionArgs(session_id=ef, changes=changes))
+    assert db.get_sport_session_by_id(ef)["ressenti_rpe"] is None
+
+    tools.cited_types = frozenset({SportSessionType.EF})
+    result = tools.update_sport_session(UpdateSessionArgs(session_id=ef, changes=changes))
+    assert result.session.ressenti_rpe == 6
+
+
+def test_update_on_a_day_with_a_single_session_needs_no_cited_type(db, tools):
+    ef = _seed(db, "2026-10-18", "EF")
+    result = tools.update_sport_session(UpdateSessionArgs(session_id=ef, changes={"ressenti_rpe": 4}))
+    assert result.session.ressenti_rpe == 4

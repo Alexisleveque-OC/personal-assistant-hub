@@ -1001,6 +1001,68 @@ class MealsShoppingConnector(BaseConnector):
         self.invalidate_cache("shopping")
         return marked
 
+    _ITEM_ARTICLE_PREFIX = re.compile(r"^(?:du|de la|des|de l|d|le|la|les|l|un|une)\s+")
+
+    def matches_item_name(self, query: str, candidate: str) -> bool:
+        """Compare deux noms d'articles en ignorant casse, accents, article initial et pluriels simples."""
+        def _key(text: str) -> str:
+            return self._stem_tokens(self._ITEM_ARTICLE_PREFIX.sub("", self._normalize(text)))
+        return bool(_key(query)) and _key(query) == _key(candidate)
+
+    def get_waiting_list_rows(self) -> List[WaitingListItem]:
+        """Relit toutes les lignes de 'Liste_Attente' (achetées comprises), sans cache : sert aux instantanés d'annulation."""
+        rows = self._spreadsheet.worksheet("Liste_Attente").get_all_values()
+        return [
+            WaitingListItem(
+                item=row[1].strip(),
+                is_bought=row[0].strip().upper() == "TRUE",
+                added_at=row[2].strip() if len(row) > 2 and row[2].strip() else None,
+            )
+            for row in rows[1:]
+            if len(row) >= 2 and row[1].strip()
+        ]
+
+    def restore_waiting_items(self, items: List[WaitingListItem]) -> None:
+        """Rétablit des lignes supprimées de 'Liste_Attente' (en fin de liste) avec leur état coché et leur date."""
+        ws = self._spreadsheet.worksheet("Liste_Attente")
+        ws.append_rows(
+            [[it.is_bought, it.item, it.added_at or ""] for it in items],
+            value_input_option="USER_ENTERED",
+        )
+        self.invalidate_cache("shopping")
+
+    def unmark_shopping_items_bought(self, items: List[str]) -> List[str]:
+        """Décoche les articles désignés et actuellement cochés dans 'Liste_Attente'."""
+        ws = self._spreadsheet.worksheet("Liste_Attente")
+        targets = {self._normalize(it) for it in items}
+        updates, unmarked = [], []
+        for idx, row in enumerate(ws.get_all_values()[1:], start=2):
+            if len(row) >= 2 and row[0].strip().upper() == "TRUE" and self._normalize(row[1]) in targets:
+                updates.append({"range": f"A{idx}", "values": [[False]]})
+                unmarked.append(row[1].strip())
+        if updates:
+            ws.batch_update(updates, value_input_option="USER_ENTERED")
+        self.invalidate_cache("shopping")
+        return unmarked
+
+    def unmark_current_week_items_bought(self, item_names: List[str]) -> List[str]:
+        """Décoche les articles désignés et actuellement cochés dans l'onglet 'Cette semaine'."""
+        ws = self._spreadsheet.worksheet("Cette semaine")
+        targets = {self._normalize(it) for it in item_names}
+        updates, unmarked = [], []
+        for r_idx, row in enumerate(ws.get_all_values()[9:], start=10):
+            for col_offset in (0, 2, 4, 6):
+                if len(row) > col_offset + 1:
+                    checked = row[col_offset].strip().upper() == "TRUE"
+                    name = row[col_offset + 1].strip()
+                    if checked and name and self._normalize(name) in targets:
+                        updates.append({"range": f"{chr(ord('A') + col_offset)}{r_idx}", "values": [[False]]})
+                        unmarked.append(name)
+        if updates:
+            ws.batch_update(updates, value_input_option="USER_ENTERED")
+        self.invalidate_cache("shopping")
+        return unmarked
+
 
     async def execute_action(self, action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Point d'entrée standardisé BaseConnector pour exécuter les actions."""

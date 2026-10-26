@@ -1,4 +1,5 @@
 """Prompt système de l'agent : date du jour (Paris), règles de raisonnement et séances récentes avec identifiants."""
+from collections import Counter
 from datetime import date, timedelta
 from typing import Dict, List
 
@@ -21,13 +22,27 @@ Règles du carnet d'entraînement :
    bien un renfo qu'une course.
 5. N'enregistre que les valeurs dites explicitement : n'invente jamais une durée, une distance ou une note.
    À l'inverse, n'exige pas de détails non donnés : ils pourront être complétés plus tard (ex. import de capture).
-6. Séance faite mais absente du carnet : log_sport_session (« j'ai fait » sans date = aujourd'hui).
-   Séance à venir : plan_sport_session.
+6. Séance faite mais absente du carnet : log_sport_session tout de suite, sans demander de détails.
+   « J'ai fait » sans date = aujourd'hui : ne demande jamais la date dans ce cas. Séance à venir : plan_sport_session.
 7. Après une action, confirme précisément ce qui a été fait (jour, type, champs modifiés).
    N'affirme jamais avoir fait une action que tu n'as pas faite ; en cas d'erreur d'un outil, dis-le.
    Ne prononce jamais les identifiants techniques (id) : désigne une séance par son jour et son type.
 8. « Annule ce que tu viens de faire » : utilise undo_last_action, ne défais jamais une action à la main.
    Une demande composée (« annule et note que… ») se traite outil par outil, dans l'ordre demandé.
+
+Courses et repas :
+9. Coche, retire ou modifie les articles et repas avec les outils dédiés ; ils tolèrent pluriels, articles et
+   accents. Signale les articles introuvables au lieu de les inventer.
+10. Un article au rayon inconnu n'est pas ajouté : choisis toi-même le rayon le plus plausible parmi
+    rayons_disponibles et rappelle add_shopping_items ; ne demande à l'utilisateur que si c'est vraiment ambigu.
+11. Ingrédients d'une recette à mettre aux courses : get_recipe, puis add_shopping_items avec les seuls
+    ingrédients voulus (« sauf le parmesan » → sans le parmesan).
+12. Plat absent du carnet de recettes : demande confirmation avant d'appeler set_meal avec hors_carnet_confirme.
+    « Vider la liste » ne supprime que les articles déjà cochés de la liste d'attente.
+
+Notes :
+13. Une note est toujours en français, autonome et compréhensible plus tard. Quand l'utilisateur renvoie aux
+    échanges précédents (« note ces derniers échanges »), résume-les dans la note sans rien modifier d'autre.
 """
 
 
@@ -35,7 +50,7 @@ def _format_day(day: date) -> str:
     return f"{WEEKDAYS_FR[day.weekday()]} {day:%d/%m/%Y}"
 
 
-def _format_session(s: SessionView) -> str:
+def _format_session(s: SessionView, shared_day: bool = False) -> str:
     details = [f"id={s.id}", _format_day(s.date), s.type_seance.value, s.statut.value]
     if s.distance_km is not None:
         details.append(f"{s.distance_km} km")
@@ -49,6 +64,8 @@ def _format_session(s: SessionView) -> str:
         details.append(f"FC moy {s.fc_moyenne}")
     if s.remarques:
         details.append(f"remarques : {s.remarques[:80]}")
+    if shared_day:
+        details.append("AMBIGU : autre séance le même jour, n'y touche que si le type est précisé")
     return "- " + " | ".join(details)
 
 
@@ -69,7 +86,10 @@ def _multi_session_days(sessions: List[SessionView]) -> str:
 
 
 def build_system_prompt(today: date, recent_sessions: List[SessionView]) -> str:
-    sessions = "\n".join(_format_session(s) for s in recent_sessions) or "- (aucune séance enregistrée)"
+    per_day = Counter(s.date for s in recent_sessions)
+    sessions = "\n".join(
+        _format_session(s, shared_day=per_day[s.date] > 1) for s in recent_sessions
+    ) or "- (aucune séance enregistrée)"
     return (
         f"{_RULES}\n"
         f"Aujourd'hui : {_format_day(today)} (heure de Paris). Hier : {_format_day(today - timedelta(days=1))}.\n\n"
