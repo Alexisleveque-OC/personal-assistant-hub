@@ -20,7 +20,7 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 
 ## Étapes d'Implémentation (chaque étape : TDD, 100 % vert, validation utilisateur)
 
-### [ ] Étape 0 : Jeu de Référence (Golden Set) & Fuseau Horaire
+### [x] Étape 0 : Jeu de Référence (Golden Set) & Fuseau Horaire
 - [x] Construire `tests/nlu_golden/` : cas **réécrits et anonymisés** (le dépôt est public : aucun prénom, aucune donnée de santé réelle) reproduisant la structure des échecs de prod. Chaque cas = état initial du carnet + phrase (+ historique) → effet attendu (séance ciblée par id, champs modifiés, ou question de clarification).
 - [x] Mesurer le score du parser actuel sur ce jeu (cas en échec marqués `xfail` comme cibles).
   - **Score legacy (regex + handlers, Gemini désactivé) : 5/14 cas.** Échecs : précision au tour suivant, ciblage par type de séance, mention d'un autre type, planification (« sortie longue » enregistrée en EF), annulation, phrase composée annule + note, note sur l'historique, clarification, séance inexistante « mise à jour ».
@@ -29,10 +29,12 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
   - Le harnais golden utilise encore `date.today()` (même horloge que le code legacy) : à basculer sur `paris_today()` quand l'agent sera branché.
 
 ### [ ] Étape 1 : Outils Métier Typés (indépendants du LLM)
-- [ ] `app/core/agent/tools/sport_tools.py` : `find_sport_sessions(date_from, date_to, type_seance, statut, limit)`, `get_sport_session(id)`, `update_sport_session(session_id, champs)`, `log_sport_session(...)`, `plan_sport_session(...)`.
-- [ ] Arguments et retours en modèles Pydantic stricts ; modifications **par identifiant uniquement**.
-- [ ] Instantané (snapshot) de la séance avant chaque mutation pour l'annulation.
-- [ ] Tests unitaires sur SQLite temporaire.
+- [x] `app/core/agent/tools/sport_tools.py` : `find_sport_sessions(date_from, date_to, type_seance, statut, limit)`, `get_sport_session(id)`, `update_sport_session(session_id, champs)`, `log_sport_session(...)`, `plan_sport_session(...)`, `undo_sport_mutation(instantané)`.
+- [x] Arguments et retours en modèles Pydantic stricts (`sport_models.py`, `extra="forbid"`) ; modifications **par identifiant uniquement**.
+  - Création stricte : jamais de fusion avec une séance du même jour, aucune valeur inventée (durée, type).
+  - Garde-fous : séance réalisée dans le futur ou planifiée dans le passé refusée (heure de Paris).
+- [x] Instantané brut de la ligne avant chaque mutation ; restauration exacte (champs vides compris) ou suppression d'une création.
+- [x] Tests unitaires sur SQLite temporaire (`tests/test_agent_sport_tools.py`, 18 tests).
 
 ### [ ] Étape 2 : Boucle Agent Gemini (Function Calling)
 - [ ] `app/core/agent/agent_service.py` : prompt système avec date du jour (Paris), résumé des séances récentes, historique ; boucle outils limitée (ex. 4 tours max) ; réponse vocale finale.
@@ -43,6 +45,7 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 ### [ ] Étape 3 : Branchement dans `/interact` (Domaine Sport d'abord)
 - [ ] Interrupteur de configuration `NLU_MODE=agent|legacy` (bascule et retour arrière immédiats).
 - [ ] Voie rapide regex conservée uniquement pour : « ajoute X », « liste de courses », « qu'est-ce qu'on mange ».
+- [ ] Outil `plan_weekly_training` pour l'agent (sinon régression du planning hebdo) : réutilise `SportCoachService`, crée via `plan_sport_session` (jamais d'écrasement), ignore les jours passés, signale les jours déjà occupés au lieu de les écraser.
 - [ ] Les demandes sport passent par l'agent ; le golden set sport passe au vert.
 
 ### [ ] Étape 4 : Clarification, Annulation Fiable & Mémoire Persistante
