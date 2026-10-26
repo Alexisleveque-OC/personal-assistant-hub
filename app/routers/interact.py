@@ -29,7 +29,7 @@ from app.handlers.second_brain_handler import handle_second_brain_intent
 from app.handlers.teach_handler import handle_teach_intent
 from app.handlers.undo_handler import handle_undo_intent
 from app.handlers.assistant_handler import handle_assistant_intent
-from app.handlers.agent_handler import handle_agent_turn, routes_to_agent
+from app.handlers.agent_handler import handle_agent_turn, handle_agent_undo, routes_to_agent, routes_to_agent_undo
 
 
 
@@ -118,8 +118,11 @@ async def interact(
 
     handled = None
     # 2a. Mode agent (NLU_MODE=agent) : hors voie rapide, Gemini raisonne et agit via ses outils
-    if routes_to_agent(parsed, request.query):
-        outcome = await handle_agent_turn(request.query, session_ctx, sport_connector)
+    if routes_to_agent_undo(parsed, session_ctx):
+        outcome = handle_agent_undo(request.query, session_id, sport_connector)
+        parsed, handled = outcome.parsed, (outcome.spoken, outcome.data)
+    elif routes_to_agent(parsed, request.query):
+        outcome = await handle_agent_turn(request.query, session_id, session_ctx, sport_connector)
         parsed, used_llm_model = outcome.parsed, outcome.llm_model
         handled = (outcome.spoken, outcome.data)
 

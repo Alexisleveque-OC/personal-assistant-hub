@@ -146,10 +146,15 @@ class SessionRow(BaseModel):
 
 
 class UndoSnapshot(BaseModel):
-    """Instantané permettant d'annuler une mutation : `before` est None pour une création."""
+    """Instantané permettant d'annuler une mutation : `before` est None pour une création.
+
+    `after` (état juste après la mutation) permet de refuser l'annulation si la séance a été modifiée depuis.
+    """
+    kind: Literal["sport_session"] = "sport_session"
     action: Literal["created", "updated"]
     session_id: int
     before: Optional[SessionRow] = None
+    after: SessionRow
 
     @model_validator(mode="after")
     def before_matches_action(self) -> "UndoSnapshot":

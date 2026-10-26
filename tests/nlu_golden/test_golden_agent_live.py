@@ -25,10 +25,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 # Capacités prévues aux étapes suivantes : échecs attendus (non stricts, le LLM n'est pas déterministe).
-AGENT_PENDING: dict[str, str] = {
-    "annule-derniere-modification": "Annulation fiable : Étape 4.",
-    "annule-et-note-correctif": "Annulation fiable : Étape 4.",
-}
+AGENT_PENDING: dict[str, str] = {}
 
 
 def _params():

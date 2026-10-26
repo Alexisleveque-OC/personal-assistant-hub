@@ -149,3 +149,92 @@ def test_add_sentence_about_sport_goes_to_agent_not_shopping(db, agent_mode, iso
     assert body["intent"]["intent"] == "agent"
     isolate_test_environment.add_shopping_item.assert_not_called()
     isolate_test_environment.add_shopping_items.assert_not_called()
+
+
+def _agent_update_turn(session_id: int, rpe: int):
+    return [
+        call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": rpe}}}),
+        text_turn(f"RPE {rpe} enregistré."),
+    ]
+
+
+def test_plain_undo_restores_agent_mutation_without_calling_the_llm(db, agent_mode):
+    session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
+    llm = ScriptedLLM(_agent_update_turn(session_id, 5))  # aucun tour prévu pour l'annulation
+    set_agent_llm(llm)
+    _ask("Mets le RPE de ma séance du jour à 5", session_id="undo-1")
+
+    body = _ask("Annule ce que tu viens de faire", session_id="undo-1")
+
+    assert body["success"] is True
+    assert body["intent"]["intent"] == "undo_last_action"
+    assert "restaurée" in body["spoken_response"]
+    assert body["data"]["undone_action"]["restored"] == [f"séance EF du {TODAY[8:10]}/{TODAY[5:7]} restaurée"]
+    assert body["data"]["session"]["id"] == session_id
+    assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] is None
+    assert len(llm.requests) == 2
+
+
+def test_undo_survives_a_server_restart(db, agent_mode):
+    session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
+    set_agent_llm(ScriptedLLM(_agent_update_turn(session_id, 7)))
+    _ask("Mets le RPE de ma séance du jour à 7", session_id="undo-restart")
+
+    get_session_manager().clear_all()  # équivalent d'un redémarrage d'instance Cloud Run
+    body = _ask("annule ça", session_id="undo-restart")
+
+    assert body["success"] is True
+    assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] is None
+
+
+def test_undo_after_a_legacy_shopping_add_cancels_the_shopping_add(db, agent_mode, isolate_test_environment):
+    session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
+    set_agent_llm(ScriptedLLM(_agent_update_turn(session_id, 5)))
+    _ask("Mets le RPE de ma séance du jour à 5", session_id="undo-mixed")
+    _ask("Ajoute lessive", session_id="undo-mixed")
+
+    _ask("annule ça", session_id="undo-mixed")
+
+    isolate_test_environment.remove_shopping_item.assert_called_once()
+    assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] == 5
+
+
+def test_compound_undo_and_note_through_agent_tools(db, agent_mode):
+    session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
+    set_agent_llm(ScriptedLLM(_agent_update_turn(session_id, 4) + [
+        call_turn(
+            {"name": "undo_last_action", "args": {}},
+            {"name": "save_note", "args": {"content": "Correctif : mauvaise séance modifiée", "category": "bug_report"}},
+        ),
+        text_turn("J'ai annulé et noté le correctif."),
+    ]))
+    _ask("Mets le RPE de ma séance du jour à 4", session_id="undo-compound")
+
+    body = _ask(
+        "Annule ce que tu viens de faire. Et prends note pour un correctif : tu n'as pas modifié la bonne séance.",
+        session_id="undo-compound",
+    )
+
+    assert body["success"] is True
+    assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] is None
+    assert db.get_note(body["data"]["note_id"])["category"] == "bug_report"
+
+
+def test_undo_with_nothing_to_undo_is_explicit(db, agent_mode):
+    set_agent_llm(ScriptedLLM([]))
+    body = _ask("annule ça", session_id="undo-empty")
+    assert body["success"] is False
+    assert "Aucune action" in body["spoken_response"]
+
+
+def test_failure_message_after_mutation_offers_undo(db, agent_mode):
+    session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
+    set_agent_llm(ScriptedLLM([
+        call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": 6}}}),
+        AgentUnavailableError("Aucun modèle Gemini disponible."),
+    ]))
+    body = _ask("RPE 6 pour aujourd'hui", session_id="undo-after-failure")
+    assert "annule" in body["spoken_response"]
+
+    _ask("annule ça", session_id="undo-after-failure")
+    assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] is None

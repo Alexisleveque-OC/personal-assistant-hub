@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.core.agent.tool_registry import AgentTool
 from app.core.agent.tools.sport_models import StrictArgs
+from app.core.agent.undo import NoteUndo
 from app.core.database import DatabaseManager
 from app.core.models import NoteCategory
 
@@ -23,13 +24,14 @@ class NoteSaved(BaseModel):
     note_id: int
     category: NoteCategory
     content: str
+    undos: List[NoteUndo]
 
 
 def note_tool_definitions(db: DatabaseManager) -> List[AgentTool]:
     def save_note(args: SaveNoteArgs) -> NoteSaved:
         content = args.content.strip()
         note_id = db.add_note(category=args.category.value, content=content, tags=args.tags)
-        return NoteSaved(note_id=note_id, category=args.category, content=content)
+        return NoteSaved(note_id=note_id, category=args.category, content=content, undos=[NoteUndo(note_id=note_id)])
 
     return [AgentTool(
         name="save_note",

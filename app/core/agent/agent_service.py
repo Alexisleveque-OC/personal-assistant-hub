@@ -7,8 +7,9 @@ from app.core.agent.errors import AgentError, AgentLoopLimitError, AgentResponse
 from app.core.agent.llm import AgentLLM
 from app.core.agent.prompt import build_system_prompt
 from app.core.agent.tool_registry import ToolExecution, ToolRegistry
-from app.core.agent.tools.sport_models import FindSessionsArgs, UndoSnapshot
+from app.core.agent.tools.sport_models import FindSessionsArgs
 from app.core.agent.tools.sport_tools import SportTools
+from app.core.agent.undo import AgentUndo
 
 __all__ = ["AgentLoopLimitError", "AgentReply", "AgentResponseError", "AgentService", "ConversationTurn"]
 
@@ -26,7 +27,7 @@ class AgentReply(BaseModel):
     executions: List[ToolExecution]
 
     @property
-    def mutations(self) -> List[UndoSnapshot]:
+    def mutations(self) -> List[AgentUndo]:
         return [undo for e in self.executions for undo in e.undos]
 
 

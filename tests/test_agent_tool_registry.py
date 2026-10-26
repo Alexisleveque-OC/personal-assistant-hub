@@ -77,3 +77,10 @@ async def test_unknown_tool_lists_available_tools(registry):
     execution = await registry.execute("delete_everything", {})
     assert "delete_everything" in execution.error
     assert "find_sport_sessions" in execution.error
+
+
+def test_tool_without_arguments_omits_parameters():
+    """Gemini refuse un objet sans propriétés : un outil sans argument ne déclare pas de `parameters`."""
+    from app.core.agent.tools.undo_tools import UndoLastActionArgs
+    tool = AgentTool(name="noop", description="d", args_model=UndoLastActionArgs, handler=lambda a: a)
+    assert tool.declaration() == {"name": "noop", "description": "d"}

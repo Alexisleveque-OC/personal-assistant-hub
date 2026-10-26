@@ -56,7 +56,10 @@ class SportTools:
         updated = self.connector.update_session_by_id(args.session_id, args.changes.model_dump(exclude_none=True))
         return MutationResult(
             session=SessionView.from_session(updated),
-            undo=UndoSnapshot(action="updated", session_id=args.session_id, before=before),
+            undo=UndoSnapshot(
+                action="updated", session_id=args.session_id, before=before,
+                after=SessionRow.model_validate(self._raw_row(args.session_id)),
+            ),
         )
 
     def log_sport_session(self, args: LogSessionArgs) -> MutationResult:
@@ -75,7 +78,18 @@ class SportTools:
             )
         return self._create(args.model_dump(mode="json"), SportSessionStatus.PLANIFIE)
 
+    def check_sport_undo(self, snapshot: UndoSnapshot) -> None:
+        """Vérifie qu'une annulation est sûre : la séance existe et n'a pas changé depuis la mutation."""
+        current = SessionRow.model_validate(self._raw_row(snapshot.session_id))
+        if current != snapshot.after:
+            changed = sorted(k for k, v in current.model_dump().items() if v != getattr(snapshot.after, k))
+            raise SportToolError(
+                f"Annulation impossible : la séance {snapshot.session_id} du {current.date} a été modifiée depuis "
+                f"(champs : {changed}). Corrige-la directement plutôt que d'écraser ces changements."
+            )
+
     def undo_sport_mutation(self, snapshot: UndoSnapshot) -> None:
+        self.check_sport_undo(snapshot)
         current = self._raw_row(snapshot.session_id)
         if snapshot.action == "created":
             self.connector.delete_session(snapshot.session_id)
@@ -96,7 +110,9 @@ class SportTools:
         self._refresh_week(date.fromisoformat(values["date"]))
         return MutationResult(
             session=self.get_sport_session(session_id),
-            undo=UndoSnapshot(action="created", session_id=session_id),
+            undo=UndoSnapshot(
+                action="created", session_id=session_id, after=SessionRow.model_validate(self._raw_row(session_id)),
+            ),
         )
 
     def _refresh_week(self, day: date) -> None:

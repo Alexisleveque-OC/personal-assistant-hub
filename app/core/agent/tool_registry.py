@@ -11,8 +11,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.agent.gemini_schema import to_gemini_schema
-from app.core.agent.tools.sport_models import MutationResult, SessionView, UndoSnapshot
+from app.core.agent.tools.sport_models import MutationResult, SessionView
 from app.core.agent.tools.sport_tools import SportToolError
+from app.core.agent.undo import AgentUndo
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,11 @@ class AgentTool:
     handler: Callable[[Any], Union[ToolResult, Awaitable[ToolResult]]]
 
     def declaration(self) -> Dict[str, Any]:
-        return {"name": self.name, "description": self.description, "parameters": to_gemini_schema(self.args_model)}
+        declaration: Dict[str, Any] = {"name": self.name, "description": self.description}
+        parameters = to_gemini_schema(self.args_model)
+        if parameters.get("properties"):  # Gemini refuse un objet sans propriétés
+            declaration["parameters"] = parameters
+        return declaration
 
 
 class ToolExecution(BaseModel):
@@ -36,7 +41,7 @@ class ToolExecution(BaseModel):
     args: Dict[str, Any]
     response: Dict[str, Any]
     error: Optional[str] = None
-    undos: List[UndoSnapshot] = Field(default_factory=list)
+    undos: List[AgentUndo] = Field(default_factory=list)
 
 
 class ToolRegistry:
