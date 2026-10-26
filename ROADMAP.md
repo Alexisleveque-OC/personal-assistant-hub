@@ -28,7 +28,7 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Fuseau horaire `Europe/Paris` : helper unique `app/core/clock.py` (`paris_today()`, `paris_now()`) pour le nouveau NLU, et `TZ=Europe/Paris` dans le conteneur (corrige aussi les `date.today()` existants en prod).
   - Le harnais golden utilise encore `date.today()` (même horloge que le code legacy) : à basculer sur `paris_today()` quand l'agent sera branché.
 
-### [ ] Étape 1 : Outils Métier Typés (indépendants du LLM)
+### [x] Étape 1 : Outils Métier Typés (indépendants du LLM)
 - [x] `app/core/agent/tools/sport_tools.py` : `find_sport_sessions(date_from, date_to, type_seance, statut, limit)`, `get_sport_session(id)`, `update_sport_session(session_id, champs)`, `log_sport_session(...)`, `plan_sport_session(...)`, `undo_sport_mutation(instantané)`.
 - [x] Arguments et retours en modèles Pydantic stricts (`sport_models.py`, `extra="forbid"`) ; modifications **par identifiant uniquement**.
   - Création stricte : jamais de fusion avec une séance du même jour, aucune valeur inventée (durée, type).
@@ -37,10 +37,11 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Tests unitaires sur SQLite temporaire (`tests/test_agent_sport_tools.py`, 18 tests).
 
 ### [ ] Étape 2 : Boucle Agent Gemini (Function Calling)
-- [ ] `app/core/agent/agent_service.py` : prompt système avec date du jour (Paris), résumé des séances récentes, historique ; boucle outils limitée (ex. 4 tours max) ; réponse vocale finale.
-- [ ] Vérifier le format exact de l'API Gemini (`tools.functionDeclarations`, parts `functionCall` / `functionResponse`) dans la documentation officielle avant d'implémenter.
-- [ ] Client Gemini simulé (appels de fonctions scriptés) pour des tests déterministes hors-ligne.
-- [ ] Erreurs explicites : panne Gemini → message clair, jamais de repli silencieux qui modifie des données.
+- [x] `app/core/agent/agent_service.py` : prompt système (`prompt.py`) avec date du jour (Paris), règles « demander plutôt que deviner », 12 séances récentes avec id, historique ; boucle limitée à 4 appels Gemini ; réponse vocale finale.
+- [x] Format vérifié dans la documentation officielle : `tools: [{functionDeclarations}]`, parts `functionCall` / `functionResponse` (rôle `user`), tour `model` renvoyé à l'identique (le `thoughtSignature` du premier appel est obligatoire sur Gemini 3, sinon HTTP 400). Schéma des paramètres généré depuis Pydantic (`gemini_schema.py`), registre d'outils (`tool_registry.py`, `tools/sport_registry.py`), client REST (`llm.py`).
+- [x] Client Gemini simulé (`tests/agent_fakes.py`, appels scriptés) pour des tests déterministes hors-ligne.
+- [x] Erreurs explicites typées (`errors.py`) transportant les mutations déjà effectuées ; erreurs d'outil renvoyées au modèle, jamais masquées ; HTTP 400 → échec immédiat, 429/503 → modèle suivant.
+- [x] Essai réel (carnet synthétique, base temporaire) : « c'était du fractionné, RPE 6 » modifie bien la séance du jour par id ; deux séances la veille → question de clarification sans modification.
 
 ### [ ] Étape 3 : Branchement dans `/interact` (Domaine Sport d'abord)
 - [ ] Interrupteur de configuration `NLU_MODE=agent|legacy` (bascule et retour arrière immédiats).
