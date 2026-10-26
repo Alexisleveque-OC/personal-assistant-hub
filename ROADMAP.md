@@ -50,10 +50,14 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Les demandes sport passent par l'agent (`handlers/agent_handler.py`) ; panne Gemini → réponse explicite, sans repli regex, avec signalement des modifications déjà appliquées.
 - [x] Golden set : nouveau cas « ajoute une séance » (legacy 5/15). **Agent réel : 13/15 (stable sur 2 passages)**, les 2 restants = annulation (Étape 4). Évaluation : `RUN_LIVE_GEMINI=1 .venv/bin/pytest tests/nlu_golden/test_golden_agent_live.py -v -rxX`.
 
-### [ ] Étape 4 : Clarification, Annulation Fiable & Mémoire Persistante
-- [ ] Plusieurs séances candidates → question de clarification (« Tu parles du renfo du 06/10 ou du fractionné d'aujourd'hui ? »).
-- [ ] « Annule ce que tu viens de faire » → restauration exacte depuis l'instantané.
-- [ ] Historique de conversation et instantanés persistés en SQLite (survivent aux redémarrages Cloud Run).
+### [x] Étape 4 : Clarification, Annulation Fiable & Mémoire Persistante
+- [x] Plusieurs séances candidates → question de clarification. Signal calculé par le code dans le prompt (« jours à plusieurs séances ») : cas réel passé de 0/5 à 5/5 ; identifiants techniques jamais prononcés.
+- [x] « Annule ce que tu viens de faire » → restauration exacte depuis l'instantané (`app/core/agent/undo.py`) :
+  - « annule ça » seul : annulation déterministe, sans appel Gemini ; phrase composée : outil agent `undo_last_action`.
+  - Tout ou rien, ordre inverse ; refus explicite si la séance a été modifiée depuis (éditeur, import) ; notes de l'agent annulables.
+  - Si la dernière action vient du flux regex (ex. ajout aux courses), c'est l'annulation legacy qui s'applique.
+- [x] Instantanés persistés en SQLite (table `agent_undo_batches`, un lot par tour et par session) : l'annulation survit aux redémarrages Cloud Run. L'historique de conversation était déjà rechargé depuis `conversation_logs` par `SessionManager` (constat initial erroné sur ce point).
+- [x] Golden set agent réel : **15/15**.
 
 ### [ ] Étape 5 : Extension aux Autres Domaines & Allègement des Regex
 - [ ] Outils courses, repas, second cerveau ; prise de note sur référence (« note ces derniers échanges »).
