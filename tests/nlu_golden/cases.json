@@ -1,0 +1,153 @@
+[
+  {
+    "id": "rpe-derniere-renfo",
+    "origine": "Échec prod : « le RPE de ma dernière séance de renfo » a modifié la sortie longue du jour.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -4, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5},
+      {"ref": "sortie_longue", "day_offset": 0, "type_seance": "Sortie Longue", "distance_km": 8.0, "duree_secondes": 2900}
+    ],
+    "turns": ["Tu peux passer le RPE de ma dernière séance de renfo à 3 ? J'ai eu des courbatures pendant deux jours."],
+    "expected": {"updated": {"renfo": {"ressenti_rpe": 3}}}
+  },
+  {
+    "id": "correction-suivi-renfo",
+    "origine": "Échec prod : l'utilisateur précise « je parlais du renfo » au tour suivant, la mauvaise séance reste modifiée.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -4, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5},
+      {"ref": "sortie_longue", "day_offset": 0, "type_seance": "Sortie Longue", "distance_km": 8.0, "duree_secondes": 2900}
+    ],
+    "turns": [
+      "Modifie le RPE de ma dernière séance de renfo à 3.",
+      "Non, je te parlais de ma séance de renforcement musculaire, il fallait mettre son RPE à 3."
+    ],
+    "expected": {"updated": {"renfo": {"ressenti_rpe": 3}}, "response_excludes": ["pas bien compris"]}
+  },
+  {
+    "id": "type-corrige-seance-du-jour",
+    "origine": "Échec prod : séance du jour importée en EF, « c'était du fractionné, RPE 6 » a modifié un fractionné vieux de 3 semaines.",
+    "carnet": [
+      {"ref": "ancien_fractionne", "day_offset": -21, "type_seance": "Fractionné", "distance_km": 5.0, "duree_secondes": 1850, "ressenti_rpe": 8},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.2, "duree_secondes": 1860}
+    ],
+    "turns": ["C'était une séance de fractionné. RPE à 6, le souffle un peu court sur les derniers blocs. Météo à 2, un peu frais mais très beau."],
+    "expected": {"updated": {"import_du_jour": {"type_seance": "Fractionné", "ressenti_rpe": 6, "meteo_note": 2}}}
+  },
+  {
+    "id": "rpe-du-jour-malgre-mention-renfo",
+    "origine": "Échec prod : « courbatures suite à la séance de renfo » a modifié le renfo au lieu de la séance importée le jour même.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -3, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 4},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1750}
+    ],
+    "turns": ["RPE à 5 à cause des courbatures de la séance de renfo, et météo à 3, il y avait du vent."],
+    "expected": {"updated": {"import_du_jour": {"ressenti_rpe": 5, "meteo_note": 3}}}
+  },
+  {
+    "id": "rpe-meteo-fc-seance-du-jour",
+    "origine": "Succès prod (non-régression) : ressenti, météo et FC appliqués à la séance du jour.",
+    "carnet": [
+      {"ref": "ef_avant_hier", "day_offset": -2, "type_seance": "EF", "distance_km": 6.0, "duree_secondes": 2200, "ressenti_rpe": 4},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 6.0, "duree_secondes": 2250}
+    ],
+    "turns": ["J'étais à 4 en RPE, bien fatigué aujourd'hui. Météo à 4, beaucoup de vent. Fréquence cardiaque moyenne à 158."],
+    "expected": {"updated": {"import_du_jour": {"ressenti_rpe": 4, "meteo_note": 4, "fc_moyenne": 158}}}
+  },
+  {
+    "id": "rpe-eleve-seance-du-jour",
+    "origine": "Succès prod (non-régression) : séance difficile du jour avec RPE et météo.",
+    "carnet": [
+      {"ref": "ef_precedente", "day_offset": -2, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1750, "ressenti_rpe": 4},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.7, "duree_secondes": 2600}
+    ],
+    "turns": ["RPE à 7, la séance était dure aujourd'hui, j'avais les jambes lourdes. Météo à 5, c'était humide et venteux."],
+    "expected": {"updated": {"import_du_jour": {"ressenti_rpe": 7, "meteo_note": 5}}}
+  },
+  {
+    "id": "seance-hier-explicite",
+    "origine": "Non-régression : la séance d'hier est désignée explicitement.",
+    "carnet": [
+      {"ref": "ef_hier", "day_offset": -1, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800},
+      {"ref": "renfo_du_jour", "day_offset": 0, "type_seance": "Renforcement", "duree_secondes": 2400}
+    ],
+    "turns": ["Pour la séance d'hier, mets un RPE de 4."],
+    "expected": {"updated": {"ef_hier": {"ressenti_rpe": 4}}}
+  },
+  {
+    "id": "log-fractionne-du-jour",
+    "origine": "Échec prod : « j'ai fait une séance de fractionné » a répondu « renforcement enregistré ».",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -2, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5}
+    ],
+    "turns": ["J'ai fait une séance de fractionné, tu peux me l'enregistrer s'il te plaît ?"],
+    "expected": {
+      "created": [{"type_seance": "Fractionné", "statut": "Réalisé", "day_offset": 0}],
+      "response_excludes": ["renforcement"]
+    }
+  },
+  {
+    "id": "planifie-sortie-longue-demain",
+    "origine": "Non-régression : planification simple d'une séance future.",
+    "carnet": [
+      {"ref": "ef_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Prévois-moi une sortie longue demain."],
+    "expected": {"created": [{"type_seance": "Sortie Longue", "statut": "Prévu", "day_offset": 1}]}
+  },
+  {
+    "id": "annule-derniere-modification",
+    "origine": "Échec prod : « annule ce que tu viens de faire » n'a rien restauré.",
+    "carnet": [
+      {"ref": "ef_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": [
+      "Mets le RPE de ma séance d'aujourd'hui à 5.",
+      "Annule ce que tu viens de faire."
+    ],
+    "expected": {}
+  },
+  {
+    "id": "annule-et-note-correctif",
+    "origine": "Échec prod : annulation + demande de note dans la même phrase, réponse « je n'ai pas compris ».",
+    "carnet": [
+      {"ref": "ancien_fractionne", "day_offset": -21, "type_seance": "Fractionné", "distance_km": 5.0, "duree_secondes": 1850, "ressenti_rpe": 8},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.2, "duree_secondes": 1860}
+    ],
+    "turns": [
+      "Mets le RPE de ma dernière séance de fractionné à 4.",
+      "Annule ce que tu viens de faire. Et prends note pour un correctif : tu n'as pas modifié la bonne séance."
+    ],
+    "expected": {"notes_created": 1}
+  },
+  {
+    "id": "note-sur-echanges-precedents",
+    "origine": "Échec prod : « prends note de ces derniers échanges » a modifié le RPE d'une séance.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -4, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5},
+      {"ref": "ef_hier", "day_offset": -1, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": [
+      "Quelle était ma dernière séance de renfo ?",
+      "OK, prends note de ces derniers échanges, il faudra corriger ça."
+    ],
+    "expected": {"notes_created": 1}
+  },
+  {
+    "id": "clarification-deux-seances-meme-jour",
+    "origine": "Cible : deux séances le même jour, la demande ne permet pas de choisir → demander au lieu de deviner.",
+    "carnet": [
+      {"ref": "renfo_hier", "day_offset": -1, "type_seance": "Renforcement", "duree_secondes": 2400},
+      {"ref": "ef_hier", "day_offset": -1, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Mets le RPE de ma séance d'hier à 6."],
+    "expected": {"clarification": true}
+  },
+  {
+    "id": "aucune-seance-du-jour",
+    "origine": "Cible : aucune séance aujourd'hui → le signaler et demander, sans modifier une séance plus ancienne.",
+    "carnet": [
+      {"ref": "ef_avant_hier", "day_offset": -2, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Mets le RPE de ma séance d'aujourd'hui à 5."],
+    "expected": {"clarification": true}
+  }
+]
