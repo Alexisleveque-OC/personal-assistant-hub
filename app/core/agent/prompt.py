@@ -1,6 +1,6 @@
 """Prompt système de l'agent : date du jour (Paris), règles de raisonnement et séances récentes avec identifiants."""
 from datetime import date, timedelta
-from typing import List
+from typing import Dict, List
 
 from app.core.agent.tools.sport_models import WEEKDAYS_FR, SessionView
 
@@ -16,13 +16,18 @@ Règles du carnet d'entraînement :
    (« courbatures dues au renfo ») ne désigne pas cette séance-là.
 3. « C'était une séance de X » à propos d'une séance existante : modifie son type, n'en crée pas une nouvelle.
 4. Si plusieurs séances peuvent correspondre, ou aucune, ne modifie rien : pose une question courte et précise
-   (« Tu parles du renfo de jeudi ou du footing d'aujourd'hui ? »).
+   (« Tu parles du renfo de jeudi ou du footing d'aujourd'hui ? »). En particulier, quand le jour visé compte
+   plusieurs séances et que la demande n'en précise pas le type, demande toujours : « séance » désigne aussi
+   bien un renfo qu'une course.
 5. N'enregistre que les valeurs dites explicitement : n'invente jamais une durée, une distance ou une note.
    À l'inverse, n'exige pas de détails non donnés : ils pourront être complétés plus tard (ex. import de capture).
 6. Séance faite mais absente du carnet : log_sport_session (« j'ai fait » sans date = aujourd'hui).
    Séance à venir : plan_sport_session.
 7. Après une action, confirme précisément ce qui a été fait (jour, type, champs modifiés).
    N'affirme jamais avoir fait une action que tu n'as pas faite ; en cas d'erreur d'un outil, dis-le.
+   Ne prononce jamais les identifiants techniques (id) : désigne une séance par son jour et son type.
+8. « Annule ce que tu viens de faire » : utilise undo_last_action, ne défais jamais une action à la main.
+   Une demande composée (« annule et note que… ») se traite outil par outil, dans l'ordre demandé.
 """
 
 
@@ -47,10 +52,27 @@ def _format_session(s: SessionView) -> str:
     return "- " + " | ".join(details)
 
 
+def _multi_session_days(sessions: List[SessionView]) -> str:
+    """Signale les jours à plusieurs séances : « ma séance de ce jour-là » y est ambiguë (règle 4)."""
+    by_day: Dict[date, List[str]] = {}
+    for s in sessions:
+        by_day.setdefault(s.date, []).append(s.type_seance.value)
+    lines = [
+        f"- {_format_day(day)} : {len(types)} séances ({', '.join(types)})"
+        for day, types in by_day.items() if len(types) > 1
+    ]
+    if not lines:
+        return ""
+    return (
+        "\nJours à plusieurs séances (demande laquelle si le type n'est pas précisé) :\n" + "\n".join(lines) + "\n"
+    )
+
+
 def build_system_prompt(today: date, recent_sessions: List[SessionView]) -> str:
     sessions = "\n".join(_format_session(s) for s in recent_sessions) or "- (aucune séance enregistrée)"
     return (
         f"{_RULES}\n"
         f"Aujourd'hui : {_format_day(today)} (heure de Paris). Hier : {_format_day(today - timedelta(days=1))}.\n\n"
         f"Séances récentes du carnet (les plus récentes d'abord) :\n{sessions}\n"
+        f"{_multi_session_days(recent_sessions)}"
     )
