@@ -27,7 +27,7 @@ class AgentReply(BaseModel):
 
     @property
     def mutations(self) -> List[UndoSnapshot]:
-        return [e.undo for e in self.executions if e.undo is not None]
+        return [undo for e in self.executions for undo in e.undos]
 
 
 class AgentService:
@@ -63,7 +63,7 @@ class AgentService:
                 contents.append({"role": "model", "parts": turn.parts})
                 response_parts = []
                 for call in calls:
-                    execution = self.registry.execute(call.name, call.args)
+                    execution = await self.registry.execute(call.name, call.args)
                     executions.append(execution)
                     function_response: Dict[str, Any] = {"name": call.name, "response": execution.response}
                     if call.id:

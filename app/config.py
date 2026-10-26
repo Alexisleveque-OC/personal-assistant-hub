@@ -1,4 +1,6 @@
 """Configuration de l'application via variables d'environnement (.env)."""
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +28,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "auto"
     gemini_max_daily_requests: int = 1000
+
+    # Compréhension des demandes : regex historiques (legacy) ou agent Gemini à outils (agent)
+    nlu_mode: Literal["legacy", "agent"] = "legacy"
 
     model_config = SettingsConfigDict(
         env_file=".env",

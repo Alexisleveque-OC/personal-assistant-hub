@@ -29,6 +29,7 @@ from app.handlers.second_brain_handler import handle_second_brain_intent
 from app.handlers.teach_handler import handle_teach_intent
 from app.handlers.undo_handler import handle_undo_intent
 from app.handlers.assistant_handler import handle_assistant_intent
+from app.handlers.agent_handler import handle_agent_turn, routes_to_agent
 
 
 
@@ -115,24 +116,31 @@ async def interact(
     # 1. Analyse locale déterministe
     parsed = intent_parser.parse(normalized_query, context=session_ctx)
 
-    # 2. Si le modèle local ne comprend pas (UNKNOWN) : activation du cerveau LLM Gemini
-    if parsed.intent == IntentType.UNKNOWN and nlu_service:
+    handled = None
+    # 2a. Mode agent (NLU_MODE=agent) : hors voie rapide, Gemini raisonne et agit via ses outils
+    if routes_to_agent(parsed, request.query):
+        outcome = await handle_agent_turn(request.query, session_ctx, sport_connector)
+        parsed, used_llm_model = outcome.parsed, outcome.llm_model
+        handled = (outcome.spoken, outcome.data)
+
+    # 2b. Si le modèle local ne comprend pas (UNKNOWN) : activation du cerveau LLM Gemini
+    if handled is None and parsed.intent == IntentType.UNKNOWN and nlu_service:
         llm_parsed = await nlu_service.parse(request.query, context=session_ctx)
         if llm_parsed.intent != IntentType.UNKNOWN or llm_parsed.conversational_reply:
             parsed = llm_parsed
             if hasattr(nlu_service, "gemini_client") and nlu_service.gemini_client:
                 used_llm_model = getattr(nlu_service.gemini_client, "_resolved_model", None)
 
-    data: Dict[str, Any] = dict(parsed.parameters)
-
     # 3. Aiguillage modulaire vers les handlers métier
-    handled = await handle_meals_intent(
-        parsed=parsed,
-        raw_query=request.query,
-        session_ctx=session_ctx,
-        connector=connector,
-        data=data,
-    )
+    if handled is None:
+        data: Dict[str, Any] = dict(parsed.parameters)
+        handled = await handle_meals_intent(
+            parsed=parsed,
+            raw_query=request.query,
+            session_ctx=session_ctx,
+            connector=connector,
+            data=data,
+        )
 
     if handled is None:
         handled = await handle_sport_intent(

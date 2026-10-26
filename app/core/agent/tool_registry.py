@@ -4,13 +4,14 @@ Les erreurs métier et d'arguments sont renvoyées au modèle (`{"error": ...}`)
 ou demande une précision ; les erreurs inattendues (bugs) remontent telles quelles (fail-fast).
 """
 from dataclasses import dataclass
+import inspect
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.core.agent.gemini_schema import to_gemini_schema
-from app.core.agent.tools.sport_models import MutationResult, UndoSnapshot
+from app.core.agent.tools.sport_models import MutationResult, SessionView, UndoSnapshot
 from app.core.agent.tools.sport_tools import SportToolError
 
 logger = logging.getLogger(__name__)
@@ -23,19 +24,19 @@ class AgentTool:
     name: str
     description: str
     args_model: type[BaseModel]
-    handler: Callable[[Any], ToolResult]
+    handler: Callable[[Any], Union[ToolResult, Awaitable[ToolResult]]]
 
     def declaration(self) -> Dict[str, Any]:
         return {"name": self.name, "description": self.description, "parameters": to_gemini_schema(self.args_model)}
 
 
 class ToolExecution(BaseModel):
-    """Trace d'un appel d'outil : arguments reçus, réponse renvoyée au modèle, instantané si mutation."""
+    """Trace d'un appel d'outil : arguments reçus, réponse renvoyée au modèle, instantanés des mutations."""
     name: str
     args: Dict[str, Any]
     response: Dict[str, Any]
     error: Optional[str] = None
-    undo: Optional[UndoSnapshot] = None
+    undos: List[UndoSnapshot] = Field(default_factory=list)
 
 
 class ToolRegistry:
@@ -49,12 +50,14 @@ class ToolRegistry:
     def declarations(self) -> List[Dict[str, Any]]:
         return [tool.declaration() for tool in self._tools.values()]
 
-    def execute(self, name: str, raw_args: Dict[str, Any]) -> ToolExecution:
+    async def execute(self, name: str, raw_args: Dict[str, Any]) -> ToolExecution:
         tool = self._tools.get(name)
         if tool is None:
             return self._failure(name, raw_args, f"Outil inconnu « {name} ». Outils disponibles : {sorted(self._tools)}.")
         try:
             result = tool.handler(tool.args_model.model_validate(raw_args))
+            if inspect.isawaitable(result):
+                result = await result
         except ValidationError as exc:
             details = "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors())
             return self._failure(name, raw_args, f"Arguments invalides pour {name} : {details}")
@@ -63,10 +66,15 @@ class ToolRegistry:
 
         if isinstance(result, MutationResult):
             response = {"action": result.undo.action, "session": result.session.model_dump(mode="json")}
-            return ToolExecution(name=name, args=raw_args, response=response, undo=result.undo)
+            return ToolExecution(name=name, args=raw_args, response=response, undos=[result.undo])
         if isinstance(result, list):
             return ToolExecution(name=name, args=raw_args, response={"sessions": [r.model_dump(mode="json") for r in result]})
-        return ToolExecution(name=name, args=raw_args, response={"session": result.model_dump(mode="json")})
+        if isinstance(result, SessionView):
+            return ToolExecution(name=name, args=raw_args, response={"session": result.model_dump(mode="json")})
+        # Résultat composite : ses instantanés éventuels (`undos`) restent côté serveur.
+        undos = list(getattr(result, "undos", []))
+        response = result.model_dump(mode="json", exclude={"undos"})
+        return ToolExecution(name=name, args=raw_args, response=response, undos=undos)
 
     @staticmethod
     def _failure(name: str, raw_args: Dict[str, Any], message: str) -> ToolExecution:

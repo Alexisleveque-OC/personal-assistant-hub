@@ -39,36 +39,41 @@ def test_duplicate_tool_names_are_rejected():
         ToolRegistry([tool, tool])
 
 
-def test_find_returns_sessions_payload(db, registry):
+@pytest.mark.asyncio
+async def test_find_returns_sessions_payload(db, registry):
     session_id = db.add_sport_session({"date": "2026-10-18", "type_seance": "EF", "statut": "Réalisé"})
-    execution = registry.execute("find_sport_sessions", {"limit": 5})
+    execution = await registry.execute("find_sport_sessions", {"limit": 5})
     assert execution.error is None
     assert execution.response["sessions"][0]["id"] == session_id
     assert execution.response["sessions"][0]["date"] == "2026-10-18"
-    assert execution.undo is None
+    assert execution.undos == []
 
 
-def test_mutation_returns_session_and_keeps_undo_snapshot(db, registry):
+@pytest.mark.asyncio
+async def test_mutation_returns_session_and_keeps_undo_snapshot(db, registry):
     session_id = db.add_sport_session({"date": "2026-10-19", "type_seance": "EF", "statut": "Réalisé"})
-    execution = registry.execute("update_sport_session", {"session_id": session_id, "changes": {"ressenti_rpe": 5}})
+    execution = await registry.execute("update_sport_session", {"session_id": session_id, "changes": {"ressenti_rpe": 5}})
     assert execution.error is None
     assert execution.response == {"action": "updated", "session": execution.response["session"]}
     assert execution.response["session"]["ressenti_rpe"] == 5
-    assert execution.undo is not None and execution.undo.before.ressenti_rpe is None
+    assert len(execution.undos) == 1 and execution.undos[0].before.ressenti_rpe is None
 
 
-def test_business_error_is_returned_to_the_model(registry):
-    execution = registry.execute("get_sport_session", {"session_id": 404})
+@pytest.mark.asyncio
+async def test_business_error_is_returned_to_the_model(registry):
+    execution = await registry.execute("get_sport_session", {"session_id": 404})
     assert execution.response == {"error": execution.error}
     assert "404" in execution.error
 
 
-def test_invalid_arguments_are_returned_as_explicit_error(registry):
-    execution = registry.execute("update_sport_session", {"session_id": 1, "changes": {"ressenti_rpe": 15}})
+@pytest.mark.asyncio
+async def test_invalid_arguments_are_returned_as_explicit_error(registry):
+    execution = await registry.execute("update_sport_session", {"session_id": 1, "changes": {"ressenti_rpe": 15}})
     assert "ressenti_rpe" in execution.error
 
 
-def test_unknown_tool_lists_available_tools(registry):
-    execution = registry.execute("delete_everything", {})
+@pytest.mark.asyncio
+async def test_unknown_tool_lists_available_tools(registry):
+    execution = await registry.execute("delete_everything", {})
     assert "delete_everything" in execution.error
     assert "find_sport_sessions" in execution.error

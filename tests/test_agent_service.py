@@ -128,7 +128,7 @@ async def test_llm_failure_after_mutation_reports_the_mutation(db):
     ])
     with pytest.raises(AgentUnavailableError) as exc_info:
         await _service(db, llm).run("RPE 6")
-    assert [e.undo.session_id for e in exc_info.value.executions] == [session_id]
+    assert [u.session_id for e in exc_info.value.executions for u in e.undos] == [session_id]
 
 
 @pytest.mark.asyncio

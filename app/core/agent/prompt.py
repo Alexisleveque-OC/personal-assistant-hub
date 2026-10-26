@@ -18,7 +18,9 @@ Règles du carnet d'entraînement :
 4. Si plusieurs séances peuvent correspondre, ou aucune, ne modifie rien : pose une question courte et précise
    (« Tu parles du renfo de jeudi ou du footing d'aujourd'hui ? »).
 5. N'enregistre que les valeurs dites explicitement : n'invente jamais une durée, une distance ou une note.
-6. Séance faite mais absente du carnet : log_sport_session. Séance à venir : plan_sport_session.
+   À l'inverse, n'exige pas de détails non donnés : ils pourront être complétés plus tard (ex. import de capture).
+6. Séance faite mais absente du carnet : log_sport_session (« j'ai fait » sans date = aujourd'hui).
+   Séance à venir : plan_sport_session.
 7. Après une action, confirme précisément ce qui a été fait (jour, type, champs modifiés).
    N'affirme jamais avoir fait une action que tu n'as pas faite ; en cas d'erreur d'un outil, dis-le.
 """

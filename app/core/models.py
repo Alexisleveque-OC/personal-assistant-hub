@@ -59,6 +59,9 @@ class IntentType(str, Enum):
     # Annulation immédiate (Phase 6)
     UNDO_LAST_ACTION = "undo_last_action"
 
+    # Agent LLM à outils (Phase 6.8) : la demande a été traitée par raisonnement + appels d'outils
+    AGENT = "agent"
+
     # Non reconnu
     UNKNOWN = "unknown"
 

@@ -1,4 +1,6 @@
 """Déclaration des outils sport exposés à l'agent."""
+from typing import List
+
 from app.core.agent.tool_registry import AgentTool, ToolRegistry
 from app.core.agent.tools.sport_models import (
     FindSessionsArgs,
@@ -11,7 +13,11 @@ from app.core.agent.tools.sport_tools import SportTools
 
 
 def build_sport_registry(tools: SportTools) -> ToolRegistry:
-    return ToolRegistry([
+    return ToolRegistry(sport_tool_definitions(tools))
+
+
+def sport_tool_definitions(tools: SportTools) -> List[AgentTool]:
+    return [
         AgentTool(
             name="find_sport_sessions",
             description=(
@@ -51,4 +57,4 @@ def build_sport_registry(tools: SportTools) -> ToolRegistry:
             args_model=PlanSessionArgs,
             handler=tools.plan_sport_session,
         ),
-    ])
+    ]

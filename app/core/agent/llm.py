@@ -52,6 +52,7 @@ class GeminiAgentLLM:
     def __init__(self, client: GeminiClient, transport: Optional[httpx.AsyncBaseTransport] = None) -> None:
         self.client = client
         self._transport = transport
+        self.last_model: Optional[str] = None
 
     async def generate(
         self, *, system_instruction: str, contents: List[Dict[str, Any]], tools: List[Dict[str, Any]]
@@ -94,6 +95,7 @@ class GeminiAgentLLM:
                     )
                 self.client.record_request((time.perf_counter() - start) * 1000)
                 self.client.set_active_working_model(model)
+                self.last_model = model
                 return _parse_turn(response.json())
 
         logger.warning(f"Agent : aucun modèle Gemini disponible ({failures}).")

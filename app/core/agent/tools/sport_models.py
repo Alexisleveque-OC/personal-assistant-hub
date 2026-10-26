@@ -9,11 +9,11 @@ from app.connectors.sheets.sport_models import SportSession, SportSessionStatus,
 WEEKDAYS_FR = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 
 
-class _StrictArgs(BaseModel):
+class StrictArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class FindSessionsArgs(_StrictArgs):
+class FindSessionsArgs(StrictArgs):
     """Recherche de séances, les plus récentes d'abord."""
     date_from: Optional[dt_date] = None
     date_to: Optional[dt_date] = None
@@ -28,11 +28,11 @@ class FindSessionsArgs(_StrictArgs):
         return self
 
 
-class GetSessionArgs(_StrictArgs):
+class GetSessionArgs(StrictArgs):
     session_id: int = Field(gt=0, description="Identifiant de la séance.")
 
 
-class SessionChanges(_StrictArgs):
+class SessionChanges(StrictArgs):
     """Champs à modifier sur une séance existante ; seuls les champs renseignés sont appliqués."""
     date: Optional[dt_date] = None
     statut: Optional[SportSessionStatus] = None
@@ -54,12 +54,12 @@ class SessionChanges(_StrictArgs):
         return self
 
 
-class UpdateSessionArgs(_StrictArgs):
+class UpdateSessionArgs(StrictArgs):
     session_id: int = Field(gt=0, description="Identifiant de la séance existante à modifier.")
     changes: SessionChanges
 
 
-class LogSessionArgs(_StrictArgs):
+class LogSessionArgs(StrictArgs):
     """Séance réalisée à créer. Aucune valeur n'est déduite : ce qui n'est pas dit reste vide."""
     date: dt_date
     type_seance: SportSessionType
@@ -74,7 +74,7 @@ class LogSessionArgs(_StrictArgs):
     remarques: Optional[str] = Field(None, description="Ressenti libre (sensations, douleurs), en français.")
 
 
-class PlanSessionArgs(_StrictArgs):
+class PlanSessionArgs(StrictArgs):
     """Séance future à planifier."""
     date: dt_date
     type_seance: SportSessionType
@@ -82,6 +82,8 @@ class PlanSessionArgs(_StrictArgs):
     duree_secondes: Optional[int] = Field(None, gt=0)
     programme: Optional[str] = None
     remarques: Optional[str] = Field(None, description="Ressenti libre (sensations, douleurs), en français.")
+    allure_cible: Optional[str] = Field(None, description="Allure cible, ex. 06:15/km.")
+    vitesse_cible: Optional[str] = Field(None, description="Vitesse cible, ex. 9.6 km/h.")
 
 
 class SessionView(BaseModel):
