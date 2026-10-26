@@ -1,13 +1,27 @@
-"""Exécution d'un cas du golden set de bout en bout via `/api/v1/interact`, puis comparaison des effets en base."""
-from dataclasses import dataclass
+"""Exécution d'un cas du golden set de bout en bout via `/api/v1/interact`, puis comparaison des effets
+en base (carnet sport, notes) et dans le classeur Repas & Courses (doublure en mémoire)."""
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Tuple
+import unicodedata
 
 from fastapi.testclient import TestClient
 
+from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.core.database import DatabaseManager
+from app.core.dependencies import set_meals_connector
 from app.core.session_manager import get_session_manager
+from tests.meals_fakes import (
+    MealsSheetState,
+    WeekItem,
+    build_meals_spreadsheet,
+    planned_meals,
+    waiting_rows,
+    week_rows,
+)
 from tests.nlu_golden.models import FieldExpectations, GoldenCase
 
 CASES_PATH = Path(__file__).with_name("cases.json")
@@ -16,6 +30,12 @@ CONTAINS_SUFFIX = "__contains"
 VOLATILE_COLUMNS = {"created_at", "updated_at"}
 
 Snapshot = Dict[int, Dict[str, Any]]
+ShoppingRow = Tuple[str, str, bool]  # (liste « attente »/« semaine », nom, coché)
+MealsPlan = Dict[str, Tuple[str, str]]  # « JJ/MM/AAAA » → (midi, soir)
+
+_FRENCH_WORDS = {"le", "la", "les", "de", "des", "du", "un", "une", "est", "et", "à", "pour", "pas", "que", "qui",
+                 "il", "faut", "sur", "au", "a", "été", "ma", "mon", "ce", "en"}
+_ENGLISH_WORDS = {"the", "and", "is", "was", "to", "of", "should", "for", "on", "with", "this", "that", "it", "be"}
 
 
 @dataclass
@@ -26,6 +46,11 @@ class CaseRun:
     after: Snapshot
     responses: List[str]
     notes_delta: int
+    courses_before: List[ShoppingRow] = field(default_factory=list)
+    courses_after: List[ShoppingRow] = field(default_factory=list)
+    meals_before: MealsPlan = field(default_factory=dict)
+    meals_after: MealsPlan = field(default_factory=dict)
+    new_notes: List[str] = field(default_factory=list)
 
 
 def snapshot_sessions(db: DatabaseManager) -> Snapshot:
@@ -40,6 +65,30 @@ def count_notes(db: DatabaseManager) -> int:
         return conn.execute("SELECT COUNT(*) FROM second_brain_notes").fetchone()[0]
 
 
+def _last_note_id(db: DatabaseManager) -> int:
+    with db.get_connection() as conn:
+        return conn.execute("SELECT COALESCE(MAX(id), 0) FROM second_brain_notes").fetchone()[0]
+
+
+def _notes_after(db: DatabaseManager, note_id: int) -> List[str]:
+    with db.get_connection() as conn:
+        rows = conn.execute("SELECT content FROM second_brain_notes WHERE id > ? ORDER BY id", (note_id,)).fetchall()
+    return [row[0] for row in rows]
+
+
+def _build_sheet(case: GoldenCase, today: date):
+    return build_meals_spreadsheet(MealsSheetState(
+        today=today,
+        waiting=[(item.nom, item.coche) for item in case.courses if item.liste == "attente"],
+        week=[WeekItem(item.nom, item.rayon, item.coche) for item in case.courses if item.liste == "semaine"],
+        meals={today + timedelta(days=meal.day_offset): (meal.midi, meal.soir) for meal in case.repas},
+    ))
+
+
+def _shopping(sheet) -> List[ShoppingRow]:
+    return [("attente", n, c) for n, c in waiting_rows(sheet)] + [("semaine", n, c) for n, c in week_rows(sheet)]
+
+
 def run_case(case: GoldenCase, db: DatabaseManager, client: TestClient, today: date) -> CaseRun:
     """Insère le carnet, joue les tours de parole dans une même session, et capture l'état avant/après."""
     refs = {
@@ -49,7 +98,10 @@ def run_case(case: GoldenCase, db: DatabaseManager, client: TestClient, today: d
         })
         for seed in case.carnet
     }
-    before, notes_before = snapshot_sessions(db), count_notes(db)
+    sheet = _build_sheet(case, today)
+    set_meals_connector(MealsShoppingConnector(spreadsheet=sheet))
+    before, notes_before, last_note = snapshot_sessions(db), count_notes(db), _last_note_id(db)
+    courses_before, meals_before = _shopping(sheet), planned_meals(sheet)
 
     session_id = f"golden-{case.id}"
     responses = []
@@ -68,6 +120,11 @@ def run_case(case: GoldenCase, db: DatabaseManager, client: TestClient, today: d
         after=snapshot_sessions(db),
         responses=responses,
         notes_delta=count_notes(db) - notes_before,
+        courses_before=courses_before,
+        courses_after=_shopping(sheet),
+        meals_before=meals_before,
+        meals_after=planned_meals(sheet),
+        new_notes=_notes_after(db, last_note),
     )
 
 
@@ -112,12 +169,81 @@ def evaluate(case: GoldenCase, run: CaseRun) -> List[str]:
         for row, want in zip(new_rows, expected.created):
             errors += [f"séance créée : {m}" for m in _field_mismatches(row, want, run.today)]
 
+    errors += _shopping_mismatches(case, run)
+    errors += _meal_mismatches(case, run)
+
     last_response = run.responses[-1] if run.responses else ""
     if expected.clarification and "?" not in last_response:
         errors.append(f"clarification attendue, réponse obtenue : « {last_response} »")
     if expected.notes_created is not None and run.notes_delta != expected.notes_created:
         errors.append(f"{run.notes_delta} note(s) créée(s), {expected.notes_created} attendue(s)")
+    if expected.notes_francais:
+        errors += [f"note non rédigée en français : « {note} »" for note in run.new_notes if not _is_french(note)]
+    for word in expected.response_includes:
+        if word.lower() not in last_response.lower():
+            errors.append(f"la réponse doit contenir « {word} » : « {last_response} »")
     for word in expected.response_excludes:
         if word.lower() in last_response.lower():
             errors.append(f"la réponse ne doit pas contenir « {word} » : « {last_response} »")
     return errors
+
+
+def item_key(name: str) -> str:
+    """Clé de comparaison d'un article : sans casse, accents, article initial ni pluriel simple."""
+    text = unicodedata.normalize("NFKD", name.casefold().replace("œ", "oe"))
+    text = "".join(c for c in text if not unicodedata.combining(c)).strip()
+    text = re.sub(r"^(?:du|de la|des|de l'|d'|le|la|les|l'|un|une)\s*", "", text)
+    return " ".join(w[:-1] if len(w) > 3 and w[-1] in "sx" else w for w in text.split())
+
+
+def _shopping_mismatches(case: GoldenCase, run: CaseRun) -> List[str]:
+    expected = case.expected
+    names = {(liste, item_key(nom)): nom for liste, nom, _ in run.courses_before + run.courses_after}
+    before = Counter((liste, item_key(nom)) for liste, nom, _ in run.courses_before)
+    after = Counter((liste, item_key(nom)) for liste, nom, _ in run.courses_after)
+    errors: List[str] = []
+    for label, observed, wanted in (
+        ("ajouté(s)", after - before, Counter(("attente", item_key(n)) for n in expected.courses_ajoutees)),
+        ("retiré(s)", before - after, Counter(("attente", item_key(n)) for n in expected.courses_retirees)),
+    ):
+        if observed != wanted:
+            errors.append(
+                f"article(s) {label} : {sorted(names[k] for k in observed.elements())}, "
+                f"attendu(s) : {sorted(k[1] for k in wanted.elements())}"
+            )
+
+    state_before = {(liste, item_key(nom)): coche for liste, nom, coche in run.courses_before}
+    state_after = {(liste, item_key(nom)): coche for liste, nom, coche in run.courses_after}
+    flipped = {key: state_after[key] for key in state_before.keys() & state_after.keys() if state_before[key] != state_after[key]}
+    checked = {key[1] for key, coche in flipped.items() if coche}
+    unexpected = sorted(names[key] for key, coche in flipped.items() if not coche or key[1] not in map(item_key, expected.courses_cochees))
+    if unexpected:
+        errors.append(f"état coché modifié de façon inattendue : {unexpected}")
+    missing = sorted(n for n in expected.courses_cochees if item_key(n) not in checked)
+    if missing:
+        errors.append(f"article(s) non coché(s) : {missing}")
+    return errors
+
+
+def _meal_mismatches(case: GoldenCase, run: CaseRun) -> List[str]:
+    wanted = {
+        ((run.today + timedelta(days=m.day_offset)).strftime("%d/%m/%Y"), m.moment): m.plat__contains
+        for m in case.expected.repas_modifies
+    }
+    errors: List[str] = []
+    for day in sorted(run.meals_before.keys() | run.meals_after.keys()):
+        before, after = run.meals_before.get(day, ("", "")), run.meals_after.get(day, ("", ""))
+        for index, moment in enumerate(("midi", "soir")):
+            target = wanted.pop((day, moment), None)
+            if target is not None:
+                if target.lower() not in after[index].lower():
+                    errors.append(f"repas du {day} {moment} : « {after[index]} » (doit contenir « {target} »)")
+            elif before[index] != after[index]:
+                errors.append(f"repas du {day} {moment} modifié de façon inattendue : « {before[index]} » → « {after[index]} »")
+    errors += [f"repas du {day} {moment} absent du planning" for day, moment in wanted]
+    return errors
+
+
+def _is_french(text: str) -> bool:
+    words = re.findall(r"[a-zà-ÿ]+", text.lower())
+    return sum(w in _FRENCH_WORDS for w in words) > sum(w in _ENGLISH_WORDS for w in words)

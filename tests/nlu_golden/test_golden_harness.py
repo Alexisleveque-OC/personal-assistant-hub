@@ -90,3 +90,56 @@ def test_clarification_case_cannot_expect_mutation():
 def test_unknown_ref_in_expectation_is_rejected():
     with pytest.raises(ValidationError, match="absentes du carnet"):
         _case({"updated": {"inconnue": {"ressenti_rpe": 3}}})
+
+
+# --- Courses, repas et notes (Étape 5) ---------------------------------------------------------------------------
+
+_UNTOUCHED = [_row(1, "2026-10-16", "Renforcement"), _row(2, "2026-10-19")]
+_COURSES = [("attente", "Lait", False), ("attente", "Pain", False), ("semaine", "Quinoa", False)]
+_MEALS = {"19/10/2026": ("", "Risotto"), "20/10/2026": ("", "Gratin")}
+
+
+def _sheet_run(courses_after=_COURSES, meals_after=_MEALS, responses=("C'est noté.",), new_notes=()) -> CaseRun:
+    run = _run(_UNTOUCHED, responses=responses, notes_delta=len(new_notes))
+    run.courses_before, run.courses_after = list(_COURSES), list(courses_after)
+    run.meals_before, run.meals_after = dict(_MEALS), dict(meals_after)
+    run.new_notes = list(new_notes)
+    return run
+
+
+def test_shopping_changes_must_match_exactly():
+    case = _case({"courses_ajoutees": ["œufs"], "courses_cochees": ["lait"], "courses_retirees": ["pain"]})
+    expected_after = [("attente", "Lait", True), ("semaine", "Quinoa", False), ("attente", "Œufs", False)]
+    assert evaluate(case, _sheet_run(expected_after)) == []
+
+    errors = evaluate(case, _sheet_run(expected_after + [("attente", "Beurre", False)]))
+    assert any("Beurre" in e for e in errors)
+    assert evaluate(case, _sheet_run(_COURSES)) != []
+
+
+def test_any_unexpected_shopping_or_meal_change_is_reported():
+    case = _case({})
+    assert evaluate(case, _sheet_run()) == []
+    assert any("Quinoa" in e for e in evaluate(case, _sheet_run(_COURSES[:2] + [("semaine", "Quinoa", True)])))
+    assert any("20/10/2026" in e for e in evaluate(case, _sheet_run(meals_after=_MEALS | {"20/10/2026": ("", "Pizza")})))
+
+
+def test_expected_meal_change_by_day_offset():
+    case = _case({"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "chili"}]})
+    assert evaluate(case, _sheet_run(meals_after=_MEALS | {"20/10/2026": ("", "Chili sin carne")})) == []
+    assert evaluate(case, _sheet_run(meals_after=_MEALS | {"20/10/2026": ("Chili sin carne", "Gratin")})) != []
+
+
+def test_clarification_forbids_sheet_changes():
+    case = _case({"clarification": True})
+    run = _sheet_run(meals_after=_MEALS | {"20/10/2026": ("", "Raclette")}, responses=("Je la planifie quand même ?",))
+    assert evaluate(case, run) != []
+
+
+def test_response_must_include_words_and_notes_must_be_french():
+    case = _case({"response_includes": ["risotto"], "notes_created": 1, "notes_francais": True})
+    french = "Corriger le ciblage : la séance de renfo a été modifiée à la place de la sortie du jour."
+    english = "Fix the targeting: the strength session was modified instead of today's run."
+    assert evaluate(case, _sheet_run(responses=("Ce soir : risotto.",), new_notes=[french])) == []
+    errors = evaluate(case, _sheet_run(responses=("Ce soir : gratin.",), new_notes=[english]))
+    assert any("risotto" in e for e in errors) and any("français" in e for e in errors)

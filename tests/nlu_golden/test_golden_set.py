@@ -31,6 +31,14 @@ LEGACY_FAILURES: dict[str, str] = {
     "note-sur-echanges-precedents": "Prise de note sur référence à l'historique non comprise.",
     "clarification-deux-seances-meme-jour": "Devine une séance au lieu de demander laquelle.",
     "aucune-seance-du-jour": "Crée une séance et affirme l'avoir « mise à jour » au lieu de signaler l'absence.",
+    # Mesurés à l'Étape 5 (courses & repas).
+    "courses-ajout-rayon-explicite": "Ajoute l'article « Crème solaire au rayon hygiène ».",
+    "courses-ajout-repas-pas-aux-courses": "« au menu de demain » est lu comme une consultation du menu.",
+    "courses-coche-articles": "« J'ai pris … » n'est pas compris.",
+    "courses-retire-article": "Lit la liste de courses au lieu de retirer l'article.",
+    "courses-coche-et-ajoute": "Demande composée non comprise.",
+    "repas-midi-et-soir": "Ne répond que pour le repas du midi.",
+    "repas-change-plat-demain": "Changement de repas formulé librement non compris.",
 }
 
 

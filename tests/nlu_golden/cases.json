@@ -138,7 +138,7 @@
       "Quelle était ma dernière séance de renfo ?",
       "OK, prends note de ces derniers échanges, il faudra corriger ça."
     ],
-    "expected": {"notes_created": 1}
+    "expected": {"notes_created": 1, "notes_francais": true}
   },
   {
     "id": "clarification-deux-seances-meme-jour",
@@ -158,5 +158,121 @@
     ],
     "turns": ["Mets le RPE de ma séance d'aujourd'hui à 5."],
     "expected": {"clarification": true}
+  },
+  {
+    "id": "courses-ajout-simple",
+    "origine": "Non-régression (voie rapide) : ajout de plusieurs articles.",
+    "turns": ["Ajoute du lait et des œufs à la liste de courses"],
+    "expected": {"courses_ajoutees": ["lait", "œufs"]}
+  },
+  {
+    "id": "courses-ajout-rayon-explicite",
+    "origine": "Cible Étape 5 : le rayon dicté finit dans le nom de l'article par la regex.",
+    "turns": ["Ajoute de la crème solaire au rayon hygiène"],
+    "expected": {"courses_ajoutees": ["crème solaire"]}
+  },
+  {
+    "id": "courses-ajout-repas-pas-aux-courses",
+    "origine": "Découvert à l'Étape 5 : « ajoute … au menu de demain » est lu comme une consultation du menu.",
+    "turns": ["Ajoute des lasagnes au menu de demain soir"],
+    "expected": {"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "lasagnes"}]}
+  },
+  {
+    "id": "courses-coche-articles",
+    "origine": "Cible Étape 5 : « j'ai pris … » n'est pas compris par les regex.",
+    "courses": [
+      {"nom": "Lait"},
+      {"nom": "Pain"},
+      {"nom": "Café"}
+    ],
+    "turns": ["J'ai pris le pain et le café"],
+    "expected": {"courses_cochees": ["pain", "café"]}
+  },
+  {
+    "id": "courses-retire-article",
+    "origine": "Découvert à l'Étape 5 : « enlève X de la liste de courses » lit la liste au lieu de retirer.",
+    "courses": [
+      {"nom": "Lait"},
+      {"nom": "Pain"}
+    ],
+    "turns": ["Enlève le pain de la liste de courses"],
+    "expected": {"courses_retirees": ["pain"]}
+  },
+  {
+    "id": "courses-vide-achetes",
+    "origine": "Non-régression (bouton de la PWA) : vider ne supprime que les articles cochés.",
+    "courses": [
+      {"nom": "Lait", "coche": true},
+      {"nom": "Pain"}
+    ],
+    "turns": ["Vide la liste de courses"],
+    "expected": {"courses_retirees": ["lait"]}
+  },
+  {
+    "id": "courses-lecture",
+    "origine": "Non-régression (vue Courses de la PWA) : lecture de la liste.",
+    "courses": [
+      {"nom": "Pain"},
+      {"nom": "Quinoa", "liste": "semaine"}
+    ],
+    "turns": ["Donne-moi la liste de courses"],
+    "expected": {"response_includes": ["pain", "quinoa"]}
+  },
+  {
+    "id": "courses-coche-et-ajoute",
+    "origine": "Cible Étape 5 : demande composée sur la liste de courses.",
+    "courses": [
+      {"nom": "Lait"}
+    ],
+    "turns": ["J'ai pris le lait, et ajoute du beurre"],
+    "expected": {"courses_cochees": ["lait"], "courses_ajoutees": ["beurre"]}
+  },
+  {
+    "id": "repas-lecture-ce-soir",
+    "origine": "Non-régression (voie rapide) : repas du soir.",
+    "repas": [
+      {"day_offset": 0, "midi": "Salade composée", "soir": "Risotto de quinoa"}
+    ],
+    "turns": ["Qu'est-ce qu'on mange ce soir ?"],
+    "expected": {"response_includes": ["risotto"]}
+  },
+  {
+    "id": "repas-midi-et-soir",
+    "origine": "Cible Étape 5 : la regex ne répond que pour le premier des deux repas demandés.",
+    "repas": [
+      {"day_offset": 0, "midi": "Salade composée", "soir": "Risotto de quinoa"}
+    ],
+    "turns": ["Qu'est-ce qu'on mange ce midi et ce soir ?"],
+    "expected": {"response_includes": ["salade", "risotto"]}
+  },
+  {
+    "id": "repas-change-plat-demain",
+    "origine": "Cible Étape 5 : changement de repas formulé librement, non compris par les regex.",
+    "repas": [
+      {"day_offset": 1, "soir": "Gratin de courgettes"}
+    ],
+    "turns": ["Finalement demain soir on mange plutôt un chili sin carne"],
+    "expected": {"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "chili"}]}
+  },
+  {
+    "id": "repas-ingredients-sauf",
+    "origine": "Non-régression : ingrédients d'une recette ajoutés aux courses avec exclusion.",
+    "turns": ["Ajoute les ingrédients du risotto de quinoa sauf le parmesan"],
+    "expected": {"courses_ajoutees": ["quinoa", "courgette", "bouillon"]}
+  },
+  {
+    "id": "repas-hors-carnet-demande-confirmation",
+    "origine": "Non-régression : plat absent du carnet de recettes → confirmation avant planification.",
+    "turns": ["Mets une raclette demain soir"],
+    "expected": {"clarification": true}
+  },
+  {
+    "id": "repas-hors-carnet-confirme",
+    "origine": "Non-régression : la confirmation au tour suivant planifie le plat.",
+    "turns": [
+      "Mets une raclette demain soir",
+      "Oui, vas-y."
+    ],
+    "expected": {"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "raclette"}]}
   }
 ]
