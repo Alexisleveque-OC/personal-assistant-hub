@@ -43,11 +43,12 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Erreurs explicites typées (`errors.py`) transportant les mutations déjà effectuées ; erreurs d'outil renvoyées au modèle, jamais masquées ; HTTP 400 → échec immédiat, 429/503 → modèle suivant.
 - [x] Essai réel (carnet synthétique, base temporaire) : « c'était du fractionné, RPE 6 » modifie bien la séance du jour par id ; deux séances la veille → question de clarification sans modification.
 
-### [ ] Étape 3 : Branchement dans `/interact` (Domaine Sport d'abord)
-- [ ] Interrupteur de configuration `NLU_MODE=agent|legacy` (bascule et retour arrière immédiats).
-- [ ] Voie rapide regex conservée uniquement pour : « ajoute X », « liste de courses », « qu'est-ce qu'on mange ».
-- [ ] Outil `plan_weekly_training` pour l'agent (sinon régression du planning hebdo) : réutilise `SportCoachService`, crée via `plan_sport_session` (jamais d'écrasement), ignore les jours passés, signale les jours déjà occupés au lieu de les écraser.
-- [ ] Les demandes sport passent par l'agent ; le golden set sport passe au vert.
+### [x] Étape 3 : Branchement dans `/interact` (Domaine Sport d'abord)
+- [x] Interrupteur `NLU_MODE=legacy|agent` (défaut `legacy`), transmis par la variable GitHub `vars.NLU_MODE` dans `deploy.yml` (`--set-env-vars` écrase tout réglage manuel Cloud Run). Bascule / retour arrière = changer la variable puis redéployer.
+- [x] Voie rapide regex conservée (courses, repas, et en attendant l'Étape 5 : listes de notes, apprentissage, annulation legacy). Vont à l'agent : séances sport, planning hebdo, notes, et tout « non compris » (corrections au tour suivant). Garde-fou : « ajoute une séance… » n'est jamais traité comme un article de courses.
+- [x] Outil `plan_weekly_training` (`tools/sport_planning.py`) : coach Gemini, création via `plan_sport_session`, jours passés ignorés, jours occupés signalés sans écrasement. Outil `save_note` (`tools/note_tools.py`, anticipé de l'Étape 5 pour ne pas perdre la prise de note du NLU Gemini).
+- [x] Les demandes sport passent par l'agent (`handlers/agent_handler.py`) ; panne Gemini → réponse explicite, sans repli regex, avec signalement des modifications déjà appliquées.
+- [x] Golden set : nouveau cas « ajoute une séance » (legacy 5/15). **Agent réel : 13/15 (stable sur 2 passages)**, les 2 restants = annulation (Étape 4). Évaluation : `RUN_LIVE_GEMINI=1 .venv/bin/pytest tests/nlu_golden/test_golden_agent_live.py -v -rxX`.
 
 ### [ ] Étape 4 : Clarification, Annulation Fiable & Mémoire Persistante
 - [ ] Plusieurs séances candidates → question de clarification (« Tu parles du renfo du 06/10 ou du fractionné d'aujourd'hui ? »).
