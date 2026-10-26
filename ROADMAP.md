@@ -21,9 +21,12 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 ## Étapes d'Implémentation (chaque étape : TDD, 100 % vert, validation utilisateur)
 
 ### [ ] Étape 0 : Jeu de Référence (Golden Set) & Fuseau Horaire
-- [ ] Construire `tests/nlu_golden/` : cas **réécrits et anonymisés** (le dépôt est public : aucun prénom, aucune donnée de santé réelle) reproduisant la structure des échecs de prod. Chaque cas = état initial du carnet + phrase (+ historique) → effet attendu (séance ciblée par id, champs modifiés, ou question de clarification).
-- [ ] Mesurer le score du parser actuel sur ce jeu (cas en échec marqués `xfail` comme cibles).
-- [ ] Fuseau horaire `Europe/Paris` : helper unique « aujourd'hui » utilisé par le NLU (et `TZ` dans le conteneur).
+- [x] Construire `tests/nlu_golden/` : cas **réécrits et anonymisés** (le dépôt est public : aucun prénom, aucune donnée de santé réelle) reproduisant la structure des échecs de prod. Chaque cas = état initial du carnet + phrase (+ historique) → effet attendu (séance ciblée par id, champs modifiés, ou question de clarification).
+- [x] Mesurer le score du parser actuel sur ce jeu (cas en échec marqués `xfail` comme cibles).
+  - **Score legacy (regex + handlers, Gemini désactivé) : 5/14 cas.** Échecs : précision au tour suivant, ciblage par type de séance, mention d'un autre type, planification (« sortie longue » enregistrée en EF), annulation, phrase composée annule + note, note sur l'historique, clarification, séance inexistante « mise à jour ».
+  - Constat annexe : « j'ai fait une séance de fractionné » enregistre une durée de 30 min jamais dite.
+- [x] Fuseau horaire `Europe/Paris` : helper unique `app/core/clock.py` (`paris_today()`, `paris_now()`) pour le nouveau NLU, et `TZ=Europe/Paris` dans le conteneur (corrige aussi les `date.today()` existants en prod).
+  - Le harnais golden utilise encore `date.today()` (même horloge que le code legacy) : à basculer sur `paris_today()` quand l'agent sera branché.
 
 ### [ ] Étape 1 : Outils Métier Typés (indépendants du LLM)
 - [ ] `app/core/agent/tools/sport_tools.py` : `find_sport_sessions(date_from, date_to, type_seance, statut, limit)`, `get_sport_session(id)`, `update_sport_session(session_id, champs)`, `log_sport_session(...)`, `plan_sport_session(...)`.
