@@ -1,39 +1,63 @@
-# Roadmap - Fiabilisation de l'Import de Captures Sportives (Gemini Vision)
+# Roadmap - Phase 6.8 : Cerveau LLM-First (Compréhension Intelligente des Demandes)
 
-Cette roadmap corrige les imports de captures (Decathlon Coach, Strava, CW500 M) enregistrés à la mauvaise date ou en échec silencieux :
-1. **Date inventée / date du jour par défaut** : le schéma Gemini force une date non-nullable alors que le prompt demande `null` si invisible, et la route retombe silencieusement sur `date.today()` quand aucune date n'est extraite.
-2. **Échecs masqués** : si tous les modèles Gemini échouent (quota, 404, timeout) ou si la clé est absente, le service renvoie un faux rejet « image non sportive » au lieu d'une erreur technique explicite.
-3. **Blocage du serveur** : appel HTTP synchrone (`httpx.Client`) dans une route async, jusqu'à 7 modèles × 25 s.
-5. **FC à 0 → erreur 500** : FC absente renvoyée à `0` par Gemini, écrite en base puis rejetée à la relecture (`fc >= 30`).
-4. **Doublons Decathlon Connect (CW500 M)** : distance/durée de la montre non fiables (ex: 4,9 km vs 5,12 km Coach) → l'écart > 0,2 km créait une seconde séance au lieu de compléter la FC.
+Branche : `feat/llm-first-nlu`
 
----
+## Constat (logs de production, 46 échanges du 10 au 22/10/2026)
+- **Le LLM n'intervient qu'en dernier recours** : `interact.py` exécute d'abord `IntentParser.parse()` (~1 000 lignes de regex) et n'appelle Gemini que si le résultat est `UNKNOWN`. 36 échanges sur 46 n'ont jamais atteint le LLM.
+- **Mauvaise séance ciblée** : « modifie le RPE de ma dernière séance de renfo » → sortie longue du jour modifiée ; « c'était une séance de fractionné, RPE à 3 » → séance du 28/09 modifiée ; « RPE 4 car courbatures suite à la séance de renfo » → renfo du 06/10 modifié au lieu de la séance du jour ; « j'ai fait une séance de fractionné » → réponse « renforcement enregistré ».
+- **Commandes méta incomprises** : « annule ce que tu viens de faire », « prends note de ces 3 derniers échanges ».
+- **Ciblage par date, jamais par identifiant** : `sport_handler.py` déduit une date via plusieurs heuristiques (`last`, `last_sport_date`, jour de la semaine) puis modifie « la séance de cette date ».
+- **Le LLM ne voit pas les données** : il ne peut pas résoudre « la dernière séance de renfo » sans connaître les séances existantes.
+- **Contexte volatil** : l'historique de session (`SessionManager`) est en RAM → perdu à chaque redémarrage d'instance Cloud Run.
+- **Fuseau horaire** : aucun `TZ` dans le conteneur (UTC) → entre 00h et 02h (Paris), « aujourd'hui » = la veille côté serveur.
 
-## Étapes d'Implémentation
+## Cible
+Gemini en premier, avec **appel de fonctions typées** (function calling) : le modèle cherche les séances, choisit celle qui correspond (par **identifiant**), puis la modifie. Il demande une précision quand plusieurs séances correspondent au lieu de deviner. Les regex ne restent qu'en voie rapide pour quelques commandes sans ambiguïté.
 
-### [x] Étape 1 : Fiabilisation Backend (TDD)
-- [x] Rendre `date`, `distance_km`, `duree_secondes` **nullables** dans `GEMINI_SPORT_VISION_SCHEMA` (toujours `required` : le modèle doit statuer, mais peut répondre `null` au lieu d'inventer).
-- [x] Fail-fast : lever `VisionServiceUnavailableError` (clé absente ou tous les modèles en échec, avec la liste des modèles tentés et la dernière erreur) au lieu du faux rejet `_fallback_analysis`. La route répond **503** avec ce détail.
-- [x] Ne plus jamais retomber sur la date du jour : sans date extraite ni `reference_date` explicite, la route répond **400** en demandant la date, sans rien enregistrer.
-- [x] Passer l'appel Gemini en `httpx.AsyncClient` (`analyze_screenshot` async).
-- [x] Decathlon Connect (CW500 M) : si une séance réalisée existe à la date, ne fusionner **que la FC** (moyenne/max) ; rejet explicite si aucune FC lisible. Séance seulement prévue → passage en Réalisé avec **durée + FC** (distance montre ignorée). Import complet uniquement si aucune séance n'existe ce jour-là.
-- [x] FC absente renvoyée à `0` par Gemini : `fc_moyenne`/`fc_max` nullables dans le schéma et `0` traité comme « non mesurée » (évitait l'écrasement d'une FC existante et une erreur 500 à la relecture, validation Pydantic `>= 30`).
-- [x] Couvrir les libellés Strava relatifs réels (« Aujourd'hui à 12:56 · La Rochelle », « Hier à 12:56 »).
-
-### [x] Étape 2 : Frontend - Saisie de la Date Manquante
-- [x] Code d'erreur stable `X-Error-Code: screenshot_date_missing` sur les refus pour date manquante (pas de détection par texte côté front).
-- [x] Module `static/js/screenshot_import.js` partagé (Chat + vue Sport) : modale de choix de date (aujourd'hui par défaut, futur interdit) puis renvoi de la capture avec `reference_date`. Annulation explicite sans erreur.
-- [x] Afficher explicitement la date retenue dans la confirmation d'import (ex: « Séance Strava du lundi 12 octobre importée ») sur les 3 chemins (import complet, FC CW500, séance prévue CW500).
-- [x] Cache PWA `pah-pwa-cache-v21` + précache du nouveau module.
-- Limite connue : le renvoi relance une analyse Gemini (cas rare, ~3 s et un appel de quota en plus).
-
-### [x] Étape 3 : Validation Réelle & Test E2E
-- [x] Validation sur captures réelles via Gemini Vision (Decathlon Coach, Strava, CW500 M, capture Strava recadrée sans date) - captures non commitées.
-- [x] Test d'intégration E2E `tests/test_e2e_screenshot_import.py` (date manquante → saisie → Coach → CW500 → panne Gemini, sur une seule séance).
-- [x] Suite complète `pytest -v` à 100 % verte (546 tests).
-- [ ] Test manuel utilisateur en production (PWA mobile).
+Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels Gemini par requête (quota `GEMINI_MAX_DAILY_REQUESTS` = 1000/jour à surveiller).
 
 ---
 
-## Hors Périmètre (à traiter séparément)
-- **Fuseau horaire serveur** : aucun `TZ` n'est configuré dans le conteneur (Cloud Run = UTC). Entre 00h et 02h (heure de Paris), `date.today()` renvoie la veille pour toute l'application (repas, sport, « Aujourd'hui » des captures).
+## Étapes d'Implémentation (chaque étape : TDD, 100 % vert, validation utilisateur)
+
+### [ ] Étape 0 : Jeu de Référence (Golden Set) & Fuseau Horaire
+- [ ] Construire `tests/nlu_golden/` : cas **réécrits et anonymisés** (le dépôt est public : aucun prénom, aucune donnée de santé réelle) reproduisant la structure des échecs de prod. Chaque cas = état initial du carnet + phrase (+ historique) → effet attendu (séance ciblée par id, champs modifiés, ou question de clarification).
+- [ ] Mesurer le score du parser actuel sur ce jeu (cas en échec marqués `xfail` comme cibles).
+- [ ] Fuseau horaire `Europe/Paris` : helper unique « aujourd'hui » utilisé par le NLU (et `TZ` dans le conteneur).
+
+### [ ] Étape 1 : Outils Métier Typés (indépendants du LLM)
+- [ ] `app/core/agent/tools/sport_tools.py` : `find_sport_sessions(date_from, date_to, type_seance, statut, limit)`, `get_sport_session(id)`, `update_sport_session(session_id, champs)`, `log_sport_session(...)`, `plan_sport_session(...)`.
+- [ ] Arguments et retours en modèles Pydantic stricts ; modifications **par identifiant uniquement**.
+- [ ] Instantané (snapshot) de la séance avant chaque mutation pour l'annulation.
+- [ ] Tests unitaires sur SQLite temporaire.
+
+### [ ] Étape 2 : Boucle Agent Gemini (Function Calling)
+- [ ] `app/core/agent/agent_service.py` : prompt système avec date du jour (Paris), résumé des séances récentes, historique ; boucle outils limitée (ex. 4 tours max) ; réponse vocale finale.
+- [ ] Vérifier le format exact de l'API Gemini (`tools.functionDeclarations`, parts `functionCall` / `functionResponse`) dans la documentation officielle avant d'implémenter.
+- [ ] Client Gemini simulé (appels de fonctions scriptés) pour des tests déterministes hors-ligne.
+- [ ] Erreurs explicites : panne Gemini → message clair, jamais de repli silencieux qui modifie des données.
+
+### [ ] Étape 3 : Branchement dans `/interact` (Domaine Sport d'abord)
+- [ ] Interrupteur de configuration `NLU_MODE=agent|legacy` (bascule et retour arrière immédiats).
+- [ ] Voie rapide regex conservée uniquement pour : « ajoute X », « liste de courses », « qu'est-ce qu'on mange ».
+- [ ] Les demandes sport passent par l'agent ; le golden set sport passe au vert.
+
+### [ ] Étape 4 : Clarification, Annulation Fiable & Mémoire Persistante
+- [ ] Plusieurs séances candidates → question de clarification (« Tu parles du renfo du 06/10 ou du fractionné d'aujourd'hui ? »).
+- [ ] « Annule ce que tu viens de faire » → restauration exacte depuis l'instantané.
+- [ ] Historique de conversation et instantanés persistés en SQLite (survivent aux redémarrages Cloud Run).
+
+### [ ] Étape 5 : Extension aux Autres Domaines & Allègement des Regex
+- [ ] Outils courses, repas, second cerveau ; prise de note sur référence (« note ces derniers échanges »).
+- [ ] Notes enregistrées en français (des notes ont été stockées en anglais en prod).
+- [ ] Retrait progressif des branches regex devenues inutiles dans `intent_parser.py`.
+
+### [ ] Étape 6 : Validation Réelle & E2E
+- [ ] Évaluation optionnelle du golden set contre le vrai Gemini (test marqué `live`, hors CI).
+- [ ] Test d'intégration E2E du flux complet (phrase → outils → base → réponse).
+- [ ] Mise à jour du `README.md` (fin de phase), suite `pytest -v` 100 % verte.
+
+---
+
+## Hors Périmètre (à traiter ensuite)
+- **Musique baissée pendant l'écoute du mot-clé « Otis » (Android)** : l'écoute continue via Web Speech API prend le focus audio ; `navigator.audioSession` est sans effet sur Chrome Android. Piste : détection locale du mot-clé via `getUserMedia` sans traitements audio, à valider d'abord sur l'appareil.
