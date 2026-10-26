@@ -26,6 +26,12 @@ def test_dockerfile_configuration():
     assert "0.0.0.0" in combined_content
 
 
+def test_dockerfile_sets_paris_timezone():
+    """Le conteneur doit vivre à l'heure de Paris : sinon « aujourd'hui » = la veille entre 00h et 02h."""
+    content = (ROOT_DIR / "Dockerfile").read_text(encoding="utf-8")
+    assert "TZ=Europe/Paris" in content
+
+
 def test_dockerignore_security_exclusions():
     """Valide que les fichiers sensibles et temporaires sont exclus de l'image Docker."""
     dockerignore_path = ROOT_DIR / ".dockerignore"
