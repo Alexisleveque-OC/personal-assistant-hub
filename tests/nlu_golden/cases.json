@@ -94,6 +94,15 @@
     "expected": {"created": [{"type_seance": "Sortie Longue", "statut": "Prévu", "day_offset": 1}]}
   },
   {
+    "id": "ajoute-seance-pas-aux-courses",
+    "origine": "Découvert à l'Étape 3 : « ajoute une séance… » est classé comme un article de courses par les regex.",
+    "carnet": [
+      {"ref": "ef_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Ajoute une séance de fractionné demain."],
+    "expected": {"created": [{"type_seance": "Fractionné", "statut": "Prévu", "day_offset": 1}]}
+  },
+  {
     "id": "annule-derniere-modification",
     "origine": "Échec prod : « annule ce que tu viens de faire » n'a rien restauré.",
     "carnet": [

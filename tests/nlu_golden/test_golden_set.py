@@ -25,6 +25,7 @@ LEGACY_FAILURES: dict[str, str] = {
     "type-corrige-seance-du-jour": "Ciblage par type : modifie l'ancien fractionné au lieu de la séance du jour.",
     "rpe-du-jour-malgre-mention-renfo": "La simple mention du renfo détourne la modification vers celui-ci.",
     "planifie-sortie-longue-demain": "Répond « sortie longue » mais enregistre une séance EF.",
+    "ajoute-seance-pas-aux-courses": "Classé comme article de courses par la voie rapide « ajoute X ».",
     "annule-derniere-modification": "Les modifications de séance ne sont pas annulables.",
     "annule-et-note-correctif": "Phrase composée non comprise : enregistre une séance au lieu d'annuler et noter.",
     "note-sur-echanges-precedents": "Prise de note sur référence à l'historique non comprise.",
