@@ -101,6 +101,7 @@ personal-assistant-hub/
 * **Gamification Pop-Culture :** Système de badges et de trophées dopaminés (Astérix, Le Seigneur des Anneaux, Brandon Sanderson) célébrant la régularité et les records personnels.
 * **Outils de migration & Sauvegarde de secours :** Script de migration one-off (`scripts/migrate_sport_sheets_to_sqlite.py`) et export instantané JSON/CSV (`scripts/export_sport_data.py`).
 * **Passerelle Strava :** Ingestion automatique d'activités via webhooks.
+* **Import de captures d'écran fiabilisé (Gemini Vision) :** Strava, Decathlon Coach et montre Decathlon Connect CW500 M. Date jamais inventée (sélecteur de date si illisible), confirmation datée, fusion sans doublon (CW500 : FC seule sur une séance réalisée, durée + FC sur une séance prévue), erreurs Gemini explicites (503) au lieu de faux rejets.
 
 ### 📱 3. Interface Mobile Vocale PWA & Conteneurisation — [🟢 Opérationnel]
 * **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker v20 avec mise en cache.
@@ -144,9 +145,19 @@ personal-assistant-hub/
   - Découplage de Google Sheets (`SPREADSHEET_SPORT_ID` optionnel) & outil d'export/backup JSON/CSV
 - [x] **Phase 6.6 : Audio Focus Casque, Pipeline Vocal & Résilience Mobile**
   - Audio Focus & Ducking dynamique casque en mode running (atténuation musique/podcast uniquement si Otis parle)
+    - ⚠️ Limite connue sur Android/Chrome : `navigator.audioSession` n'y est pas supporté (ducking sans effet) et l'écoute continue du mot-clé « Otis » (Web Speech API) fait baisser la musique en permanence. Chantier planifié après la Phase 6.8.
   - Pipeline Vocal PWA fiabilisé (Push-to-Talk Pointer Events, wake-word « Otis » calibrable in-app, VAD mains-libres et carillon Web Audio)
   - File d'attente hors-ligne & synchronisation PWA (Offline Outbox IndexedDB + auto-retry dès reconnexion en forêt)
   - Routage sémantique contextuel strict (désambiguïsation Sport/Notes/Courses) et prise de note orale naturelle sans ponctuation
+- [x] **Phase 6.7 : Fiabilisation de l'Import de Captures Sportives**
+  - Schéma Gemini Vision nullable (date, distance, durée, FC) : plus aucune valeur inventée ni FC à 0 (qui provoquait des erreurs 500)
+  - Fin du repli silencieux sur la date du jour : code d'erreur `screenshot_date_missing` + sélecteur de date dans la PWA
+  - Règles de fusion Decathlon Connect CW500 M et erreurs Gemini explicites (`VisionServiceUnavailableError` → 503), appel Gemini asynchrone
+  - Test E2E du parcours complet sur une même séance (`tests/test_e2e_screenshot_import.py`)
+- [ ] **Phase 6.8 : Cerveau LLM-First (Compréhension Intelligente des Demandes)** — *en cours, voir `ROADMAP.md`*
+  - Constat (logs de prod) : 36 échanges sur 46 traités par les seules regex, le LLM n'intervenant qu'en dernier recours → mauvaise séance modifiée, « annule » incompris
+  - Gemini en premier avec appel de fonctions typées (recherche puis modification de séance par identifiant), contexte injecté (date du jour, séances récentes, historique)
+  - Regex conservées uniquement pour quelques commandes rapides sans ambiguïté, jeu de tests de référence construit à partir des vrais échanges
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
