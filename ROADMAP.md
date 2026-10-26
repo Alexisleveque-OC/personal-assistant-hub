@@ -59,10 +59,14 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Instantanés persistés en SQLite (table `agent_undo_batches`, un lot par tour et par session) : l'annulation survit aux redémarrages Cloud Run. L'historique de conversation était déjà rechargé depuis `conversation_logs` par `SessionManager` (constat initial erroné sur ce point).
 - [x] Golden set agent réel : **15/15**.
 
-### [ ] Étape 5 : Extension aux Autres Domaines & Allègement des Regex
-- [ ] Outils courses, repas, second cerveau ; prise de note sur référence (« note ces derniers échanges »).
-- [ ] Notes enregistrées en français (des notes ont été stockées en anglais en prod).
-- [ ] Retrait progressif des branches regex devenues inutiles dans `intent_parser.py`.
+### [x] Étape 5 : Extension aux Autres Domaines & Allègement des Regex
+- [x] Outils courses (`tools/meals_tools.py`) : lire, ajouter avec rayon (rayon inconnu → choisi par l'agent parmi les rayons du classeur), cocher/décocher, retirer, vider les articles cochés. Outils repas : planning (14 jours max), modifier un repas, lire une recette. Écritures via le connecteur (cache invalidé), annulation exacte par le journal, y compris les mutations enchaînées sur un même article.
+- [x] Voie rapide regex (`handlers/fast_lane.py`) limitée aux demandes non ambiguës : « ajoute X », lecture de la liste, « qu'est-ce qu'on mange », vider (dont les 3 phrases envoyées par la PWA). Phrases composées, nuancées ou d'un autre domaine → agent (ex. « ajoute des lasagnes au menu de demain soir » était lu comme une consultation).
+- [x] Garde-fous déterministes (le prompt seul était instable sur plusieurs passages) : plat hors carnet confirmable seulement au tour suivant ; jour à plusieurs séances → modification refusée si le type n'est pas nommé dans les mots de l'utilisateur (`tools/session_types.py`).
+- [x] Réponse courte (« d'accord ») à une question de l'agent → renvoyée à l'agent. Notes toujours en français (règle de prompt + contrôle dans le golden set) ; vérification réelle dédiée à refaire (quota Gemini épuisé le jour même).
+- [x] Golden set : 29 cas (14 courses/repas). Legacy 12/29, **agent réel 28-29/29** sur 4 passages (échecs résiduels corrigés au fil des passages).
+- [ ] Retrait des branches regex redondantes en mode agent (sport 9.1 bis-9.4, `SAVE_NOTE`, recettes, planification repas, coche courses) : **reporté après le déploiement** et une période d'observation, car elles assurent le retour arrière `NLU_MODE=legacy`.
+- [ ] Rayon choisi pour un article inconnu : conservé en mémoire seulement (comportement existant) ; à persister dans `Hors_Repas` si besoin.
 
 ### [ ] Étape 6 : Validation Réelle & E2E
 - [ ] Évaluation optionnelle du golden set contre le vrai Gemini (test marqué `live`, hors CI).
