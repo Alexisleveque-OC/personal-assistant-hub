@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diagnostic micro</title>
+  <!-- Page de diagnostic (ROADMAP Étape 0) : volontairement hors cache du service worker et non liée dans l'app. -->
+  <style>
+    :root { --bg: #f6f7f9; --fg: #1d2330; --muted: #5d6677; --card: #fff; --accent: #2563eb; --danger: #dc2626; --border: #d8dce3; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #11151c; --fg: #e6e9ef; --muted: #9aa3b2; --card: #1a2029; --accent: #60a5fa; --danger: #f87171; --border: #2c3442; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+    h1 { font-size: 1.2rem; margin: 0 0 4px; }
+    p.hint { color: var(--muted); margin: 0 0 12px; font-size: 0.85rem; }
+    .mode { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .mode.active { border-color: var(--accent); }
+    .mode-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .mode-title { font-weight: 600; }
+    .mode-desc { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+    button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; min-width: 96px; }
+    .mode.active button { background: var(--danger); }
+    .timer { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
+    .meter { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; margin-top: 8px; display: none; }
+    .meter > div { height: 100%; width: 0; background: var(--accent); transition: width 80ms linear; }
+    .mode.active .meter.on { display: block; }
+    #diag-log { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px; font: 12px/1.35 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; max-height: 45vh; overflow-y: auto; }
+    .log-actions { display: flex; gap: 8px; margin: 12px 0 6px; }
+    .log-actions button { background: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>Diagnostic micro &amp; musique</h1>
+  <p class="hint">Lancez la musique à volume fixe, puis démarrez un mode à la fois pendant ~30 s. Notez l'effet sur la musique (aucun / baisse / pause), la reprise à l'arrêt et les bips.</p>
+
+  <div class="mode" data-mode="speech-continuous">
+    <div class="mode-head"><div><div class="mode-title">A. Web Speech continue</div><div class="mode-desc">Comportement actuel du mot-clé (relance à chaque fin)</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+  </div>
+  <div class="mode" data-mode="speech-single">
+    <div class="mode-head"><div><div class="mode-title">B. Web Speech une écoute</div><div class="mode-desc">Une seule reconnaissance, sans relance</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+  </div>
+  <div class="mode" data-mode="gum-processing">
+    <div class="mode-head"><div><div class="mode-title">C. Micro avec traitements</div><div class="mode-desc">getUserMedia, écho / bruit / gain activés (comme la dictée)</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+  </div>
+  <div class="mode" data-mode="gum-raw">
+    <div class="mode-head"><div><div class="mode-title">D. Micro brut</div><div class="mode-desc">getUserMedia, tous traitements désactivés</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+  </div>
+  <div class="mode" data-mode="gum-raw-analyser">
+    <div class="mode-head"><div><div class="mode-title">E. Micro brut + analyse</div><div class="mode-desc">D + AudioContext et vumètre (base d'une détection locale)</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+    <div class="meter on"><div></div></div>
+  </div>
+
+  <div class="log-actions"><button id="btn-copy">Copier le journal</button><button id="btn-clear">Effacer</button></div>
+  <div id="diag-log"></div>
+
+  <script>
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const RAW_CONSTRAINTS = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+    const PROCESSED_CONSTRAINTS = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
+
+    const logEl = document.getElementById("diag-log");
+    const t0 = performance.now();
+    function log(message) {
+      const seconds = ((performance.now() - t0) / 1000).toFixed(1).padStart(6, " ");
+      logEl.textContent += `[${seconds}s] ${message}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Session active : une seule à la fois pour isoler l'effet de chaque mode.
+    let session = null;
+
+    function startSpeech(continuous) {
+      if (!SpeechRecognitionCtor) throw new Error("SpeechRecognition indisponible dans ce navigateur");
+      const state = { stopped: false, restarts: 0, rec: null };
+      const launch = () => {
+        const rec = new SpeechRecognitionCtor();
+        rec.lang = "fr-FR";
+        rec.continuous = continuous;
+        rec.interimResults = true;
+        rec.onstart = () => log(`Web Speech onstart (relances: ${state.restarts})`);
+        rec.onaudiostart = () => log("Web Speech onaudiostart");
+        rec.onresult = (e) => log(`Résultat: « ${e.results[e.results.length - 1][0].transcript} »`);
+        rec.onerror = (e) => log(`Web Speech onerror: ${e.error}`);
+        rec.onend = () => {
+          log("Web Speech onend");
+          if (continuous && !state.stopped) {
+            state.restarts += 1;
+            setTimeout(() => { if (!state.stopped) launch(); }, 250);
+          }
+        };
+        state.rec = rec;
+        rec.start();
+      };
+      launch();
+      return () => { state.stopped = true; try { state.rec && state.rec.abort(); } catch (err) { log(`abort: ${err.message}`); } };
+    }
+
+    async function startMicrophone(constraints, withAnalyser, meterBar) {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const track = stream.getAudioTracks()[0];
+      log(`Piste: ${track.label || "(sans libellé)"}`);
+      log(`getSettings(): ${JSON.stringify(track.getSettings())}`);
+      track.onmute = () => log("Piste muette (onmute)");
+      track.onunmute = () => log("Piste réactivée (onunmute)");
+      track.onended = () => log("Piste terminée (onended)");
+
+      let audioContext = null;
+      let rafId = null;
+      if (withAnalyser) {
+        audioContext = new AudioContext();
+        audioContext.onstatechange = () => log(`AudioContext: ${audioContext.state}`);
+        if (audioContext.state === "suspended") await audioContext.resume();
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 1024;
+        audioContext.createMediaStreamSource(stream).connect(analyser);
+        log(`AudioContext démarré (${audioContext.sampleRate} Hz, état ${audioContext.state})`);
+        const samples = new Float32Array(analyser.fftSize);
+        let peakDb = -100;
+        let lastPeakLog = performance.now();
+        const tick = () => {
+          analyser.getFloatTimeDomainData(samples);
+          let sum = 0;
+          for (const s of samples) sum += s * s;
+          const db = 20 * Math.log10(Math.sqrt(sum / samples.length) || 1e-5);
+          meterBar.style.width = `${Math.min(100, Math.max(0, (db + 70) * (100 / 60)))}%`;
+          peakDb = Math.max(peakDb, db);
+          if (performance.now() - lastPeakLog > 2000) {
+            log(`Niveau max sur 2 s: ${peakDb.toFixed(1)} dBFS`);
+            peakDb = -100;
+            lastPeakLog = performance.now();
+          }
+          rafId = requestAnimationFrame(tick);
+        };
+        tick();
+      }
+
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        meterBar && (meterBar.style.width = "0");
+        stream.getTracks().forEach((t) => t.stop());
+        if (audioContext) audioContext.close();
+      };
+    }
+
+    const STARTERS = {
+      "speech-continuous": () => startSpeech(true),
+      "speech-single": () => startSpeech(false),
+      "gum-processing": () => startMicrophone(PROCESSED_CONSTRAINTS, false, null),
+      "gum-raw": () => startMicrophone(RAW_CONSTRAINTS, false, null),
+      "gum-raw-analyser": (card) => startMicrophone(RAW_CONSTRAINTS, true, card.querySelector(".meter > div")),
+    };
+
+    async function stopSession() {
+      if (!session) return;
+      const { card, stop, timerId, startedAt } = session;
+      session = null;
+      clearInterval(timerId);
+      await stop();
+      card.classList.remove("active");
+      card.querySelector("button").textContent = "Démarrer";
+      log(`■ Arrêt ${card.dataset.mode} après ${((performance.now() - startedAt) / 1000).toFixed(1)} s`);
+    }
+
+    async function startSession(card) {
+      await stopSession();
+      const mode = card.dataset.mode;
+      log(`▶ Démarrage ${mode}`);
+      try {
+        const stop = await STARTERS[mode](card);
+        const startedAt = performance.now();
+        const timerEl = card.querySelector(".timer");
+        const timerId = setInterval(() => { timerEl.textContent = `${((performance.now() - startedAt) / 1000).toFixed(0)} s`; }, 500);
+        session = { card, stop, timerId, startedAt };
+        card.classList.add("active");
+        card.querySelector("button").textContent = "Arrêter";
+      } catch (err) {
+        log(`ERREUR ${mode}: ${err.name || ""} ${err.message}`);
+      }
+    }
+
+    document.querySelectorAll(".mode").forEach((card) => {
+      card.querySelector("button").addEventListener("click", () => {
+        if (session && session.card === card) stopSession();
+        else startSession(card);
+      });
+    });
+
+    document.addEventListener("visibilitychange", () => log(`Visibilité: ${document.visibilityState}`));
+    document.getElementById("btn-clear").addEventListener("click", () => { logEl.textContent = ""; });
+    document.getElementById("btn-copy").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(logEl.textContent);
+        log("Journal copié");
+      } catch (err) {
+        log(`Copie impossible: ${err.message}`);
+      }
+    });
+
+    log(`Contexte sécurisé: ${window.isSecureContext} | Web Speech: ${!!SpeechRecognitionCtor} | getUserMedia: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
+    log(`navigator.audioSession: ${"audioSession" in navigator} | UA: ${navigator.userAgent}`);
+  </script>
+</body>
+</html>
