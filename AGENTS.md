@@ -78,7 +78,7 @@ personal-assistant-hub/
    * **Stratégie de branches :** Chaque fonctionnalité ou correction est développée sur une branche dédiée (`feat/<feature-name>`, `fix/<bug-name>`) ou sur `develop`.
    * **Pull Request / Merge Request (PR/MR) :** Fusion vers `main` uniquement après validation de la suite de tests (`pytest` à 100% vert) et relecture.
    * **Sécurité :** Ne JAMAIS commiter de fichiers sensibles (`.env`, `credentials.json`, `token.json`, `.venv`).
-   * **Zéro Commit Sans Test & Validation Préalable :** Il est **strictement interdit** de commiter du code avant d'avoir exécuté les tests (`pytest`), vérifié que tout fonctionne à 100%, et permis à l'utilisateur de tester/valider. Les tests et les vérifications viennent **toujours avant** tout commit git.
+   * **Zéro Commit Sans Test & Validation Préalable :** Il est **strictement interdit** de commiter du code avant d'avoir exécuté les tests (`pytest`), vérifié que tout fonctionne à 100%. Les tests et les vérifications viennent **toujours avant** tout commit git. Validation utilisateur avant commit : voir la règle 6 (autonomie de développement).
    * **Commits :** Atomiques, explicites et séparés selon leur périmètre :
      * **Fichiers d'instructions agent (ex: `AGENTS.md`) :** Toujours isolés dans leurs propres commits et préfixés par `#AGENT : <message>`.
      * **Code de feature :** Toujours préfixés par `#PAH - <feature-tag> : <type>: <message>` (ex: `#PAH - shop connector : feat: ...`), combinant le tag de feature et le format Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`).
@@ -88,7 +88,8 @@ personal-assistant-hub/
 6. **Roadmap par Feature & Validation Pas-à-Pas (Human-in-the-Loop) :**
    * Pour chaque fonctionnalité (`feat/*`), un fichier `ROADMAP.md` dédié doit être créé à la racine du projet.
    * La roadmap détaille les étapes d'implémentation de manière ordonnée et progressive.
-   * **Chaque étape doit être validée manuellement et explicitement par l'utilisateur** et afficher 100% de tests au vert avant de passer à la suivante.
+   * Chaque étape doit afficher 100% de tests au vert (et, si l'étape touche le LLM, une validation réelle ciblée) avant de passer à la suivante.
+   * **Autonomie de développement (décision utilisateur du 27/10/2026) :** l'agent enchaîne les étapes et commite sur la branche de feature sans attendre de test manuel ni de validation à chaque étape, dès que `pytest` est 100 % vert. Il rend compte des choix et compromis à la fin de chaque étape. Restent soumis à l'accord explicite de l'utilisateur : tout `push`, toute fusion vers `develop`/`main`, tout changement de périmètre fonctionnel ou décision produit ambiguë, et toute action sur les données réelles (classeurs, base de prod).
    * **Test d'intégration final :** À la fin de chaque feature, un test d'intégration complet (E2E) doit être mis en place pour valider le flux de bout en bout et garantir la pérennité de la solution dans le temps.
 7. **Erreurs Explicites & Fail-Fast (Déboguabilité Maximale) :**
    * Ne JAMAIS étouffer ou masquer une erreur avec des retours silencieux (`try/except: pass` ou fallbacks masqués sans log).
