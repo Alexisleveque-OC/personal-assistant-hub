@@ -13,6 +13,8 @@
     * { box-sizing: border-box; }
     body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
     h1 { font-size: 1.2rem; margin: 0 0 4px; }
+    h2 { font-size: 1.05rem; margin: 18px 0 4px; }
+    select { font: inherit; margin-left: 6px; }
     p.hint { color: var(--muted); margin: 0 0 12px; font-size: 0.85rem; }
     .mode { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
     .mode.active { border-color: var(--accent); }
@@ -60,6 +62,25 @@
     <div class="mode-head"><div><div class="mode-title">F. Mot-clé local (Vosk)</div><div class="mode-desc">Micro brut + détection de « Otis » sur le téléphone. 1er démarrage : ~45 Mo à télécharger (Wi-Fi conseillé)</div></div><button>Démarrer</button></div>
     <div class="timer"></div>
     <div class="timer detections"></div>
+  </div>
+
+  <h2>Réponse d'Otis</h2>
+  <p class="hint">Musique au haut-parleur. La phrase est répétée avec ~1,5 s de pause : notez si la musique baisse pendant la voix, remonte entre les phrases, et si la voix reste audible.</p>
+  <div class="mode" data-mode="tts-only">
+    <div class="mode-head"><div><div class="mode-title">G. Synthèse seule</div><div class="mode-desc">speechSynthesis comme une réponse d'Otis, aucun micro</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+  </div>
+  <div class="mode" data-mode="tts-mic-processed">
+    <div class="mode-head"><div><div class="mode-title">H. Synthèse + micro avec traitements</div><div class="mode-desc">G avec le micro de la dictée ouvert (écho / bruit / gain) et son vumètre</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+    <div class="meter on"><div></div></div>
+  </div>
+  <div class="mode" data-mode="tts-audio-element">
+    <div class="mode-head"><div><div class="mode-title">I. Synthèse + son via &lt;audio&gt;</div><div class="mode-desc">G avec un clip quasi silencieux joué en boucle par une balise &lt;audio&gt; pendant chaque phrase</div></div><button>Démarrer</button></div>
+    <label class="mode-desc">Durée du clip
+      <select id="carrier-duration"><option value="1">1 s</option><option value="30">30 s</option></select>
+    </label>
+    <div class="timer"></div>
   </div>
 
   <div class="log-actions"><button id="btn-copy">Copier le journal</button><button id="btn-clear">Effacer</button></div>
@@ -181,6 +202,99 @@
       };
     }
 
+    const OTIS_REPLY = "J'ai ajouté du lait à la liste de courses. Il reste aussi des tomates, des pâtes et du fromage. Bonne séance ce soir !";
+
+    // Répète la réponse d'Otis (mêmes réglages que speech.js) ; beforeSpeak / afterSpeak encadrent chaque phrase.
+    function startTtsLoop({ beforeSpeak = () => {}, afterSpeak = () => {} } = {}) {
+      if (!("speechSynthesis" in window)) throw new Error("speechSynthesis indisponible dans ce navigateur");
+      const frenchVoices = window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("fr"));
+      log(`Voix françaises chargées: ${frenchVoices.length} (${frenchVoices.map((v) => v.name).join(", ") || "voix par défaut"})`);
+      const state = { stopped: false, count: 0, pauseTimer: null, utterance: null };
+      const sayOnce = () => {
+        state.count += 1;
+        const phrase = state.count;
+        const utterance = new SpeechSynthesisUtterance(OTIS_REPLY);
+        utterance.lang = "fr-FR";
+        utterance.rate = 1.02;
+        let spokenAt = null;
+        utterance.onstart = () => { spokenAt = performance.now(); log(`TTS onstart (phrase ${phrase})`); };
+        utterance.onend = () => {
+          log(`TTS onend (phrase ${phrase}, ${spokenAt ? ((performance.now() - spokenAt) / 1000).toFixed(1) : "?"} s)`);
+          afterSpeak();
+          if (!state.stopped) state.pauseTimer = setTimeout(sayOnce, 1500);
+        };
+        utterance.onerror = (e) => { log(`TTS onerror (phrase ${phrase}): ${e.error}`); afterSpeak(); };
+        // Référence conservée : Chrome Mobile peut libérer l'énoncé en cours de lecture.
+        state.utterance = utterance;
+        beforeSpeak();
+        window.speechSynthesis.speak(utterance);
+      };
+      window.speechSynthesis.cancel();
+      sayOnce();
+      return () => {
+        state.stopped = true;
+        clearTimeout(state.pauseTimer);
+        window.speechSynthesis.cancel();
+      };
+    }
+
+    async function startTtsWithProcessedMicrophone(card) {
+      const stopMicrophone = await startMicrophone(PROCESSED_CONSTRAINTS, true, card.querySelector(".meter > div"));
+      let stopTts;
+      try {
+        stopTts = startTtsLoop();
+      } catch (err) {
+        stopMicrophone();
+        throw err;
+      }
+      return () => { stopTts(); stopMicrophone(); };
+    }
+
+    // WAV 8 kHz mono 16 bits, bruit vers -70 dBFS : inaudible sous la musique mais pas un silence numérique.
+    function buildNearSilentWav(seconds) {
+      const sampleRate = 8000;
+      const sampleCount = seconds * sampleRate;
+      const view = new DataView(new ArrayBuffer(44 + sampleCount * 2));
+      const writeText = (offset, text) => { for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i)); };
+      writeText(0, "RIFF");
+      view.setUint32(4, 36 + sampleCount * 2, true);
+      writeText(8, "WAVE");
+      writeText(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeText(36, "data");
+      view.setUint32(40, sampleCount * 2, true);
+      for (let i = 0; i < sampleCount; i++) view.setInt16(44 + i * 2, Math.round((Math.random() * 2 - 1) * 10), true);
+      return new Blob([view.buffer], { type: "audio/wav" });
+    }
+
+    function startTtsWithAudioElement(card) {
+      const seconds = Number(card.querySelector("#carrier-duration").value);
+      const url = URL.createObjectURL(buildNearSilentWav(seconds));
+      const carrier = new Audio(url);
+      carrier.loop = true;
+      for (const event of ["play", "playing", "pause"]) carrier.addEventListener(event, () => log(`<audio> ${event}`));
+      carrier.addEventListener("error", () => log(`ERREUR <audio>: ${carrier.error ? carrier.error.message || carrier.error.code : "inconnue"}`));
+      log(`Clip <audio>: ${seconds} s quasi silencieux, en boucle`);
+      const stopTts = startTtsLoop({
+        beforeSpeak: () => {
+          carrier.currentTime = 0;
+          carrier.play().catch((err) => log(`ERREUR <audio>.play(): ${err.name} ${err.message}`));
+        },
+        afterSpeak: () => carrier.pause(),
+      });
+      return () => {
+        stopTts();
+        carrier.pause();
+        URL.revokeObjectURL(url);
+      };
+    }
+
     const STARTERS = {
       "speech-continuous": () => startSpeech(true),
       "speech-single": () => startSpeech(false),
@@ -188,6 +302,9 @@
       "gum-raw": () => startMicrophone(RAW_CONSTRAINTS, false, null),
       "gum-raw-analyser": (card) => startMicrophone(RAW_CONSTRAINTS, true, card.querySelector(".meter > div")),
       "vosk-wake": (card) => startVoskWake(card),
+      "tts-only": () => startTtsLoop(),
+      "tts-mic-processed": (card) => startTtsWithProcessedMicrophone(card),
+      "tts-audio-element": (card) => startTtsWithAudioElement(card),
     };
 
     async function stopSession() {

@@ -61,10 +61,12 @@ Garder la musique intacte pendant l'attente du mot-clé ; n'accepter une baisse 
 ### [x] Étape 5 : Test d'intégration final & documentation
 - [x] Test E2E `tests/test_e2e_wake_word_audio_focus.py` (détecteur réel sous Node + chaîne servie par l'application).
 - [x] README mis à jour (Phase 6.9, lien Phase 6.8 vers l'historique git, étape `fetch_vosk_assets.py`).
-- [ ] Test manuel utilisateur dans la PWA avant clôture.
+- [x] Test manuel utilisateur dans la PWA (27/10, déployé main `778c94d`) : mot-clé détecté, **musique jamais baissée pendant l'écoute**, reprise de l'écoute après la réponse.
 
 ---
 
-## Hors Périmètre
+## Hors Périmètre (constatés au test manuel, à traiter dans une nouvelle feature)
+- **Musique non baissée pendant les réponses d'Otis** : `speechSynthesis` ne demande pas le focus audio sur Chrome Android et `navigator.audioSession` y est sans effet (auparavant masqué par l'écoute Web Speech qui coupait la musique en permanence). Décision utilisateur : diagnostic d'abord, en ajoutant à `audio_diag.html` des modes « réponse d'Otis » (synthèse seule ; synthèse + micro avec traitements ouvert ; synthèse + son joué via `<audio>`) avant tout choix.
+- **Transcriptions erronées après le bip** (« ajoute lait » → « ajoute le », « ajoute du lait » → « thé ») : utilisateur a bien attendu le bip, musique au haut-parleur. Piste principale : musique captée pendant la dictée (l'annulation d'écho ne retire pas le son de Spotify) ; autres pistes : rouverture du micro avec traitements, modèle de transcription Lite sur phrases courtes. Lié au point précédent (baisser la musique pendant la dictée aiderait aussi).
 - Comportement anormal du micro avec traitements (mode C, utilisé par la dictée) : à qualifier avec l'utilisateur, puis éventuellement traité dans une feature dédiée.
 - Retrait des branches regex redondantes d'`intent_parser.py` (garantissent le retour arrière `NLU_MODE=legacy`) : uniquement sur accord explicite.
