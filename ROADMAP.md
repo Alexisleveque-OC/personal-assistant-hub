@@ -45,7 +45,10 @@ Garder la musique intacte pendant l'attente du mot-clé ; n'accepter une baisse 
   - Fin de phrase accélérée (0,2 s / 0,4 s) : ~0,45 s gagnées mais « partis » découpé et pris pour « otis » à chaque fois → **écartée (décision utilisateur : fiabilité d'abord)**, délai ≈ 1 à 1,5 s.
   - Redémarrage du détecteur au milieu d'une phrase : faux réveils restants (confiance 0,64-0,74, durée 0,24-0,29 s) contre vrais « Otis » à 1,00 / 0,54 s → seuil de confiance à fixer sur les mesures de la vraie voix (le mode F journalise confiance et durée).
   - `stop()` pendant `start()` : abandon propre (jeton de génération), plus de fausse erreur micro.
-- [ ] Déploiement (accord utilisateur) et test sur le téléphone avant de brancher l'app : chargement, vrais « Otis », faux réveils avec musique à paroles, chauffe.
+- [x] Déployé et testé sur le téléphone (27/10) : erreur 500 initiale (Cloud Run refuse les réponses HTTP/1 > 32 Mio) → modèle servi en flux par `app/routers/wake_word.py` (`/vosk/model.tar.gz`, exclu du service worker).
+- [x] Résultats appareil : **musique jamais baissée** ; modèle chargé en 3,1 s puis 0,9 s (cache) ; vrais « Otis » confiance 1,00 (durée 0,30-0,66 s) ; « mes hôtes sont partis tôt » → « [unk] otis » à 0,90.
+- [x] **Seuil de confiance 0,95** (décision utilisateur) ; la durée n'est pas un critère fiable (vrais « Otis » dès 0,30 s).
+- [ ] Reste à observer en usage : faux réveils sur de longues écoutes de musique à paroles, chauffe / batterie.
 
 ### [ ] Étape 4 : Branchement dans la PWA
 - [ ] `speech.js` : l'écoute du mot-clé passe sur Vosk (pause pendant dictée / réponse, arrêt en arrière-plan), « Otis » → bip → dictée.
