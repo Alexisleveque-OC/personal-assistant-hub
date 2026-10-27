@@ -41,6 +41,9 @@ Desktop.ini
 /tools/
 *.log
 
+# Assets Vosk téléchargés au build (scripts/fetch_vosk_assets.py)
+/app/static/vendor/vosk/
+
 # SQLite Databases & WAL files
 *.db
 *.db-wal
