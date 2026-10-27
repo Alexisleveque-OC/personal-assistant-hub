@@ -45,17 +45,23 @@ Garder la musique intacte pendant l'attente du mot-clé ; n'accepter une baisse 
   - Fin de phrase accélérée (0,2 s / 0,4 s) : ~0,45 s gagnées mais « partis » découpé et pris pour « otis » à chaque fois → **écartée (décision utilisateur : fiabilité d'abord)**, délai ≈ 1 à 1,5 s.
   - Redémarrage du détecteur au milieu d'une phrase : faux réveils restants (confiance 0,64-0,74, durée 0,24-0,29 s) contre vrais « Otis » à 1,00 / 0,54 s → seuil de confiance à fixer sur les mesures de la vraie voix (le mode F journalise confiance et durée).
   - `stop()` pendant `start()` : abandon propre (jeton de génération), plus de fausse erreur micro.
-- [ ] Déploiement (accord utilisateur) et test sur le téléphone avant de brancher l'app : chargement, vrais « Otis », faux réveils avec musique à paroles, chauffe.
+- [x] Déployé et testé sur le téléphone (27/10) : erreur 500 initiale (Cloud Run refuse les réponses HTTP/1 > 32 Mio) → modèle servi en flux par `app/routers/wake_word.py` (`/vosk/model.tar.gz`, exclu du service worker).
+- [x] Résultats appareil : **musique jamais baissée** ; modèle chargé en 3,1 s puis 0,9 s (cache) ; vrais « Otis » confiance 1,00 (durée 0,30-0,66 s) ; « mes hôtes sont partis tôt » → « [unk] otis » à 0,90.
+- [x] **Seuil de confiance 0,95** (décision utilisateur) ; la durée n'est pas un critère fiable (vrais « Otis » dès 0,30 s).
+- [ ] Reste à observer en usage : faux réveils sur de longues écoutes de musique à paroles, chauffe / batterie.
 
-### [ ] Étape 4 : Branchement dans la PWA
-- [ ] `speech.js` : l'écoute du mot-clé passe sur Vosk (pause pendant dictée / réponse, arrêt en arrière-plan), « Otis » → bip → dictée.
-- [ ] Échec de chargement → toast + mains-libres désactivé.
-- [ ] Section calibrage / variantes masquée.
-- [ ] Pas de cache du modèle dans le service worker : le worker Vosk le conserve déjà dans IndexedDB (clé = URL versionnée).
+### [x] Étape 4 : Branchement dans la PWA
+- [x] `speech.js` : l'écoute du mot-clé passe sur Vosk (pause pendant dictée / réponse, arrêt en arrière-plan), « Otis » → bip → dictée.
+- [x] Échec de chargement → toast + mains-libres désactivé ; premier téléchargement annoncé (toast si chargement > 2 s).
+- [x] Section calibrage / variantes masquée (commentée dans `index.html`, code JS conservé).
+- [x] Modules du détecteur pré-cachés par le service worker (v24) pour le démarrage hors ligne.
+- [x] Parcours vérifié dans la vraie PWA (Chrome Windows sans interface, faux micro) : modèle chargé, « Otis » → bip → dictée → `POST /api/v1/interact/audio`.
+- [x] Pas de cache du modèle dans le service worker : le worker Vosk le conserve déjà dans IndexedDB (clé = URL versionnée).
 
-### [ ] Étape 5 : Test d'intégration final & documentation
-- [ ] Test E2E du flux mot-clé → dictée → réponse.
-- [ ] README mis à jour (lien Phase 6.8 compris).
+### [x] Étape 5 : Test d'intégration final & documentation
+- [x] Test E2E `tests/test_e2e_wake_word_audio_focus.py` (détecteur réel sous Node + chaîne servie par l'application).
+- [x] README mis à jour (Phase 6.9, lien Phase 6.8 vers l'historique git, étape `fetch_vosk_assets.py`).
+- [ ] Test manuel utilisateur dans la PWA avant clôture.
 
 ---
 

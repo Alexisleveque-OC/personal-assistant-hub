@@ -182,3 +182,23 @@ console.log(JSON.stringify({ wakes, running: detector.isRunning, released: track
     assert result["released"] is True
     assert any("ignoré" in line and "otis [unk]" in line and "0.73" in line for line in result["logs"])
     assert any("détecté" in line and "confiance 1.00" in line and "durée 0.55 s" in line for line in result["logs"])
+
+
+def test_wake_requires_a_confidence_of_at_least_0_95():
+    """Mesuré sur le téléphone : vrais « Otis » à 1,00 ; « mes hôtes sont partis tôt » → « [unk] otis » à 0,90."""
+    snippet = BROWSER_FAKES + """
+const starting = detector.start();
+await tick();
+grantMicrophone();
+await starting;
+handlers.result({ result: { text: "[unk] otis", result: [
+  { word: "[unk]", conf: 1, start: 0.2, end: 0.8 }, { word: "otis", conf: 0.90, start: 0.8, end: 1.04 },
+] } });
+const runningAfterLowConfidence = detector.isRunning;
+handlers.result({ result: { text: "otis", result: [{ word: "otis", conf: 0.95, start: 3.0, end: 3.3 }] } });
+console.log(JSON.stringify({ wakes, runningAfterLowConfidence, logs }));
+"""
+    result = json.loads(_run_module_with(snippet))
+    assert result["wakes"] == ["otis"]
+    assert result["runningAfterLowConfidence"] is True
+    assert any("ignoré" in line and "0.90" in line for line in result["logs"])

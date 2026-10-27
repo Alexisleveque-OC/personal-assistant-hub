@@ -45,4 +45,4 @@ def test_service_worker_lets_the_model_download_bypass_its_cache():
     sw = (ROOT / "app" / "static" / "sw.js").read_text(encoding="utf-8")
     assert 'url.pathname.startsWith("/vosk/")' in sw
     assert sw.index('url.pathname.startsWith("/vosk/")') < sw.index("Stale-While-Revalidate")
-    assert "pah-pwa-cache-v23" in sw
+    assert "pah-pwa-cache-v24" in sw
