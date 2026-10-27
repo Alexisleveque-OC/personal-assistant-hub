@@ -3,6 +3,7 @@
 Lancement : RUN_LIVE_GEMINI=1 .venv/bin/pytest tests/nlu_golden/test_golden_agent_live.py -v -rxX
 """
 import os
+import time
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +16,7 @@ from app.core.agent.llm import GeminiAgentLLM
 from app.core.clock import paris_today
 from app.core.dependencies import set_sport_connector
 from app.core.llm.gemini_client import GeminiClient
+from app.core.llm.rayon_suggester import GeminiRayonSuggester, set_rayon_suggester
 from app.main import app
 from tests.nlu_golden.models import GoldenCase
 from tests.nlu_golden.runner import evaluate, run_case
@@ -23,6 +25,12 @@ from tests.nlu_golden.test_golden_set import CASES
 pytestmark = pytest.mark.skipif(
     os.environ.get("RUN_LIVE_GEMINI") != "1", reason="Évaluation réelle Gemini : définir RUN_LIVE_GEMINI=1."
 )
+
+# Tests sur le modèle à gros quota uniquement (500 req/j, 15 req/min) : pas de relais vers 3.6/3.8 (20 req/j),
+# réservés au sport en production.
+LIVE_MODEL = "gemini-3.5-flash-lite"
+_SECONDS_PER_CALL = 60 / 15
+_calls_total: list[int] = []
 
 # Capacités prévues aux étapes suivantes : échecs attendus (non stricts, le LLM n'est pas déterministe).
 AGENT_PENDING: dict[str, str] = {}
@@ -40,7 +48,9 @@ def test_golden_case_agent_live(case: GoldenCase, isolate_sqlite_database, monke
     assert api_key, "GEMINI_API_KEY absente du .env : impossible d'évaluer l'agent réel."
     monkeypatch.setattr(settings, "nlu_mode", "agent")
     set_sport_connector(SqlSportConnector(db_manager=isolate_sqlite_database))
-    set_agent_llm(GeminiAgentLLM(GeminiClient(api_key=api_key, timeout=20.0)))
+    client = GeminiClient(api_key=api_key, model=LIVE_MODEL, timeout=20.0)
+    set_agent_llm(GeminiAgentLLM(client))
+    set_rayon_suggester(GeminiRayonSuggester(client))
     try:
         with patch("app.main.get_nlu_service", return_value=None), \
              patch("app.routers.interact.get_nlu_service", return_value=None):
@@ -49,6 +59,11 @@ def test_golden_case_agent_live(case: GoldenCase, isolate_sqlite_database, monke
     finally:
         set_sport_connector(None)
         set_agent_llm(None)
+        calls = client.get_usage_stats()["total_requests"]
+        _calls_total.append(calls)
+        print(f"\n[live] {case.id} : {calls} appel(s) Gemini, total {sum(_calls_total)}")
+        time.sleep(calls * _SECONDS_PER_CALL)  # rester sous la limite par minute
 
+    print(f"\n[live] {case.id} réponses : {run.responses}\n[live] notes créées : {run.new_notes}")
     errors = evaluate(case, run)
     assert not errors, f"[{case.id}] réponses {run.responses}\n  - " + "\n  - ".join(errors)
