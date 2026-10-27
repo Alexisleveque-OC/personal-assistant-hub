@@ -90,6 +90,12 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Mesure de latence (27/10, vrai Gemini 3.5 Flash Lite, 2 passes de 9 phrases) : voie rapide et réponses traitées par le code < 0,1 s ; tour agent = 2 appels Gemini successifs (outil puis réponse), médiane 8 s, de 2,7 à 16,5 s ; appel Gemini de 0,6 à 9 s selon la charge de Google ; code + outils ≈ 0,2 s (hors latence Google Sheets en prod). Les 20-70 s observés en test venaient du dépassement de 15 req/min (429 → pause du modèle et relais), pas du code.
 - [x] Mise à jour du `README.md` (fin de phase), suite `pytest` 100 % verte.
 
+### [x] Étape 7 : Latence Ressentie (décisions du 27/10/2026)
+- [x] Réponse directe après une modification simple (`app/core/agent/fast_reply.py`) : séance modifiée, enregistrée ou planifiée ; articles ajoutés, cochés ou retirés ; note enregistrée → l'application rédige la confirmation, pas de 2e appel Gemini. Gemini garde la main pour les lectures, le plan de la semaine, les repas, les erreurs, les rayons à demander et les demandes composées (« et », « puis », « aussi », « ensuite »).
+- [x] Journalisation de la latence par tour : `conversation_logs.parameters` contient `llm_calls` (modèle, durée de chaque appel Gemini) et `fast_reply`, y compris en cas d'échec.
+- [x] PWA : bulle animée « Otis réfléchit… » pendant l'attente (texte et vocal), retirée à la réponse ou en cas d'erreur ; cache Service Worker v22.
+- [x] Validation réelle : golden agent 33/33 en 53 appels (69 avant). Mesure : modification simple en 1 appel Gemini (≈ 1 s quand Gemini est rapide, contre 2 appels avant).
+
 ---
 
 ## Hors Périmètre (à traiter ensuite)

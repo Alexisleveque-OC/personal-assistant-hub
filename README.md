@@ -90,7 +90,7 @@ personal-assistant-hub/
 * **TDD Strict (Test-Driven Development) :** Tout développement commence par un test unitaire rouge validant le contrat avant l'écriture du code de production (Red $\rightarrow$ Green $\rightarrow$ Refactor).
 * **Pattern Connecteurs :** Chaque service externe dispose d'une abstraction et d'un mock autonome pour s'exécuter hors-ligne sans dépendance réseau lors des tests et démos.
 * **Résolution contextuelle & Dialogue multi-tours :** Maintien de l'état de session, clarifications ciblées de rayon, confirmation de recettes et réajustements a posteriori.
-* **Cache Mémoire & Asynchronisme :** Préchauffage des catalogues au boot du serveur (`warmup_cache`) et écritures externes en arrière-plan (`BackgroundTasks`). Voie rapide et réponses traitées par le code : < 0,1 s ; tour agent (2 appels Gemini) : 3 à 16 s mesurés, selon la charge de Gemini.
+* **Cache Mémoire & Asynchronisme :** Préchauffage des catalogues au boot du serveur (`warmup_cache`) et écritures externes en arrière-plan (`BackgroundTasks`). Voie rapide et réponses traitées par le code : < 0,3 s ; modification simple en 1 appel Gemini (confirmation rédigée par l'application) ; autres tours agent en 2 appels ou plus, de 1 à 16 s mesurés selon la charge de Gemini. Latence de chaque appel journalisée dans `conversation_logs`, bulle « Otis réfléchit… » dans la PWA pendant l'attente.
 * **Fail-Fast Explicite :** Gestion d'erreurs déterministe avec messages contextualisés et typés en cas d'anomalie.
 
 ---
