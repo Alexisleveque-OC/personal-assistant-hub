@@ -90,6 +90,7 @@ class MealsShoppingConnector(BaseConnector):
             self._spreadsheet = gc.open_by_key(settings.spreadsheet_meals_shopping_id)
 
         self._rayons_cache: Optional[Dict[str, str]] = None
+        self._rayons_cache_time: float = 0.0
         self._recipes_cache: Optional[List[Recipe]] = None
         self._shopping_cache: Optional[Dict[str, Any]] = None
         self._shopping_cache_time: float = 0.0
@@ -101,7 +102,7 @@ class MealsShoppingConnector(BaseConnector):
         self._cache_ttl_seconds: int = 180
 
     def invalidate_cache(self, domain: Optional[str] = None) -> None:
-        """Invalide le cache mémoire pour un domaine ('shopping', 'meals', 'recipes') ou tout."""
+        """Invalide le cache mémoire pour un domaine ('shopping', 'meals', 'recipes', 'rayons') ou tout."""
         if domain in (None, "shopping"):
             self._shopping_cache = None
             self._shopping_cache_time = 0.0
@@ -112,6 +113,9 @@ class MealsShoppingConnector(BaseConnector):
             self._annual_meals_cache_time.clear()
         if domain in (None, "recipes"):
             self._recipes_cache = None
+        if domain in (None, "rayons"):
+            self._rayons_cache = None
+            self._rayons_cache_time = 0.0
 
     def warmup_cache(self) -> Dict[str, Any]:
         """Préchauffe l'ensemble des catalogues statiques et plannings en mémoire."""
@@ -511,8 +515,14 @@ class MealsShoppingConnector(BaseConnector):
         return None
 
     def _get_rayons_map(self) -> Dict[str, str]:
-        """Charge le catalogue des rayons en cache mémoire pour économiser les quotas d'appels API."""
-        if self._rayons_cache is not None:
+        """Charge le catalogue des rayons en cache mémoire (TTL) pour économiser les quotas d'appels API.
+
+        Un rayon vide dans Ingredients_Rayons = article connu, à trier plus tard dans le classeur : affiché en Divers.
+        """
+        now = time.time()
+        if self._rayons_cache is not None and (
+            now - getattr(self, "_rayons_cache_time", 0.0) < getattr(self, "_cache_ttl_seconds", 180)
+        ):
             return self._rayons_cache
 
         cache: Dict[str, str] = {}
@@ -520,8 +530,8 @@ class MealsShoppingConnector(BaseConnector):
         try:
             ws_ing = self._spreadsheet.worksheet("Ingredients_Rayons")
             for row in ws_ing.get_all_values()[1:]:
-                if row and len(row) >= 2 and row[0].strip():
-                    cache[self._normalize(row[0])] = row[1].strip()
+                if row and row[0].strip():
+                    cache[self._normalize(row[0])] = (row[1].strip() if len(row) >= 2 else "") or "Divers"
         except Exception:
             pass
 
@@ -537,7 +547,37 @@ class MealsShoppingConnector(BaseConnector):
             pass
 
         self._rayons_cache = cache
+        self._rayons_cache_time = now
         return self._rayons_cache
+
+    def learn_ingredient_rayon(self, ingredient: str, rayon: str) -> None:
+        """Mémorise durablement le rayon d'un article en fin d'onglet Ingredients_Rayons (rayon vide = à trier)."""
+        self._spreadsheet.worksheet("Ingredients_Rayons").append_row([ingredient, rayon], value_input_option="USER_ENTERED")
+        self.invalidate_cache("rayons")
+
+    def get_learned_rayon(self, ingredient: str) -> Optional[str]:
+        """Rayon enregistré pour l'article dans Ingredients_Rayons, lu sans cache (None : absent de l'onglet)."""
+        index = self._ingredient_row_index(ingredient)
+        if index is None:
+            return None
+        row = self._spreadsheet.worksheet("Ingredients_Rayons").get_all_values()[index - 1]
+        return row[1].strip() if len(row) >= 2 else ""
+
+    def forget_ingredient_rayon(self, ingredient: str) -> bool:
+        """Supprime la dernière ligne de l'article dans Ingredients_Rayons ; False si l'article n'y figure pas."""
+        index = self._ingredient_row_index(ingredient)
+        if index is None:
+            return False
+        self._spreadsheet.worksheet("Ingredients_Rayons").delete_rows(index)
+        self.invalidate_cache("rayons")
+        return True
+
+    def _ingredient_row_index(self, ingredient: str) -> Optional[int]:
+        """Numéro (1-indexé) de la dernière ligne de l'article dans Ingredients_Rayons, en-tête exclu."""
+        wanted = self._normalize(ingredient)
+        rows = self._spreadsheet.worksheet("Ingredients_Rayons").get_all_values()
+        matches = [i for i, row in enumerate(rows[1:], start=2) if row and self._normalize(row[0]) == wanted]
+        return matches[-1] if matches else None
 
     def _resolve_rayon(self, item_name: str) -> tuple[str, Optional[str]]:
         """Déduit dynamiquement le rayon d'un article depuis le catalogue en cache."""
@@ -579,21 +619,6 @@ class MealsShoppingConnector(BaseConnector):
             "Hygiène",
             "Divers",
         ]
-
-    def suggest_rayons_for_item(self, item_name: str) -> List[str]:
-        """Suggère 2 rayons pertinents pour un article non répertorié."""
-        norm = self._normalize(item_name).lower()
-        if any(w in norm for w in ["papier", "eponge", "sopalin", "lessive", "nettoyant", "sac", "cuisson", "alu"]):
-            return ["Entretien", "Épicerie"]
-        if any(w in norm for w in ["shampoing", "savon", "dentifrice", "coton", "douche", "brosse"]):
-            return ["Hygiène", "Entretien"]
-        if any(w in norm for w in ["poulet", "boeuf", "porc", "steak", "viande", "jambon"]):
-            return ["Boucherie", "Frais"]
-        if any(w in norm for w in ["glace", "surgele", "sorbet", "poelee"]):
-            return ["Surgelés", "Frais"]
-        if any(w in norm for w in ["pomme", "poire", "legume", "fruit", "salade", "carotte", "tomate"]):
-            return ["Fruits & Légumes", "Frais"]
-        return ["Épicerie", "Entretien"]
 
     def ensure_checkbox_validation(self) -> None:
         """Garantit que la colonne A de Liste_Attente (à partir de la ligne 2) possède la validation case à cocher."""
@@ -642,14 +667,8 @@ class MealsShoppingConnector(BaseConnector):
         rows_to_append: List[List[Any]] = []
 
         for raw_item in items:
-            cleaned = re.sub(
-                r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
-                "",
-                raw_item.strip(),
-                flags=re.IGNORECASE,
-            ).strip()
-            clean_item = (cleaned[0].upper() + cleaned[1:]) if cleaned else raw_item.strip()
-            
+            clean_item = self.clean_item_name(raw_item)
+
             explicit_rayon = (rayons or {}).get(clean_item) or (rayons or {}).get(raw_item.strip())
             if explicit_rayon:
                 rayon = explicit_rayon
@@ -689,6 +708,17 @@ class MealsShoppingConnector(BaseConnector):
             self.invalidate_cache("shopping")
 
         return added_items, warnings
+
+    @staticmethod
+    def clean_item_name(raw_item: str) -> str:
+        """Nom d'article tel qu'enregistré dans le classeur : sans article initial, première lettre en majuscule."""
+        cleaned = re.sub(
+            r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
+            "",
+            raw_item.strip(),
+            flags=re.IGNORECASE,
+        ).strip()
+        return (cleaned[0].upper() + cleaned[1:]) if cleaned else raw_item.strip()
 
     def add_shopping_item(
         self,
@@ -1000,6 +1030,68 @@ class MealsShoppingConnector(BaseConnector):
 
         self.invalidate_cache("shopping")
         return marked
+
+    _ITEM_ARTICLE_PREFIX = re.compile(r"^(?:du|de la|des|de l|d|le|la|les|l|un|une)\s+")
+
+    def matches_item_name(self, query: str, candidate: str) -> bool:
+        """Compare deux noms d'articles en ignorant casse, accents, article initial et pluriels simples."""
+        def _key(text: str) -> str:
+            return self._stem_tokens(self._ITEM_ARTICLE_PREFIX.sub("", self._normalize(text)))
+        return bool(_key(query)) and _key(query) == _key(candidate)
+
+    def get_waiting_list_rows(self) -> List[WaitingListItem]:
+        """Relit toutes les lignes de 'Liste_Attente' (achetées comprises), sans cache : sert aux instantanés d'annulation."""
+        rows = self._spreadsheet.worksheet("Liste_Attente").get_all_values()
+        return [
+            WaitingListItem(
+                item=row[1].strip(),
+                is_bought=row[0].strip().upper() == "TRUE",
+                added_at=row[2].strip() if len(row) > 2 and row[2].strip() else None,
+            )
+            for row in rows[1:]
+            if len(row) >= 2 and row[1].strip()
+        ]
+
+    def restore_waiting_items(self, items: List[WaitingListItem]) -> None:
+        """Rétablit des lignes supprimées de 'Liste_Attente' (en fin de liste) avec leur état coché et leur date."""
+        ws = self._spreadsheet.worksheet("Liste_Attente")
+        ws.append_rows(
+            [[it.is_bought, it.item, it.added_at or ""] for it in items],
+            value_input_option="USER_ENTERED",
+        )
+        self.invalidate_cache("shopping")
+
+    def unmark_shopping_items_bought(self, items: List[str]) -> List[str]:
+        """Décoche les articles désignés et actuellement cochés dans 'Liste_Attente'."""
+        ws = self._spreadsheet.worksheet("Liste_Attente")
+        targets = {self._normalize(it) for it in items}
+        updates, unmarked = [], []
+        for idx, row in enumerate(ws.get_all_values()[1:], start=2):
+            if len(row) >= 2 and row[0].strip().upper() == "TRUE" and self._normalize(row[1]) in targets:
+                updates.append({"range": f"A{idx}", "values": [[False]]})
+                unmarked.append(row[1].strip())
+        if updates:
+            ws.batch_update(updates, value_input_option="USER_ENTERED")
+        self.invalidate_cache("shopping")
+        return unmarked
+
+    def unmark_current_week_items_bought(self, item_names: List[str]) -> List[str]:
+        """Décoche les articles désignés et actuellement cochés dans l'onglet 'Cette semaine'."""
+        ws = self._spreadsheet.worksheet("Cette semaine")
+        targets = {self._normalize(it) for it in item_names}
+        updates, unmarked = [], []
+        for r_idx, row in enumerate(ws.get_all_values()[9:], start=10):
+            for col_offset in (0, 2, 4, 6):
+                if len(row) > col_offset + 1:
+                    checked = row[col_offset].strip().upper() == "TRUE"
+                    name = row[col_offset + 1].strip()
+                    if checked and name and self._normalize(name) in targets:
+                        updates.append({"range": f"{chr(ord('A') + col_offset)}{r_idx}", "values": [[False]]})
+                        unmarked.append(name)
+        if updates:
+            ws.batch_update(updates, value_input_option="USER_ENTERED")
+        self.invalidate_cache("shopping")
+        return unmarked
 
 
     async def execute_action(self, action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:

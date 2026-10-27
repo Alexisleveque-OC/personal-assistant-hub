@@ -210,7 +210,54 @@ class DatabaseManager:
                 "CREATE INDEX IF NOT EXISTS idx_sport_summaries_semaine_annee ON sport_weekly_summaries(annee DESC, semaine DESC);"
             )
 
+            # 7. Journal d'annulation de l'agent (instantanés par tour, persistés malgré les redémarrages)
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS agent_undo_batches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    undos_json TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    undone_at TIMESTAMP
+                );
+                """
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_agent_undo_session ON agent_undo_batches(session_id, id DESC);"
+            )
+
         logger.info(f"Base de données SQLite initialisée avec succès : {self.db_path} (mode WAL)")
+
+    def add_agent_undo_batch(self, session_id: str, undos_json: str) -> int:
+        """Enregistre le lot d'instantanés d'un tour de l'agent."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO agent_undo_batches (session_id, undos_json) VALUES (?, ?)",
+                (session_id, undos_json),
+            )
+            return cursor.lastrowid
+
+    def get_last_agent_undo_batch(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Récupère le dernier lot non encore annulé d'une session."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM agent_undo_batches WHERE session_id = ? AND undone_at IS NULL ORDER BY id DESC LIMIT 1",
+                (session_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def mark_agent_undo_batch_undone(self, batch_id: int) -> bool:
+        """Marque un lot comme annulé (il ne sera plus proposé)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE agent_undo_batches SET undone_at = CURRENT_TIMESTAMP WHERE id = ? AND undone_at IS NULL",
+                (batch_id,),
+            )
+            return cursor.rowcount > 0
 
     def log_conversation(
         self,

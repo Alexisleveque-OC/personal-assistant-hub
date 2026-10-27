@@ -428,7 +428,7 @@ class SportCoachService:
 
     async def _call_gemini_coach(self, system_prompt: str, user_prompt: str) -> SportWeeklyPlanProposal:
         """Exécute l'appel Gemini API avec validation JSON stricte."""
-        candidates = self.gemini_client.get_candidate_models()
+        candidates = await self.gemini_client.premium_candidate_models()
         last_exception = None
 
         payload = {
@@ -458,7 +458,6 @@ class SportCoachService:
 
                 latency_ms = (time.perf_counter() - start_time) * 1000
                 self.gemini_client.record_request(latency_ms)
-                self.gemini_client.set_active_working_model(candidate)
 
                 candidates_res = data.get("candidates", [])
                 if not candidates_res:

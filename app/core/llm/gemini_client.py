@@ -169,11 +169,11 @@ class GeminiClient:
             return DEFAULT_FALLBACK_MODEL
 
         # Priorité aux modèles Flash-Lite et Flash récents stables
-        # On place en premier les modèles ultra-réactifs et dotés de quotas élevés (3.5-flash-lite, 3.6-flash, flash-lite-latest)
+        # Quotas gratuits relevés dans AI Studio (27/10/2026) : 3.5-flash-lite 500 req/j (15/min) ; 3.6/3.8-flash 20 req/j
         def _model_priority(name: str) -> tuple[int, tuple[int, ...]]:
             nl = name.lower()
             ver = _parse_gemini_version(name)
-            # Éviter les pré-versions 3.8/3.7 à quotas Free-Tier microscopiques (20 req/j)
+            # Éviter les versions récentes à quotas Free-Tier microscopiques (20 req/j), réservées au sport
             is_ultra_preview = ver >= (3, 7)
             is_lite = "lite" in nl
             score = 10 if (is_lite and not is_ultra_preview) else (8 if not is_ultra_preview else 2)
@@ -199,6 +199,20 @@ class GeminiClient:
         if self.configured_model and self.configured_model.lower() != "auto":
             return [self.configured_model]
         return [self._resolved_model or DEFAULT_FALLBACK_MODEL]
+
+    async def premium_candidate_models(self) -> List[str]:
+        """Candidats du meilleur au moins bon (3.8 → 3.6 → Lite), hors modèles en pause : réservé au sport.
+
+        Les modèles récents ont un quota gratuit réduit (≈ 20 req/j) : un quota épuisé (429) met le modèle en pause et
+        l'appel suivant passe au modèle inférieur. Ne pas appeler `set_active_working_model` avec ces modèles, sous
+        peine de les promouvoir en tête pour toute l'application.
+        """
+        await self.resolve_model()
+
+        def _rank(name: str) -> tuple[tuple[int, ...], bool]:
+            return (_parse_gemini_version(name), "lite" not in name.lower())
+
+        return sorted(self.get_candidate_models(), key=_rank, reverse=True)
 
     def set_resolved_model(self, model: str) -> None:
         """Met à jour le modèle résolu actif."""

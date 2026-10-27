@@ -71,24 +71,27 @@ def test_interact_unknown_intent_uses_smart_conversational_reply():
         assert "reformuler" not in data["spoken_response"].lower()
 
 
-def test_interact_ambiguous_item_triggers_targeted_clarification():
-    """Pour un produit ambigu (ex: papier cuisson), l'assistant propose les options ciblées."""
-    mock_connector = MagicMock()
-    mock_connector.resolve_rayon.return_value = ("Divers", "Article non répertorié")
-    mock_connector.get_available_rayons.return_value = ["PQ + entretien", "Épicerie", "Fruits"]
-    set_meals_connector(mock_connector)
+def test_interact_unknown_item_from_gemini_nlu_asks_the_rayon_instead_of_trusting_its_guess():
+    """Article inconnu compris par le NLU Gemini : le rayon deviné n'est pas retenu, l'utilisateur est interrogé."""
+    from datetime import date
 
+    from app.connectors.sheets.meals_connector import MealsShoppingConnector
+    from app.core.llm.rayon_suggester import set_rayon_suggester
+    from tests.meals_fakes import MealsSheetState, build_meals_spreadsheet, waiting_rows
+
+    sheet = build_meals_spreadsheet(MealsSheetState(today=date.today()))
+    set_meals_connector(MealsShoppingConnector(spreadsheet=sheet))
+
+    async def suggester(article, rayons):
+        return ["Entretien", "Épicerie"]
+
+    set_rayon_suggester(suggester)
     smart_parsed = ParsedIntent(
         intent=IntentType.ADD_SHOPPING_ITEM,
         confidence=0.95,
-        parameters={
-            "item": "papier cuisson",
-            "rayon": "Épicerie",
-            "is_ambiguous": True,
-            "suggested_options": ["PQ + entretien", "Épicerie"],
-        },
-        raw_query="ajoute du papier cuisson",
-        conversational_reply="Le papier cuisson peut aller au rayon Entretien ou Épicerie. Où préfères-tu que je le range ?",
+        parameters={"item": "papier cuisson", "rayon": "Épicerie", "is_ambiguous": False},
+        raw_query="il me faudrait du papier cuisson",
+        conversational_reply="J'ai ajouté le papier cuisson au rayon Épicerie.",
     )
 
     with patch("app.main.get_nlu_service") as mock_get_nlu:
@@ -96,15 +99,15 @@ def test_interact_ambiguous_item_triggers_targeted_clarification():
         mock_nlu.parse.return_value = smart_parsed
         mock_get_nlu.return_value = mock_nlu
 
-        res = client.post(
-            "/api/v1/interact",
-            json={"query": "ajoute du papier cuisson"},
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert "entretien" in data["spoken_response"].lower()
-        assert "épicerie" in data["spoken_response"].lower()
-        assert data.get("data", {}).get("pending_action", {}).get("type") == "clarify_shopping_rayon"
+        res = client.post("/api/v1/interact", json={"query": "il me faudrait du papier cuisson", "session_id": "nlu-rayon"})
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["spoken_response"] == (
+        "Je ne connais pas encore le rayon de « Papier cuisson » : je le range en Entretien ou en Épicerie ?"
+    )
+    assert data["data"]["rayon_question"]["article"] == "Papier cuisson"
+    assert waiting_rows(sheet) == []
 
     set_meals_connector(None)
 

@@ -188,8 +188,8 @@ class SportVisionService:
             },
         }
 
-        # Liste prioritaire des modèles multimodaux stables
-        candidates = client.get_candidate_models() if hasattr(client, "get_candidate_models") else []
+        # Meilleurs modèles d'abord (relais au modèle inférieur sur quota), complétés par une liste de secours
+        candidates = await client.premium_candidate_models() if hasattr(client, "premium_candidate_models") else []
         preferred_models = [
             "gemini-3.8-flash",
             "gemini-3.5-flash",
@@ -227,8 +227,6 @@ class SportVisionService:
                     parsed = json.loads(raw_text)
                     if parsed.get("date"):
                         parsed["date"] = parse_screenshot_date(parsed["date"], reference_date=reference_date).isoformat()
-                    if hasattr(client, "set_active_working_model"):
-                        client.set_active_working_model(model_name)
                     return parsed
 
                 if resp.status_code in (429, 503) and hasattr(client, "mark_model_temporarily_unavailable"):
