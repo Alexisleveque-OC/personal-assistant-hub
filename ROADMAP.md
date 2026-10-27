@@ -66,10 +66,25 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 - [x] Réponse courte (« d'accord ») à une question de l'agent → renvoyée à l'agent. Notes toujours en français (règle de prompt + contrôle dans le golden set) ; vérification réelle dédiée à refaire (quota Gemini épuisé le jour même).
 - [x] Golden set : 29 cas (14 courses/repas). Legacy 12/29, **agent réel 28-29/29** sur 4 passages (échecs résiduels corrigés au fil des passages).
 - [ ] Retrait des branches regex redondantes en mode agent (sport 9.1 bis-9.4, `SAVE_NOTE`, recettes, planification repas, coche courses) : **reporté après le déploiement** et une période d'observation, car elles assurent le retour arrière `NLU_MODE=legacy`.
-- [ ] Rayon choisi pour un article inconnu : conservé en mémoire seulement (comportement existant) ; à persister dans `Hors_Repas` si besoin.
+- [x] Rayon d'un article inconnu : voir Étape 5 bis (remplace le choix du rayon par l'agent, gardé en mémoire seulement).
+
+### [ ] Étape 5 bis : Rayon Demandé à l'Utilisateur & Enregistré dans le Classeur
+- [x] Logique unique (`app/core/shopping/rayon_questions.py`) pour la voie rapide « ajoute X » et l'outil agent `add_shopping_items` : un article inconnu n'est pas ajouté ; l'application demande son rayon en proposant 2 rayons de l'onglet « Rayons » (`app/core/llm/rayon_suggester.py`, 1 appel Gemini par nouvel article, sans « Divers » ; question ouverte si Gemini est indisponible). Plusieurs articles inconnus : une question à la fois.
+- [x] Réponse traitée par le code au tour suivant, sans LLM (`handlers/rayon_question_handler.py`, avant tout aiguillage dans `/interact`) :
+  - rayon de l'onglet (« en entretien », « le premier », « divers ») → ligne ajoutée en fin de `Ingredients_Rayons`, cache des rayons invalidé, article ajouté : la question n'est posée qu'une fois ;
+  - « non », « annule », « laisse tomber » → rien n'est ajouté ni enregistré ;
+  - autre chose → article ajouté et enregistré avec un rayon vide (« son rayon sera à trier plus tard dans votre sheet »), affiché en Divers ; une vraie demande est ensuite traitée normalement.
+- [x] Rayon dicté par l'utilisateur (« au rayon hygiène ») : enregistré directement. Garde-fou : le rayon passé par l'agent n'est retenu que s'il figure dans les mots de l'utilisateur.
+- [x] « Annule ça » : annulation exacte par le journal en mode agent (article retiré + ligne `Ingredients_Rayons` supprimée) ; en mode legacy, l'article seul est retiré.
+- [x] Cache des rayons : TTL de 3 min (auparavant jamais rafraîchi avant redémarrage), pour prendre en compte un tri manuel dans le classeur.
+- [x] Retirés car remplacés : `infer_rayon_with_llm` (ajout sans demander), `suggest_rayons_for_item` (rayons en dur), branches `clarify_shopping_rayon`.
+- [x] Golden set : 4 cas (question, réponse enregistrée, annulation, via l'agent) + attente `rayons_appris`. Legacy 16/33.
+- [x] Validation réelle (27/10) : golden agent **33/33** sur `gemini-3.5-flash-lite` (69 appels), notes rédigées en français. Prompt (règle 10) renforcé : l'agent ne mentionne plus l'article au rayon inconnu, la question de l'application suit (doublon constaté puis corrigé, 3/3 en réel).
+- [x] Tests réels figés sur `gemini-3.5-flash-lite` (500 req/j, 15 req/min), compteur d'appels et espacement par minute.
+- [x] Sport (vision capture, plan coach, conseil Otis) : meilleurs modèles d'abord (3.8 → 3.6 → 3.5 Lite), relais au modèle inférieur sur quota, sans promouvoir 3.8 pour le reste de l'application (`premium_candidate_models`).
 
 ### [ ] Étape 6 : Validation Réelle & E2E
-- [ ] Évaluation optionnelle du golden set contre le vrai Gemini (test marqué `live`, hors CI).
+- [x] Évaluation du golden set contre le vrai Gemini (`RUN_LIVE_GEMINI=1`, hors CI) : 33/33 le 27/10.
 - [ ] Test d'intégration E2E du flux complet (phrase → outils → base → réponse).
 - [ ] Mise à jour du `README.md` (fin de phase), suite `pytest -v` 100 % verte.
 
