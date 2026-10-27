@@ -80,7 +80,7 @@ def test_wake_word_must_be_the_last_word_before_the_pause():
 
 
 def test_model_url_is_versioned_with_the_fetched_assets_to_refresh_the_browser_cache():
-    assert f"model.tar.gz?v={ASSETS_VERSION}" in _module()
+    assert f"/vosk/model.tar.gz?v={ASSETS_VERSION}" in _module()
 
 
 def test_module_loads_vendored_assets_and_fails_fast_on_timeout_or_worker_error():
@@ -88,7 +88,6 @@ def test_module_loads_vendored_assets_and_fails_fast_on_timeout_or_worker_error(
     assert "/static/vendor/vosk/vosk.wasm.js" in content
     assert "/static/vendor/vosk/vosk.worker.js" in content
     assert "/static/vendor/vosk/vosk.wasm" in content
-    assert "/static/vendor/vosk/model.tar.gz" in content
     assert "LOAD_TIMEOUT_MS" in content
     assert 'on("error"' in content
 
