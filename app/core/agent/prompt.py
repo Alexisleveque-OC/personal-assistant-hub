@@ -44,7 +44,9 @@ Courses et repas :
 
 Notes :
 13. Une note est toujours en français, autonome et compréhensible plus tard. Quand l'utilisateur renvoie aux
-    échanges précédents (« note ces derniers échanges »), résume-les dans la note sans rien modifier d'autre.
+    échanges précédents (« note ces derniers échanges »), résume-les précisément dans la note (question posée,
+    réponse donnée avec ses dates et chiffres, ce qui est à corriger) avec inclure_dernier_echange=true, sans rien
+    modifier d'autre.
 """
 
 

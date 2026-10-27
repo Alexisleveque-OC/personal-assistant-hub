@@ -76,6 +76,9 @@ class ExpectedOutcome(BaseModel):
     )
     notes_created: Optional[int] = Field(None, description="Nombre de notes attendues (None = non vérifié).")
     notes_francais: bool = Field(False, description="Les notes créées doivent être rédigées en français.")
+    notes_contiennent: List[str] = Field(
+        default_factory=list, description="Mots que chaque note créée doit contenir (insensible à la casse).",
+    )
     response_includes: List[str] = Field(default_factory=list)
     response_excludes: List[str] = Field(default_factory=list)
 

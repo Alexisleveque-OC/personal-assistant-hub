@@ -189,6 +189,8 @@ def evaluate(case: GoldenCase, run: CaseRun) -> List[str]:
         errors.append(f"{run.notes_delta} note(s) créée(s), {expected.notes_created} attendue(s)")
     if expected.notes_francais:
         errors += [f"note non rédigée en français : « {note} »" for note in run.new_notes if not _is_french(note)]
+    for word in expected.notes_contiennent:
+        errors += [f"la note doit contenir « {word} » : « {note} »" for note in run.new_notes if word.lower() not in note.lower()]
     for word in expected.response_includes:
         if word.lower() not in last_response.lower():
             errors.append(f"la réponse doit contenir « {word} » : « {last_response} »")

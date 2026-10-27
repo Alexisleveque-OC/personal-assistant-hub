@@ -138,7 +138,7 @@
       "Quelle était ma dernière séance de renfo ?",
       "OK, prends note de ces derniers échanges, il faudra corriger ça."
     ],
-    "expected": {"notes_created": 1, "notes_francais": true}
+    "expected": {"notes_created": 1, "notes_francais": true, "notes_contiennent": ["dernière séance de renfo"]}
   },
   {
     "id": "clarification-deux-seances-meme-jour",

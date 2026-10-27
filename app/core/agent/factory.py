@@ -1,8 +1,8 @@
 """Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, notes et LLM Gemini."""
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from app.connectors.sqlite.sport_connector import SqlSportConnector
-from app.core.agent.agent_service import AgentService
+from app.core.agent.agent_service import AgentService, ConversationTurn
 from app.core.agent.errors import AgentUnavailableError
 from app.core.agent.llm import AgentLLM, GeminiAgentLLM
 from app.core.agent.tool_registry import ToolRegistry
@@ -48,6 +48,7 @@ def build_undo_service(sport_connector: Any, meals_connector: Any = None) -> Und
 
 def build_agent_service(
     sport_connector: Any, session_id: str, legacy_action_pending: bool, meals_tools: MealsTools,
+    history: Sequence[ConversationTurn] = (),
 ) -> AgentService:
     """`legacy_action_pending` : la dernière action de la session vient du flux regex (ex. ajout aux courses).
 
@@ -61,7 +62,7 @@ def build_agent_service(
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)
         + meals_tool_definitions(meals_tools)
-        + note_tool_definitions(db)
+        + note_tool_definitions(db, history)
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )
     return AgentService(llm=get_agent_llm(), registry=registry, sport_tools=sport_tools)

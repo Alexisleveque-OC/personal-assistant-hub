@@ -166,3 +166,11 @@ def test_unexpected_learned_rayon_is_reported_and_forbidden_in_clarification():
 
     with pytest.raises(ValidationError):
         _case({"clarification": True, "rayons_appris": {"papier cadeau": "Entretien"}})
+
+
+def test_new_notes_must_contain_expected_words():
+    case = _case({"notes_created": 1, "notes_contiennent": ["dernière séance de renfo"]})
+    good = "Réponse à vérifier.\n\n— Dernier échange —\nToi : Quelle était ma dernière séance de renfo ?"
+    assert evaluate(case, _sheet_run(new_notes=[good])) == []
+    errors = evaluate(case, _sheet_run(new_notes=["Noter les derniers échanges."]))
+    assert any("dernière séance de renfo" in e for e in errors)

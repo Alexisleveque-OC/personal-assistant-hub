@@ -104,3 +104,46 @@ async def test_save_note_stores_french_note_in_second_brain(db):
 async def test_save_note_rejects_empty_content(db):
     execution = await ToolRegistry(note_tool_definitions(db)).execute("save_note", {"content": "  "})
     assert "content" in execution.error
+
+
+# --- « Note ces derniers échanges » : résumé du modèle + extrait exact du dernier échange (décision 27/10) ---------
+
+def _history(*texts: str):
+    from app.core.agent.agent_service import ConversationTurn
+
+    return [ConversationTurn(role="user" if i % 2 == 0 else "assistant", text=t) for i, t in enumerate(texts)]
+
+
+async def _save(db, history, **args):
+    execution = await ToolRegistry(note_tool_definitions(db, history)).execute("save_note", args)
+    assert execution.error is None, execution.error
+    return db.get_note(execution.response["note_id"])["content"]
+
+
+@pytest.mark.asyncio
+async def test_note_on_previous_exchange_appends_its_exact_text_under_the_summary(db):
+    history = _history(
+        "Quelle était ma séance d'hier ?", "Une EF de 5 km.",
+        "Et ma dernière renfo ?", "Vendredi 23 octobre, 40 minutes, RPE 5.",
+    )
+
+    content = await _save(db, history, content="Réponse sur la renfo à vérifier.", inclure_dernier_echange=True)
+
+    assert content == (
+        "Réponse sur la renfo à vérifier.\n\n— Dernier échange —\n"
+        "Toi : Et ma dernière renfo ?\nOtis : Vendredi 23 octobre, 40 minutes, RPE 5."
+    )
+
+
+@pytest.mark.asyncio
+async def test_note_without_the_flag_keeps_only_the_summary(db):
+    content = await _save(db, _history("Question ?", "Réponse."), content="Idée libre.")
+
+    assert content == "Idée libre."
+
+
+@pytest.mark.asyncio
+async def test_note_on_previous_exchange_without_history_keeps_only_the_summary(db):
+    content = await _save(db, [], content="Rien avant.", inclure_dernier_echange=True)
+
+    assert content == "Rien avant."

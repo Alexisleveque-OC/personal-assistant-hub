@@ -140,6 +140,24 @@ def test_note_saved_by_agent_exposes_note_id_for_undo_toast(db, agent_mode):
     assert body["data"]["category"] == "bug_report"
 
 
+def test_note_on_previous_exchange_contains_its_exact_text(db, agent_mode):
+    set_agent_llm(ScriptedLLM([
+        text_turn("Ta dernière renfo date de vendredi, RPE 5."),
+        call_turn({"name": "save_note", "args": {
+            "content": "Date de la dernière renfo à vérifier.", "category": "bug_report", "inclure_dernier_echange": True,
+        }}),
+        text_turn("C'est noté."),
+    ]))
+    _ask("Quelle était ma dernière séance de renfo ?")
+
+    body = _ask("Note ces derniers échanges, il faudra corriger ça")
+
+    content = db.get_note(body["data"]["note_id"])["content"]
+    assert content.endswith(
+        "Toi : Quelle était ma dernière séance de renfo ?\nOtis : Ta dernière renfo date de vendredi, RPE 5."
+    )
+
+
 def test_add_sentence_about_sport_goes_to_agent_not_shopping(db, agent_mode, isolate_test_environment):
     """« Ajoute une séance… » est classé add_shopping_item par les regex : il ne doit jamais finir en courses."""
     set_agent_llm(ScriptedLLM([text_turn("Quel type de séance et pour quel jour ?")]))

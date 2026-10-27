@@ -103,7 +103,9 @@ async def handle_agent_turn(
     )
     service = None
     try:
-        service = build_agent_service(sport_connector, session_id, "last_undoable_action" in session_ctx, meals_tools)
+        service = build_agent_service(
+            sport_connector, session_id, "last_undoable_action" in session_ctx, meals_tools, history,
+        )
         reply = await service.run(query, history)
     except AgentError as exc:
         logger.error(f"Agent en échec ({type(exc).__name__}) : {exc}")
