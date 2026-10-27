@@ -26,6 +26,9 @@ COPY --from=litestream/litestream:0.3.13 /usr/local/bin/litestream /usr/local/bi
 COPY app/ ./app/
 COPY scripts/ ./scripts/
 
+# Assets Vosk (runtime WASM + modèle français, empreintes SHA-256 figées) pour la détection locale du mot-clé
+RUN python scripts/fetch_vosk_assets.py
+
 # Rendre les scripts exécutables et assigner les droits à l'utilisateur non-root
 RUN chmod +x /app/scripts/*.sh 2>/dev/null || true && \
     useradd -m -u 1000 appuser && \

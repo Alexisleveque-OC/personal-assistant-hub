@@ -56,6 +56,12 @@
     <div class="meter on"><div></div></div>
   </div>
 
+  <div class="mode" data-mode="vosk-wake">
+    <div class="mode-head"><div><div class="mode-title">F. Mot-clé local (Vosk)</div><div class="mode-desc">Micro brut + détection de « Otis » sur le téléphone. 1er démarrage : ~45 Mo à télécharger (Wi-Fi conseillé)</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+    <div class="timer detections"></div>
+  </div>
+
   <div class="log-actions"><button id="btn-copy">Copier le journal</button><button id="btn-clear">Effacer</button></div>
   <div id="diag-log"></div>
 
@@ -148,12 +154,40 @@
       };
     }
 
+    async function startVoskWake(card) {
+      const { VoskWakeWordDetector } = await import("/static/js/wake_word_vosk.js");
+      const counter = card.querySelector(".detections");
+      let stopped = false;
+      let detections = 0;
+      let restartTimer = null;
+      const detector = new VoskWakeWordDetector({
+        log,
+        onWake: () => {
+          detections += 1;
+          counter.textContent = `« Otis » détecté ${detections} fois`;
+          // Relance automatique pour compter les détections et les faux déclenchements sur la durée.
+          restartTimer = setTimeout(() => {
+            if (!stopped) detector.start().catch((err) => log(`ERREUR relance Vosk: ${err.name} ${err.message}`));
+          }, 1000);
+        },
+      });
+      counter.textContent = "";
+      log("Chargement du moteur Vosk…");
+      await detector.start();
+      return () => {
+        stopped = true;
+        clearTimeout(restartTimer);
+        detector.stop();
+      };
+    }
+
     const STARTERS = {
       "speech-continuous": () => startSpeech(true),
       "speech-single": () => startSpeech(false),
       "gum-processing": () => startMicrophone(PROCESSED_CONSTRAINTS, false, null),
       "gum-raw": () => startMicrophone(RAW_CONSTRAINTS, false, null),
       "gum-raw-analyser": (card) => startMicrophone(RAW_CONSTRAINTS, true, card.querySelector(".meter > div")),
+      "vosk-wake": (card) => startVoskWake(card),
     };
 
     async function stopSession() {

@@ -27,3 +27,6 @@ tunnel.log
 
 # Tests locaux (optionnels dans l'image de prod)
 tests/
+
+# Assets Vosk locaux : l'image télécharge toujours les versions figées (scripts/fetch_vosk_assets.py)
+app/static/vendor/vosk
