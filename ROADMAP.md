@@ -31,19 +31,22 @@ Garder la musique intacte pendant l'attente du mot-clé ; n'accepter une baisse 
 - **Calibrage / variantes du mot-clé** : section masquée (commentée) dans `index.html`, code JS conservé.
 - Écartés : Porcupine (offre gratuite arrêtée, rapportée au 30/06/2026), openWakeWord (entraînement + modèles non commerciaux), seuil de volume + Web Speech (déclenché en permanence par la musique au haut-parleur).
 
-### [ ] Étape 2 : Récupération des assets Vosk au build
-- [ ] Script `scripts/fetch_vosk_assets.py` : télécharge le paquet npm et le modèle (URL + SHA-256 figés, échec explicite si l'empreinte diffère), réemballe le modèle en `model.tar.gz` (dossier racine `model/`), dépose le tout dans `app/static/vendor/vosk/`.
-- [ ] `app/static/vendor/vosk/` ignoré par git ; étape `RUN` dans le `Dockerfile`.
+### [x] Étape 2 : Récupération des assets Vosk au build
+- [x] Script `scripts/fetch_vosk_assets.py` : télécharge le paquet npm et le modèle (URL + SHA-256 figés, échec explicite si l'empreinte diffère), réemballe le modèle en `model.tar.gz` (dossier racine `model/`), dépose le tout dans `app/static/vendor/vosk/`.
+- [x] `app/static/vendor/vosk/` ignoré par git et exclu du contexte Docker ; étape `RUN` dans le `Dockerfile` (build local vérifié : assets téléchargés dans l'image).
 
 ### [ ] Étape 3 : Moteur de mot-clé Vosk + validation sur l'appareil
-- [ ] Module `app/static/js/wake_word_vosk.js` : micro brut (sans traitements), `AudioContext`, reconnaissance restreinte, callback de détection, arrêt propre, erreurs explicites.
-- [ ] Mode **F** dans la page de diagnostic utilisant ce module : temps de chargement, détection de « Otis », faux déclenchements avec musique, chauffe.
+- [x] Module `app/static/js/wake_word_vosk.js` + `vosk_capture_worklet.js` : micro brut, `AudioWorklet`, reconnaissance restreinte, callback de détection, arrêt propre, `WakeWordLoadError` (délai max 120 s + événement `error`, absents de `createVoskClient`).
+- [x] Validé dans Chrome Windows sans interface (faux micro = WAV de synthèse vocale) : modèle chargé en 5,8 s puis 2,1 s (cache IndexedDB du worker), « Otis » détecté à chaque occurrence.
+- [x] **Résultats finaux uniquement** : les résultats partiels déclenchaient sur « les hôtes sont arrivés » ; les résultats finaux donnent `[unk]`. Coût : bip ≈ 1,5 s après le mot (à la pause).
+- [x] Mode **F** dans la page de diagnostic utilisant ce module : temps de chargement, détection de « Otis », faux déclenchements avec musique, chauffe.
 - [ ] Déploiement (accord utilisateur) et test sur le téléphone avant de brancher l'app.
 
 ### [ ] Étape 4 : Branchement dans la PWA
 - [ ] `speech.js` : l'écoute du mot-clé passe sur Vosk (pause pendant dictée / réponse, arrêt en arrière-plan), « Otis » → bip → dictée.
 - [ ] Échec de chargement → toast + mains-libres désactivé.
-- [ ] Section calibrage / variantes masquée ; cache dédié du modèle dans le service worker (pas de re-téléchargement à chaque version du cache applicatif).
+- [ ] Section calibrage / variantes masquée.
+- [ ] Pas de cache du modèle dans le service worker : le worker Vosk le conserve déjà dans IndexedDB (clé = URL versionnée).
 
 ### [ ] Étape 5 : Test d'intégration final & documentation
 - [ ] Test E2E du flux mot-clé → dictée → réponse.
