@@ -11,7 +11,8 @@ from app.connectors.sheets.meals_connector import (
     RecipeNotFoundError,
 )
 from app.core.date_resolver import parse_target_date
-from app.core.llm.nlu_service import infer_rayon_with_llm
+from app.core.shopping.rayon_questions import RAYON_QUESTION_KEY
+from app.handlers.rayon_question_handler import ask_rayon_question, unknown_articles
 
 logger = logging.getLogger(__name__)
 
@@ -235,76 +236,14 @@ async def handle_meals_intent(
 
             if connector:
                 try:
-                    resolved_rayon, warning = (None, None)
-                    if len(raw_items) == 1 and hasattr(connector, "resolve_rayon") and callable(getattr(connector, "resolve_rayon")):
-                        clean_candidate = re.sub(
-                            r"^(?:du|de\s+la|des|de\s+l[' ]|d[' ]|le|la|les|l[' ]|un[e]?)\s+",
-                            "",
-                            raw_items[0].strip(),
-                            flags=re.IGNORECASE,
-                        ).strip()
-                        clean_candidate = (clean_candidate[0].upper() + clean_candidate[1:]) if clean_candidate else raw_items[0].strip()
-                        try:
-                            cand = connector.resolve_rayon(clean_candidate)
-                            if isinstance(cand, (tuple, list)) and len(cand) == 2 and isinstance(cand[0], str):
-                                resolved_rayon, warning = cand
-                        except Exception:
-                            resolved_rayon, warning = (None, None)
-
-                        if warning and (resolved_rayon == "Divers" or "non répertorié" in warning.lower()):
-                            explicit_rayon = parsed.parameters.get("rayon")
-                            is_ambig = bool(parsed.parameters.get("is_ambiguous", False))
-                            options = parsed.parameters.get("suggested_options")
-
-                            if explicit_rayon and explicit_rayon.lower() not in ("divers", "unknown", "none") and not is_ambig:
-                                added_item, _ = connector.add_shopping_item(clean_candidate, rayon=explicit_rayon)
-                                spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {explicit_rayon} dans votre liste de courses."
-                                data["items"] = [added_item.model_dump()]
-                                data["item"] = added_item.model_dump()
-                                return spoken, data
-
-                            if is_ambig and options and isinstance(options, list) and len(options) >= 1:
-                                suggested = options
-                                session_ctx["pending_action"] = {
-                                    "type": "clarify_shopping_rayon",
-                                    "item": clean_candidate,
-                                    "raw_items": raw_items,
-                                    "suggested_rayons": suggested,
-                                }
-                                sug_str = f"en {suggested[0]} ou en {suggested[1]}" if len(suggested) >= 2 else f"au rayon {suggested[0]}"
-                                spoken = (
-                                    parsed.conversational_reply
-                                    or f"Je n'ai pas de rayon certain pour '{clean_candidate}'. Veux-tu que je le range {sug_str} ?"
-                                )
-                                data["pending_action"] = session_ctx["pending_action"]
-                                data["suggested_rayons"] = suggested
-                                return spoken, data
-
-                            raw_avail = connector.get_available_rayons() if hasattr(connector, "get_available_rayons") else []
-                            avail = [r for r in raw_avail if isinstance(r, str)] if isinstance(raw_avail, list) else []
-                            inferred_rayon, options = await infer_rayon_with_llm(clean_candidate, avail)
-                            if options is None and inferred_rayon and inferred_rayon.lower() != "divers":
-                                added_item, _ = connector.add_shopping_item(clean_candidate, rayon=inferred_rayon)
-                                spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {inferred_rayon} dans votre liste de courses."
-                                data["items"] = [added_item.model_dump()]
-                                data["item"] = added_item.model_dump()
-                                return spoken, data
-
-                            suggested = options if options else (connector.suggest_rayons_for_item(clean_candidate) if hasattr(connector, "suggest_rayons_for_item") else ["Entretien", "Épicerie"])
-                            session_ctx["pending_action"] = {
-                                "type": "clarify_shopping_rayon",
-                                "item": clean_candidate,
-                                "raw_items": raw_items,
-                                "suggested_rayons": suggested,
-                            }
-                            sug_str = f"en {suggested[0]} ou en {suggested[1]}" if len(suggested) >= 2 else f"au rayon {suggested[0]}"
-                            spoken = (
-                                f"Je n'ai pas de rayon certain pour '{clean_candidate}'. "
-                                f"Veux-tu que je le range {sug_str} ?"
-                            )
-                            data["pending_action"] = session_ctx["pending_action"]
-                            data["suggested_rayons"] = suggested
-                            return spoken, data
+                    # Article au rayon inconnu : question à l'utilisateur, réponse enregistrée (Ingredients_Rayons).
+                    unknown = unknown_articles(connector, raw_items)
+                    question = await ask_rayon_question(unknown, session_ctx, connector) if unknown else None
+                    if question:
+                        data[RAYON_QUESTION_KEY] = session_ctx[RAYON_QUESTION_KEY]
+                    raw_items = [it for it in raw_items if it not in unknown]
+                    if not raw_items:
+                        return question, data
 
                     res = None
                     if hasattr(connector, "add_shopping_items"):
@@ -337,6 +276,8 @@ async def handle_meals_intent(
 
                     data["items"] = [it.model_dump() for it in added_items]
                     data["item"] = added_items[0].model_dump() if added_items else {}
+                    if question:
+                        spoken = f"{spoken} {question}"
                 except Exception as exc:
                     spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
             else:
@@ -500,23 +441,8 @@ async def handle_meals_intent(
             return spoken, data
 
         case IntentType.CHOOSE_RAYON:
-            pending = session_ctx.pop("pending_action", None)
-            if pending and pending.get("type") == "clarify_shopping_rayon":
-                item = pending.get("item", "l'article")
-                chosen_rayon = parsed.parameters.get("rayon", "Divers")
-                if connector:
-                    try:
-                        added_item, _ = connector.add_shopping_item(item, rayon=chosen_rayon)
-                        spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {chosen_rayon} dans votre liste de courses."
-                        data["item"] = added_item.model_dump()
-                        data["items"] = [added_item.model_dump()]
-                    except Exception as exc:
-                        spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
-                else:
-                    spoken = f"C'est noté, j'ai ajouté {item} au rayon {chosen_rayon} dans votre liste de courses."
-            else:
-                spoken = "C'est noté !"
-            return spoken, data
+            # Une réponse à une question de rayon en attente est traitée en amont (`rayon_question_handler`).
+            return "Je n'ai aucune question de rayon en attente.", data
 
         case IntentType.CONFIRM:
             pending = session_ctx.get("pending_action")
@@ -556,31 +482,6 @@ async def handle_meals_intent(
                     session_ctx["last_recipe"] = meal
                 return spoken, data
 
-            elif pending and pending.get("type") == "clarify_shopping_rayon":
-                session_ctx.pop("pending_action", None)
-                item = pending.get("item", "l'article")
-                suggested = pending.get("suggested_rayons", ["Divers"])
-                default_rayon = suggested[0] if suggested else "Divers"
-                if connector:
-                    try:
-                        added_item, _ = connector.add_shopping_item(item, rayon=default_rayon)
-                        spoken = f"C'est noté, j'ai ajouté {added_item.item} au rayon {default_rayon} dans votre liste de courses."
-                        data["item"] = added_item.model_dump()
-                        data["items"] = [added_item.model_dump()]
-                    except Exception as exc:
-                        spoken = f"Impossible d'ajouter à la liste de courses : {exc}"
-                else:
-                    spoken = f"C'est noté, j'ai ajouté {item} au rayon {default_rayon} dans votre liste de courses."
-                return spoken, data
-            return None
-
-        case IntentType.CANCEL:
-            pending = session_ctx.get("pending_action")
-            if pending and pending.get("type") == "clarify_shopping_rayon":
-                session_ctx.pop("pending_action", None)
-                item = pending.get("item", "l'article")
-                spoken = f"Très bien, j'ai annulé l'ajout de {item}."
-                return spoken, data
             return None
 
         case _:

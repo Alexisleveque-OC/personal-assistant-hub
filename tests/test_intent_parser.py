@@ -187,3 +187,15 @@ def test_intent_parser_confirm_cancel():
     assert parsed_annule.intent == IntentType.CANCEL
 
 
+
+
+@pytest.mark.parametrize("query, items", [
+    ("Ajoute du lait et des bougies aux courses", ["lait", "bougies"]),
+    ("Rajoute des œufs aux courses", ["œufs"]),
+])
+def test_add_shopping_strips_short_courses_suffix(query, items):
+    """Trouvé par l'E2E agent : « aux courses » restait collé au dernier article (« Bougies aux courses »)."""
+    parsed = parser.parse(query)
+
+    assert parsed.intent == IntentType.ADD_SHOPPING_ITEM
+    assert parsed.parameters["items"] == items

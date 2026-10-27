@@ -303,7 +303,12 @@ class SqlSportConnector(BaseConnector):
         date_iso = target_date.isoformat()
         semaine = target_date.isocalendar()[1]
 
-        existing = self.db.get_sport_session_by_date(date_iso)
+        # Seule une séance encore prévue est re-planifiée : une séance réalisée n'est jamais écrasée.
+        existing = next(
+            (s for s in reversed(self.db.get_sport_sessions(start_date=date_iso, end_date=date_iso))
+             if s.get("statut") == SportSessionStatus.PLANIFIE.value),
+            None,
+        )
         if existing:
             updates = {
                 "statut": SportSessionStatus.PLANIFIE.value,
@@ -319,6 +324,7 @@ class SqlSportConnector(BaseConnector):
             if plan.duree_cible_secondes is not None:
                 updates["duree_secondes"] = plan.duree_cible_secondes
             self.db.update_sport_session(existing["id"], updates)
+            saved_id = existing["id"]
         else:
             insert_data = {
                 "date": date_iso,
@@ -334,17 +340,21 @@ class SqlSportConnector(BaseConnector):
                 "allure_cible": plan.allure_cible,
                 "vitesse_cible": plan.vitesse_cible,
             }
-            self.db.add_sport_session(insert_data)
+            saved_id = self.db.add_sport_session(insert_data)
 
-        saved = self.get_session(target_date)
-        if not saved:
+        saved_row = self.db.get_sport_session_by_id(saved_id)
+        if not saved_row:
             raise RuntimeError(f"Échec de récupération de la séance planifiée pour {date_iso}")
-        return saved
+        return self._row_to_sport_session(saved_row)
 
     def plan_weekly_sessions(self, plans: List[SportSessionPlan]) -> List[SportSession]:
-        """Planifie un ensemble de séances pour une semaine."""
+        """Planifie un ensemble de séances pour une semaine, sans rien ajouter sur un jour déjà réalisé."""
         results: List[SportSession] = []
         for p in plans:
+            day_sessions = self.db.get_sport_sessions(start_date=p.date, end_date=p.date)
+            if any(s.get("statut") == SportSessionStatus.REALISE.value for s in day_sessions):
+                logger.info(f"Planning hebdo : {p.date} ignoré, une séance y est déjà réalisée.")
+                continue
             results.append(self.plan_session(p))
         return results
 

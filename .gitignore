@@ -38,7 +38,7 @@ Desktop.ini
 .DS_Store
 
 # Local tools & logs
-tools/
+/tools/
 *.log
 
 # SQLite Databases & WAL files

@@ -1,4 +1,6 @@
 """Tests unitaires pour le moteur d'intentions LLM Gemini (Phase Rouge TDD)."""
+import os
+
 import pytest
 from unittest.mock import AsyncMock, patch
 import httpx
@@ -175,8 +177,10 @@ async def test_llm_nlu_service_clarification_choose_rayon():
 
 @pytest.mark.asyncio
 async def test_live_gemini_nlu_real_query():
-    """Test réel d'extraction d'intention avec la vraie clé Gemini configurée."""
+    """Test réel d'extraction d'intention avec la vraie clé Gemini configurée (consomme du quota : hors suite par défaut)."""
     from app.config import settings as app_settings
+    if os.environ.get("RUN_LIVE_GEMINI") != "1":
+        pytest.skip("Appel réel Gemini : définir RUN_LIVE_GEMINI=1.")
     if not app_settings.gemini_api_key or app_settings.gemini_api_key.startswith("fake"):
         pytest.skip("Aucune clé GEMINI_API_KEY réelle configurée.")
 

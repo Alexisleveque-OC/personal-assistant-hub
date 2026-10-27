@@ -26,6 +26,19 @@ def test_dockerfile_configuration():
     assert "0.0.0.0" in combined_content
 
 
+def test_dockerfile_sets_paris_timezone():
+    """Le conteneur doit vivre à l'heure de Paris : sinon « aujourd'hui » = la veille entre 00h et 02h."""
+    content = (ROOT_DIR / "Dockerfile").read_text(encoding="utf-8")
+    assert "TZ=Europe/Paris" in content
+
+
+def test_deploy_workflow_forwards_nlu_mode():
+    """`--set-env-vars` remplace toutes les variables : NLU_MODE doit venir du pipeline, pas de la console."""
+    content = (ROOT_DIR / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+    assert "NLU_MODE: ${{ vars.NLU_MODE }}" in content
+    assert "NLU_MODE=${NLU_MODE}" in content
+
+
 def test_dockerignore_security_exclusions():
     """Valide que les fichiers sensibles et temporaires sont exclus de l'image Docker."""
     dockerignore_path = ROOT_DIR / ".dockerignore"

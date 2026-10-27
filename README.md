@@ -37,7 +37,13 @@ personal-assistant-hub/
 │   ├── config.py                # Configuration typée (pydantic-settings, .env)
 │   ├── core/                    # Cœur applicatif universel
 │   │   ├── dependencies.py      # Injection de dépendances & singletons (0 import circulaire)
-│   │   ├── intent_parser.py     # Moteur NLU déterministe & fallback local
+│   │   ├── intent_parser.py     # Moteur NLU déterministe (voie rapide & mode legacy)
+│   │   ├── agent/               # Cerveau LLM-First (Phase 6.8) : boucle Gemini à appel de fonctions
+│   │   │   ├── agent_service.py # Boucle agent (outils → résultats → réponse), historique de session
+│   │   │   ├── prompt.py        # Prompt système : règles, date du jour, séances récentes
+│   │   │   ├── undo.py          # Journal d'annulation SQLite « tout ou rien » par session
+│   │   │   └── tools/           # Outils typés : sport (par identifiant), repas & courses, notes, annulation
+│   │   ├── shopping/            # Question « dans quel rayon ? » partagée voie rapide / agent
 │   │   ├── date_resolver.py     # Résolveur temporel intelligent (relatif, absolu, midi/soir)
 │   │   ├── models.py            # Contrats de données stricts (Pydantic v2)
 │   │   ├── session_manager.py   # Mémoire de dialogue multi-tours
@@ -59,7 +65,10 @@ personal-assistant-hub/
 │   │   ├── meals_handler.py     # Traitement des intentions Repas & Courses
 │   │   ├── sport_handler.py     # Traitement des intentions Sport & Coaching Otis
 │   │   ├── assistant_handler.py # Traitement conversationnel & clarifications
-│   │   └── undo_handler.py      # Commande d'annulation contextuelle immédiate (Undo)
+│   │   ├── undo_handler.py      # Commande d'annulation contextuelle immédiate (Undo)
+│   │   ├── agent_handler.py     # Tour de conversation en mode agent (NLU_MODE=agent)
+│   │   ├── fast_lane.py         # Voie rapide : commandes sans ambiguïté traitées sans LLM
+│   │   └── rayon_question_handler.py # Réponse à la question de rayon, traitée sans LLM
 │   ├── connectors/              # Connecteurs tiers isolés et interchangeables
 │   │   ├── base.py              # Interface commune des connecteurs
 │   │   ├── sheets/              # Google Sheets Repas & Courses (Planning, Recettes, Rayons)
@@ -69,7 +78,8 @@ personal-assistant-hub/
 │       ├── css/                 # Styles graphiques & thème sombre Monstera
 │       └── sw.js                # Service Worker v15 (mise en cache & offline)
 ├── hub_data.db                  # Base de données SQLite locale unifiée (mode WAL haute performance)
-├── tests/                       # Suite de 386 tests automatisés (Unitaires, Mocks & E2E)
+├── tests/                       # Suite de 869 tests automatisés (Unitaires, Mocks & E2E)
+│   └── nlu_golden/              # Jeu de référence de conversations (legacy hors-ligne, agent contre le vrai Gemini)
 ├── docs/                        # Guides de déploiement Cloud & documentation technique
 ├── AGENTS.md                    # Directives d'ingénierie agentique, TDD strict & Git
 ├── SPEC.md                      # Cahier des charges et backlog d'implémentation
@@ -80,7 +90,7 @@ personal-assistant-hub/
 * **TDD Strict (Test-Driven Development) :** Tout développement commence par un test unitaire rouge validant le contrat avant l'écriture du code de production (Red $\rightarrow$ Green $\rightarrow$ Refactor).
 * **Pattern Connecteurs :** Chaque service externe dispose d'une abstraction et d'un mock autonome pour s'exécuter hors-ligne sans dépendance réseau lors des tests et démos.
 * **Résolution contextuelle & Dialogue multi-tours :** Maintien de l'état de session, clarifications ciblées de rayon, confirmation de recettes et réajustements a posteriori.
-* **Cache Mémoire & Asynchronisme :** Préchauffage des catalogues au boot du serveur (`warmup_cache`) et écritures externes en arrière-plan (`BackgroundTasks`) pour garantir un retour vocal immédiat (< 1-2s).
+* **Cache Mémoire & Asynchronisme :** Préchauffage des catalogues au boot du serveur (`warmup_cache`) et écritures externes en arrière-plan (`BackgroundTasks`). Voie rapide et réponses traitées par le code : < 0,3 s ; modification simple en 1 appel Gemini (confirmation rédigée par l'application) ; autres tours agent en 2 appels ou plus, de 1 à 16 s mesurés selon la charge de Gemini. Latence de chaque appel journalisée dans `conversation_logs`, bulle « Otis réfléchit… » dans la PWA pendant l'attente.
 * **Fail-Fast Explicite :** Gestion d'erreurs déterministe avec messages contextualisés et typés en cas d'anomalie.
 
 ---
@@ -90,6 +100,7 @@ personal-assistant-hub/
 ### 🥗 1. Repas & Courses (Google Sheets & PWA) — [🟢 Opérationnel]
 * **Planning annuel dynamique :** Consultation midi et soir avec bascule intelligente selon l'heure de la journée.
 * **Carnet de recettes (>1000 recettes) :** Recherche tolérante aux tirets/accents et ajout ciblé dans la liste d'attente avec gestion des exclusions (*« Ajoute la raclette sauf la charcuterie »*).
+* **Rayon demandé puis retenu :** un article inconnu n'est pas rangé au hasard : Otis demande le rayon en proposant 2 rayons de l'onglet « Rayons », enregistre la réponse dans `Ingredients_Rayons` et ne repose plus la question (« Divers » accepté, « non » annule, réponse hors sujet → article ajouté, rayon à trier dans le classeur).
 * **Courses en magasin & Batch Sync :** Catégorisation dynamique par rayons, cochage tactile instantané en magasin et synchronisation groupée en lot (*« 🏁 J'ai fini ! »*) préservant les cases à cocher Google Sheets. Réinitialisation explicite le samedi.
 
 ### 🏃 2. Sport Running & Mini-Coach Otis — [🟢 Opérationnel]
@@ -101,6 +112,7 @@ personal-assistant-hub/
 * **Gamification Pop-Culture :** Système de badges et de trophées dopaminés (Astérix, Le Seigneur des Anneaux, Brandon Sanderson) célébrant la régularité et les records personnels.
 * **Outils de migration & Sauvegarde de secours :** Script de migration one-off (`scripts/migrate_sport_sheets_to_sqlite.py`) et export instantané JSON/CSV (`scripts/export_sport_data.py`).
 * **Passerelle Strava :** Ingestion automatique d'activités via webhooks.
+* **Import de captures d'écran fiabilisé (Gemini Vision) :** Strava, Decathlon Coach et montre Decathlon Connect CW500 M. Date jamais inventée (sélecteur de date si illisible), confirmation datée, fusion sans doublon (CW500 : FC seule sur une séance réalisée, durée + FC sur une séance prévue), erreurs Gemini explicites (503) au lieu de faux rejets.
 
 ### 📱 3. Interface Mobile Vocale PWA & Conteneurisation — [🟢 Opérationnel]
 * **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker v20 avec mise en cache.
@@ -144,9 +156,24 @@ personal-assistant-hub/
   - Découplage de Google Sheets (`SPREADSHEET_SPORT_ID` optionnel) & outil d'export/backup JSON/CSV
 - [x] **Phase 6.6 : Audio Focus Casque, Pipeline Vocal & Résilience Mobile**
   - Audio Focus & Ducking dynamique casque en mode running (atténuation musique/podcast uniquement si Otis parle)
+    - ⚠️ Limite connue sur Android/Chrome : `navigator.audioSession` n'y est pas supporté (ducking sans effet) et l'écoute continue du mot-clé « Otis » (Web Speech API) fait baisser la musique en permanence. Chantier planifié après la Phase 6.8.
   - Pipeline Vocal PWA fiabilisé (Push-to-Talk Pointer Events, wake-word « Otis » calibrable in-app, VAD mains-libres et carillon Web Audio)
   - File d'attente hors-ligne & synchronisation PWA (Offline Outbox IndexedDB + auto-retry dès reconnexion en forêt)
   - Routage sémantique contextuel strict (désambiguïsation Sport/Notes/Courses) et prise de note orale naturelle sans ponctuation
+- [x] **Phase 6.7 : Fiabilisation de l'Import de Captures Sportives**
+  - Schéma Gemini Vision nullable (date, distance, durée, FC) : plus aucune valeur inventée ni FC à 0 (qui provoquait des erreurs 500)
+  - Fin du repli silencieux sur la date du jour : code d'erreur `screenshot_date_missing` + sélecteur de date dans la PWA
+  - Règles de fusion Decathlon Connect CW500 M et erreurs Gemini explicites (`VisionServiceUnavailableError` → 503), appel Gemini asynchrone
+  - Test E2E du parcours complet sur une même séance (`tests/test_e2e_screenshot_import.py`)
+- [x] **Phase 6.8 : Cerveau LLM-First (Compréhension Intelligente des Demandes)** — *terminée sur `feat/llm-first-nlu`, activée par `NLU_MODE=agent` (détail : `ROADMAP.md`)*
+  - Constat (logs de prod) : 36 échanges sur 46 traités par les seules regex, le LLM n'intervenant qu'en dernier recours → mauvaise séance modifiée, « annule » incompris
+  - Gemini en premier avec appel de fonctions typées (séances ciblées par identifiant, repas & courses, notes), contexte injecté (date du jour, séances récentes, historique de conversation)
+  - Garde-fous dans le code : jour à plusieurs séances → clarification, plat hors carnet → confirmation, rayon jamais choisi par le modèle
+  - Annulation fiable « tout ou rien » (journal SQLite), y compris pour une demande composée (« annule et prends note… »)
+  - Notes sur les échanges précédents : résumé précis + extrait exact du dernier échange
+  - Voie rapide sans LLM conservée pour les commandes sans ambiguïté ; mode `legacy` disponible en retour arrière
+  - Jeu de référence de 33 conversations : 33/33 contre le vrai Gemini (27/10/2026), test E2E agent (`tests/test_e2e_agent_flow.py`)
+  - Modèles : 3.5 Flash Lite (500 req/j) pour la conversation ; meilleurs modèles d'abord (3.8 → 3.6 → Lite) pour la vision et le coach sport
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
@@ -192,6 +219,7 @@ LOG_LEVEL=INFO
 API_KEY=votre_cle_api_secrete
 GOOGLE_SERVICE_ACCOUNT_INFO={"type": "service_account", ...} # ou chemin vers credentials.json
 GEMINI_API_KEY=votre_cle_gemini_flash
+NLU_MODE=agent          # agent : Gemini en premier ; legacy : regex puis Gemini en dernier recours
 ```
 
 ### 4. Lancer la suite de tests (Boucle de rétroaction TDD)
@@ -199,7 +227,12 @@ GEMINI_API_KEY=votre_cle_gemini_flash
 ```bash
 .venv/bin/pytest -v
 ```
-> **524 tests automatisés exécutés à 100% au vert.**
+> **869 tests collectés, 100 % au vert** (sans appel réel à Gemini ; les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
+
+Évaluation du jeu de référence contre le vrai Gemini (hors CI, consomme environ 70 requêtes du quota gratuit) :
+```bash
+RUN_LIVE_GEMINI=1 .venv/bin/pytest tests/nlu_golden/test_golden_agent_live.py -s -rxX
+```
 
 ### 5. Lancer le serveur de développement
 

@@ -102,6 +102,26 @@ export function appendUserMessage(text) {
   saveChatMessage("user", text);
 }
 
+// Bulle « Otis réfléchit… » : un tour agent prend plusieurs secondes, l'utilisateur voit que la demande avance.
+// Jamais sauvegardée dans l'historique local.
+let thinkingBubble = null;
+
+function showThinkingIndicator() {
+  if (!chatStream || thinkingBubble) return;
+  thinkingBubble = document.createElement("div");
+  thinkingBubble.className = "chat-bubble assistant thinking";
+  thinkingBubble.setAttribute("role", "status");
+  thinkingBubble.setAttribute("aria-live", "polite");
+  thinkingBubble.innerHTML = `Otis réfléchit<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>`;
+  chatStream.appendChild(thinkingBubble);
+  thinkingBubble.scrollIntoView({ behavior: "smooth" });
+}
+
+function hideThinkingIndicator() {
+  if (thinkingBubble) thinkingBubble.remove();
+  thinkingBubble = null;
+}
+
 export function appendAssistantMessage(text) {
   renderAssistantBubble(text, true);
   saveChatMessage("assistant", text);
@@ -207,7 +227,9 @@ export async function sendInteraction(text) {
   }
 
   try {
+    showThinkingIndicator();
     const res = await postInteract(text);
+    hideThinkingIndicator();
 
     if (res.status === 401) {
       appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Cliquez sur l'engrenage pour la renseigner.");
@@ -234,8 +256,11 @@ export async function sendInteraction(text) {
     syncOutbox();
   } catch (err) {
     console.warn("[Chat] Échec envoi interaction:", err);
+    hideThinkingIndicator();
     await enqueueTextRequest(text);
     appendAssistantMessage("⏳ Réseau indisponible. Votre message a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
+  } finally {
+    hideThinkingIndicator();
   }
 }
 
@@ -249,7 +274,9 @@ export async function sendAudioInteraction(audioBlob) {
   }
 
   try {
+    showThinkingIndicator();
     const res = await postInteractAudio(audioBlob);
+    hideThinkingIndicator(); // avant de chercher la dernière bulle utilisateur (:last-of-type)
 
     if (res.status === 401) {
       appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Cliquez sur l'engrenage pour la renseigner.");
@@ -286,12 +313,15 @@ export async function sendAudioInteraction(audioBlob) {
     syncOutbox();
   } catch (err) {
     console.warn("[Chat] Échec envoi audio:", err);
+    hideThinkingIndicator();
     await enqueueAudioRequest(audioBlob);
     if (err && err.name === "AbortError") {
       appendAssistantMessage("⏳ Délai réseau dépassé. Votre message vocal a été enregistré localement et sera transmis dès le retour d'une connexion stable.");
     } else {
       appendAssistantMessage("⏳ Réseau indisponible. Votre message vocal a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
     }
+  } finally {
+    hideThinkingIndicator();
   }
 }
 

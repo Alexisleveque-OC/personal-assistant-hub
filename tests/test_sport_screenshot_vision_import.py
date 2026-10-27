@@ -406,6 +406,7 @@ def _make_vision_client(api_key: str = "fake_key") -> MagicMock:
     fake_client = MagicMock()
     fake_client.api_key = api_key
     fake_client.get_candidate_models.return_value = ["gemini-test-flash"]
+    fake_client.premium_candidate_models = AsyncMock(return_value=["gemini-test-flash"])
     return fake_client
 
 

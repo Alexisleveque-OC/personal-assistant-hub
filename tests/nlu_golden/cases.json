@@ -1,0 +1,302 @@
+[
+  {
+    "id": "rpe-derniere-renfo",
+    "origine": "Échec prod : « le RPE de ma dernière séance de renfo » a modifié la sortie longue du jour.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -4, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5},
+      {"ref": "sortie_longue", "day_offset": 0, "type_seance": "Sortie Longue", "distance_km": 8.0, "duree_secondes": 2900}
+    ],
+    "turns": ["Tu peux passer le RPE de ma dernière séance de renfo à 3 ? J'ai eu des courbatures pendant deux jours."],
+    "expected": {"updated": {"renfo": {"ressenti_rpe": 3}}}
+  },
+  {
+    "id": "correction-suivi-renfo",
+    "origine": "Échec prod : l'utilisateur précise « je parlais du renfo » au tour suivant, la mauvaise séance reste modifiée.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -4, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5},
+      {"ref": "sortie_longue", "day_offset": 0, "type_seance": "Sortie Longue", "distance_km": 8.0, "duree_secondes": 2900}
+    ],
+    "turns": [
+      "Modifie le RPE de ma dernière séance de renfo à 3.",
+      "Non, je te parlais de ma séance de renforcement musculaire, il fallait mettre son RPE à 3."
+    ],
+    "expected": {"updated": {"renfo": {"ressenti_rpe": 3}}, "response_excludes": ["pas bien compris"]}
+  },
+  {
+    "id": "type-corrige-seance-du-jour",
+    "origine": "Échec prod : séance du jour importée en EF, « c'était du fractionné, RPE 6 » a modifié un fractionné vieux de 3 semaines.",
+    "carnet": [
+      {"ref": "ancien_fractionne", "day_offset": -21, "type_seance": "Fractionné", "distance_km": 5.0, "duree_secondes": 1850, "ressenti_rpe": 8},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.2, "duree_secondes": 1860}
+    ],
+    "turns": ["C'était une séance de fractionné. RPE à 6, le souffle un peu court sur les derniers blocs. Météo à 2, un peu frais mais très beau."],
+    "expected": {"updated": {"import_du_jour": {"type_seance": "Fractionné", "ressenti_rpe": 6, "meteo_note": 2}}}
+  },
+  {
+    "id": "rpe-du-jour-malgre-mention-renfo",
+    "origine": "Échec prod : « courbatures suite à la séance de renfo » a modifié le renfo au lieu de la séance importée le jour même.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -3, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 4},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1750}
+    ],
+    "turns": ["RPE à 5 à cause des courbatures de la séance de renfo, et météo à 3, il y avait du vent."],
+    "expected": {"updated": {"import_du_jour": {"ressenti_rpe": 5, "meteo_note": 3}}}
+  },
+  {
+    "id": "rpe-meteo-fc-seance-du-jour",
+    "origine": "Succès prod (non-régression) : ressenti, météo et FC appliqués à la séance du jour.",
+    "carnet": [
+      {"ref": "ef_avant_hier", "day_offset": -2, "type_seance": "EF", "distance_km": 6.0, "duree_secondes": 2200, "ressenti_rpe": 4},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 6.0, "duree_secondes": 2250}
+    ],
+    "turns": ["J'étais à 4 en RPE, bien fatigué aujourd'hui. Météo à 4, beaucoup de vent. Fréquence cardiaque moyenne à 158."],
+    "expected": {"updated": {"import_du_jour": {"ressenti_rpe": 4, "meteo_note": 4, "fc_moyenne": 158}}}
+  },
+  {
+    "id": "rpe-eleve-seance-du-jour",
+    "origine": "Succès prod (non-régression) : séance difficile du jour avec RPE et météo.",
+    "carnet": [
+      {"ref": "ef_precedente", "day_offset": -2, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1750, "ressenti_rpe": 4},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.7, "duree_secondes": 2600}
+    ],
+    "turns": ["RPE à 7, la séance était dure aujourd'hui, j'avais les jambes lourdes. Météo à 5, c'était humide et venteux."],
+    "expected": {"updated": {"import_du_jour": {"ressenti_rpe": 7, "meteo_note": 5}}}
+  },
+  {
+    "id": "seance-hier-explicite",
+    "origine": "Non-régression : la séance d'hier est désignée explicitement.",
+    "carnet": [
+      {"ref": "ef_hier", "day_offset": -1, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800},
+      {"ref": "renfo_du_jour", "day_offset": 0, "type_seance": "Renforcement", "duree_secondes": 2400}
+    ],
+    "turns": ["Pour la séance d'hier, mets un RPE de 4."],
+    "expected": {"updated": {"ef_hier": {"ressenti_rpe": 4}}}
+  },
+  {
+    "id": "log-fractionne-du-jour",
+    "origine": "Échec prod : « j'ai fait une séance de fractionné » a répondu « renforcement enregistré ».",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -2, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5}
+    ],
+    "turns": ["J'ai fait une séance de fractionné, tu peux me l'enregistrer s'il te plaît ?"],
+    "expected": {
+      "created": [{"type_seance": "Fractionné", "statut": "Réalisé", "day_offset": 0}],
+      "response_excludes": ["renforcement"]
+    }
+  },
+  {
+    "id": "planifie-sortie-longue-demain",
+    "origine": "Non-régression : planification simple d'une séance future.",
+    "carnet": [
+      {"ref": "ef_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Prévois-moi une sortie longue demain."],
+    "expected": {"created": [{"type_seance": "Sortie Longue", "statut": "Prévu", "day_offset": 1}]}
+  },
+  {
+    "id": "ajoute-seance-pas-aux-courses",
+    "origine": "Découvert à l'Étape 3 : « ajoute une séance… » est classé comme un article de courses par les regex.",
+    "carnet": [
+      {"ref": "ef_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Ajoute une séance de fractionné demain."],
+    "expected": {"created": [{"type_seance": "Fractionné", "statut": "Prévu", "day_offset": 1}]}
+  },
+  {
+    "id": "annule-derniere-modification",
+    "origine": "Échec prod : « annule ce que tu viens de faire » n'a rien restauré.",
+    "carnet": [
+      {"ref": "ef_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": [
+      "Mets le RPE de ma séance d'aujourd'hui à 5.",
+      "Annule ce que tu viens de faire."
+    ],
+    "expected": {}
+  },
+  {
+    "id": "annule-et-note-correctif",
+    "origine": "Échec prod : annulation + demande de note dans la même phrase, réponse « je n'ai pas compris ».",
+    "carnet": [
+      {"ref": "ancien_fractionne", "day_offset": -21, "type_seance": "Fractionné", "distance_km": 5.0, "duree_secondes": 1850, "ressenti_rpe": 8},
+      {"ref": "import_du_jour", "day_offset": 0, "type_seance": "EF", "distance_km": 5.2, "duree_secondes": 1860}
+    ],
+    "turns": [
+      "Mets le RPE de ma dernière séance de fractionné à 4.",
+      "Annule ce que tu viens de faire. Et prends note pour un correctif : tu n'as pas modifié la bonne séance."
+    ],
+    "expected": {"notes_created": 1}
+  },
+  {
+    "id": "note-sur-echanges-precedents",
+    "origine": "Échec prod : « prends note de ces derniers échanges » a modifié le RPE d'une séance.",
+    "carnet": [
+      {"ref": "renfo", "day_offset": -4, "type_seance": "Renforcement", "duree_secondes": 2400, "ressenti_rpe": 5},
+      {"ref": "ef_hier", "day_offset": -1, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": [
+      "Quelle était ma dernière séance de renfo ?",
+      "OK, prends note de ces derniers échanges, il faudra corriger ça."
+    ],
+    "expected": {"notes_created": 1, "notes_francais": true, "notes_contiennent": ["dernière séance de renfo"]}
+  },
+  {
+    "id": "clarification-deux-seances-meme-jour",
+    "origine": "Cible : deux séances le même jour, la demande ne permet pas de choisir → demander au lieu de deviner.",
+    "carnet": [
+      {"ref": "renfo_hier", "day_offset": -1, "type_seance": "Renforcement", "duree_secondes": 2400},
+      {"ref": "ef_hier", "day_offset": -1, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Mets le RPE de ma séance d'hier à 6."],
+    "expected": {"clarification": true}
+  },
+  {
+    "id": "aucune-seance-du-jour",
+    "origine": "Cible : aucune séance aujourd'hui → le signaler et demander, sans modifier une séance plus ancienne.",
+    "carnet": [
+      {"ref": "ef_avant_hier", "day_offset": -2, "type_seance": "EF", "distance_km": 5.0, "duree_secondes": 1800}
+    ],
+    "turns": ["Mets le RPE de ma séance d'aujourd'hui à 5."],
+    "expected": {"clarification": true}
+  },
+  {
+    "id": "courses-ajout-simple",
+    "origine": "Non-régression (voie rapide) : ajout de plusieurs articles.",
+    "turns": ["Ajoute du lait et des œufs à la liste de courses"],
+    "expected": {"courses_ajoutees": ["lait", "œufs"]}
+  },
+  {
+    "id": "courses-ajout-rayon-explicite",
+    "origine": "Cible Étape 5 : le rayon dicté finit dans le nom de l'article par la regex.",
+    "turns": ["Ajoute de la crème solaire au rayon hygiène"],
+    "expected": {"courses_ajoutees": ["crème solaire"], "rayons_appris": {"crème solaire": "Hygiène"}}
+  },
+  {
+    "id": "courses-rayon-inconnu-question",
+    "origine": "Décision Étape 5 bis : le rayon d'un article inconnu est demandé à l'utilisateur, jamais deviné.",
+    "turns": ["Ajoute du papier cadeau"],
+    "expected": {"clarification": true, "response_includes": ["papier cadeau"]}
+  },
+  {
+    "id": "courses-rayon-inconnu-reponse-enregistree",
+    "origine": "Décision Étape 5 bis : la réponse est enregistrée dans Ingredients_Rayons puis l'article est ajouté.",
+    "turns": ["Ajoute du papier cadeau", "Range-le en entretien"],
+    "expected": {"courses_ajoutees": ["papier cadeau"], "rayons_appris": {"papier cadeau": "Entretien"}}
+  },
+  {
+    "id": "courses-rayon-inconnu-annule",
+    "origine": "Décision Étape 5 bis : « laisse tomber » en réponse à la question de rayon n'ajoute ni n'enregistre rien.",
+    "turns": ["Ajoute du papier cadeau", "Non laisse tomber"],
+    "expected": {"response_includes": ["je n'ajoute pas"]}
+  },
+  {
+    "id": "courses-rayon-inconnu-via-agent",
+    "origine": "Décision Étape 5 bis : même question quand l'agent ajoute l'article ; la réponse est traitée sans LLM.",
+    "turns": ["Ajoute du lait et des bougies à la liste de courses de la semaine", "Mets-les en entretien"],
+    "expected": {"courses_ajoutees": ["lait", "bougies"], "rayons_appris": {"bougies": "Entretien"}}
+  },
+  {
+    "id": "courses-ajout-repas-pas-aux-courses",
+    "origine": "Découvert à l'Étape 5 : « ajoute … au menu de demain » est lu comme une consultation du menu.",
+    "turns": ["Ajoute des lasagnes au menu de demain soir"],
+    "expected": {"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "lasagnes"}]}
+  },
+  {
+    "id": "courses-coche-articles",
+    "origine": "Cible Étape 5 : « j'ai pris … » n'est pas compris par les regex.",
+    "courses": [
+      {"nom": "Lait"},
+      {"nom": "Pain"},
+      {"nom": "Café"}
+    ],
+    "turns": ["J'ai pris le pain et le café"],
+    "expected": {"courses_cochees": ["pain", "café"]}
+  },
+  {
+    "id": "courses-retire-article",
+    "origine": "Découvert à l'Étape 5 : « enlève X de la liste de courses » lit la liste au lieu de retirer.",
+    "courses": [
+      {"nom": "Lait"},
+      {"nom": "Pain"}
+    ],
+    "turns": ["Enlève le pain de la liste de courses"],
+    "expected": {"courses_retirees": ["pain"]}
+  },
+  {
+    "id": "courses-vide-achetes",
+    "origine": "Non-régression (bouton de la PWA) : vider ne supprime que les articles cochés.",
+    "courses": [
+      {"nom": "Lait", "coche": true},
+      {"nom": "Pain"}
+    ],
+    "turns": ["Vide la liste de courses"],
+    "expected": {"courses_retirees": ["lait"]}
+  },
+  {
+    "id": "courses-lecture",
+    "origine": "Non-régression (vue Courses de la PWA) : lecture de la liste.",
+    "courses": [
+      {"nom": "Pain"},
+      {"nom": "Quinoa", "liste": "semaine"}
+    ],
+    "turns": ["Donne-moi la liste de courses"],
+    "expected": {"response_includes": ["pain", "quinoa"]}
+  },
+  {
+    "id": "courses-coche-et-ajoute",
+    "origine": "Cible Étape 5 : demande composée sur la liste de courses.",
+    "courses": [
+      {"nom": "Lait"}
+    ],
+    "turns": ["J'ai pris le lait, et ajoute du beurre"],
+    "expected": {"courses_cochees": ["lait"], "courses_ajoutees": ["beurre"]}
+  },
+  {
+    "id": "repas-lecture-ce-soir",
+    "origine": "Non-régression (voie rapide) : repas du soir.",
+    "repas": [
+      {"day_offset": 0, "midi": "Salade composée", "soir": "Risotto de quinoa"}
+    ],
+    "turns": ["Qu'est-ce qu'on mange ce soir ?"],
+    "expected": {"response_includes": ["risotto"]}
+  },
+  {
+    "id": "repas-midi-et-soir",
+    "origine": "Cible Étape 5 : la regex ne répond que pour le premier des deux repas demandés.",
+    "repas": [
+      {"day_offset": 0, "midi": "Salade composée", "soir": "Risotto de quinoa"}
+    ],
+    "turns": ["Qu'est-ce qu'on mange ce midi et ce soir ?"],
+    "expected": {"response_includes": ["salade", "risotto"]}
+  },
+  {
+    "id": "repas-change-plat-demain",
+    "origine": "Cible Étape 5 : changement de repas formulé librement, non compris par les regex.",
+    "repas": [
+      {"day_offset": 1, "soir": "Gratin de courgettes"}
+    ],
+    "turns": ["Finalement demain soir on mange plutôt un chili sin carne"],
+    "expected": {"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "chili"}]}
+  },
+  {
+    "id": "repas-ingredients-sauf",
+    "origine": "Non-régression : ingrédients d'une recette ajoutés aux courses avec exclusion.",
+    "turns": ["Ajoute les ingrédients du risotto de quinoa sauf le parmesan"],
+    "expected": {"courses_ajoutees": ["quinoa", "courgette", "bouillon"]}
+  },
+  {
+    "id": "repas-hors-carnet-demande-confirmation",
+    "origine": "Non-régression : plat absent du carnet de recettes → confirmation avant planification.",
+    "turns": ["Mets une raclette demain soir"],
+    "expected": {"clarification": true}
+  },
+  {
+    "id": "repas-hors-carnet-confirme",
+    "origine": "Non-régression : la confirmation au tour suivant planifie le plat.",
+    "turns": [
+      "Mets une raclette demain soir",
+      "Oui, vas-y."
+    ],
+    "expected": {"repas_modifies": [{"day_offset": 1, "moment": "soir", "plat__contains": "raclette"}]}
+  }
+]

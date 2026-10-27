@@ -29,6 +29,8 @@ from app.handlers.second_brain_handler import handle_second_brain_intent
 from app.handlers.teach_handler import handle_teach_intent
 from app.handlers.undo_handler import handle_undo_intent
 from app.handlers.assistant_handler import handle_assistant_intent
+from app.handlers.agent_handler import handle_agent_turn, handle_agent_undo, routes_to_agent, routes_to_agent_undo
+from app.handlers.rayon_question_handler import handle_rayon_reply, is_idle_reply
 
 
 
@@ -112,27 +114,44 @@ async def interact(
 
     used_llm_model: Optional[str] = None
 
+    # 0. Réponse à une question « dans quel rayon ? » en attente : traitée par le code, sans LLM
+    rayon_reply = await handle_rayon_reply(normalized_query, session_id, session_ctx, connector)
+
     # 1. Analyse locale déterministe
     parsed = intent_parser.parse(normalized_query, context=session_ctx)
 
-    # 2. Si le modèle local ne comprend pas (UNKNOWN) : activation du cerveau LLM Gemini
-    if parsed.intent == IntentType.UNKNOWN and nlu_service:
+    handled = None
+    awaiting_agent_reply = session_ctx.pop("agent_awaiting_reply", False)
+    if rayon_reply is not None and (rayon_reply.consumed or is_idle_reply(parsed, normalized_query)):
+        parsed, handled = rayon_reply.parsed, (rayon_reply.spoken, rayon_reply.data)
+        rayon_reply = None
+    # 2a. Mode agent (NLU_MODE=agent) : hors voie rapide, Gemini raisonne et agit via ses outils
+    elif routes_to_agent_undo(parsed, session_ctx):
+        outcome = handle_agent_undo(request.query, session_id, sport_connector, connector)
+        parsed, handled = outcome.parsed, (outcome.spoken, outcome.data)
+    elif routes_to_agent(parsed, request.query, awaiting_agent_reply):
+        outcome = await handle_agent_turn(request.query, session_id, session_ctx, sport_connector, connector)
+        parsed, used_llm_model = outcome.parsed, outcome.llm_model
+        handled = (outcome.spoken, outcome.data)
+
+    # 2b. Si le modèle local ne comprend pas (UNKNOWN) : activation du cerveau LLM Gemini
+    if handled is None and parsed.intent == IntentType.UNKNOWN and nlu_service:
         llm_parsed = await nlu_service.parse(request.query, context=session_ctx)
         if llm_parsed.intent != IntentType.UNKNOWN or llm_parsed.conversational_reply:
             parsed = llm_parsed
             if hasattr(nlu_service, "gemini_client") and nlu_service.gemini_client:
                 used_llm_model = getattr(nlu_service.gemini_client, "_resolved_model", None)
 
-    data: Dict[str, Any] = dict(parsed.parameters)
-
     # 3. Aiguillage modulaire vers les handlers métier
-    handled = await handle_meals_intent(
-        parsed=parsed,
-        raw_query=request.query,
-        session_ctx=session_ctx,
-        connector=connector,
-        data=data,
-    )
+    if handled is None:
+        data: Dict[str, Any] = dict(parsed.parameters)
+        handled = await handle_meals_intent(
+            parsed=parsed,
+            raw_query=request.query,
+            session_ctx=session_ctx,
+            connector=connector,
+            data=data,
+        )
 
     if handled is None:
         handled = await handle_sport_intent(
@@ -193,6 +212,9 @@ async def interact(
         }
 
     spoken, data = handled
+    if rayon_reply is not None:
+        # Réponse sans rapport : articles mis de côté (rayon à trier), puis la nouvelle demande a été traitée.
+        spoken = f"{rayon_reply.spoken} {spoken}"
 
     # Mémorisation du tour dans l'historique de la session pour la continuité conversationnelle
     sess_mgr.record_turn(

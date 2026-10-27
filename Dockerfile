@@ -8,7 +8,8 @@ FROM python:3.12-slim
 # Variables d'environnement de base Python
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
+    PORT=8000 \
+    TZ=Europe/Paris
 
 # Création du répertoire applicatif
 WORKDIR /app

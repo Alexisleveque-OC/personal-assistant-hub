@@ -76,7 +76,7 @@ async def _call_gemini_coach_tip(context: Dict[str, Any]) -> SportCoachTip:
         f"Réponds UNIQUEMENT sous forme d'un objet JSON strict avec deux champs : 'message' (str) et 'niveau' ('info' | 'vigilance' | 'alerte')."
     )
 
-    candidates = gemini_client.get_candidate_models()
+    candidates = await gemini_client.premium_candidate_models()
     for candidate in candidates:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate}:generateContent?key={gemini_client.api_key}"
         payload = {
@@ -97,7 +97,6 @@ async def _call_gemini_coach_tip(context: Dict[str, Any]) -> SportCoachTip:
                 data = response.json()
 
             gemini_client.record_request((time.perf_counter() - start_time) * 1000)
-            gemini_client.set_active_working_model(candidate)
 
             parts = data.get("candidates", [])[0].get("content", {}).get("parts", [])
             raw_text = parts[0].get("text", "{}")
