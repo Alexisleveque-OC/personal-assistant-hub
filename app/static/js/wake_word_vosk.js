@@ -7,7 +7,7 @@ const VOSK_CLIENT_URL = "/static/vendor/vosk/vosk.wasm.js";
 const VOSK_WORKER_URL = "/static/vendor/vosk/vosk.worker.js";
 const VOSK_WASM_URL = "/static/vendor/vosk/vosk.wasm";
 // L'URL du modèle sert de clé au cache IndexedDB du worker : la version force un nouveau téléchargement au changement.
-const VOSK_MODEL_URL = "/static/vendor/vosk/model.tar.gz?v=vosk-model-small-fr-0.22";
+const VOSK_MODEL_URL = "/static/vendor/vosk/model.tar.gz?v=vosk-browser-0.0.3+vosk-model-small-fr-0.22";
 const CAPTURE_WORKLET_URL = "/static/js/vosk_capture_worklet.js";
 
 const WAKE_WORD = "otis";
@@ -30,9 +30,12 @@ export class WakeWordLoadError extends Error {
   }
 }
 
+// « Otis » doit être le dernier mot avant la pause : en grammaire restreinte, un mot proche suivi d'autres
+// mots (« les hôtes sont arrivés » → « otis [unk] ») serait sinon pris pour le mot-clé.
 export function transcriptHasWakeWord(text) {
   if (!text) return false;
-  return text.toLowerCase().split(/\s+/).includes(WAKE_WORD);
+  const words = text.toLowerCase().trim().split(/\s+/);
+  return words[words.length - 1] === WAKE_WORD;
 }
 
 // Chargement unique du modèle (≈ 40 Mo au premier usage, puis lu depuis IndexedDB) partagé par tous les détecteurs.
@@ -84,16 +87,19 @@ function loadVoskClient(log) {
 }
 
 export class VoskWakeWordDetector {
-  constructor({ onWake, log = () => {} } = {}) {
+  constructor({ onWake, log = () => {}, loadClient = loadVoskClient } = {}) {
     if (typeof onWake !== "function") {
       throw new TypeError("VoskWakeWordDetector : le callback onWake est obligatoire");
     }
     this.onWake = onWake;
     this.log = log;
+    this.loadClient = loadClient;
     this.stream = null;
     this.audioContext = null;
     this.recognizer = null;
     this.running = false;
+    // Incrémenté à chaque start()/stop() : un start() devancé par un stop() abandonne sans erreur.
+    this.generation = 0;
   }
 
   get isRunning() {
@@ -101,33 +107,50 @@ export class VoskWakeWordDetector {
   }
 
   async load() {
-    return loadVoskClient(this.log);
+    return this.loadClient(this.log);
   }
 
   async start() {
     if (this.running) return;
+    const generation = ++this.generation;
+    const isCancelled = () => generation !== this.generation;
+
     const client = await this.load();
+    if (isCancelled()) return;
+
+    let stream = null;
+    let audioContext = null;
+    const release = () => {
+      if (stream) stream.getTracks().forEach((track) => track.stop());
+      if (audioContext) audioContext.close();
+    };
 
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia(RAW_MIC_CONSTRAINTS);
-      this.audioContext = new AudioContext();
-      if (this.audioContext.state === "suspended") await this.audioContext.resume();
-      await this.audioContext.audioWorklet.addModule(CAPTURE_WORKLET_URL);
+      stream = await navigator.mediaDevices.getUserMedia(RAW_MIC_CONSTRAINTS);
+      if (isCancelled()) return release();
+      audioContext = new AudioContext();
+      if (audioContext.state === "suspended") await audioContext.resume();
+      await audioContext.audioWorklet.addModule(CAPTURE_WORKLET_URL);
+      if (isCancelled()) return release();
     } catch (err) {
-      this.stop();
+      release();
+      if (isCancelled()) return;
       throw new WakeWordLoadError(`Micro indisponible pour la détection locale : ${err.name || ""} ${err.message}`, err);
     }
 
-    const sampleRate = this.audioContext.sampleRate;
+    this.stream = stream;
+    this.audioContext = audioContext;
+    const sampleRate = audioContext.sampleRate;
     const recognizer = new client.KaldiRecognizer(sampleRate, WAKE_GRAMMAR);
-    // Résultats finaux uniquement (≈ 1,5 s après le mot, à la pause) : les résultats partiels
+    recognizer.setWords(true);
+    // Résultats finaux uniquement (à la pause qui suit le mot) : les résultats partiels
     // basculent sur « otis » pour des mots proches (« les hôtes ») et provoquent de faux réveils.
-    recognizer.on("result", (message) => this.handleTranscript(message?.result?.text));
+    recognizer.on("result", (message) => this.handleResult(message?.result));
     recognizer.on("error", (message) => this.log(`Erreur de reconnaissance Vosk : ${message?.error}`));
     this.recognizer = recognizer;
 
-    const source = this.audioContext.createMediaStreamSource(this.stream);
-    const capture = new AudioWorkletNode(this.audioContext, "vosk-capture");
+    const source = audioContext.createMediaStreamSource(stream);
+    const capture = new AudioWorkletNode(audioContext, "vosk-capture");
     capture.port.onmessage = (event) => {
       if (this.running && this.recognizer === recognizer) {
         recognizer.acceptWaveformFloat(event.data, sampleRate);
@@ -139,15 +162,28 @@ export class VoskWakeWordDetector {
     this.log(`Écoute locale du mot-clé démarrée (${sampleRate} Hz, micro brut)`);
   }
 
-  handleTranscript(text) {
-    if (!this.running || !transcriptHasWakeWord(text)) return;
-    this.log(`Mot-clé détecté : « ${text} »`);
+  handleResult(result) {
+    const text = result?.text;
+    if (!this.running || !text || !text.includes(WAKE_WORD)) return;
+
+    // Confiance et durée du mot « otis » journalisées pour calibrer un éventuel seuil sur la vraie voix.
+    const candidate = (result.result || []).filter((word) => word.word === WAKE_WORD).pop();
+    const details = candidate
+      ? ` (confiance ${candidate.conf.toFixed(2)}, durée ${(candidate.end - candidate.start).toFixed(2)} s)`
+      : "";
+
+    if (!transcriptHasWakeWord(text)) {
+      this.log(`Candidat ignoré : « ${text} »${details}`);
+      return;
+    }
+    this.log(`Mot-clé détecté : « ${text} »${details}`);
     // Libère le micro avant de passer la main à la dictée.
     this.stop();
     this.onWake(text);
   }
 
   stop() {
+    this.generation += 1;
     this.running = false;
     if (this.recognizer) {
       this.recognizer.remove();
