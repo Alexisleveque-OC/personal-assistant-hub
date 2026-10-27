@@ -125,3 +125,7 @@ def test_dockerfile_fetches_assets_after_copying_app_and_before_switching_user()
     fetch_index = dockerfile.index("python scripts/fetch_vosk_assets.py")
     assert dockerfile.index("COPY scripts/ ./scripts/") < fetch_index
     assert fetch_index < dockerfile.index("chown -R appuser:appuser /app")
+
+
+def test_docker_context_excludes_local_assets_so_the_image_always_downloads_pinned_ones():
+    assert "app/static/vendor/vosk" in (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
