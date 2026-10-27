@@ -259,7 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wakeWordIndicator.addEventListener("click", () => {
       const isNowEnabled = toggleWakeWord();
       if (isNowEnabled) {
-        showToastInfo("Mains-libres 'Otis' activé (l'écoute continue peut baisser la musique sur mobile).", "Otis à l'écoute");
+        showToastInfo("Mains-libres 'Otis' activé (détection sur le téléphone, la musique n'est pas coupée).", "Otis à l'écoute");
       } else {
         showToastSuccess("Mode au clic activé : micro coupé, votre musique joue à 100% de volume.", "Micro au clic");
       }

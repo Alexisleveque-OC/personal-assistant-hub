@@ -1,6 +1,8 @@
 // Module de Synthèse Vocale (TTS), Moteur VAD Anti-Coupure (MediaRecorder) et Ergonomie Vocale
 import { state } from "./config.js";
 import { audioFocusManager } from "./audio_focus.js";
+import { VoskWakeWordDetector } from "./wake_word_vosk.js";
+import { showToastError, showToastInfo } from "./toast.js";
 
 export const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -28,7 +30,7 @@ let initialInactivityTimer = null;
 // Gestion Audio Focus & Ducking
 let activeUtterance = null;
 let ttsWatchdogTimer = null;
-let wakeRecInstance = null;
+let voskDetector = null;
 let wakeWordPaused = false;
 let onWakeWordCallback = null;
 
@@ -224,7 +226,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       audioChunks = [];
       isSpeakingDetected = false;
 
-      // Délai court de libération du micro si transition depuis SpeechRecognition
+      // Délai court de libération du micro si transition depuis la détection du mot-clé
       if (isWakeTriggered) {
         await new Promise((resolve) => setTimeout(resolve, 80));
       }
@@ -415,7 +417,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
   onWakeWordCallback = (transcript) => defaultWakeTrigger(transcript);
 
   // Wake Word discret in-app ("Otis") si activé
-  if (state.wakeWordEnabled && SpeechRecognition) {
+  if (state.wakeWordEnabled) {
     startWakeWordDetection(onWakeWordCallback);
   }
 }
@@ -644,11 +646,7 @@ export function toggleWakeWord() {
 export function pauseWakeWordDetector() {
   wakeWordPaused = true;
   updateWakeWordIndicator();
-  if (wakeRecInstance) {
-    try {
-      wakeRecInstance.abort();
-    } catch (e) {}
-  }
+  if (voskDetector) voskDetector.stop();
 }
 
 export function resumeWakeWordDetector() {
@@ -662,12 +660,37 @@ export function resumeWakeWordDetector() {
 export function stopWakeWordDetection() {
   wakeWordPaused = false;
   updateWakeWordIndicator();
-  if (wakeRecInstance) {
-    try {
-      wakeRecInstance.abort();
-    } catch (e) {}
-    wakeRecInstance = null;
+  if (voskDetector) voskDetector.stop();
+}
+
+// Détection locale (Vosk, micro brut) : la Web Speech API continue était relancée toutes les ~5 s par
+// Chrome Android et coupait la musique à chaque relance.
+function getVoskDetector() {
+  if (!voskDetector) {
+    voskDetector = new VoskWakeWordDetector({
+      onWake: handleLocalWake,
+      log: (message) => console.debug("[WakeWord]", message),
+    });
   }
+  return voskDetector;
+}
+
+// « Otis » → bip → dictée : la commande est dite après le bip (pas de commande enchaînée).
+function handleLocalWake() {
+  updateWakeWordIndicator("triggered");
+  playWakeChime();
+  triggerWakeCapture("");
+}
+
+function handleWakeEngineFailure(err) {
+  console.error("[WakeWord] Détection locale indisponible :", err);
+  showToastError(
+    `Détection locale du mot-clé indisponible : ${err.message}. Mains-libres désactivé, le bouton micro reste utilisable.`,
+    "Mot-clé « Otis »"
+  );
+  setWakeWordEnabled(false);
+  const toggle = document.getElementById("wake-word-toggle");
+  if (toggle) toggle.checked = false;
 }
 
 export function startWakeWordDetection(onWakeCallback = null) {
@@ -677,7 +700,7 @@ export function startWakeWordDetection(onWakeCallback = null) {
     onWakeWordCallback = defaultWakeTrigger;
   }
 
-  if (!state.wakeWordEnabled || !SpeechRecognition) {
+  if (!state.wakeWordEnabled) {
     updateWakeWordIndicator();
     return;
   }
@@ -686,57 +709,19 @@ export function startWakeWordDetection(onWakeCallback = null) {
     return;
   }
 
-  try {
-    if (wakeRecInstance) {
-      try { wakeRecInstance.abort(); } catch (e) {}
-    }
+  const detector = getVoskDetector();
+  if (detector.isRunning) return;
 
-    wakeRecInstance = new SpeechRecognition();
-    wakeRecInstance.lang = "fr-FR";
-    wakeRecInstance.continuous = true;
-    wakeRecInstance.interimResults = true;
+  // Premier chargement du modèle (≈ 45 Mo, une seule fois) : prévenir seulement s'il ne vient pas du cache.
+  const slowLoadTimer = setTimeout(() => {
+    showToastInfo("Préparation du mot-clé « Otis » : téléchargement du modèle (≈ 45 Mo, une seule fois)…", "Otis");
+  }, 2000);
 
-    wakeRecInstance.onresult = (evt) => {
-      for (let i = evt.resultIndex; i < evt.results.length; ++i) {
-        const transcript = evt.results[i][0].transcript;
-        if (isWakeWordMatch(transcript)) {
-          console.debug("[WakeWord] Détecté via transcription:", transcript);
-          updateWakeWordIndicator("triggered");
-          playWakeChime();
-          triggerWakeCapture(transcript);
-          break;
-        }
-      }
-    };
-
-    wakeRecInstance.onerror = (e) => {
-      console.debug("[WakeWord] Événement d'écoute:", e?.error || e);
-    };
-
-    wakeRecInstance.onend = () => {
-      // Reconnexion uniquement si l'état est toujours actif et non en pause
-      if (
-        state.wakeWordEnabled &&
-        !wakeWordPaused &&
-        !isRecording &&
-        !audioFocusManager.isDucking() &&
-        (typeof document === "undefined" || !document.hidden)
-      ) {
-        setTimeout(() => {
-          try {
-            if (wakeRecInstance) wakeRecInstance.start();
-          } catch (e) {}
-        }, 500);
-      }
-      updateWakeWordIndicator();
-    };
-
-    wakeRecInstance.start();
-    updateWakeWordIndicator();
-  } catch (e) {
-    console.warn("Wake word non initialisé:", e);
-    updateWakeWordIndicator();
-  }
+  detector
+    .start()
+    .then(() => updateWakeWordIndicator())
+    .catch(handleWakeEngineFailure)
+    .finally(() => clearTimeout(slowLoadTimer));
 }
 
 // Module de Calibrage In-App Guidé
