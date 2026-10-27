@@ -470,7 +470,8 @@ class IntentParser:
 
         # 6. Ajout article liste de courses ("ajoute du lait à la liste de courses", "ajoute chocolat a la liste de course", "ajoute chocolat")
         add_shopping_match = re.search(
-            r"^(?:ajoute|mets|rajoute)\s+(.+?)\s+(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?.*$",
+            r"^(?:ajoute|mets|rajoute)\s+(.+?)\s+(?:(?:[àa]|sur|dans)\s+(?:la\s+)?liste\s+(?:de\s+|des\s+)?courses?"
+            r"|(?:aux|dans\s+les)\s+courses?\b).*$",
             cleaned,
             re.IGNORECASE,
         )
