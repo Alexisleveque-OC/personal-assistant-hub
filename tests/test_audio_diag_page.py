@@ -40,3 +40,24 @@ def test_audio_diag_page_reports_effective_track_settings_and_level():
 def test_audio_diag_page_stays_out_of_the_pwa_cache():
     assert "audio_diag" not in SW_PATH.read_text(encoding="utf-8")
     assert "audio_diag" not in client.get("/app").text
+
+
+def test_audio_diag_page_exposes_the_otis_reply_modes():
+    html = client.get("/static/audio_diag.html").text
+    for mode in ("tts-only", "tts-mic-processed", "tts-audio-element"):
+        assert f'data-mode="{mode}"' in html
+
+
+def test_audio_diag_otis_reply_modes_speak_in_french_and_log_synthesis_events():
+    html = client.get("/static/audio_diag.html").text
+    assert "new SpeechSynthesisUtterance(" in html
+    assert 'utterance.lang = "fr-FR"' in html
+    assert "utterance.onstart" in html and "utterance.onend" in html and "utterance.onerror" in html
+    assert "speechSynthesis.cancel()" in html
+
+
+def test_audio_diag_tts_with_audio_element_plays_a_generated_clip_through_an_audio_tag():
+    html = client.get("/static/audio_diag.html").text
+    assert "new Audio(" in html
+    assert "audio/wav" in html
+    assert 'id="carrier-duration"' in html
