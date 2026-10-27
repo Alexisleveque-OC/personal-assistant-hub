@@ -7,7 +7,8 @@ const VOSK_CLIENT_URL = "/static/vendor/vosk/vosk.wasm.js";
 const VOSK_WORKER_URL = "/static/vendor/vosk/vosk.worker.js";
 const VOSK_WASM_URL = "/static/vendor/vosk/vosk.wasm";
 // L'URL du modèle sert de clé au cache IndexedDB du worker : la version force un nouveau téléchargement au changement.
-const VOSK_MODEL_URL = "/static/vendor/vosk/model.tar.gz?v=vosk-browser-0.0.3+vosk-model-small-fr-0.22";
+// Route dédiée en flux (app/routers/wake_word.py) : Cloud Run refuse les fichiers statiques > 32 Mio.
+const VOSK_MODEL_URL = "/vosk/model.tar.gz?v=vosk-browser-0.0.3+vosk-model-small-fr-0.22";
 const CAPTURE_WORKLET_URL = "/static/js/vosk_capture_worklet.js";
 
 const WAKE_WORD = "otis";

@@ -69,6 +69,6 @@ def test_service_worker_caches_offline_outbox_and_handles_api_failure():
     assert res.status_code == 200
     content = res.text
 
-    assert "pah-pwa-cache-v22" in content
+    assert "pah-pwa-cache-v23" in content
     assert "/static/js/offline_outbox.js" in content
     assert "status: 503" in content
