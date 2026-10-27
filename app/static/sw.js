@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v22";
+const CACHE_NAME = "pah-pwa-cache-v23";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
@@ -65,6 +65,11 @@ self.addEventListener("fetch", (event) => {
         );
       })
     );
+    return;
+  }
+
+  // Modèle Vosk (~42 Mo) : réseau direct, le worker Vosk le conserve déjà dans IndexedDB (pas de double stockage)
+  if (url.pathname.startsWith("/vosk/")) {
     return;
   }
 
