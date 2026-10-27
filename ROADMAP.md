@@ -50,15 +50,18 @@ Garder la musique intacte pendant l'attente du mot-clé ; n'accepter une baisse 
 - [x] **Seuil de confiance 0,95** (décision utilisateur) ; la durée n'est pas un critère fiable (vrais « Otis » dès 0,30 s).
 - [ ] Reste à observer en usage : faux réveils sur de longues écoutes de musique à paroles, chauffe / batterie.
 
-### [ ] Étape 4 : Branchement dans la PWA
-- [ ] `speech.js` : l'écoute du mot-clé passe sur Vosk (pause pendant dictée / réponse, arrêt en arrière-plan), « Otis » → bip → dictée.
-- [ ] Échec de chargement → toast + mains-libres désactivé.
-- [ ] Section calibrage / variantes masquée.
-- [ ] Pas de cache du modèle dans le service worker : le worker Vosk le conserve déjà dans IndexedDB (clé = URL versionnée).
+### [x] Étape 4 : Branchement dans la PWA
+- [x] `speech.js` : l'écoute du mot-clé passe sur Vosk (pause pendant dictée / réponse, arrêt en arrière-plan), « Otis » → bip → dictée.
+- [x] Échec de chargement → toast + mains-libres désactivé ; premier téléchargement annoncé (toast si chargement > 2 s).
+- [x] Section calibrage / variantes masquée (commentée dans `index.html`, code JS conservé).
+- [x] Modules du détecteur pré-cachés par le service worker (v24) pour le démarrage hors ligne.
+- [x] Parcours vérifié dans la vraie PWA (Chrome Windows sans interface, faux micro) : modèle chargé, « Otis » → bip → dictée → `POST /api/v1/interact/audio`.
+- [x] Pas de cache du modèle dans le service worker : le worker Vosk le conserve déjà dans IndexedDB (clé = URL versionnée).
 
-### [ ] Étape 5 : Test d'intégration final & documentation
-- [ ] Test E2E du flux mot-clé → dictée → réponse.
-- [ ] README mis à jour (lien Phase 6.8 compris).
+### [x] Étape 5 : Test d'intégration final & documentation
+- [x] Test E2E `tests/test_e2e_wake_word_audio_focus.py` (détecteur réel sous Node + chaîne servie par l'application).
+- [x] README mis à jour (Phase 6.9, lien Phase 6.8 vers l'historique git, étape `fetch_vosk_assets.py`).
+- [ ] Test manuel utilisateur dans la PWA avant clôture.
 
 ---
 
