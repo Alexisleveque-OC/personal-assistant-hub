@@ -169,7 +169,31 @@
     "id": "courses-ajout-rayon-explicite",
     "origine": "Cible Étape 5 : le rayon dicté finit dans le nom de l'article par la regex.",
     "turns": ["Ajoute de la crème solaire au rayon hygiène"],
-    "expected": {"courses_ajoutees": ["crème solaire"]}
+    "expected": {"courses_ajoutees": ["crème solaire"], "rayons_appris": {"crème solaire": "Hygiène"}}
+  },
+  {
+    "id": "courses-rayon-inconnu-question",
+    "origine": "Décision Étape 5 bis : le rayon d'un article inconnu est demandé à l'utilisateur, jamais deviné.",
+    "turns": ["Ajoute du papier cadeau"],
+    "expected": {"clarification": true, "response_includes": ["papier cadeau"]}
+  },
+  {
+    "id": "courses-rayon-inconnu-reponse-enregistree",
+    "origine": "Décision Étape 5 bis : la réponse est enregistrée dans Ingredients_Rayons puis l'article est ajouté.",
+    "turns": ["Ajoute du papier cadeau", "Range-le en entretien"],
+    "expected": {"courses_ajoutees": ["papier cadeau"], "rayons_appris": {"papier cadeau": "Entretien"}}
+  },
+  {
+    "id": "courses-rayon-inconnu-annule",
+    "origine": "Décision Étape 5 bis : « laisse tomber » en réponse à la question de rayon n'ajoute ni n'enregistre rien.",
+    "turns": ["Ajoute du papier cadeau", "Non laisse tomber"],
+    "expected": {"response_includes": ["je n'ajoute pas"]}
+  },
+  {
+    "id": "courses-rayon-inconnu-via-agent",
+    "origine": "Décision Étape 5 bis : même question quand l'agent ajoute l'article ; la réponse est traitée sans LLM.",
+    "turns": ["Ajoute du lait et des bougies à la liste de courses de la semaine", "Mets-les en entretien"],
+    "expected": {"courses_ajoutees": ["lait", "bougies"], "rayons_appris": {"bougies": "Entretien"}}
   },
   {
     "id": "courses-ajout-repas-pas-aux-courses",

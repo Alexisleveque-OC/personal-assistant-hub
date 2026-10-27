@@ -8,7 +8,7 @@ from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.agent.tool_registry import ToolRegistry
 from app.core.agent.tools.sport_tools import SportTools
 from app.core.agent.undo import UndoJournal, UndoService
-from app.core.agent.tools.meals_models import MealUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo
+from app.core.agent.tools.meals_models import MealUndo, RayonLearnedUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo
 from app.core.agent.tools.meals_registry import meals_tool_definitions
 from app.core.agent.tools.meals_tools import MealsTools
 from tests.meals_fakes import (
@@ -75,30 +75,53 @@ async def test_shopping_list_can_include_checked_items_and_filter_by_rayon(regis
 
 @pytest.mark.asyncio
 async def test_add_items_resolves_known_rayons_and_validates_explicit_ones(registry, sheet, connector):
-    execution = await _call(registry, "add_shopping_items", articles=[
-        {"nom": "du beurre"}, {"nom": "crème solaire", "rayon": "hygiène"},
-    ])
+    execution = await _call(registry, "add_shopping_items", articles=[{"nom": "du beurre"}, {"nom": "lessive", "rayon": "hygiène"}])
 
     assert execution.error is None
     assert execution.response["ajoutes"] == [
         {"nom": "Beurre", "rayon": "Frais", "liste": "attente", "coche": False},
-        {"nom": "Crème solaire", "rayon": "Hygiène", "liste": "attente", "coche": False},
+        {"nom": "Lessive", "rayon": "Hygiène", "liste": "attente", "coche": False},
     ]
-    assert execution.response["rayon_a_choisir"] == []
-    assert waiting_rows(sheet)[-2:] == [("Beurre", False), ("Crème solaire", False)]
-    assert execution.undos == [ShoppingAddedUndo(items=["Beurre", "Crème solaire"])]
+    assert execution.response["rayon_a_demander"] == []
+    assert waiting_rows(sheet)[-2:] == [("Beurre", False), ("Lessive", False)]
+    assert execution.undos == [ShoppingAddedUndo(items=["Beurre", "Lessive"])]
     # Écriture → cache invalidé ou mis à jour : la lecture suivante voit les ajouts.
-    assert {"Beurre", "Crème solaire"} <= {it.item for it in connector.get_shopping_list()["waiting_list"]}
+    assert {"Beurre", "Lessive"} <= {it.item for it in connector.get_shopping_list()["waiting_list"]}
 
 
 @pytest.mark.asyncio
-async def test_unknown_rayon_is_not_guessed_and_the_available_rayons_are_returned(registry, sheet):
+async def test_unknown_article_is_not_added_and_left_for_the_app_to_ask(registry, tools, sheet):
     execution = await _call(registry, "add_shopping_items", articles=[{"nom": "lait"}, {"nom": "papier cadeau"}])
 
     assert [a["nom"] for a in execution.response["ajoutes"]] == ["Lait"]
-    assert execution.response["rayon_a_choisir"] == ["papier cadeau"]
-    assert "Divers" in execution.response["rayons_disponibles"]
+    assert execution.response["rayon_a_demander"] == ["papier cadeau"]
+    assert "rayons_disponibles" not in execution.response  # le modèle ne choisit plus le rayon
     assert ("Papier cadeau", False) not in waiting_rows(sheet)
+    assert tools.unknown_articles == ["papier cadeau"]
+
+
+@pytest.mark.asyncio
+async def test_rayon_chosen_by_the_model_for_an_unknown_article_is_ignored(registry, tools, sheet):
+    execution = await _call(registry, "add_shopping_items", articles=[{"nom": "papier cadeau", "rayon": "Entretien"}])
+
+    assert execution.response["ajoutes"] == []
+    assert execution.response["rayon_a_demander"] == ["papier cadeau"]
+    assert ("Papier cadeau", False) not in waiting_rows(sheet)
+
+
+@pytest.mark.asyncio
+async def test_rayon_said_by_the_user_for_an_unknown_article_is_saved(connector, sheet):
+    tools = MealsTools(connector, user_words="Ajoute du papier cadeau au rayon entretien")
+    registry = ToolRegistry(meals_tool_definitions(tools))
+
+    execution = await _call(registry, "add_shopping_items", articles=[{"nom": "papier cadeau", "rayon": "Entretien"}])
+
+    assert execution.response["ajoutes"] == [{"nom": "Papier cadeau", "rayon": "Entretien", "liste": "attente", "coche": False}]
+    assert sheet.worksheet("Ingredients_Rayons").get_all_values()[-1] == ["Papier cadeau", "Entretien"]
+    assert execution.undos == [
+        RayonLearnedUndo(ingredient="Papier cadeau", rayon="Entretien"), ShoppingAddedUndo(items=["Papier cadeau"]),
+    ]
+    assert tools.unknown_articles == []
 
 
 @pytest.mark.asyncio

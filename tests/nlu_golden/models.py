@@ -68,6 +68,9 @@ class ExpectedOutcome(BaseModel):
     courses_cochees: List[str] = Field(default_factory=list)
     courses_retirees: List[str] = Field(default_factory=list)
     repas_modifies: List[ExpectedMeal] = Field(default_factory=list)
+    rayons_appris: Dict[str, str] = Field(
+        default_factory=dict, description="Lignes ajoutées à Ingredients_Rayons : article → rayon (vide = à trier).",
+    )
     clarification: bool = Field(
         False, description="Aucune mutation, et la dernière réponse pose une question à l'utilisateur."
     )
@@ -78,7 +81,9 @@ class ExpectedOutcome(BaseModel):
 
     @model_validator(mode="after")
     def clarification_has_no_mutation(self) -> "ExpectedOutcome":
-        sheet_changes = self.courses_ajoutees or self.courses_cochees or self.courses_retirees or self.repas_modifies
+        sheet_changes = (
+            self.courses_ajoutees or self.courses_cochees or self.courses_retirees or self.repas_modifies or self.rayons_appris
+        )
         if self.clarification and (self.updated or self.created or sheet_changes):
             raise ValueError("Un cas de clarification ne peut pas attendre de mutation du carnet.")
         return self

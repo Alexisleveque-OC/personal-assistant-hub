@@ -13,7 +13,9 @@ from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.undo import UndoError, UndoJournal
 from app.core.database import get_database_manager
 from app.core.models import IntentType, ParsedIntent
+from app.core.shopping.rayon_questions import RAYON_QUESTION_KEY
 from app.handlers.fast_lane import FAST_LANE_INTENTS, is_fast_lane
+from app.handlers.rayon_question_handler import ask_rayon_question
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +98,9 @@ async def handle_agent_turn(
     ]
     # Une clarification regex en attente (ex. choix de rayon) est obsolète dès que l'agent reprend la main.
     session_ctx.pop("pending_action", None)
-    meals_tools = MealsTools(meals_connector, confirmable_dishes=session_ctx.pop("meal_confirmation_pending", []))
+    meals_tools = MealsTools(
+        meals_connector, confirmable_dishes=session_ctx.pop("meal_confirmation_pending", []), user_words=query,
+    )
     service = None
     try:
         service = build_agent_service(sport_connector, session_id, "last_undoable_action" in session_ctx, meals_tools)
@@ -118,6 +122,11 @@ async def handle_agent_turn(
         session_ctx["agent_awaiting_reply"] = True
     if meals_tools.refused_dishes:
         session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
+    spoken, data = reply.text, _response_data(reply.executions)
+    if meals_tools.unknown_articles:
+        # Article au rayon inconnu : la question est posée par l'application, la réponse traitée sans LLM.
+        question = await ask_rayon_question(meals_tools.unknown_articles, session_ctx, meals_connector)
+        spoken, data["rayon_question"] = f"{spoken} {question}", session_ctx[RAYON_QUESTION_KEY]
     return AgentTurnOutcome(
         parsed=ParsedIntent(
             intent=IntentType.AGENT,
@@ -125,8 +134,8 @@ async def handle_agent_turn(
             parameters={"tools": [e.name for e in reply.executions]},
             raw_query=query,
         ),
-        spoken=reply.text,
-        data=_response_data(reply.executions),
+        spoken=spoken,
+        data=data,
         llm_model=getattr(service.llm, "last_model", None),
     )
 

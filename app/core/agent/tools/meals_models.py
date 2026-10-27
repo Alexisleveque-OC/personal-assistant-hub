@@ -1,6 +1,6 @@
 """Contrats Pydantic stricts des outils Repas & Courses de l'agent (arguments, vues et instantanés d'annulation)."""
 from datetime import date as dt_date
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -20,7 +20,7 @@ class GetShoppingListArgs(StrictArgs):
 class ShoppingArticleArg(StrictArgs):
     nom: str = Field(min_length=1, pattern=r"\S", description="Nom de l'article en français, sans quantité superflue.")
     rayon: Optional[str] = Field(
-        None, description="Rayon du magasin, uniquement s'il est dit par l'utilisateur ou choisi dans rayons_disponibles.",
+        None, description="Rayon du magasin, uniquement s'il est dit par l'utilisateur.",
     )
 
 
@@ -109,6 +109,13 @@ class ShoppingRemovedUndo(BaseModel):
     items: List[WaitingListItem]
 
 
+class RayonLearnedUndo(BaseModel):
+    """Rayon enregistré dans Ingredients_Rayons (vide = à trier) : l'annulation supprime la ligne."""
+    kind: Literal["rayon_learned"] = "rayon_learned"
+    ingredient: str
+    rayon: str
+
+
 class MealUndo(BaseModel):
     kind: Literal["meal_set"] = "meal_set"
     date: dt_date
@@ -121,9 +128,10 @@ class MealUndo(BaseModel):
 
 class ShoppingAdded(BaseModel):
     ajoutes: List[ShoppingArticle]
-    rayon_a_choisir: List[str] = Field(description="Articles NON ajoutés : rayon inconnu, à choisir dans rayons_disponibles.")
-    rayons_disponibles: List[str]
-    undos: List[ShoppingAddedUndo]
+    rayon_a_demander: List[str] = Field(
+        description="Articles NON ajoutés : rayon inconnu, l'application demandera elle-même le rayon à l'utilisateur.",
+    )
+    undos: List[Union[RayonLearnedUndo, ShoppingAddedUndo]]
 
 
 class ShoppingChecked(BaseModel):

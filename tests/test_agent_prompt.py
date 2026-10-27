@@ -35,7 +35,8 @@ def test_prompt_has_shopping_meals_and_note_rules():
     prompt = build_system_prompt(date(2026, 10, 26), [])
     rules = prompt.split("Aujourd'hui :")[0]
     assert "Courses et repas" in rules
-    assert "rayons_disponibles" in rules and "hors_carnet_confirme" in rules
+    assert "rayon_a_demander" in rules and "hors_carnet_confirme" in rules
+    assert "ne les mentionne pas" in rules  # la question de l'application suit : pas de doublon
     assert "get_recipe" in rules and "add_shopping_items" in rules
     assert "toujours en français" in rules
 

@@ -347,3 +347,38 @@ def test_off_book_dish_is_only_planned_after_the_user_confirms(db, agent_mode, m
 
     _ask("Oui, vas-y.", session_id="meals-offbook")
     assert planned_meals(meals_sheet)[key][1] == "Raclette"
+
+
+def test_agent_unknown_article_question_is_asked_by_the_app_and_answered_without_llm(db, agent_mode, meals_sheet):
+    from app.core.llm.rayon_suggester import set_rayon_suggester
+    from tests.meals_fakes import waiting_rows
+
+    async def suggester(article, rayons):
+        return ["Entretien", "Épicerie"]
+
+    set_rayon_suggester(suggester)
+    llm = ScriptedLLM([
+        call_turn({"name": "add_shopping_items", "args": {"articles": [{"nom": "beurre"}, {"nom": "papier cadeau"}]}}),
+        text_turn("J'ai ajouté le beurre."),
+    ])
+    set_agent_llm(llm)
+
+    body = _ask("Pour Noël il faudra du beurre et du papier cadeau", session_id="meals-rayon")
+
+    assert body["spoken_response"] == (
+        "J'ai ajouté le beurre. Je ne connais pas encore le rayon de « Papier cadeau » : "
+        "je le range en Entretien ou en Épicerie ?"
+    )
+    assert waiting_rows(meals_sheet)[-1] == ("Beurre", False)
+
+    answer = _ask("En entretien", session_id="meals-rayon")  # aucun tour LLM restant : traité par le code
+
+    assert answer["intent"]["intent"] == "choose_rayon"
+    assert waiting_rows(meals_sheet)[-1] == ("Papier cadeau", False)
+    assert meals_sheet.worksheet("Ingredients_Rayons").get_all_values()[-1] == ["Papier cadeau", "Entretien"]
+    assert len(llm.requests) == 2
+
+    _ask("annule ça", session_id="meals-rayon")
+
+    assert waiting_rows(meals_sheet)[-1] == ("Beurre", False)
+    assert meals_sheet.worksheet("Ingredients_Rayons").get_all_values()[-1] != ["Papier cadeau", "Entretien"]

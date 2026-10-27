@@ -46,7 +46,6 @@ from app.core.llm.nlu_service import (
     GeminiNLUService,
     get_nlu_service,
     set_nlu_service,
-    infer_rayon_with_llm,
 )
 
 logger = logging.getLogger(__name__)

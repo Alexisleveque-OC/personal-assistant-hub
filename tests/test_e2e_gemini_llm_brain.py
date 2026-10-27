@@ -14,6 +14,8 @@ from datetime import date, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi.testclient import TestClient
 
+from app.connectors.sheets.meals_connector import MealsShoppingConnector
+from app.core.llm.rayon_suggester import set_rayon_suggester
 from app.main import app, set_meals_connector
 from app.connectors.sheets.models import Recipe, DayMealPlan, WaitingListItem
 from app.core.models import IntentType, ParsedIntent
@@ -84,6 +86,17 @@ def test_e2e_complete_conversational_brain_flow():
         WaitingListItem(item=item, rayon=rayon or "Divers"),
         None,
     )
+    # Rayon inconnu : question avec 2 suggestions, réponse enregistrée dans Ingredients_Rayons puis article ajouté
+    mock_connector.clean_item_name.side_effect = MealsShoppingConnector.clean_item_name
+    mock_connector.get_available_rayons.return_value = ["Boucherie", "Entretien", "Épicerie", "Divers"]
+    mock_connector.add_shopping_items.side_effect = lambda items, rayons=None: (
+        [WaitingListItem(item=item, rayon="Entretien") for item in items], [],
+    )
+
+    async def _suggester(article, rayons):
+        return ["Entretien", "Épicerie"]
+
+    set_rayon_suggester(_suggester)
     mock_connector.add_recipe_ingredients_to_shopping_list.return_value = (
         croque_recipe,
         [WaitingListItem(item=ing, rayon="Frais") for ing in croque_recipe.ingredients],
@@ -180,7 +193,7 @@ def test_e2e_complete_conversational_brain_flow():
         data3 = res3.json()
         assert data3["success"] is True
         assert "Entretien ou en Épicerie" in data3["spoken_response"]
-        assert data3["data"]["pending_action"]["type"] == "clarify_shopping_rayon"
+        assert data3["data"]["rayon_question"]["article"] == "Papier cuisson"
 
     # -------------------------------------------------------------
     # Tour 4 : Confirmation du rayon ("En entretien")
@@ -209,6 +222,7 @@ def test_e2e_complete_conversational_brain_flow():
         assert data4["success"] is True
         assert "Entretien" in data4["spoken_response"]
         assert "Papier cuisson" in data4["spoken_response"]
+        mock_connector.learn_ingredient_rayon.assert_called_once_with("Papier cuisson", "Entretien")
 
     # -------------------------------------------------------------
     # Tour 5 : Vérification du planning ("qu'est ce qu'on a prévu demain midi ?")

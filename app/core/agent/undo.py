@@ -3,7 +3,13 @@ from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-from app.core.agent.tools.meals_models import MealUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo
+from app.core.agent.tools.meals_models import (
+    MealUndo,
+    RayonLearnedUndo,
+    ShoppingAddedUndo,
+    ShoppingCheckedUndo,
+    ShoppingRemovedUndo,
+)
 from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.tools.sport_models import UndoSnapshot
 from app.core.agent.tools.sport_tools import SportToolError, SportTools
@@ -17,10 +23,10 @@ class NoteUndo(BaseModel):
 
 
 AgentUndo = Annotated[
-    Union[UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo],
+    Union[UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo],
     Field(discriminator="kind"),
 ]
-_MEALS_UNDOS = (ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo)
+_MEALS_UNDOS = (ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo)
 _UNDOS_ADAPTER = TypeAdapter(List[AgentUndo])
 
 

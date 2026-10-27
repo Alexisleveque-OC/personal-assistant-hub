@@ -29,9 +29,10 @@ def meals_tool_definitions(tools: MealsTools) -> List[AgentTool]:
         AgentTool(
             name="add_shopping_items",
             description=(
-                "Ajoute des articles à la liste d'attente des courses. Le rayon est déduit du catalogue ; "
-                "les articles au rayon inconnu ne sont PAS ajoutés (rayon_a_choisir) : choisis toi-même le rayon "
-                "le plus plausible dans rayons_disponibles et rappelle l'outil pour eux."
+                "Ajoute des articles à la liste d'attente des courses. Le rayon est déduit du catalogue. "
+                "Les articles au rayon inconnu ne sont PAS ajoutés (rayon_a_demander) : l'application demandera "
+                "elle-même le rayon à l'utilisateur juste après ta réponse. Ne choisis pas de rayon, ne rappelle pas "
+                "l'outil pour eux et ne pose pas la question toi-même."
             ),
             args_model=AddShoppingItemsArgs,
             handler=tools.add_shopping_items,

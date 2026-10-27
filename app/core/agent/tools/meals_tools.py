@@ -2,10 +2,10 @@
 
 Chaque écriture passe par le connecteur, qui invalide son cache mémoire (quotas Google Sheets),
 et produit un instantané permettant l'annulation exacte. Rien n'est deviné en silence :
-un rayon inconnu est renvoyé au modèle, un plat hors carnet exige une confirmation.
+le rayon d'un article inconnu est demandé à l'utilisateur, un plat hors carnet exige une confirmation.
 """
 from datetime import date, timedelta
-from typing import Collection, List, Optional, Union
+from typing import Collection, Dict, List, Optional, Union
 
 from app.connectors.sheets.meals_connector import (
     DayMealPlanNotFoundError,
@@ -24,6 +24,7 @@ from app.core.agent.tools.meals_models import (
     MealPlanView,
     MealSet,
     MealUndo,
+    RayonLearnedUndo,
     RecipeView,
     RemoveShoppingItemsArgs,
     SetMealArgs,
@@ -38,10 +39,11 @@ from app.core.agent.tools.meals_models import (
 )
 from app.core.agent.tools.sport_models import WEEKDAYS_FR
 from app.core.agent.tools.tool_error import ToolError
+from app.core.shopping.rayon_questions import learn_and_add, rayon_cited
 
 MAX_MEAL_PLAN_DAYS = 14
 
-MealsUndo = Union[ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo]
+MealsUndo = Union[ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo]
 
 
 class MealsToolError(ToolError):
@@ -49,15 +51,21 @@ class MealsToolError(ToolError):
 
 
 class MealsTools:
-    def __init__(self, connector: Optional[MealsShoppingConnector], confirmable_dishes: Collection[str] = ()) -> None:
+    def __init__(
+        self, connector: Optional[MealsShoppingConnector], confirmable_dishes: Collection[str] = (), user_words: str = "",
+    ) -> None:
         """`confirmable_dishes` : plats hors carnet refusés au tour précédent, donc soumis à l'utilisateur.
 
         `hors_carnet_confirme` n'est accepté que pour eux : le modèle ne peut pas se confirmer lui-même.
         Les plats refusés pendant ce tour sont exposés dans `refused_dishes` pour le tour suivant.
+        `user_words` : phrase de l'utilisateur ; le rayon d'un article inconnu n'est enregistré que s'il y est nommé,
+        sinon l'article est exposé dans `unknown_articles` et l'application pose la question après la réponse.
         """
         self._connector = connector
         self._confirmable = {dish.strip().casefold() for dish in confirmable_dishes}
+        self._user_words = user_words
         self.refused_dishes: List[str] = []
+        self.unknown_articles: List[str] = []
 
     @property
     def connector(self) -> MealsShoppingConnector:
@@ -102,22 +110,32 @@ class MealsTools:
                 explicit[article.nom.strip()] = self._canonical_rayon(article.rayon, available)
 
         to_add: List[str] = []
-        to_choose: List[str] = []
+        to_learn: Dict[str, str] = {}
+        to_ask: List[str] = []
         for article in args.articles:
             name = article.nom.strip()
-            if name not in explicit and self.connector.resolve_rayon(name)[1]:
-                to_choose.append(name)
-            else:
+            if not self.connector.resolve_rayon(name)[1]:
                 to_add.append(name)
+            elif name in explicit and rayon_cited(explicit[name], self._user_words):
+                to_learn[self.connector.clean_item_name(name)] = explicit[name]
+            else:
+                to_ask.append(name)  # rayon jamais choisi par le modèle : l'utilisateur sera interrogé
 
         added: List[WaitingListItem] = []
+        undos: List[MealsUndo] = []
         if to_add:
-            added, _ = self.connector.add_shopping_items(to_add, rayons=explicit or None)
+            known = {name: rayon for name, rayon in explicit.items() if name in to_add}
+            added, _ = self.connector.add_shopping_items(to_add, rayons=known or None)
+            undos.append(ShoppingAddedUndo(items=[it.item for it in added]))
+        if to_learn:
+            learned, learn_undos = learn_and_add(self.connector, to_learn)
+            added += learned
+            undos += learn_undos
+        self.unknown_articles += [name for name in to_ask if name not in self.unknown_articles]
         return ShoppingAdded(
             ajoutes=[ShoppingArticle(nom=it.item, rayon=it.rayon, liste="attente", coche=False) for it in added],
-            rayon_a_choisir=to_choose,
-            rayons_disponibles=available,
-            undos=[ShoppingAddedUndo(items=[it.item for it in added])] if added else [],
+            rayon_a_demander=to_ask,
+            undos=undos,
         )
 
     def check_shopping_items(self, args: CheckShoppingItemsArgs) -> ShoppingChecked:
@@ -241,6 +259,8 @@ class MealsTools:
         """Cibles touchées : seule la dernière mutation d'une cible dans un lot doit correspondre à l'état actuel."""
         if isinstance(undo, MealUndo):
             return [("meal", undo.date.isoformat(), undo.moment)]
+        if isinstance(undo, RayonLearnedUndo):
+            return [("rayon", undo.ingredient.casefold())]
         if isinstance(undo, ShoppingCheckedUndo):
             names = undo.waiting + undo.week
         elif isinstance(undo, ShoppingRemovedUndo):
@@ -262,6 +282,13 @@ class MealsTools:
                     f"Annulation impossible : le repas du {undo.date:%d/%m} {undo.moment} a été modifié depuis "
                     f"(« {value or 'vide'} » au lieu de « {undo.after} »)."
                 )
+        elif isinstance(undo, RayonLearnedUndo):
+            current = self.connector.get_learned_rayon(undo.ingredient)
+            if current != undo.rayon:
+                raise MealsToolError(
+                    f"Annulation impossible : le rayon de {undo.ingredient} a été modifié depuis dans le classeur "
+                    f"(« {current if current is not None else 'ligne supprimée'} » au lieu de « {undo.rayon or 'à trier'} »)."
+                )
         elif isinstance(undo, ShoppingAddedUndo):
             present = [row.item for row in self.connector.get_waiting_list_rows()]
             gone = [name for name in undo.items if concerned(name) and name not in present]
@@ -279,6 +306,9 @@ class MealsTools:
         if isinstance(undo, MealUndo):
             self.connector.set_meal_plan(meal=undo.before or "", target_date=undo.date, meal_type=undo.moment)
             return f"repas du {WEEKDAYS_FR[undo.date.weekday()]} {undo.moment} rétabli ({undo.before or 'vide'})"
+        if isinstance(undo, RayonLearnedUndo):
+            self.connector.forget_ingredient_rayon(undo.ingredient)
+            return f"rayon de {undo.ingredient} oublié"
         if isinstance(undo, ShoppingAddedUndo):
             for name in undo.items:
                 self.connector.remove_shopping_item(name)

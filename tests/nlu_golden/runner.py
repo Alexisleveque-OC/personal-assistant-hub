@@ -32,6 +32,7 @@ VOLATILE_COLUMNS = {"created_at", "updated_at"}
 Snapshot = Dict[int, Dict[str, Any]]
 ShoppingRow = Tuple[str, str, bool]  # (liste « attente »/« semaine », nom, coché)
 MealsPlan = Dict[str, Tuple[str, str]]  # « JJ/MM/AAAA » → (midi, soir)
+RayonRow = Tuple[str, str]  # ligne de Ingredients_Rayons : (article, rayon)
 
 _FRENCH_WORDS = {"le", "la", "les", "de", "des", "du", "un", "une", "est", "et", "à", "pour", "pas", "que", "qui",
                  "il", "faut", "sur", "au", "a", "été", "ma", "mon", "ce", "en"}
@@ -51,6 +52,8 @@ class CaseRun:
     meals_before: MealsPlan = field(default_factory=dict)
     meals_after: MealsPlan = field(default_factory=dict)
     new_notes: List[str] = field(default_factory=list)
+    rayons_before: List[RayonRow] = field(default_factory=list)
+    rayons_after: List[RayonRow] = field(default_factory=list)
 
 
 def snapshot_sessions(db: DatabaseManager) -> Snapshot:
@@ -101,7 +104,7 @@ def run_case(case: GoldenCase, db: DatabaseManager, client: TestClient, today: d
     sheet = _build_sheet(case, today)
     set_meals_connector(MealsShoppingConnector(spreadsheet=sheet))
     before, notes_before, last_note = snapshot_sessions(db), count_notes(db), _last_note_id(db)
-    courses_before, meals_before = _shopping(sheet), planned_meals(sheet)
+    courses_before, meals_before, rayons_before = _shopping(sheet), planned_meals(sheet), _rayons(sheet)
 
     session_id = f"golden-{case.id}"
     responses = []
@@ -125,7 +128,13 @@ def run_case(case: GoldenCase, db: DatabaseManager, client: TestClient, today: d
         meals_before=meals_before,
         meals_after=planned_meals(sheet),
         new_notes=_notes_after(db, last_note),
+        rayons_before=rayons_before,
+        rayons_after=_rayons(sheet),
     )
+
+
+def _rayons(sheet) -> List[RayonRow]:
+    return [(row[0], row[1] if len(row) > 1 else "") for row in sheet.worksheet("Ingredients_Rayons").get_all_values()[1:]]
 
 
 def _field_mismatches(row: Dict[str, Any], expected: FieldExpectations, today: date) -> List[str]:
@@ -171,6 +180,7 @@ def evaluate(case: GoldenCase, run: CaseRun) -> List[str]:
 
     errors += _shopping_mismatches(case, run)
     errors += _meal_mismatches(case, run)
+    errors += _rayon_mismatches(case, run)
 
     last_response = run.responses[-1] if run.responses else ""
     if expected.clarification and "?" not in last_response:
@@ -223,6 +233,21 @@ def _shopping_mismatches(case: GoldenCase, run: CaseRun) -> List[str]:
     if missing:
         errors.append(f"article(s) non coché(s) : {missing}")
     return errors
+
+
+def _rayon_mismatches(case: GoldenCase, run: CaseRun) -> List[str]:
+    """Rayons appris (lignes ajoutées à Ingredients_Rayons), comparés article par article."""
+    added = Counter((item_key(name), rayon) for name, rayon in run.rayons_after) - Counter(
+        (item_key(name), rayon) for name, rayon in run.rayons_before
+    )
+    wanted = Counter((item_key(name), rayon) for name, rayon in case.expected.rayons_appris.items())
+    if added == wanted:
+        return []
+    names = {item_key(name): name for name, _ in run.rayons_after}
+    return [
+        f"rayon(s) appris : {sorted((names[k], r) for k, r in added.elements())}, "
+        f"attendu(s) : {sorted(case.expected.rayons_appris.items())}"
+    ]
 
 
 def _meal_mismatches(case: GoldenCase, run: CaseRun) -> List[str]:

@@ -143,3 +143,26 @@ def test_response_must_include_words_and_notes_must_be_french():
     assert evaluate(case, _sheet_run(responses=("Ce soir : risotto.",), new_notes=[french])) == []
     errors = evaluate(case, _sheet_run(responses=("Ce soir : gratin.",), new_notes=[english]))
     assert any("risotto" in e for e in errors) and any("français" in e for e in errors)
+
+
+def test_learned_rayons_must_match_exactly():
+    case = _case({"courses_ajoutees": ["papier cadeau"], "rayons_appris": {"papier cadeau": "Entretien"}})
+    run = _sheet_run(_COURSES + [("attente", "Papier cadeau", False)])
+    run.rayons_before = [("Lait", "Frais")]
+
+    run.rayons_after = [("Lait", "Frais"), ("Papier cadeau", "Entretien")]
+    assert evaluate(case, run) == []
+
+    run.rayons_after = [("Lait", "Frais"), ("Papier cadeau", "Épicerie")]
+    assert any("Papier cadeau" in e for e in evaluate(case, run))
+    run.rayons_after = [("Lait", "Frais"), ("Papier cadeau", "Entretien"), ("Bougies", "")]
+    assert any("Bougies" in e for e in evaluate(case, run))
+
+
+def test_unexpected_learned_rayon_is_reported_and_forbidden_in_clarification():
+    run = _sheet_run(responses=("Je le range en Entretien ou en Épicerie ?",))
+    run.rayons_after = [("Papier cadeau", "Entretien")]
+    assert any("Papier cadeau" in e for e in evaluate(_case({"clarification": True}), run))
+
+    with pytest.raises(ValidationError):
+        _case({"clarification": True, "rayons_appris": {"papier cadeau": "Entretien"}})
