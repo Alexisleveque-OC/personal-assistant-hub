@@ -13,6 +13,8 @@ const CAPTURE_WORKLET_URL = "/static/js/vosk_capture_worklet.js";
 
 const WAKE_WORD = "otis";
 const WAKE_GRAMMAR = JSON.stringify(["otis", "[unk]"]);
+// Mesuré sur le téléphone : vrais « Otis » à 1,00 ; « mes hôtes sont partis tôt » → « [unk] otis » à 0,90.
+const MIN_CONFIDENCE = 0.95;
 const LOAD_TIMEOUT_MS = 120000;
 const RAW_MIC_CONSTRAINTS = {
   audio: {
@@ -167,13 +169,13 @@ export class VoskWakeWordDetector {
     const text = result?.text;
     if (!this.running || !text || !text.includes(WAKE_WORD)) return;
 
-    // Confiance et durée du mot « otis » journalisées pour calibrer un éventuel seuil sur la vraie voix.
+    // Confiance et durée du mot « otis » journalisées pour ajuster le seuil sur la vraie voix.
     const candidate = (result.result || []).filter((word) => word.word === WAKE_WORD).pop();
     const details = candidate
       ? ` (confiance ${candidate.conf.toFixed(2)}, durée ${(candidate.end - candidate.start).toFixed(2)} s)`
       : "";
 
-    if (!transcriptHasWakeWord(text)) {
+    if (!transcriptHasWakeWord(text) || !candidate || candidate.conf < MIN_CONFIDENCE) {
       this.log(`Candidat ignoré : « ${text} »${details}`);
       return;
     }
@@ -201,4 +203,4 @@ export class VoskWakeWordDetector {
   }
 }
 
-export { VOSK_BASE, LOAD_TIMEOUT_MS };
+export { VOSK_BASE, LOAD_TIMEOUT_MS, MIN_CONFIDENCE };
