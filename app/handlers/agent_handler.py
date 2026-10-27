@@ -112,6 +112,7 @@ async def handle_agent_turn(
         _journalize(session_id, session_ctx, exc.executions)
         data = _response_data(exc.executions)
         data["error"] = str(exc)
+        _add_latency_details(data, exc.llm_calls, fast_reply=False)
         return AgentTurnOutcome(
             parsed=ParsedIntent(intent=IntentType.AGENT, confidence=0.0, parameters={"error": str(exc)}, raw_query=query),
             spoken=_failure_message(exc),
@@ -125,6 +126,7 @@ async def handle_agent_turn(
     if meals_tools.refused_dishes:
         session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
     spoken, data = reply.text, _response_data(reply.executions)
+    _add_latency_details(data, reply.llm_calls, reply.fast_reply)
     if meals_tools.unknown_articles:
         # Article au rayon inconnu : la question est posée par l'application, la réponse traitée sans LLM.
         question = await ask_rayon_question(meals_tools.unknown_articles, session_ctx, meals_connector)
@@ -147,6 +149,12 @@ def _journalize(session_id: str, session_ctx: Dict[str, Any], executions: List[T
     undos = [undo for e in executions for undo in e.undos]
     if UndoJournal(get_database_manager()).record(session_id, undos) is not None:
         session_ctx.pop("last_undoable_action", None)
+
+
+def _add_latency_details(data: Dict[str, Any], llm_calls: List[Any], fast_reply: bool) -> None:
+    """Détail journalisé dans conversation_logs.parameters : durée de chaque appel Gemini, réponse directe ou non."""
+    data["llm_calls"] = [call.model_dump() for call in llm_calls]
+    data["fast_reply"] = fast_reply
 
 
 def _response_data(executions: List[ToolExecution]) -> Dict[str, Any]:

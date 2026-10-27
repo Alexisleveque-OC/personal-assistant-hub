@@ -50,14 +50,13 @@ def test_sport_request_goes_through_agent(db, agent_mode):
     session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
     llm = ScriptedLLM([
         call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": 5}}}),
-        text_turn("C'est noté, RPE 5 pour ton footing du jour."),
-    ])
+    ])  # modification simple : réponse rédigée par l'application, pas de 2e appel Gemini (Étape 7)
     set_agent_llm(llm)
 
     body = _ask("Mets le RPE de ma séance du jour à 5")
 
     assert body["success"] is True
-    assert body["spoken_response"] == "C'est noté, RPE 5 pour ton footing du jour."
+    assert body["spoken_response"].startswith("C'est noté : RPE 5 pour ton footing du ")
     assert body["intent"]["intent"] == "agent"
     assert body["data"]["session"]["id"] == session_id
     assert body["data"]["tool_calls"][0]["name"] == "update_sport_session"
@@ -69,6 +68,30 @@ def test_sport_request_goes_through_agent(db, agent_mode):
 
     history = get_session_manager().get_session("agent-test")["history"]
     assert [h["role"] for h in history[-2:]] == ["user", "assistant"]
+
+
+def test_agent_turn_latency_details_are_logged(db, agent_mode):
+    session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
+    set_agent_llm(ScriptedLLM([
+        call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": 5}}}),
+    ]))
+
+    _ask("Mets le RPE de ma séance du jour à 5")
+
+    log = _last_log(db)
+    parameters = json.loads(log["parameters"])
+    assert parameters["fast_reply"] is True
+    assert len(parameters["llm_calls"]) == 1 and parameters["llm_calls"][0]["ms"] >= 0
+    assert log["latency_ms"] >= parameters["llm_calls"][0]["ms"]
+
+
+def test_failed_agent_turn_logs_the_gemini_calls_made(db, agent_mode):
+    set_agent_llm(ScriptedLLM([AgentUnavailableError("Aucun modèle Gemini disponible.")]))
+
+    _ask("Mets le RPE de ma séance du jour à 5")
+
+    parameters = json.loads(_last_log(db)["parameters"])
+    assert len(parameters["llm_calls"]) == 1 and parameters["fast_reply"] is False
 
 
 def test_unknown_request_goes_to_agent_with_history(db, agent_mode):
@@ -114,7 +137,13 @@ def test_agent_unavailable_gives_explicit_answer_without_legacy_fallback(db, age
     assert "HTTP 503" in _last_log(db)["error_trace"]
 
 
-def test_failure_after_a_mutation_is_reported_to_the_user(db, agent_mode):
+@pytest.fixture
+def gemini_writes_every_reply(monkeypatch):
+    """Désactive la réponse directe de l'application : le 2e appel Gemini a lieu (et peut échouer)."""
+    monkeypatch.setattr("app.core.agent.agent_service.fast_reply", lambda query, executions: None)
+
+
+def test_failure_after_a_mutation_is_reported_to_the_user(db, agent_mode, gemini_writes_every_reply):
     session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
     set_agent_llm(ScriptedLLM([
         call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": 6}}}),
@@ -170,9 +199,9 @@ def test_add_sentence_about_sport_goes_to_agent_not_shopping(db, agent_mode, iso
 
 
 def _agent_update_turn(session_id: int, rpe: int):
+    """Modification simple : un seul appel Gemini, la réponse est rédigée par l'application."""
     return [
         call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": rpe}}}),
-        text_turn(f"RPE {rpe} enregistré."),
     ]
 
 
@@ -190,7 +219,7 @@ def test_plain_undo_restores_agent_mutation_without_calling_the_llm(db, agent_mo
     assert body["data"]["undone_action"]["restored"] == [f"séance EF du {TODAY[8:10]}/{TODAY[5:7]} restaurée"]
     assert body["data"]["session"]["id"] == session_id
     assert db.get_sport_session_by_id(session_id)["ressenti_rpe"] is None
-    assert len(llm.requests) == 2
+    assert len(llm.requests) == 1
 
 
 def test_undo_survives_a_server_restart(db, agent_mode):
@@ -245,7 +274,7 @@ def test_undo_with_nothing_to_undo_is_explicit(db, agent_mode):
     assert "Aucune action" in body["spoken_response"]
 
 
-def test_failure_message_after_mutation_offers_undo(db, agent_mode):
+def test_failure_message_after_mutation_offers_undo(db, agent_mode, gemini_writes_every_reply):
     session_id = db.add_sport_session({"date": TODAY, "type_seance": "EF", "statut": "Réalisé"})
     set_agent_llm(ScriptedLLM([
         call_turn({"name": "update_sport_session", "args": {"session_id": session_id, "changes": {"ressenti_rpe": 6}}}),

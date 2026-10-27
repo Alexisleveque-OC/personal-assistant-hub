@@ -60,9 +60,10 @@ def test_full_agent_conversation_from_phrase_to_storage(env):
     })
     llm = ScriptedLLM([
         # Tour 1 : sport, séance ciblée par son identifiant.
+        # Modification simple : réponse rédigée par l'application, sans 2e appel Gemini.
         call_turn({"name": "update_sport_session", "args": {"session_id": renfo, "changes": {"ressenti_rpe": 3}}}),
-        text_turn("C'est fait, RPE 3 pour ta renfo d'hier."),
-        # Tour 2 : courses, un article connu et un inconnu (le modèle ne choisit pas le rayon).
+        # Tour 2 : courses, un article connu et un inconnu (le modèle ne choisit pas le rayon) ; « et » = demande
+        # composée, Gemini rédige la réponse.
         call_turn({"name": "add_shopping_items", "args": {"articles": [{"nom": "lait"}, {"nom": "bougies"}]}}),
         text_turn("J'ai ajouté le lait."),
         # Tour 3 (« En entretien ») : traité par le code, aucun tour LLM consommé.
@@ -70,12 +71,11 @@ def test_full_agent_conversation_from_phrase_to_storage(env):
         call_turn({"name": "save_note", "args": {
             "content": "Bougies rangées en Entretien, à vérifier.", "category": "thought", "inclure_dernier_echange": True,
         }}),
-        text_turn("C'est noté."),
     ])
     set_agent_llm(llm)
 
     sport = _ask("Passe le RPE de ma renfo d'hier à 3")
-    assert sport["success"] is True and sport["spoken_response"] == "C'est fait, RPE 3 pour ta renfo d'hier."
+    assert sport["success"] is True and sport["spoken_response"].startswith("C'est noté : RPE 3 pour ta renfo du ")
     assert _rpe(db, renfo) == 3
 
     shopping = _ask("Ajoute du lait et des bougies à la liste de courses de la semaine")
@@ -88,10 +88,12 @@ def test_full_agent_conversation_from_phrase_to_storage(env):
     assert sheet.worksheet("Ingredients_Rayons").get_all_values()[-1] == ["Bougies", "Entretien"]
 
     note = _ask("Note ces derniers échanges")
+    assert note["spoken_response"] == "C'est noté dans tes réflexions."
     assert _notes(db)[-1].endswith(f"Toi : En entretien\nOtis : {rayon['spoken_response']}")
 
     undo = _ask("annule ça")
     assert undo["success"] is True
     assert _notes(db) == []
-    assert llm.requests and len(llm.requests) == 6  # 3 tours agent × 2 appels ; réponse rayon et annulation sans LLM
+    # Sport et note : 1 appel ; courses (demande composée) : 2 ; réponse au rayon et annulation : aucun.
+    assert len(llm.requests) == 4
     assert note["data"]["note_id"] is not None

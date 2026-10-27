@@ -19,9 +19,12 @@ def db(isolate_sqlite_database):
     return isolate_sqlite_database
 
 
-def _service(db, llm, max_llm_calls: int = 4) -> AgentService:
+def _service(db, llm, max_llm_calls: int = 4, fast_replies: bool = True) -> AgentService:
     tools = SportTools(SqlSportConnector(db_manager=db), today=lambda: TODAY)
-    return AgentService(llm=llm, registry=build_sport_registry(tools), sport_tools=tools, max_llm_calls=max_llm_calls)
+    return AgentService(
+        llm=llm, registry=build_sport_registry(tools), sport_tools=tools, max_llm_calls=max_llm_calls,
+        fast_replies=fast_replies,
+    )
 
 
 def _seed(db, day: str, type_seance: str, **fields) -> int:
@@ -55,7 +58,7 @@ async def test_function_call_is_executed_and_model_turn_echoed_verbatim(db):
     model_turn = call_turn({"name": "update_sport_session", "args": {"session_id": renfo, "changes": {"ressenti_rpe": 3}}})
     llm = ScriptedLLM([model_turn, text_turn("C'est noté, RPE 3 pour le renfo du jeudi 15/10.")])
 
-    reply = await _service(db, llm).run("Mets le RPE de mon dernier renfo à 3")
+    reply = await _service(db, llm, fast_replies=False).run("Mets le RPE de mon dernier renfo à 3")
 
     assert db.get_sport_session_by_id(renfo)["ressenti_rpe"] == 3
     assert db.get_sport_session_by_id(today_ef)["ressenti_rpe"] is None
@@ -128,7 +131,7 @@ async def test_llm_failure_after_mutation_reports_the_mutation(db):
         AgentUnavailableError("Gemini indisponible (503)"),
     ])
     with pytest.raises(AgentUnavailableError) as exc_info:
-        await _service(db, llm).run("RPE 6")
+        await _service(db, llm, fast_replies=False).run("RPE 6")
     assert [u.session_id for e in exc_info.value.executions for u in e.undos] == [session_id]
 
 
@@ -159,3 +162,47 @@ async def test_types_cited_in_the_query_and_recent_user_turns_are_given_to_the_s
     ])
 
     assert tools.cited_types == {SportSessionType.RENFORCEMENT}  # phrase courante + dernier tour utilisateur
+
+
+# --- Étape 7 : réponse directe après une modification simple, mesures des appels Gemini -----------------------------
+
+@pytest.mark.asyncio
+async def test_simple_mutation_is_answered_by_the_app_without_second_gemini_call(db):
+    renfo = _seed(db, "2026-10-15", "Renforcement")
+    llm = ScriptedLLM([
+        call_turn({"name": "update_sport_session", "args": {"session_id": renfo, "changes": {"ressenti_rpe": 3}}}),
+    ])
+
+    reply = await _service(db, llm).run("Mets le RPE de mon dernier renfo à 3")
+
+    assert reply.text == "C'est noté : RPE 3 pour ta renfo du jeudi 15/10."
+    assert reply.fast_reply is True
+    assert len(llm.requests) == 1 and len(reply.llm_calls) == 1
+    assert reply.llm_calls[0].ms >= 0
+
+
+@pytest.mark.asyncio
+async def test_lookup_then_simple_mutation_skips_only_the_final_call(db):
+    renfo = _seed(db, "2026-10-15", "Renforcement")
+    llm = ScriptedLLM([
+        call_turn({"name": "find_sport_sessions", "args": {"type_seance": "Renforcement"}}),
+        call_turn({"name": "update_sport_session", "args": {"session_id": renfo, "changes": {"ressenti_rpe": 3}}}),
+    ])
+
+    reply = await _service(db, llm).run("Mets le RPE de mon dernier renfo à 3")
+
+    assert reply.fast_reply is True and len(llm.requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_composite_request_keeps_the_final_gemini_call(db):
+    renfo = _seed(db, "2026-10-15", "Renforcement")
+    llm = ScriptedLLM([
+        call_turn({"name": "update_sport_session", "args": {"session_id": renfo, "changes": {"ressenti_rpe": 3}}}),
+        text_turn("RPE 3 mis, et je retiens la douleur."),
+    ])
+
+    reply = await _service(db, llm).run("Mets le RPE de mon dernier renfo à 3 et note que j'avais mal")
+
+    assert reply.text == "RPE 3 mis, et je retiens la douleur."
+    assert reply.fast_reply is False and len(reply.llm_calls) == 2

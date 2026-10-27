@@ -1,6 +1,6 @@
 """Erreurs explicites de l'agent. Chacune transporte les outils déjà exécutés (mutations comprises)
 pour que l'appelant puisse les signaler ou les annuler : jamais de mutation passée sous silence."""
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from app.core.agent.tool_registry import ToolExecution
 
@@ -9,6 +9,7 @@ class AgentError(Exception):
     def __init__(self, message: str, executions: Optional[List[ToolExecution]] = None) -> None:
         super().__init__(message)
         self.executions: List[ToolExecution] = list(executions or [])
+        self.llm_calls: List[Any] = []  # `LLMCall` mesurés avant l'échec, renseignés par la boucle agent
 
 
 class AgentUnavailableError(AgentError):
