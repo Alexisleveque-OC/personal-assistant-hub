@@ -57,6 +57,7 @@ personal-assistant-hub/
 │   │   ├── system.py            # Santé (/health), métriques LLM, logs d'audit & auto-apprentissage
 │   │   ├── second_brain.py      # Second Cerveau CRUD & ingestion visuelle (/api/v1/second-brain/*)
 │   │   ├── pwa.py               # Routes statiques PWA (/app, manifest.json, sw.js)
+│   │   ├── wake_word.py         # Modèle Vosk du mot-clé « Otis » servi en flux (/vosk/model.tar.gz)
 │   │   ├── meals.py             # Planning repas & ingrédients (/api/v1/meals/*)
 │   │   ├── sport.py             # Séances, synthèses hebdo, dashboard (/api/v1/sport/*)
 │   │   ├── strava.py            # Ingestion & webhooks Strava (/api/v1/integrations/strava/*)
@@ -78,7 +79,7 @@ personal-assistant-hub/
 │       ├── css/                 # Styles graphiques & thème sombre Monstera
 │       └── sw.js                # Service Worker v15 (mise en cache & offline)
 ├── hub_data.db                  # Base de données SQLite locale unifiée (mode WAL haute performance)
-├── tests/                       # Suite de 869 tests automatisés (Unitaires, Mocks & E2E)
+├── tests/                       # Suite de 893 tests automatisés (Unitaires, Mocks & E2E)
 │   └── nlu_golden/              # Jeu de référence de conversations (legacy hors-ligne, agent contre le vrai Gemini)
 ├── docs/                        # Guides de déploiement Cloud & documentation technique
 ├── AGENTS.md                    # Directives d'ingénierie agentique, TDD strict & Git
@@ -118,11 +119,12 @@ personal-assistant-hub/
 * **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker v20 avec mise en cache.
 * **File d'Attente Hors-Ligne & Auto-Retry :** Persistance locale robuste (IndexedDB) pour sauvegarder les messages texte et vocaux en zone blanche ou forêt, avec rejeu automatique et fluide dès le retour de la 4G/WiFi.
 * **Audio Focus & Ducking Casque (Mode Running) :** Atténuation du volume casque (musique/podcast) uniquement pendant la prise de parole d'Otis ou lors d'un enregistrement, sans bloquer le son en arrière-plan.
+* **Mot-clé « Otis » détecté sur le téléphone (Vosk) :** écoute sur micro brut sans traitements audio, la musique n'est plus coupée pendant l'attente du mot-clé (validé sur Android). « Otis » → bip → dictée.
 * **Docker & CI/CD Cloud :** Image de production ultra-légère (`python:3.12-slim`), pipeline GitHub Actions déployant automatiquement sur chaque merge dans `main`.
 
 ### 🧠 4. Second Cerveau, Moteur Vocal & Auto-Apprentissage — [🟢 Opérationnel]
 * **Socle de persistance SQLite WAL (`hub_data.db`) :** Journal conversationnel d'audit (`conversation_logs`) avec capture de la latence, des tokens, du modèle et endpoints d'audit/feedbacks.
-* **Pipeline Vocal & Push-to-Talk Fiabilisé :** Détection tactile stable par Pointer Events, calibrage in-app du mot-clé de réveil « Otis » avec retour sonore Web Audio (carillon) et VAD mains-libres.
+* **Pipeline Vocal & Push-to-Talk Fiabilisé :** Détection tactile stable par Pointer Events, mot-clé de réveil « Otis » détecté localement (Vosk) avec retour sonore Web Audio (carillon) et VAD mains-libres.
 * **Routage Sémantique Contextuel & Prise de Note Orale Naturelle :** Désambiguïsation stricte prévenant les faux positifs entre modules (sport, renfo, notes, courses). Support des prises de notes orales naturelles sans ponctuation (*« Ajoute une note juste pour penser à... »*).
 * **Auto-apprentissage vocal interactif (`teach_assistant`) :** Correction d'erreurs à la voix (*« Quand je dis renfort je veux dire renforcement »*), table `user_learnings` et injection dynamique des règles dans le prompt système sans toucher au code.
 * **Second Cerveau compartimenté & dynamique :** Classification automatique des notes en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`) et découverte de catégories personnalisées (voyage, cuisine, finances...).
@@ -156,7 +158,7 @@ personal-assistant-hub/
   - Découplage de Google Sheets (`SPREADSHEET_SPORT_ID` optionnel) & outil d'export/backup JSON/CSV
 - [x] **Phase 6.6 : Audio Focus Casque, Pipeline Vocal & Résilience Mobile**
   - Audio Focus & Ducking dynamique casque en mode running (atténuation musique/podcast uniquement si Otis parle)
-    - ⚠️ Limite connue sur Android/Chrome : `navigator.audioSession` n'y est pas supporté (ducking sans effet) et l'écoute continue du mot-clé « Otis » (Web Speech API) fait baisser la musique en permanence. Chantier planifié après la Phase 6.8.
+    - ⚠️ Limite connue sur Android/Chrome : `navigator.audioSession` n'y est pas supporté (ducking sans effet). La musique baissée pendant l'écoute du mot-clé est résolue en Phase 6.9.
   - Pipeline Vocal PWA fiabilisé (Push-to-Talk Pointer Events, wake-word « Otis » calibrable in-app, VAD mains-libres et carillon Web Audio)
   - File d'attente hors-ligne & synchronisation PWA (Offline Outbox IndexedDB + auto-retry dès reconnexion en forêt)
   - Routage sémantique contextuel strict (désambiguïsation Sport/Notes/Courses) et prise de note orale naturelle sans ponctuation
@@ -165,7 +167,7 @@ personal-assistant-hub/
   - Fin du repli silencieux sur la date du jour : code d'erreur `screenshot_date_missing` + sélecteur de date dans la PWA
   - Règles de fusion Decathlon Connect CW500 M et erreurs Gemini explicites (`VisionServiceUnavailableError` → 503), appel Gemini asynchrone
   - Test E2E du parcours complet sur une même séance (`tests/test_e2e_screenshot_import.py`)
-- [x] **Phase 6.8 : Cerveau LLM-First (Compréhension Intelligente des Demandes)** — *terminée sur `feat/llm-first-nlu`, activée par `NLU_MODE=agent` (détail : `ROADMAP.md`)*
+- [x] **Phase 6.8 : Cerveau LLM-First (Compréhension Intelligente des Demandes)** — *terminée sur `feat/llm-first-nlu`, activée par `NLU_MODE=agent` (détail : historique git de `ROADMAP.md`, commit `edd22ee`)*
   - Constat (logs de prod) : 36 échanges sur 46 traités par les seules regex, le LLM n'intervenant qu'en dernier recours → mauvaise séance modifiée, « annule » incompris
   - Gemini en premier avec appel de fonctions typées (séances ciblées par identifiant, repas & courses, notes), contexte injecté (date du jour, séances récentes, historique de conversation)
   - Garde-fous dans le code : jour à plusieurs séances → clarification, plat hors carnet → confirmation, rayon jamais choisi par le modèle
@@ -174,6 +176,13 @@ personal-assistant-hub/
   - Voie rapide sans LLM conservée pour les commandes sans ambiguïté ; mode `legacy` disponible en retour arrière
   - Jeu de référence de 33 conversations : 33/33 contre le vrai Gemini (27/10/2026), test E2E agent (`tests/test_e2e_agent_flow.py`)
   - Modèles : 3.5 Flash Lite (500 req/j) pour la conversation ; meilleurs modèles d'abord (3.8 → 3.6 → Lite) pour la vision et le coach sport
+- [x] **Phase 6.9 : Mot-clé « Otis » sans couper la musique (Android)** — *branche `feat/wake-word-audio-focus` (détail : `ROADMAP.md`)*
+  - Diagnostic sur l'appareil (`/static/audio_diag.html`) : la Web Speech API continue est relancée toutes les ~5 s par Chrome Android et coupe la musique à chaque relance ; un micro brut (`getUserMedia` sans traitements) la laisse intacte
+  - Détection locale avec Vosk (`@lichess-org/vosk-browser`, modèle `vosk-model-small-fr-0.22`, Apache 2.0) restreinte à « otis » ; assets téléchargés au build Docker avec empreintes SHA-256 figées (`scripts/fetch_vosk_assets.py`), modèle conservé par le navigateur (IndexedDB)
+  - Garde-fous mesurés : « otis » doit être le dernier mot avant la pause et avoir une confiance ≥ 0,95 (« mes hôtes sont partis tôt » écarté)
+  - Modèle (42 Mo) servi en flux : Cloud Run refuse les réponses HTTP/1 de taille connue au-delà de 32 Mio
+  - Échec de chargement → message explicite et mains-libres désactivé ; calibrage des variantes masqué (code conservé)
+  - Test E2E du flux (`tests/test_e2e_wake_word_audio_focus.py`)
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
@@ -208,6 +217,9 @@ source .venv/bin/activate
 
 # Installer les dépendances
 pip install -r requirements.txt
+
+# Télécharger le moteur du mot-clé « Otis » (Vosk + modèle français, ~45 Mo, ignorés par git)
+python scripts/fetch_vosk_assets.py
 ```
 
 ### 3. Configuration (`.env`)
@@ -227,7 +239,7 @@ NLU_MODE=agent          # agent : Gemini en premier ; legacy : regex puis Gemini
 ```bash
 .venv/bin/pytest -v
 ```
-> **869 tests collectés, 100 % au vert** (sans appel réel à Gemini ; les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
+> **893 tests au vert** (sans appel réel à Gemini ; les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
 
 Évaluation du jeu de référence contre le vrai Gemini (hors CI, consomme environ 70 requêtes du quota gratuit) :
 ```bash
