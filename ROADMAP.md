@@ -85,8 +85,10 @@ Compromis assumé : ~1 à 2 s par requête au lieu de quelques ms, 1 à 3 appels
 
 ### [ ] Étape 6 : Validation Réelle & E2E
 - [x] Évaluation du golden set contre le vrai Gemini (`RUN_LIVE_GEMINI=1`, hors CI) : 33/33 le 27/10.
-- [ ] Test d'intégration E2E du flux complet (phrase → outils → base → réponse).
-- [ ] Mise à jour du `README.md` (fin de phase), suite `pytest -v` 100 % verte.
+- [x] Test d'intégration E2E du flux complet (phrase → outils → base → réponse) : `tests/test_e2e_agent_flow.py` (sport par identifiant, courses + question de rayon, note sur l'échange précédent, annulation). Bug trouvé et corrigé : « ajoute X aux courses » gardait « aux courses » dans le nom de l'article.
+- [x] Notes sur les échanges précédents : résumé précis + extrait exact du dernier échange ajouté par le code (`inclure_dernier_echange`), 3/3 en réel.
+- [x] Mesure de latence (27/10, vrai Gemini 3.5 Flash Lite, 2 passes de 9 phrases) : voie rapide et réponses traitées par le code < 0,1 s ; tour agent = 2 appels Gemini successifs (outil puis réponse), médiane 8 s, de 2,7 à 16,5 s ; appel Gemini de 0,6 à 9 s selon la charge de Google ; code + outils ≈ 0,2 s (hors latence Google Sheets en prod). Les 20-70 s observés en test venaient du dépassement de 15 req/min (429 → pause du modèle et relais), pas du code.
+- [x] Mise à jour du `README.md` (fin de phase), suite `pytest` 100 % verte.
 
 ---
 
