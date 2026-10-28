@@ -36,4 +36,4 @@ def test_thinking_bubble_is_styled_and_animated():
 
 
 def test_service_worker_cache_version_bumped_for_the_new_chat_script():
-    assert "pah-pwa-cache-v24" in client.get("/sw.js").text
+    assert "pah-pwa-cache-v25" in client.get("/sw.js").text
