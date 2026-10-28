@@ -61,3 +61,18 @@ def test_audio_diag_tts_with_audio_element_plays_a_generated_clip_through_an_aud
     assert "new Audio(" in html
     assert "audio/wav" in html
     assert 'id="carrier-duration"' in html
+
+
+def test_audio_diag_offers_a_mode_that_unloads_the_audio_element_after_each_phrase():
+    html = client.get("/static/audio_diag.html").text
+    assert 'data-mode="tts-audio-unload"' in html
+    assert 'removeAttribute("src")' in html
+    assert ".load()" in html
+
+
+def test_audio_diag_offers_a_dictation_replay_with_the_dictation_microphone_settings():
+    html = client.get("/static/audio_diag.html").text
+    assert 'data-mode="dictation-replay"' in html
+    assert "new MediaRecorder(" in html
+    assert 'audio/webm;codecs=opus' in html
+    assert 'class="replay"' in html

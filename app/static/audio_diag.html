@@ -82,6 +82,18 @@
     </label>
     <div class="timer"></div>
   </div>
+  <div class="mode" data-mode="tts-audio-unload">
+    <div class="mode-head"><div><div class="mode-title">J. Synthèse + &lt;audio&gt; vidé</div><div class="mode-desc">I avec le clip de 1 s, mais la balise &lt;audio&gt; est vidée (et non mise en pause) après chaque phrase : la musique remonte-t-elle ?</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+  </div>
+
+  <h2>Dictée</h2>
+  <p class="hint">Musique au haut-parleur : démarrez, attendez 1 s, dites « ajoute du lait », puis arrêtez. Réécoutez ensuite l'enregistrement (la lecture peut couper la musique).</p>
+  <div class="mode" data-mode="dictation-replay">
+    <div class="mode-head"><div><div class="mode-title">K. Dictée enregistrée</div><div class="mode-desc">Même micro et même format que la dictée de l'app ; l'audio exact qui serait envoyé à la transcription</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
+    <audio class="replay" controls hidden></audio>
+  </div>
 
   <div class="log-actions"><button id="btn-copy">Copier le journal</button><button id="btn-clear">Effacer</button></div>
   <div id="diag-log"></div>
@@ -273,25 +285,66 @@
       return new Blob([view.buffer], { type: "audio/wav" });
     }
 
-    function startTtsWithAudioElement(card) {
-      const seconds = Number(card.querySelector("#carrier-duration").value);
+    // unloadAfterPhrase : vide la balise (src retiré + load()) au lieu d'une simple pause, pour tenter de rendre le focus audio.
+    function startTtsWithAudioElement(seconds, unloadAfterPhrase) {
       const url = URL.createObjectURL(buildNearSilentWav(seconds));
-      const carrier = new Audio(url);
+      const carrier = new Audio();
       carrier.loop = true;
-      for (const event of ["play", "playing", "pause"]) carrier.addEventListener(event, () => log(`<audio> ${event}`));
-      carrier.addEventListener("error", () => log(`ERREUR <audio>: ${carrier.error ? carrier.error.message || carrier.error.code : "inconnue"}`));
-      log(`Clip <audio>: ${seconds} s quasi silencieux, en boucle`);
+      for (const event of ["play", "playing", "pause", "emptied"]) carrier.addEventListener(event, () => log(`<audio> ${event}`));
+      carrier.addEventListener("error", () => {
+        if (carrier.getAttribute("src")) log(`ERREUR <audio>: ${carrier.error ? carrier.error.message || carrier.error.code : "inconnue"}`);
+      });
+      const release = () => {
+        carrier.pause();
+        if (unloadAfterPhrase) {
+          carrier.removeAttribute("src");
+          carrier.load();
+        }
+      };
+      log(`Clip <audio>: ${seconds} s quasi silencieux, en boucle, ${unloadAfterPhrase ? "vidé" : "mis en pause"} après chaque phrase`);
       const stopTts = startTtsLoop({
         beforeSpeak: () => {
+          if (!carrier.getAttribute("src")) carrier.src = url;
           carrier.currentTime = 0;
           carrier.play().catch((err) => log(`ERREUR <audio>.play(): ${err.name} ${err.message}`));
         },
-        afterSpeak: () => carrier.pause(),
+        afterSpeak: release,
       });
       return () => {
         stopTts();
-        carrier.pause();
+        release();
         URL.revokeObjectURL(url);
+      };
+    }
+
+    // Reproduit la capture de speech.js (contraintes et format) et garde l'audio pour réécoute.
+    async function startDictationReplay(card) {
+      const replay = card.querySelector(".replay");
+      replay.hidden = true;
+      if (replay.src) URL.revokeObjectURL(replay.src);
+      replay.removeAttribute("src");
+      let mimeType = "audio/webm;codecs=opus";
+      if (!window.MediaRecorder) throw new Error("MediaRecorder indisponible dans ce navigateur");
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
+      }
+      if (!mimeType) throw new Error("Aucun format audio supporté par MediaRecorder");
+      const stream = await navigator.mediaDevices.getUserMedia(PROCESSED_CONSTRAINTS);
+      log(`getSettings(): ${JSON.stringify(stream.getAudioTracks()[0].getSettings())}`);
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      const recorded = new Promise((resolve) => { recorder.onstop = resolve; });
+      recorder.start();
+      log(`Enregistrement (${mimeType})…`);
+      return async () => {
+        recorder.stop();
+        await recorded;
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: mimeType });
+        log(`Enregistrement terminé: ${(blob.size / 1024).toFixed(1)} Ko`);
+        replay.src = URL.createObjectURL(blob);
+        replay.hidden = false;
       };
     }
 
@@ -304,7 +357,9 @@
       "vosk-wake": (card) => startVoskWake(card),
       "tts-only": () => startTtsLoop(),
       "tts-mic-processed": (card) => startTtsWithProcessedMicrophone(card),
-      "tts-audio-element": (card) => startTtsWithAudioElement(card),
+      "tts-audio-element": (card) => startTtsWithAudioElement(Number(card.querySelector("#carrier-duration").value), false),
+      "tts-audio-unload": () => startTtsWithAudioElement(1, true),
+      "dictation-replay": (card) => startDictationReplay(card),
     };
 
     async function stopSession() {
