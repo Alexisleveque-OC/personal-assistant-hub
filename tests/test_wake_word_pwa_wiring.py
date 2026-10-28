@@ -62,7 +62,7 @@ def test_wake_word_modules_are_precached_for_offline_start():
     assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
     assert '"/static/js/wake_word_vosk.js"' in assets
     assert '"/static/js/vosk_capture_worklet.js"' in assets
-    assert "pah-pwa-cache-v24" in sw
+    assert "pah-pwa-cache-v25" in sw
 
 
 def test_hands_free_toast_no_longer_warns_about_the_music():
