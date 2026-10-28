@@ -183,6 +183,7 @@ personal-assistant-hub/
   - Modèle (42 Mo) servi en flux : Cloud Run refuse les réponses HTTP/1 de taille connue au-delà de 32 Mio
   - Échec de chargement → message explicite et mains-libres désactivé ; calibrage des variantes masqué (code conservé)
   - Test E2E du flux (`tests/test_e2e_wake_word_audio_focus.py`)
+  - Suite : musique baissée pendant les réponses d'Otis (`speechSynthesis` ne demande pas le focus audio sur Chrome Android) grâce à un clip `<audio>` quasi silencieux de 1 s joué en boucle puis vidé à la fin de la réponse (une simple pause garde la musique baissée) — branche `feat/otis-reply-ducking`, test E2E `tests/test_e2e_otis_reply_ducking.py`
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
