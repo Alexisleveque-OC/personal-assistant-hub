@@ -34,9 +34,9 @@ Modes ajoutés à `app/static/audio_diag.html`. Résultats (Android 10, Chrome 1
 - [x] Service worker v25 (module mis en cache modifié).
 - Tests : `tests/test_audio_focus_carrier.py` (module réel sous Node, fausse balise `<audio>`).
 
-### [ ] Étape 3 : Test d'intégration final & validation sur l'appareil
+### [x] Étape 3 : Test d'intégration final & validation sur l'appareil
 - [x] Test E2E `tests/test_e2e_otis_reply_ducking.py` : `speak()` réel sous Node (clip lancé avant la voix, vidé en fin de réponse et à l'interruption) + chaîne servie par l'application.
-- [ ] Test manuel utilisateur dans la PWA : musique baissée pendant la réponse, remontée après, y compris en mains-libres (réponse déclenchée par « Otis » sans toucher l'écran).
+- [x] Test manuel utilisateur dans la PWA (28/10, déployé main `87265d4`, service worker v25) : musique baissée pendant la réponse et remontée après, dans tous les cas testés (bouton micro, mains-libres, réponse interrompue).
 
 ---
 

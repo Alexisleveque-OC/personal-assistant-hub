@@ -89,7 +89,9 @@ personal-assistant-hub/
    * Pour chaque fonctionnalité (`feat/*`), un fichier `ROADMAP.md` dédié doit être créé à la racine du projet.
    * La roadmap détaille les étapes d'implémentation de manière ordonnée et progressive.
    * Chaque étape doit afficher 100% de tests au vert (et, si l'étape touche le LLM, une validation réelle ciblée) avant de passer à la suivante.
-   * **Autonomie de développement (décision utilisateur du 27/10/2026) :** l'agent enchaîne les étapes et commite sur la branche de feature sans attendre de test manuel ni de validation à chaque étape, dès que `pytest` est 100 % vert. Il rend compte des choix et compromis à la fin de chaque étape. Restent soumis à l'accord explicite de l'utilisateur : tout `push`, toute fusion vers `develop`/`main`, tout changement de périmètre fonctionnel, et toute action sur les données réelles (classeurs, base de prod).
+   * **Autonomie de développement (décision utilisateur du 27/10/2026) :** l'agent enchaîne les étapes et commite sur la branche de feature sans attendre de test manuel ni de validation à chaque étape, dès que `pytest` est 100 % vert. Il rend compte des choix et compromis à la fin de chaque étape.
+   * **Push et déploiement directs (décision utilisateur du 28/10/2026) :** dès que `pytest` est 100 % vert et qu'un livrable est prêt à être testé sur l'appareil, l'agent pousse la branche, fusionne vers `develop` puis `main` (déploiement par la CD) sans demander, vérifie le déploiement (`/health`, version du service worker) et invite l'utilisateur à tester sur son téléphone. Un échec au test manuel se corrige sur la branche puis se redéploie de la même façon.
+   * Restent soumis à l'accord explicite de l'utilisateur : tout changement de périmètre fonctionnel et toute action sur les données réelles (classeurs, base de prod).
    * **Arrêt obligatoire sur les questions d'architecture et de comportement :** dès qu'un choix porte sur l'architecture (découpage, nouveau module/service, persistance, dépendance) ou sur la façon dont l'application doit réagir (réponse orale, flux de dialogue, cas limite métier), l'agent s'arrête et pose la question à l'utilisateur avant de coder, en proposant sa recommandation.
    * **Test d'intégration final :** À la fin de chaque feature, un test d'intégration complet (E2E) doit être mis en place pour valider le flux de bout en bout et garantir la pérennité de la solution dans le temps.
 7. **Erreurs Explicites & Fail-Fast (Déboguabilité Maximale) :**
@@ -101,9 +103,9 @@ personal-assistant-hub/
    * Cela garantit des temps de réponse quasi-instantanés sur l'application mobile et préserve les quotas stricts de Google Cloud (limite de 60 requêtes/minute).
    * **Invalidation immédiate :** Toute opération d'écriture ou de mutation (ex: ajout d'articles, coche d'un article acheté, suppression, modification de repas) doit obligatoirement invalider le cache immédiatement pour préserver la cohérence absolue des données.
 9. **Discipline de Fusion & Tests Manuels Utilisateur (Zéro Merge Prématuré) :**
-   * Il est **strictement interdit** de fusionner une branche de fonctionnalité (`feat/*`) vers `develop` ou `main` de manière anticipée.
+   * Il est **strictement interdit** de fusionner une branche de fonctionnalité (`feat/*`) vers `develop` ou `main` tant que `pytest` n'est pas 100 % vert.
    * Tout nouveau développement reste cantonné sur sa branche dédiée (`feat/<name>`).
-   * L'agent doit inviter l'utilisateur à faire ses tests manuels sur son interface, et **attendre son retour explicite** avant de procéder à la moindre fusion vers `develop` ou `main`.
+   * Faute d'environnement de recette, les tests manuels de l'utilisateur se font en production : l'agent déploie dès que la suite est verte (voir règle 6, décision du 28/10/2026), invite l'utilisateur à tester et attend son retour avant de considérer la feature comme terminée.
 10. **Modularité Maximale & Découpage des Responsabilités (Clean Architecture) :**
    * Développer au maximum possible sous forme de modules spécialisés, compacts et hautement découplés pour garantir une lisibilité et une maintenabilité optimales (principe de responsabilité unique / SRP).
    * Éviter les fichiers "fourre-tout" monolithiques : privilégier des handlers dédiés (`app/handlers/*`), des routeurs par domaine (`app/routers/*`), des services spécialisés et des modèles Pydantic granulaires.
