@@ -27,14 +27,15 @@ Modes ajoutés à `app/static/audio_diag.html`. Résultats (Android 10, Chrome 1
 - La dictée n'est pas modifiée (le micro ne capte pas la musique, cf. K).
 - Profondeur de la baisse : décidée par Android / Spotify, non réglable depuis le navigateur ; la mise en pause (clip long) est écartée.
 
-### [ ] Étape 2 : Clip porteur dans `AudioFocusManager`
-- [ ] Clip démarré à la demande de baisse « tts », une seule balise réutilisée, idempotent si la demande est répétée.
-- [ ] Balise vidée à la libération « tts » et à la libération globale ; aucun clip pour l'enregistrement (« recording »).
-- [ ] Échec de `play()` (politique d'autolecture) journalisé explicitement, la réponse vocale continue.
-- [ ] Service worker v25 (module mis en cache modifié).
+### [x] Étape 2 : Clip porteur dans `AudioFocusManager`
+- [x] Clip démarré à la demande de baisse « tts », une seule balise réutilisée, idempotent si la demande est répétée (`speak()` la demande avant `speechSynthesis.speak()` puis à `onstart`).
+- [x] Balise vidée à la libération « tts » (fin, erreur, annulation, watchdog) et à la libération globale (passage en arrière-plan) ; aucun clip pour l'enregistrement (« recording »).
+- [x] Échec de `play()` (politique d'autolecture) journalisé explicitement (`console.warn`), la réponse vocale continue.
+- [x] Service worker v25 (module mis en cache modifié).
+- Tests : `tests/test_audio_focus_carrier.py` (module réel sous Node, fausse balise `<audio>`).
 
 ### [ ] Étape 3 : Test d'intégration final & validation sur l'appareil
-- [ ] Test E2E : cycle complet d'une réponse d'Otis (module réel sous Node) + chaîne servie par l'application.
+- [x] Test E2E `tests/test_e2e_otis_reply_ducking.py` : `speak()` réel sous Node (clip lancé avant la voix, vidé en fin de réponse et à l'interruption) + chaîne servie par l'application.
 - [ ] Test manuel utilisateur dans la PWA : musique baissée pendant la réponse, remontée après, y compris en mains-libres (réponse déclenchée par « Otis » sans toucher l'écran).
 
 ---
