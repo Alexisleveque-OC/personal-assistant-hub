@@ -5,6 +5,7 @@ from app.config import settings
 from app.main import set_meals_connector
 from app.connectors.sheets.models import DayMealPlan, ShoppingItem, WaitingListItem
 from app.core.database import DatabaseManager, set_database_manager
+from app.core.dependencies import set_calendar_connector
 from app.core.llm.rayon_suggester import set_rayon_suggester
 
 
@@ -26,6 +27,14 @@ def isolate_sqlite_database(tmp_path, monkeypatch):
         yield test_manager
     finally:
         set_database_manager(None)
+
+
+@pytest.fixture(autouse=True)
+def offline_calendar():
+    """Aucun appel réel à l'Agenda Google (le .env peut contenir un vrai jeton) : doublure injectée par test."""
+    set_calendar_connector(None, error="Agenda Google désactivé en test")
+    yield
+    set_calendar_connector(None, error="Agenda Google désactivé en test")
 
 
 @pytest.fixture(autouse=True)

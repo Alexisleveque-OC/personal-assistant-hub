@@ -1,4 +1,4 @@
-"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, notes et LLM Gemini."""
+"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, agenda, notes et LLM Gemini."""
 from typing import Any, Optional, Sequence
 
 from app.connectors.sqlite.sport_connector import SqlSportConnector
@@ -6,6 +6,8 @@ from app.core.agent.agent_service import AgentService, ConversationTurn
 from app.core.agent.errors import AgentUnavailableError
 from app.core.agent.llm import AgentLLM, GeminiAgentLLM
 from app.core.agent.tool_registry import ToolRegistry
+from app.core.agent.tools.calendar_registry import calendar_tool_definitions
+from app.core.agent.tools.calendar_tools import CalendarTools
 from app.core.agent.tools.meals_registry import meals_tool_definitions
 from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.tools.note_tools import note_tool_definitions
@@ -15,6 +17,7 @@ from app.core.agent.tools.sport_tools import SportTools
 from app.core.agent.tools.undo_tools import undo_tool_definitions
 from app.core.agent.undo import UndoJournal, UndoService
 from app.core.database import get_database_manager
+from app.core.dependencies import get_calendar_connector, get_calendar_connector_error
 from app.core.llm.gemini_client import get_gemini_client
 from app.core.sport_coach_service import SportCoachService
 
@@ -58,10 +61,12 @@ def build_agent_service(
     db = get_database_manager()
     weekly_tool = WeeklyPlanningTool(sport_tools, SportCoachService(connector=sport_connector))
     undo_service = UndoService(sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools)
+    calendar_tools = CalendarTools(get_calendar_connector(), unavailable_reason=get_calendar_connector_error())
     registry = ToolRegistry(
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)
         + meals_tool_definitions(meals_tools)
+        + calendar_tool_definitions(calendar_tools)
         + note_tool_definitions(db, history)
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )
