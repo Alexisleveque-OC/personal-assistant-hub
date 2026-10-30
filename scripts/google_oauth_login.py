@@ -34,6 +34,7 @@ def main() -> int:
 
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow
+        from oauthlib.oauth2.rfc6749.errors import MismatchingStateError
     except ImportError:
         print("Module manquant : lancer `.venv/bin/pip install google-auth-oauthlib`.", file=sys.stderr)
         return 1
@@ -53,11 +54,16 @@ def main() -> int:
     )
     # prompt=consent : Google ne renvoie un jeton de rafraîchissement qu'à un consentement explicite.
     # bind_addr 0.0.0.0 : le navigateur Windows doit joindre le serveur de retour lancé dans WSL.
-    credentials = flow.run_local_server(
-        port=LOCAL_PORT, bind_addr="0.0.0.0", open_browser=False, prompt="consent", access_type="offline",
-        authorization_prompt_message="Ouvrir cette adresse dans le navigateur et accepter :\n{url}\n",
-        success_message="Consentement reçu, vous pouvez fermer cet onglet.",
-    )
+    try:
+        credentials = flow.run_local_server(
+            port=LOCAL_PORT, bind_addr="0.0.0.0", open_browser=False, prompt="consent", access_type="offline",
+            authorization_prompt_message="Ouvrir cette adresse dans le navigateur et accepter :\n{url}\n",
+            success_message="Consentement reçu, vous pouvez fermer cet onglet.",
+        )
+    except MismatchingStateError:
+        print("Réponse d'une tentative précédente (state différent) : fermer les anciens onglets Google/localhost, "
+              "relancer le script et n'ouvrir que la nouvelle adresse affichée.", file=sys.stderr)
+        return 1
     if not credentials.refresh_token:
         print("Aucun jeton de rafraîchissement reçu : révoquer l'accès sur "
               "https://myaccount.google.com/permissions puis relancer.", file=sys.stderr)
