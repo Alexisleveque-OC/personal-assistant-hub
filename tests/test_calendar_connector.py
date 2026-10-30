@@ -112,6 +112,16 @@ def test_maps_events_sorted_all_day_first_then_by_start_across_calendars():
     assert reunion.lieu is None
 
 
+def test_events_of_several_days_are_sorted_day_by_day():
+    connector, _ = make_connector([
+        all_day("Férié", "2026-11-11", "2026-11-12"),
+        timed("Coiffeur", "2026-11-07T10:00:00+01:00", "2026-11-07T11:00:00+01:00"),
+        all_day("Déménagement", "2026-11-07", "2026-11-08"),
+    ])
+    events = connector.list_events(date(2026, 11, 7), date(2026, 11, 11))
+    assert [e.titre for e in events] == ["Déménagement", "Coiffeur", "Férié"]
+
+
 def test_event_without_title_is_named_busy():
     untitled = timed("", "2026-10-30T10:00:00+01:00", "2026-10-30T11:00:00+01:00")
     untitled.pop("summary")

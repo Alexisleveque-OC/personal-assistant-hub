@@ -44,7 +44,7 @@ class CalendarConnector:
         ))
 
     def list_events(self, start: date, end: date) -> List[CalendarEvent]:
-        """Événements des jours `start` à `end` inclus, journées entières d'abord puis par heure de début."""
+        """Événements des jours `start` à `end` inclus, jour par jour : journées entières d'abord, puis par heure."""
         if end < start:
             raise ValueError(f"Période inversée : début {start:%d/%m/%Y} après fin {end:%d/%m/%Y}.")
         key = (start, end)
@@ -59,7 +59,7 @@ class CalendarConnector:
             for calendar_id, name in self._selected_calendars()
             for event in self._calendar_events(calendar_id, name, time_min, time_max)
         ]
-        events.sort(key=lambda e: (not e.journee_entiere, e.debut, e.agenda, e.titre))
+        events.sort(key=lambda e: (e.debut.date(), not e.journee_entiere, e.debut, e.agenda, e.titre))
         self._cache[key] = (self._monotonic(), events)
         return events
 
