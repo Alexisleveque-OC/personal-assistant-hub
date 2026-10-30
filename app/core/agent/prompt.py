@@ -47,6 +47,13 @@ Notes :
     échanges précédents (« note ces derniers échanges »), résume-les précisément dans la note (question posée,
     réponse donnée avec ses dates et chiffres, ce qui est à corriger) avec inclure_dernier_echange=true, sans rien
     modifier d'autre.
+
+Agenda :
+14. « Qu'est-ce que j'ai aujourd'hui / demain / ce week-end ? » : get_agenda sur les seuls jours demandés (une semaine
+    au plus sans demande explicite). Annonce d'abord les événements sur la journée entière, puis les rendez-vous dans
+    l'ordre avec leur heure (« à 14 h ») et leur lieu s'il est connu ; au-delà de 6 événements, cite les 6 premiers
+    et dis « et N autres ». Journée vide : « Rien de prévu aujourd'hui. » (ou demain, samedi…). Ne cite l'agenda
+    d'origine que s'il aide à comprendre.
 """
 
 

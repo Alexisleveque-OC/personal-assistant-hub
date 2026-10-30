@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional
 import logging
 
 from app.config import settings
+from app.connectors.calendar.calendar_connector import CalendarConnector
+from app.connectors.google_oauth import GoogleOAuthNotConfiguredError
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.connectors.sheets.sport_connector import SportConnector
 from app.connectors.sqlite.sport_connector import SqlSportConnector
@@ -21,6 +23,8 @@ logger = logging.getLogger(__name__)
 _meals_connector: Any = "UNSET"
 _sport_connector: Any = "UNSET"
 _sport_connector_error: Optional[str] = None
+_calendar_connector: Any = "UNSET"
+_calendar_connector_error: str = ""
 _SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
@@ -40,6 +44,31 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     """Permet l'injection d'un connecteur (mock) pour les tests unitaires et d'intégration."""
     global _meals_connector
     _meals_connector = connector
+
+
+def get_calendar_connector() -> Optional[CalendarConnector]:
+    """Récupère le connecteur Agenda (OAuth utilisateur) ou tente son initialisation ; cause d'échec conservée."""
+    global _calendar_connector, _calendar_connector_error
+    if _calendar_connector == "UNSET":
+        try:
+            _calendar_connector = CalendarConnector.from_settings(settings)
+            _calendar_connector_error = ""
+        except GoogleOAuthNotConfiguredError as exc:
+            logger.warning(f"Agenda Google non configuré : {exc}")
+            _calendar_connector = None
+            _calendar_connector_error = str(exc)
+    return _calendar_connector
+
+
+def get_calendar_connector_error() -> str:
+    return _calendar_connector_error
+
+
+def set_calendar_connector(connector: Optional[Any], error: str = "") -> None:
+    """Permet l'injection d'un connecteur Agenda (doublure) ou son absence motivée, pour les tests."""
+    global _calendar_connector, _calendar_connector_error
+    _calendar_connector = connector
+    _calendar_connector_error = error
 
 
 def get_sport_connector_error() -> Optional[str]:

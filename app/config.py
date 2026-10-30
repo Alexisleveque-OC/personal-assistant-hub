@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     spreadsheet_budget_id: str = ""
     spreadsheet_sport_id: str = ""
 
+    # Google OAuth utilisateur (Agenda, Tasks) : jeton obtenu par scripts/google_oauth_login.py
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    google_oauth_refresh_token: str = ""
+
     # Google Gemini LLM
     gemini_api_key: str = ""
     gemini_model: str = "auto"
