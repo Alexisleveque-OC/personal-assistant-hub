@@ -52,8 +52,9 @@ def main() -> int:
         scopes=list(GOOGLE_USER_SCOPES),
     )
     # prompt=consent : Google ne renvoie un jeton de rafraîchissement qu'à un consentement explicite.
+    # bind_addr 0.0.0.0 : le navigateur Windows doit joindre le serveur de retour lancé dans WSL.
     credentials = flow.run_local_server(
-        port=LOCAL_PORT, open_browser=False, prompt="consent", access_type="offline",
+        port=LOCAL_PORT, bind_addr="0.0.0.0", open_browser=False, prompt="consent", access_type="offline",
         authorization_prompt_message="Ouvrir cette adresse dans le navigateur et accepter :\n{url}\n",
         success_message="Consentement reçu, vous pouvez fermer cet onglet.",
     )
