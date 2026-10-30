@@ -1,46 +1,60 @@
-# Roadmap - Musique baissée pendant les réponses d'Otis (Android)
+# Roadmap - Connecteurs Organisationnels Google Agenda & Google Tasks (Phase 8)
 
-Branche : `feat/otis-reply-ducking` (la phase 6.9 précédente est dans l'historique git de ce fichier, commit `4eed224`)
-
-## Constat
-- Les réponses d'Otis passent par `speechSynthesis` (`speak()` dans `app/static/js/speech.js`), qui ne demande pas le focus audio sur Chrome Android : la musique (Spotify au haut-parleur) reste au même volume.
-- `navigator.audioSession` (piloté par `audio_focus.js`) n'existe pas sur Chrome Android 156 (`"audioSession" in navigator` → `false`).
-- Ce défaut était masqué avant la phase 6.9 par l'écoute Web Speech, qui coupait la musique en permanence.
+Branche : `feat/calendar-tasks-connectors` (la feature précédente, musique baissée pendant les réponses d'Otis, est dans l'historique git de ce fichier, commit `7094559`)
 
 ## Cible
-Baisser la musique pendant qu'Otis parle et la laisser remonter dès qu'il a fini, sans jamais la mettre en pause.
+Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé des échéances proches et consulter / ajouter des tâches à la voix, via l'agent Gemini existant (outils typés, comme repas/courses et sport). Gmail perso : feature suivante.
+
+## Décisions (utilisateur, 30/10)
+- **Authentification : OAuth utilisateur** (jeton de rafraîchissement), un seul mécanisme pour Agenda, Tasks puis Gmail. Le compte de service reste réservé à Sheets.
+  - Tasks n'est pas accessible à un compte de service pour un compte @gmail.com (pas de partage de listes, pas de délégation de domaine).
+  - Écran de consentement passé **« In production » sans vérification** (usage personnel, écran « application non vérifiée » accepté une fois) : en statut « Testing », le jeton expire au bout de 7 jours.
+  - Scopes : `calendar.readonly` + `tasks` (Gmail ajoutera `gmail.readonly` avec un nouveau consentement).
+  - Secret : `.env` en local ; secrets GitHub `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` injectés par la CD comme les autres variables. Jamais commités. Jeton révoqué ou expiré → erreur explicite indiquant de relancer le script de consentement.
+  - Pas de `google-api-python-client` : appels REST directs via `google-auth` (déjà présent) + `requests` (déclaré explicitement). `google-auth-oauthlib` sert uniquement au script local de consentement.
+- **Agendas lus : tous ceux affichés (cochés) dans Google Agenda** du compte principal, agendas partagés compris (un agenda d'un autre compte se partage au compte principal, aucun second jeton).
+- **Réponse orale** : événements « journée entière » d'abord, puis rendez-vous chronologiques (heure, lieu), ~6 maximum puis « et N autres » ; journée vide → « Rien de prévu … ». Horizon court : pas d'interrogation au-delà de 14 jours, échéances proches sur 7 jours par défaut.
+- **Échéances** : à la demande en Phase 8 ; résumé proactif dans la Chronique matinale ; notifications push dans une feature dédiée après la Chronique.
+- **Tâches** : liste par défaut « Mes tâches » (l'utilisateur). Tâches par personne : voir Hors Périmètre.
+- **Cache (règle 8)** : TTL 3 min par période demandée ; invalidation immédiate du cache Tasks à chaque écriture.
+- **Données réelles** : lecture réelle de l'agenda autorisée pour la validation ; écritures de tâches de test uniquement dans une liste dédiée « PAH tests », sur accord.
 
 ---
 
 ## Étapes d'Implémentation (chaque étape : TDD, 100 % vert)
 
-### [x] Étape 0 : Diagnostic sur l'appareil (branche `feat/otis-reply-audio-diag`, déployée en prod les 27 et 28/10)
-Modes ajoutés à `app/static/audio_diag.html`. Résultats (Android 10, Chrome 156, musique au haut-parleur) :
-- **G. Synthèse seule** : musique jamais baissée.
-- **H. Synthèse + micro avec traitements** (réglage de la dictée) : musique jamais baissée ; le micro rend un silence numérique (-100 dBFS) sauf sur la voix de l'utilisateur (-11 à -26 dBFS) : ni la musique ni la voix d'Otis ne sont captées.
-- **I. Synthèse + clip quasi silencieux via `<audio>`, mis en pause après chaque phrase** : clip de 1 s → musique baissée mais **jamais remontée** ; clip de 30 s → musique **mise en pause** (Spotify ne repart pas seul).
-- **J. Comme I (clip de 1 s), mais balise `<audio>` vidée** (`src` retiré + `load()`) après chaque phrase : **musique baissée pendant la voix et remontée après** ✅.
-- **K. Dictée enregistrée** (micro et format de la dictée) : voix nette, musique absente de l'enregistrement. Ouvrir ce micro coupe la musique ~1 s (bascule probable d'Android en mode communication, même effet que la dictée de l'app).
+### [ ] Étape 1 : Agenda du jour / du lendemain (premier livrable)
+- [ ] `scripts/google_oauth_login.py` : consentement local (navigateur), affiche le jeton de rafraîchissement sans rien écrire dans le dépôt.
+- [ ] `app/connectors/google_oauth.py` : identifiants utilisateur depuis les réglages, erreurs explicites (réglage manquant, jeton révoqué).
+- [ ] `app/connectors/calendar/` : modèles Pydantic (`CalendarEvent`), lecture des agendas cochés, événements récurrents dépliés, fuseau Europe/Paris, cache 3 min.
+- [ ] Outil agent `get_agenda(date_debut, date_fin)` (14 jours max) + règle de formulation dans le prompt ; erreur explicite si l'agenda n'est pas configuré.
+- [ ] CD : injection des trois secrets OAuth.
+- [ ] Validation réelle en lecture (accord utilisateur du 30/10), puis test sur le téléphone.
 
-### [x] Étape 1 : Choix de la solution (décisions utilisateur du 28/10)
-- Pendant une réponse d'Otis, `AudioFocusManager` joue en boucle un clip WAV de 1 s quasi silencieux (bruit vers -70 dBFS, généré en mémoire) via une balise `<audio>`, puis la **vide** dès la fin de la réponse (fin, erreur, annulation, watchdog, passage en arrière-plan).
-- La dictée n'est pas modifiée (le micro ne capte pas la musique, cf. K).
-- Profondeur de la baisse : décidée par Android / Spotify, non réglable depuis le navigateur ; la mise en pause (clip long) est écartée.
+### [ ] Étape 2 : Échéances proches
+- [ ] « Qu'est-ce que j'ai cette semaine ? » / « mes prochaines échéances » : agenda sur 7 jours par défaut (+ tâches avec échéance dès l'étape 3).
 
-### [x] Étape 2 : Clip porteur dans `AudioFocusManager`
-- [x] Clip démarré à la demande de baisse « tts », une seule balise réutilisée, idempotent si la demande est répétée (`speak()` la demande avant `speechSynthesis.speak()` puis à `onstart`).
-- [x] Balise vidée à la libération « tts » (fin, erreur, annulation, watchdog) et à la libération globale (passage en arrière-plan) ; aucun clip pour l'enregistrement (« recording »).
-- [x] Échec de `play()` (politique d'autolecture) journalisé explicitement (`console.warn`), la réponse vocale continue.
-- [x] Service worker v25 (module mis en cache modifié).
-- Tests : `tests/test_audio_focus_carrier.py` (module réel sous Node, fausse balise `<audio>`).
+### [ ] Étape 3 : Lecture des tâches
+- [ ] `app/connectors/tasks/` : liste par défaut, tâches non terminées (échéance éventuelle), cache 3 min.
+- [ ] Outil agent `get_tasks`.
 
-### [x] Étape 3 : Test d'intégration final & validation sur l'appareil
-- [x] Test E2E `tests/test_e2e_otis_reply_ducking.py` : `speak()` réel sous Node (clip lancé avant la voix, vidé en fin de réponse et à l'interruption) + chaîne servie par l'application.
-- [x] Test manuel utilisateur dans la PWA (28/10, déployé main `87265d4`, service worker v25) : musique baissée pendant la réponse et remontée après, dans tous les cas testés (bouton micro, mains-libres, réponse interrompue).
+### [ ] Étape 4 : Ajout et complétion de tâches
+- [ ] Outils `add_task(titre, echeance?)` et `complete_task(id)`, invalidation du cache.
+- [ ] « Annule ça » via le journal d'annulation existant.
+- [ ] Validation réelle dans la liste « PAH tests » uniquement.
+
+### [ ] Étape 5 (optionnelle) : Voie rapide
+- [ ] Phrases exactes « qu'est-ce que j'ai aujourd'hui / demain » sans Gemini, si la latence de l'agent gêne à l'usage.
+
+### [ ] Étape 6 : Test d'intégration final & documentation
+- [ ] Test E2E de bout en bout (requête → agent → connecteurs simulés → réponse).
+- [ ] README (signaler l'écart de numérotation des phases SPEC/README avant toute correction).
 
 ---
 
 ## Hors Périmètre
-- **Transcriptions erronées après le bip** (« ajoute lait » → « ajoute le », « ajoute du lait » → « thé ») : le mode K montre un enregistrement propre (voix nette, pas de musique). Pistes restantes : détection de fin de parole qui coupe trop tôt, démarrage de la dictée par rapport au bip, modèle de transcription Lite sur phrases courtes. Feature dédiée, en partant des échecs dans les logs de prod.
-- Coupure de la musique ~1 s à l'ouverture du micro de la dictée (mode K) : jugée non gênante par l'utilisateur.
-- Retrait des branches regex redondantes d'`intent_parser.py` (garantissent le retour arrière `NLU_MODE=legacy`) : uniquement sur accord explicite.
+- **Tâches par personne** (« qu'est-ce que <prénom> a à faire aujourd'hui ? », à terme via Alexa) : Google Tasks n'a pas de champ « assigné à » pour un compte perso ; piste : une liste par personne, choisie par l'agent. À cadrer après l'étape 4. Aucun prénom dans le code ni la doc (dépôt public).
+- **Notifications push** : feature dédiée après la Chronique matinale.
+- **Gmail perso** : feature suivante, nouveau consentement avec `gmail.readonly`.
+- Création / modification d'événements d'agenda (lecture seule).
+- Secret Manager (`--set-secrets`) à la place des variables d'environnement Cloud Run.
