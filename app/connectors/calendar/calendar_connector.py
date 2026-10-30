@@ -17,6 +17,8 @@ from app.core.clock import APP_TIMEZONE
 
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 UNTITLED_EVENT = "Occupé"  # agenda partagé en « disponibilités uniquement » : pas de titre
+# Agenda technique de Google : exposé « coché » par l'API mais absent de la liste des agendas de l'utilisateur.
+WEEK_NUMBERS_SUFFIX = "#weeknum@group.v.calendar.google.com"
 
 
 class CalendarError(RuntimeError):
@@ -67,7 +69,7 @@ class CalendarConnector:
         items = self._paginate(f"{CALENDAR_API}/users/me/calendarList", {}, "la liste des agendas")
         return [
             (item["id"], item.get("summaryOverride") or item.get("summary") or item["id"])
-            for item in items if item.get("selected")
+            for item in items if item.get("selected") and not item["id"].endswith(WEEK_NUMBERS_SUFFIX)
         ]
 
     def _calendar_events(
