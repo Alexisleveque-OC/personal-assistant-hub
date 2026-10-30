@@ -78,6 +78,17 @@ def test_reads_only_the_calendars_checked_in_google_calendar():
     assert events_url("masque-id") not in urls
 
 
+def test_google_week_numbers_calendar_is_never_read():
+    """Exposé comme coché par l'API, mais absent de la liste des agendas de Google Agenda : « Semaine 45 » n'est pas un événement."""
+    weeknum = {"id": "e_2_fr#weeknum@group.v.calendar.google.com", "summary": "Numéros de semaine", "selected": True}
+    session = FakeSession({
+        f"{API}/users/me/calendarList": calendars(PERSO, weeknum),
+        events_url("perso-id"): FakeResponse({"items": []}),
+    })
+    CalendarConnector(session).list_events(date(2026, 11, 2), date(2026, 11, 2))
+    assert [c["url"] for c in session.calls if "/events" in c["url"]] == [events_url("perso-id")]
+
+
 def test_queries_the_whole_paris_days_with_recurring_events_expanded():
     connector, session = make_connector([])
     connector.list_events(date(2026, 10, 30), date(2026, 10, 31))
