@@ -42,7 +42,7 @@ personal-assistant-hub/
 │   │   │   ├── agent_service.py # Boucle agent (outils → résultats → réponse), historique de session
 │   │   │   ├── prompt.py        # Prompt système : règles, date du jour, séances récentes
 │   │   │   ├── undo.py          # Journal d'annulation SQLite « tout ou rien » par session
-│   │   │   └── tools/           # Outils typés : sport (par identifiant), repas & courses, notes, annulation
+│   │   │   └── tools/           # Outils typés : sport (par identifiant), repas & courses, agenda, tâches, notes, annulation
 │   │   ├── shopping/            # Question « dans quel rayon ? » partagée voie rapide / agent
 │   │   ├── date_resolver.py     # Résolveur temporel intelligent (relatif, absolu, midi/soir)
 │   │   ├── models.py            # Contrats de données stricts (Pydantic v2)
@@ -59,6 +59,7 @@ personal-assistant-hub/
 │   │   ├── pwa.py               # Routes statiques PWA (/app, manifest.json, sw.js)
 │   │   ├── wake_word.py         # Modèle Vosk du mot-clé « Otis » servi en flux (/vosk/model.tar.gz)
 │   │   ├── meals.py             # Planning repas & ingrédients (/api/v1/meals/*)
+│   │   ├── tasks.py             # Onglet Tâches : lire, ajouter, cocher / rouvrir (/api/v1/tasks/*)
 │   │   ├── sport.py             # Séances, synthèses hebdo, dashboard (/api/v1/sport/*)
 │   │   ├── strava.py            # Ingestion & webhooks Strava (/api/v1/integrations/strava/*)
 │   │   └── mobile.py            # Adaptateur vocal, audio direct & webhooks (/api/v1/interact/*)
@@ -73,13 +74,17 @@ personal-assistant-hub/
 │   ├── connectors/              # Connecteurs tiers isolés et interchangeables
 │   │   ├── base.py              # Interface commune des connecteurs
 │   │   ├── sheets/              # Google Sheets Repas & Courses (Planning, Recettes, Rayons)
+│   │   ├── google_oauth.py      # Identifiants OAuth utilisateur (Agenda, Tasks), erreurs explicites
+│   │   ├── google_rest.py       # Appels REST Google partagés (pagination, jeton refusé expliqué)
+│   │   ├── calendar/            # Google Agenda en lecture (agendas cochés, fuseau Paris, cache 3 min)
+│   │   ├── tasks/               # Google Tasks « Mes tâches » (lecture, ajout, cochage, cache 3 min)
 │   │   └── sport/               # Suivi running, calculs de charge & Coach Otis
 │   └── static/                  # Interface utilisateur Web PWA (ES6 Modules)
 │       ├── js/views/            # Vues modulaires (vocal, sport, meals, second_brain_view.js)
 │       ├── css/                 # Styles graphiques & thème sombre Monstera
 │       └── sw.js                # Service Worker v15 (mise en cache & offline)
 ├── hub_data.db                  # Base de données SQLite locale unifiée (mode WAL haute performance)
-├── tests/                       # Suite de 893 tests automatisés (Unitaires, Mocks & E2E)
+├── tests/                       # Suite de 1000 tests automatisés (Unitaires, Mocks & E2E)
 │   └── nlu_golden/              # Jeu de référence de conversations (legacy hors-ligne, agent contre le vrai Gemini)
 ├── docs/                        # Guides de déploiement Cloud & documentation technique
 ├── AGENTS.md                    # Directives d'ingénierie agentique, TDD strict & Git
@@ -130,6 +135,13 @@ personal-assistant-hub/
 * **Second Cerveau compartimenté & dynamique :** Classification automatique des notes en 5 catégories (`dev_idea`, `bug_report`, `thought`, `preference`, `task`) et découverte de catégories personnalisées (voyage, cuisine, finances...).
 * **Ingestion multimodale visuelle (Gemini Flash Vision) :** Capture et envoi d'images/screenshots (`POST /api/v1/second-brain/notes/image`), extraction de résumés structurés et interception native du **coller presse-papier (Ctrl+V)** dans la PWA.
 * **Bouton d'annulation immédiate (« Undo ») :** Intention `undo_last_action` et composant flottant `#undo-toast` permettant d'annuler en 1 tap ou à la voix la dernière action (suppression d'une note créée par erreur, ajout de course, etc.).
+
+### 📅 5. Agenda & Tâches Google — [🟢 Opérationnel]
+* **OAuth utilisateur unique :** un jeton de rafraîchissement (`scripts/google_oauth_login.py`, à lancer en local) donne accès à Google Agenda (lecture seule) et Google Tasks ; appels REST directs, sans `google-api-python-client`. Jeton révoqué ou expiré → erreur indiquant de relancer le consentement.
+* **Agenda à la voix :** *« qu'est-ce que j'ai demain ? »*, *« cette semaine ? »* : tous les agendas cochés dans Google Agenda (partagés compris), événements « journée entière » d'abord, 14 jours maximum par question.
+* **Tâches à la voix :** lecture de « Mes tâches » (échéances, retards), ajout (*« rappelle-moi de… »*, *« il faut que je… »*, avec échéance si elle est dite), cochage et *« annule ça »*. Toute tâche dictée va dans Google Tasks ; les notes du Second Cerveau ne gardent que idées, bugs et réflexions.
+* **Onglet « Tâches » de la PWA :** liste des tâches non terminées (retards en rouge), ajout avec échéance facultative, cochage immédiat avec bouton « Annuler ».
+* **Cache 3 min** partagé par la voix et l'onglet, invalidé à chaque écriture (quotas Google, réponses rapides).
 
 ---
 
@@ -190,7 +202,12 @@ personal-assistant-hub/
   - Adaptation dynamique de charge et allègement immédiat en cas d'alerte périostite
   - Checklist interactive de renforcement musculaire (clic & voix)
   - Compatibilité montres sportives (import direct de fichiers `.FIT` Garmin)
-- [ ] **Phase 8 : Connecteurs Organisationnels (Google Agenda, Google Tasks, Gmail)**
+- [x] **Phase 8 : Connecteurs Organisationnels (Google Agenda & Google Tasks)** — *branche `feat/calendar-tasks-connectors` (détail : `ROADMAP.md`)*
+  - OAuth utilisateur (écran de consentement « In production » non vérifié : pas d'expiration du jeton à 7 jours), secrets `GOOGLE_OAUTH_*` injectés par la CD
+  - Outils agent `get_agenda`, `get_tasks`, `add_task`, `complete_task` (+ annulation), intentions regex des tâches routées vers l'agent (leurs réponses étaient fictives)
+  - Onglet « Tâches » de la PWA (`/api/v1/tasks`) réutilisant les outils de l'agent
+  - Test E2E de la voix à l'onglet sur les vrais connecteurs, seul le réseau Google étant simulé (`tests/test_e2e_calendar_tasks.py`)
+  - Hors périmètre : Gmail perso (feature suivante, nouveau consentement `gmail.readonly`), tâches par personne, notifications push, création d'événements
 - [ ] **Phase 10 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
 - [ ] **Phase 11 : Connecteur Budget (Google Sheets)**
 - [ ] **Phase 12 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
@@ -233,6 +250,9 @@ API_KEY=votre_cle_api_secrete
 GOOGLE_SERVICE_ACCOUNT_INFO={"type": "service_account", ...} # ou chemin vers credentials.json
 GEMINI_API_KEY=votre_cle_gemini_flash
 NLU_MODE=agent          # agent : Gemini en premier ; legacy : regex puis Gemini en dernier recours
+GOOGLE_OAUTH_CLIENT_ID=...       # Agenda & Tasks (OAuth utilisateur)
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REFRESH_TOKEN=...   # obtenu en local avec scripts/google_oauth_login.py
 ```
 
 ### 4. Lancer la suite de tests (Boucle de rétroaction TDD)
@@ -240,7 +260,7 @@ NLU_MODE=agent          # agent : Gemini en premier ; legacy : regex puis Gemini
 ```bash
 .venv/bin/pytest -v
 ```
-> **893 tests au vert** (sans appel réel à Gemini ; les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
+> **1000 tests au vert** (sans appel réel à Gemini ; les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
 
 Évaluation du jeu de référence contre le vrai Gemini (hors CI, consomme environ 70 requêtes du quota gratuit) :
 ```bash

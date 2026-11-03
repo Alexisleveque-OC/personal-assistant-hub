@@ -1103,6 +1103,40 @@ body {
   color: var(--color-text-muted);
 }
 
+/* Onglet Tâches (Phase 8) : réutilise .rayon-card / .shopping-item-row de la vue Courses */
+.tasks-add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* Intitulé sur toute la largeur ; échéance (facultative) et bouton sur la ligne suivante */
+.tasks-add-form #tasks-add-title {
+  flex: 1 1 100%;
+}
+
+.tasks-add-form #tasks-add-due {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.task-due {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.task-due.overdue {
+  color: var(--accent-rose);
+  font-weight: 600;
+}
+
+.toast .btn-undo-action {
+  align-self: center;
+  flex-shrink: 0;
+}
+
 /* ==========================================================================
    Vue 3 : Planning Repas & Accordéon
    ========================================================================== */
@@ -1182,7 +1216,10 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  padding: 8px 16px;
+  /* 6 onglets (Tâches ajouté en Phase 8) : largeur partagée, padding horizontal réduit pour tenir sur 360 px */
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 4px;
   border-radius: 12px;
 }
 
