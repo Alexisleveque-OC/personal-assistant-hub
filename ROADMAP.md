@@ -61,7 +61,7 @@ Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé
 ### [x] Étape 6 : Test d'intégration final & documentation
 - [x] Test E2E de bout en bout `tests/test_e2e_calendar_tasks.py` : phrase → agent (LLM scripté) → outils → vrais connecteurs Agenda et Tasks → API Google simulée en mémoire, puis onglet Tâches sur la même liste (cache partagé et invalidé à chaque écriture, cochage puis « Annuler », « annule ça » vocal).
 - [x] README : module « Agenda & Tâches », Phase 8 cochée, variables OAuth.
-- [ ] Écart de numérotation signalé à l'utilisateur, non corrigé : le README saute la Phase 9 (Chronique matinale = Phase 10 au README, Phase 9 au SPEC ; décalage d'un cran jusqu'à la Domotique) et sa Phase 8 citait Gmail, absent de la Phase 8 du SPEC.
+- [x] README aligné sur le SPEC (accord utilisateur du 03/11) : phases 9 à 13 renumérotées, Phase 8 en cours tant que le connecteur Gmail (prévu au SPEC) n'est pas fait.
 
 ---
 
