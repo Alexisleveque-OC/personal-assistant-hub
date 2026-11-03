@@ -483,12 +483,12 @@ export function attachSportFeedbackHandlers(idx, session) {
   }
 }
 
-export async function fetchSportDashboard(scale = "week") {
+export async function fetchSportDashboard(scale = "week", refDate = null) {
   if (!sportDashboardContainer) return;
   sportDashboardContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement du tableau de bord...</div>';
 
   try {
-    const data = await fetchSportDashboardData(scale);
+    const data = await fetchSportDashboardData(scale, refDate);
     renderSportDashboard(data);
   } catch (err) {
     sportDashboardContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--color-danger)">Impossible de charger le tableau de bord (${err.message}).</div>`;
@@ -498,6 +498,8 @@ export async function fetchSportDashboard(scale = "week") {
 export function renderSportDashboard(data) {
   const totals = data.totals || {};
   const series = data.series || [];
+  // › désactivée sur la période en cours (pas de période future à consulter)
+  const isCurrentOrFuture = data.end_date >= localIsoDate(new Date());
 
   let html = `
     <div class="dash-scale-switcher">
@@ -506,15 +508,17 @@ export function renderSportDashboard(data) {
       <button class="dash-scale-btn ${data.scale === "year" ? "active" : ""}" data-scale="year">Année</button>
     </div>
 
-    <div style="font-size:0.95rem; font-weight:800; color:var(--color-text); margin-bottom:12px;">
-      ${data.label}
+    <div class="dash-period-nav">
+      <button type="button" class="dash-period-prev" title="Période précédente">‹</button>
+      <div class="dash-period-label">${data.label}</div>
+      <button type="button" class="dash-period-next" title="Période suivante" ${isCurrentOrFuture ? "disabled" : ""}>›</button>
     </div>
 
     <div class="dash-kpi-grid">
       <div class="dash-kpi-card">
         <div class="dash-kpi-title">Volume Total</div>
-        <div class="dash-kpi-val">${totals.km_effort || 0} <span style="font-size:0.8rem; font-weight:600;">km-effort</span></div>
-        <div class="dash-kpi-sub">${totals.distance_km || 0} km · ${totals.nb_seances || 0} séances (${totals.nb_renfo || 0} renfo)</div>
+        <div class="dash-kpi-val">${totals.distance_km || 0} <span style="font-size:0.8rem; font-weight:600;">km</span></div>
+        <div class="dash-kpi-sub">${totals.km_effort || 0} km-effort · ${totals.nb_seances || 0} séances (${totals.nb_renfo || 0} renfo)</div>
       </div>
 
       <div class="dash-kpi-card">
@@ -538,15 +542,23 @@ export function renderSportDashboard(data) {
 
     <div class="dash-chart-card">
       <div class="dash-chart-header">
-        <div class="dash-chart-title">Évolution Volume (Km-Effort)</div>
+        <div class="dash-chart-title">Évolution Volume (km)</div>
       </div>
       <div class="svg-chart-wrapper">
-        ${renderSvgBarChart(series, data.plafond_km_effort)}
+        ${renderSvgBarChart(series)}
       </div>
     </div>
   `;
 
   sportDashboardContainer.innerHTML = html;
+
+  // Périodes passées : veille du début / lendemain de la fin, à la même échelle
+  sportDashboardContainer.querySelector(".dash-period-prev").addEventListener("click", () => {
+    fetchSportDashboard(data.scale, shiftIsoDate(data.start_date, -1));
+  });
+  sportDashboardContainer.querySelector(".dash-period-next").addEventListener("click", () => {
+    if (!isCurrentOrFuture) fetchSportDashboard(data.scale, shiftIsoDate(data.end_date, 1));
+  });
 
   sportDashboardContainer.querySelectorAll(".dash-scale-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -557,12 +569,24 @@ export function renderSportDashboard(data) {
   });
 }
 
-export function renderSvgBarChart(series, plafond) {
+// Barres en km (retour d'usage du 03/11) : le plafond de sécurité, exprimé en km-effort, reste dans sa carte dédiée.
+function localIsoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function shiftIsoDate(isoDate, days) {
+  // Calcul en UTC pour éviter tout décalage d'un jour lié au fuseau ou au changement d'heure
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const shifted = new Date(Date.UTC(y, m - 1, d + days));
+  return shifted.toISOString().slice(0, 10);
+}
+
+export function renderSvgBarChart(series) {
   if (!series || series.length === 0) {
     return '<div style="text-align:center; padding:20px; color:var(--text-muted)">Aucune donnée de série</div>';
   }
 
-  const maxVal = Math.max(...series.map(s => s.km_effort || 0), plafond || 0, 10);
+  const maxVal = Math.max(...series.map(s => s.distance_km || 0), 10);
   const chartHeight = 130;
   const barWidth = 24;
   const gap = 12;
@@ -570,17 +594,9 @@ export function renderSvgBarChart(series, plafond) {
 
   let svg = `<svg viewBox="0 0 ${totalWidth} ${chartHeight + 28}" style="width:100%; min-width:${totalWidth}px; height:${chartHeight + 28}px;">`;
 
-  if (plafond && maxVal > 0) {
-    const yPlafond = chartHeight - (plafond / maxVal) * (chartHeight - 20);
-    svg += `
-      <line x1="0" y1="${yPlafond}" x2="${totalWidth}" y2="${yPlafond}" stroke="#d32f2f" stroke-dasharray="4 4" stroke-width="1.5" opacity="0.75" />
-      <text x="6" y="${yPlafond - 4}" fill="#d32f2f" font-size="9" font-weight="700">Plafond +10% (${plafond} km-eff)</text>
-    `;
-  }
-
   series.forEach((pt, i) => {
     const x = 10 + i * (barWidth + gap);
-    const val = pt.km_effort || 0;
+    const val = Math.round((pt.distance_km || 0) * 10) / 10;
     const barH = maxVal > 0 ? (val / maxVal) * (chartHeight - 24) : 0;
     const y = chartHeight - barH;
     const fill = pt.is_current ? "var(--color-primary)" : "var(--color-accent-soft)";
@@ -825,16 +841,32 @@ export function hasPainAlert(text) {
   );
 }
 
-let cachedSessionsList = [];
+let cachedSessionsList = []; // séances de la page affichée
 let currentFilterType = "all";
 let currentFilterStatus = "all";
+const SESSIONS_PAGE_SIZE = 30;
+let currentSessionsPage = 0; // 0 = séances les plus récentes
+let sessionsTotal = 0; // nombre de séances correspondant aux filtres (toutes pages)
 
 export async function fetchSportSessions() {
   if (!sportSessionsContainer) return;
   sportSessionsContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement de l\'historique des séances...</div>';
 
   try {
-    const res = await fetchSportSessionsData({ order: "desc", limit: 200 });
+    const res = await fetchSportSessionsData({
+      order: "desc",
+      statut: currentFilterStatus === "all" ? "" : currentFilterStatus,
+      type_seance: currentFilterType === "all" ? "" : currentFilterType,
+      limit: SESSIONS_PAGE_SIZE,
+      offset: currentSessionsPage * SESSIONS_PAGE_SIZE,
+    });
+    sessionsTotal = res.total || 0;
+    const lastPage = Math.max(0, Math.ceil(sessionsTotal / SESSIONS_PAGE_SIZE) - 1);
+    if (currentSessionsPage > lastPage) {
+      // Page vidée (ex : dernière séance de la page supprimée) : retour sur la dernière page existante
+      currentSessionsPage = lastPage;
+      return fetchSportSessions();
+    }
     cachedSessionsList = res.sessions || [];
     renderSportSessionsView();
   } catch (err) {
@@ -845,15 +877,16 @@ export async function fetchSportSessions() {
 export function renderSportSessionsView() {
   if (!sportSessionsContainer) return;
 
-  const filtered = cachedSessionsList.filter(s => {
-    if (currentFilterStatus !== "all" && s.statut !== currentFilterStatus) {
-      return false;
-    }
-    if (currentFilterType !== "all" && s.type_seance !== currentFilterType) {
-      return false;
-    }
-    return true;
-  });
+  // Filtres appliqués côté serveur (pagination) : la page reçue est déjà filtrée
+  const filtered = cachedSessionsList;
+  const pageCount = Math.max(1, Math.ceil(sessionsTotal / SESSIONS_PAGE_SIZE));
+  const paginationBar = `
+    <div class="sessions-pagination">
+      <button type="button" class="btn-secondary sessions-page-prev" ${currentSessionsPage === 0 ? "disabled" : ""}>‹ Précédent</button>
+      <span class="sessions-page-label">Page ${currentSessionsPage + 1} / ${pageCount}</span>
+      <button type="button" class="btn-secondary sessions-page-next" ${currentSessionsPage >= pageCount - 1 ? "disabled" : ""}>Suivant ›</button>
+    </div>
+  `;
 
   const typeOptions = [
     { id: "all", label: "Tous types" },
@@ -897,7 +930,7 @@ export function renderSportSessionsView() {
 
     <!-- Compteur -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:0.82rem; color:var(--color-text-secondary); font-weight:700;">
-      <span>${filtered.length} séance${filtered.length > 1 ? "s" : ""} trouvée${filtered.length > 1 ? "s" : ""}</span>
+      <span>${sessionsTotal} séance${sessionsTotal > 1 ? "s" : ""} trouvée${sessionsTotal > 1 ? "s" : ""}</span>
       <span style="font-size:0.75rem; color:var(--color-text-muted);">Tri antichronologique</span>
     </div>
   `;
@@ -1040,8 +1073,11 @@ export function renderSportSessionsView() {
     `;
   }).join("");
 
+  if (pageCount > 1) html += paginationBar;
+
   sportSessionsContainer.innerHTML = html;
   attachSessionsFiltersHandlers();
+  attachSessionsPaginationHandlers();
   attachAccordionToggles(sportSessionsContainer, ".session-accordion-card", ".session-accordion-header", ".session-accordion-body");
   attachSessionActionHandlers();
 }
@@ -1052,7 +1088,8 @@ function attachSessionsFiltersHandlers() {
     typeBar.querySelectorAll(".sport-filter-pill").forEach(btn => {
       btn.addEventListener("click", () => {
         currentFilterType = btn.getAttribute("data-filter-type");
-        renderSportSessionsView();
+        currentSessionsPage = 0;
+        fetchSportSessions();
       });
     });
   }
@@ -1062,10 +1099,22 @@ function attachSessionsFiltersHandlers() {
     statusBar.querySelectorAll(".sport-filter-pill").forEach(btn => {
       btn.addEventListener("click", () => {
         currentFilterStatus = btn.getAttribute("data-filter-status");
-        renderSportSessionsView();
+        currentSessionsPage = 0;
+        fetchSportSessions();
       });
     });
   }
+}
+
+function attachSessionsPaginationHandlers() {
+  const goToPage = (page) => {
+    currentSessionsPage = page;
+    fetchSportSessions().then(() => sportSessionsContainer.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+  const prev = sportSessionsContainer.querySelector(".sessions-page-prev");
+  const next = sportSessionsContainer.querySelector(".sessions-page-next");
+  if (prev) prev.addEventListener("click", () => goToPage(currentSessionsPage - 1));
+  if (next) next.addEventListener("click", () => goToPage(currentSessionsPage + 1));
 }
 
 function attachSessionActionHandlers() {
