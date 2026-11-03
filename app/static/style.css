@@ -2106,6 +2106,17 @@ body {
   border-color: var(--color-primary);
 }
 
+/* Cartes du dashboard cliquables : la carte active pilote le graphique */
+.dash-kpi-card[data-metric] {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dash-kpi-card.active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
 .dash-kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

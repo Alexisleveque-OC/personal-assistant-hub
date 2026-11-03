@@ -500,6 +500,7 @@ export function renderSportDashboard(data) {
   const series = data.series || [];
   // › désactivée sur la période en cours (pas de période future à consulter)
   const isCurrentOrFuture = data.end_date >= localIsoDate(new Date());
+  const metric = DASH_METRICS[state.currentSportMetric] ? state.currentSportMetric : "volume";
 
   let html = `
     <div class="dash-scale-switcher">
@@ -515,25 +516,25 @@ export function renderSportDashboard(data) {
     </div>
 
     <div class="dash-kpi-grid">
-      <div class="dash-kpi-card">
+      <div class="dash-kpi-card ${metric === "volume" ? "active" : ""}" data-metric="volume">
         <div class="dash-kpi-title">Volume Total</div>
         <div class="dash-kpi-val">${totals.distance_km || 0} <span style="font-size:0.8rem; font-weight:600;">km</span></div>
         <div class="dash-kpi-sub">${totals.km_effort || 0} km-effort · ${totals.nb_seances || 0} séances (${totals.nb_renfo || 0} renfo)</div>
       </div>
 
-      <div class="dash-kpi-card">
+      <div class="dash-kpi-card ${metric === "allure" ? "active" : ""}" data-metric="allure">
         <div class="dash-kpi-title">Allure Moyenne</div>
         <div class="dash-kpi-val">${totals.allure_formatted || "-"}</div>
         <div class="dash-kpi-sub">${totals.vitesse_kmh ? totals.vitesse_kmh + " km/h" : "Hors renfo"}</div>
       </div>
 
-      <div class="dash-kpi-card">
+      <div class="dash-kpi-card ${metric === "charge" ? "active" : ""}" data-metric="charge">
         <div class="dash-kpi-title">Charge RPE</div>
         <div class="dash-kpi-val">${totals.charge_rpe || 0}</div>
         <div class="dash-kpi-sub">Charge interne cumulée</div>
       </div>
 
-      <div class="dash-kpi-card">
+      <div class="dash-kpi-card ${metric === "securite" ? "active" : ""}" data-metric="securite">
         <div class="dash-kpi-title">Sécurité & Plafond</div>
         <div class="dash-kpi-val" style="font-size:1.05rem;">${data.plafond_km_effort ? data.plafond_km_effort + " km-eff max" : "Normal"}</div>
         <div class="dash-kpi-sub">${data.alerte_securite || "Progression suivie"}</div>
@@ -542,15 +543,23 @@ export function renderSportDashboard(data) {
 
     <div class="dash-chart-card">
       <div class="dash-chart-header">
-        <div class="dash-chart-title">Évolution Volume (km)</div>
+        <div class="dash-chart-title">${(DASH_METRICS[metric] || DASH_METRICS.volume).title}</div>
       </div>
       <div class="svg-chart-wrapper">
-        ${renderSvgBarChart(series)}
+        ${renderSvgBarChart(series, metric, data.plafond_km_effort)}
       </div>
     </div>
   `;
 
   sportDashboardContainer.innerHTML = html;
+
+  // Graphique de l'indicateur de la carte touchée (données déjà chargées : pas d'appel réseau)
+  sportDashboardContainer.querySelectorAll(".dash-kpi-card[data-metric]").forEach(card => {
+    card.addEventListener("click", () => {
+      state.currentSportMetric = card.getAttribute("data-metric");
+      renderSportDashboard(data);
+    });
+  });
 
   // Périodes passées : veille du début / lendemain de la fin, à la même échelle
   sportDashboardContainer.querySelector(".dash-period-prev").addEventListener("click", () => {
@@ -569,7 +578,6 @@ export function renderSportDashboard(data) {
   });
 }
 
-// Barres en km (retour d'usage du 03/11) : le plafond de sécurité, exprimé en km-effort, reste dans sa carte dédiée.
 function localIsoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -581,12 +589,28 @@ function shiftIsoDate(isoDate, days) {
   return shifted.toISOString().slice(0, 10);
 }
 
-export function renderSvgBarChart(series) {
+// Indicateurs du graphique, choisis en touchant une carte du dashboard (retours d'usage du 03/11).
+// Allure : barre plus haute = plus rapide (hauteur = vitesse), étiquette en allure min/km.
+const DASH_METRICS = {
+  volume: { title: "Évolution Volume (km)", value: (pt) => pt.distance_km || 0, label: (v) => Math.round(v * 10) / 10 },
+  allure: { title: "Évolution Allure (min/km)", value: (pt) => pt.vitesse_kmh || 0, label: (v) => formatPace(v) },
+  charge: { title: "Évolution Charge RPE", value: (pt) => pt.charge_rpe || 0, label: (v) => Math.round(v) },
+  securite: { title: "Évolution Km-Effort & Plafond +10 %", value: (pt) => pt.km_effort || 0, label: (v) => Math.round(v * 10) / 10, showCeiling: true },
+};
+
+function formatPace(kmh) {
+  const totalSeconds = Math.round(3600 / kmh);
+  return `${Math.floor(totalSeconds / 60)}'${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+export function renderSvgBarChart(series, metric = "volume", plafond = null) {
   if (!series || series.length === 0) {
     return '<div style="text-align:center; padding:20px; color:var(--text-muted)">Aucune donnée de série</div>';
   }
 
-  const maxVal = Math.max(...series.map(s => s.distance_km || 0), 10);
+  const def = DASH_METRICS[metric] || DASH_METRICS.volume;
+  const ceiling = def.showCeiling ? plafond : null; // plafond fourni en vue Semaine seulement
+  const maxVal = Math.max(...series.map(def.value), ceiling || 0, 1);
   const chartHeight = 130;
   const barWidth = 24;
   const gap = 12;
@@ -594,9 +618,17 @@ export function renderSvgBarChart(series) {
 
   let svg = `<svg viewBox="0 0 ${totalWidth} ${chartHeight + 28}" style="width:100%; min-width:${totalWidth}px; height:${chartHeight + 28}px;">`;
 
+  if (ceiling) {
+    const yPlafond = chartHeight - (ceiling / maxVal) * (chartHeight - 24);
+    svg += `
+      <line x1="0" y1="${yPlafond}" x2="${totalWidth}" y2="${yPlafond}" stroke="#d32f2f" stroke-dasharray="4 4" stroke-width="1.5" opacity="0.75" />
+      <text x="6" y="${yPlafond - 4}" fill="#d32f2f" font-size="9" font-weight="700">Plafond +10% (${ceiling} km-eff)</text>
+    `;
+  }
+
   series.forEach((pt, i) => {
     const x = 10 + i * (barWidth + gap);
-    const val = Math.round((pt.distance_km || 0) * 10) / 10;
+    const val = def.value(pt);
     const barH = maxVal > 0 ? (val / maxVal) * (chartHeight - 24) : 0;
     const y = chartHeight - barH;
     const fill = pt.is_current ? "var(--color-primary)" : "var(--color-accent-soft)";
@@ -604,7 +636,7 @@ export function renderSvgBarChart(series) {
 
     svg += `
       <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="1" />
-      <text x="${x + barWidth / 2}" y="${y - 4}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--color-text)">${val > 0 ? val : ""}</text>
+      <text x="${x + barWidth / 2}" y="${y - 4}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--color-text)">${val > 0 ? def.label(val) : ""}</text>
       <text x="${x + barWidth / 2}" y="${chartHeight + 16}" text-anchor="middle" font-size="10" font-weight="${pt.is_current ? "800" : "500"}" fill="${pt.is_current ? "var(--color-primary)" : "var(--color-text-secondary)"}">${pt.label}</text>
     `;
   });

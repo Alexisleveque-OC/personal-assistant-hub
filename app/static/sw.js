@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v27";
+const CACHE_NAME = "pah-pwa-cache-v28";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
