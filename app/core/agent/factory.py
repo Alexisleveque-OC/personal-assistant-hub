@@ -53,7 +53,12 @@ def build_undo_service(sport_connector: Any, meals_connector: Any = None) -> Und
     db = get_database_manager()
     return UndoService(
         sport_tools=_sport_tools(sport_connector), db=db, journal=UndoJournal(db), meals_tools=MealsTools(meals_connector),
+        tasks_tools=_tasks_tools(),
     )
+
+
+def _tasks_tools() -> TasksTools:
+    return TasksTools(get_tasks_connector(), unavailable_reason=get_tasks_connector_error())
 
 
 def build_agent_service(
@@ -67,9 +72,11 @@ def build_agent_service(
     sport_tools = _sport_tools(sport_connector)
     db = get_database_manager()
     weekly_tool = WeeklyPlanningTool(sport_tools, SportCoachService(connector=sport_connector))
-    undo_service = UndoService(sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools)
+    tasks_tools = _tasks_tools()
+    undo_service = UndoService(
+        sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools, tasks_tools=tasks_tools,
+    )
     calendar_tools = CalendarTools(get_calendar_connector(), unavailable_reason=get_calendar_connector_error())
-    tasks_tools = TasksTools(get_tasks_connector(), unavailable_reason=get_tasks_connector_error())
     registry = ToolRegistry(
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)

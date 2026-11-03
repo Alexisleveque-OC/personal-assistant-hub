@@ -1,21 +1,20 @@
 """Connecteur Google Tasks (API REST v1) : tâches non terminées de la liste par défaut « Mes tâches ».
 
-Les lectures sont mises en cache (règle 8 : quotas et temps de réponse) ; toute écriture future devra appeler
-`invalidate_cache`. Tâches avec échéance d'abord (date croissante), puis les autres dans l'ordre de la liste.
+Les lectures sont mises en cache (règle 8 : quotas et temps de réponse) ; chaque écriture invalide le cache. Tâches avec échéance d'abord (date croissante), puis les autres dans l'ordre de la liste.
 """
 import time
 from datetime import date
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
-
-from google.auth.exceptions import RefreshError
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.config import Settings
-from app.connectors.google_oauth import LOGIN_SCRIPT, build_user_session
+from app.connectors.google_oauth import build_user_session
+from app.connectors.google_rest import GoogleRestClient
 from app.connectors.tasks.models import TaskItem
 
 TASKS_API = "https://tasks.googleapis.com/tasks/v1"
 DEFAULT_LIST_ID = "@default"
 DEFAULT_LIST_NAME = "Mes tâches"
+_TASKS_URL = f"{TASKS_API}/lists/{DEFAULT_LIST_ID}/tasks"
 
 
 class TasksError(RuntimeError):
@@ -31,7 +30,7 @@ class TasksConnector:
         self, session: Any, ttl_seconds: int = 180, monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         """`session` : `AuthorizedSession` (ou doublure offrant `get(url, params=...)`)."""
-        self._session = session
+        self._api = GoogleRestClient(session, "Google Tasks", TasksError, TasksAuthError)
         self._ttl_seconds = ttl_seconds
         self._monotonic = monotonic
         self._cache: Optional[Tuple[float, List[TaskItem]]] = None
@@ -45,9 +44,10 @@ class TasksConnector:
     def list_open_tasks(self) -> List[TaskItem]:
         if self._cache and self._monotonic() - self._cache[0] < self._ttl_seconds:
             return self._cache[1]
-        items = self._paginate(
-            f"{TASKS_API}/lists/{DEFAULT_LIST_ID}/tasks",
+        items = self._api.paginate(
+            _TASKS_URL,
             {"showCompleted": "false", "showHidden": "false", "maxResults": "100"},
+            f"en lisant la liste « {DEFAULT_LIST_NAME} »",
         )
         tasks = [
             _to_task(item) for item in items
@@ -57,31 +57,31 @@ class TasksConnector:
         self._cache = (self._monotonic(), tasks)
         return tasks
 
+    def get_task(self, task_id: str) -> TaskItem:
+        return _to_task(self._api.request("GET", f"{_TASKS_URL}/{task_id}", f"en lisant la tâche {task_id}"))
+
+    def add_task(self, titre: str, echeance: Optional[date]) -> TaskItem:
+        body: Dict[str, Any] = {"title": titre}
+        if echeance:
+            body["due"] = f"{echeance.isoformat()}T00:00:00.000Z"  # Google Tasks ne garde que le jour
+        created = self._api.request("POST", _TASKS_URL, f"en ajoutant « {titre} » à « {DEFAULT_LIST_NAME} »", json=body)
+        self.invalidate_cache()
+        return _to_task(created)
+
+    def set_completed(self, task_id: str, completed: bool) -> TaskItem:
+        # Rouvrir une tâche : effacer aussi sa date de complétion, sinon Google la garde terminée.
+        body: Dict[str, Any] = {"status": "completed"} if completed else {"status": "needsAction", "completed": None}
+        action = f"en {'cochant' if completed else 'rouvrant'} la tâche {task_id}"
+        updated = self._api.request("PATCH", f"{_TASKS_URL}/{task_id}", action, json=body)
+        self.invalidate_cache()
+        return _to_task(updated)
+
+    def delete_task(self, task_id: str) -> None:
+        self._api.request("DELETE", f"{_TASKS_URL}/{task_id}", f"en supprimant la tâche {task_id}")
+        self.invalidate_cache()
+
     def invalidate_cache(self) -> None:
         self._cache = None
-
-    def _paginate(self, url: str, params: Dict[str, str]) -> Iterator[Dict[str, Any]]:
-        page_params = dict(params)
-        while True:
-            payload = self._get(url, page_params)
-            yield from payload.get("items", [])
-            token = payload.get("nextPageToken")
-            if not token:
-                return
-            page_params = {**params, "pageToken": token}
-
-    def _get(self, url: str, params: Dict[str, str]) -> Dict[str, Any]:
-        resource = f"la liste « {DEFAULT_LIST_NAME} »"
-        try:
-            response = self._session.get(url, params=params)
-        except RefreshError as exc:
-            raise TasksAuthError(
-                f"Jeton Google refusé (révoqué ou expiré) en lisant {resource} : relancer {LOGIN_SCRIPT}, puis mettre "
-                f"à jour GOOGLE_OAUTH_REFRESH_TOKEN (.env et secret GitHub). Détail : {exc}"
-            ) from exc
-        if response.status_code != 200:
-            raise TasksError(f"API Google Tasks : HTTP {response.status_code} en lisant {resource} : {response.text[:300]}")
-        return response.json()
 
 
 def _to_task(item: Dict[str, Any]) -> TaskItem:
@@ -91,4 +91,5 @@ def _to_task(item: Dict[str, Any]) -> TaskItem:
         titre=item["title"].strip(),
         echeance=date.fromisoformat(due[:10]) if due else None,  # « 2026-11-05T00:00:00.000Z » : seul le jour compte
         notes=item.get("notes") or None,
+        terminee=item.get("status") == "completed",
     )

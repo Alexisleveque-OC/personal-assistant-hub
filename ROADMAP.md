@@ -39,12 +39,15 @@ Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé
 - [x] `app/connectors/tasks/` : liste par défaut, tâches non terminées (échéance éventuelle), cache 3 min.
 - [x] Outil agent `get_tasks` + règles 15 (lecture à voix haute) et 16 (« cette semaine » = agenda + tâches à échéance) du prompt.
 - [x] Intentions regex `LIST_TASKS` / `ADD_TASK` routées vers l'agent : le flux regex n'y répondait que par des phrases fictives codées en dur.
-- [ ] Test sur le téléphone (« liste-moi mes tâches », « qu'est-ce que j'ai cette semaine ? »).
+- [x] Test sur le téléphone : « liste-moi mes tâches » OK le 03/11 (4 vraies tâches lues) ; « cette semaine » à confirmer.
 
-### [ ] Étape 4 : Ajout et complétion de tâches
-- [ ] Outils `add_task(titre, echeance?)` et `complete_task(id)`, invalidation du cache.
-- [ ] « Annule ça » via le journal d'annulation existant.
-- [ ] Validation réelle dans la liste « PAH tests » uniquement.
+### [x] Étape 4 : Ajout et complétion de tâches
+- [x] Outils `add_task(titre, echeance?)` et `complete_task(id)`, invalidation du cache ; règles 17-18 du prompt.
+- [x] « Annule ça » via le journal d'annulation existant (tâche ajoutée supprimée, tâche cochée rouverte ; refus si elle a changé depuis).
+- [x] Décision utilisateur du 03/11 : toute tâche dictée va dans Google Tasks (« rappelle-moi de… », « ajoute une tâche… », « penser à… », « il faut que je… »), avec échéance si elle est dite ; les notes ne gardent que idées, bugs et réflexions. Constat prod : sans `add_task`, l'agent avait rangé « rappelle-moi… » en note « tâche » en répondant « c'est noté dans tes tâches ». `save_note` refuse désormais la catégorie « tâche ».
+- [ ] Après déploiement (accord utilisateur du 03/11) : transférer la note « documents pour la PCO » créée par erreur le 03/11 vers Google Tasks, puis la supprimer de la base de prod.
+- [x] Factoriser la lecture REST Google (pagination, jeton refusé) dupliquée entre les connecteurs Agenda et Tasks.
+- [x] Validation réelle : la liste « PAH tests » est abandonnée (le connecteur n'écrit que dans « Mes tâches ») ; la première écriture réelle est le transfert de la note PCO autorisé le 03/11, puis le test sur le téléphone.
 
 ### [ ] Étape 4 bis : Onglet Tâches dans la PWA (décision utilisateur du 03/11)
 - [ ] Onglet « Tâches » sur le modèle de l'onglet Courses : liste des tâches non terminées (échéance éventuelle), cocher, ajouter.

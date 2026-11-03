@@ -1,7 +1,7 @@
 """Outil agent de prise de note dans le second cerveau."""
 from typing import List, Optional, Sequence, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.agent.agent_service import ConversationTurn
 from app.core.agent.tool_registry import AgentTool
@@ -19,6 +19,14 @@ class SaveNoteArgs(StrictArgs):
     )
     category: NoteCategory = Field(NoteCategory.THOUGHT, description="Catégorie de la note.")
     tags: List[str] = Field(default_factory=list)
+    @field_validator("category")
+    @classmethod
+    def _no_task_note(cls, value: NoteCategory) -> NoteCategory:
+        # Décision utilisateur du 03/11/2026 : toute tâche dictée va dans Google Tasks.
+        if value == NoteCategory.TASK:
+            raise ValueError("Une tâche ne se note pas : utilise add_task pour l'ajouter à Google Tasks.")
+        return value
+
     inclure_dernier_echange: bool = Field(
         False,
         description=(
@@ -56,7 +64,7 @@ def note_tool_definitions(db: DatabaseManager, history: Sequence[ConversationTur
     return [AgentTool(
         name="save_note",
         description=(
-            "Enregistre une note dans le second cerveau (idée, bug, tâche, préférence, réflexion). "
+            "Enregistre une note dans le second cerveau (idée, bug, préférence, réflexion ; une tâche passe par add_task). "
             "Si l'utilisateur renvoie aux échanges précédents, résume-les précisément et passe "
             "inclure_dernier_echange=true."
         ),
