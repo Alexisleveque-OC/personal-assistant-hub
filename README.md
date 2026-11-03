@@ -202,17 +202,18 @@ personal-assistant-hub/
   - Adaptation dynamique de charge et allègement immédiat en cas d'alerte périostite
   - Checklist interactive de renforcement musculaire (clic & voix)
   - Compatibilité montres sportives (import direct de fichiers `.FIT` Garmin)
-- [x] **Phase 8 : Connecteurs Organisationnels (Google Agenda & Google Tasks)** — *branche `feat/calendar-tasks-connectors` (détail : `ROADMAP.md`)*
+- [ ] **Phase 8 : Connecteurs Organisationnels (Google Agenda & Google Tasks)** — *Agenda et Tasks terminés sur `feat/calendar-tasks-connectors` (détail : historique git de `ROADMAP.md`) ; reste le connecteur Gmail*
   - OAuth utilisateur (écran de consentement « In production » non vérifié : pas d'expiration du jeton à 7 jours), secrets `GOOGLE_OAUTH_*` injectés par la CD
   - Outils agent `get_agenda`, `get_tasks`, `add_task`, `complete_task` (+ annulation), intentions regex des tâches routées vers l'agent (leurs réponses étaient fictives)
   - Onglet « Tâches » de la PWA (`/api/v1/tasks`) réutilisant les outils de l'agent
   - Test E2E de la voix à l'onglet sur les vrais connecteurs, seul le réseau Google étant simulé (`tests/test_e2e_calendar_tasks.py`)
-  - Hors périmètre : Gmail perso (feature suivante, nouveau consentement `gmail.readonly`), tâches par personne, notifications push, création d'événements
-- [ ] **Phase 10 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
-- [ ] **Phase 11 : Connecteur Budget (Google Sheets)**
-- [ ] **Phase 12 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
-- [ ] **Phase 13 : Connecteurs Professionnels (Mails Pro, Jira, Trello)**
-- [ ] **Phase 14 : Domotique (Tuya / Home Assistant)**
+  - Reste à faire : connecteur Gmail perso (nouveau consentement `gmail.readonly`)
+  - Hors périmètre : tâches par personne, notifications push, création d'événements
+- [ ] **Phase 9 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
+- [ ] **Phase 10 : Connecteur Budget (Google Sheets)**
+- [ ] **Phase 11 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
+- [ ] **Phase 12 : Connecteurs Professionnels (Mails Pro, Jira, Trello)**
+- [ ] **Phase 13 : Domotique (Tuya / Home Assistant)**
 
 ---
 

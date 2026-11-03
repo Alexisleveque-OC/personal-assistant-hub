@@ -263,10 +263,10 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
     - Déploiement en production et validation utilisateur.
 
 - [ ] **Phase 8 : Connecteurs Organisationnels (Google Agenda & Google Tasks)**
-  - [ ] Intégration Google Calendar API (événements du jour, échéances, dates importantes)
-  - [ ] Intégration Google Tasks API (consultation et création de tâches)
+  - [x] Intégration Google Calendar API (événements du jour, échéances, dates importantes)
+  - [x] Intégration Google Tasks API (consultation et création de tâches, à la voix et dans l'onglet « Tâches » de la PWA)
   - [ ] Connecteur Gmail (lecture et récapitulatif des notifications importantes)
-  - [ ] Tests automatisés dédiés
+  - [x] Tests automatisés dédiés (Agenda & Tasks, dont `tests/test_e2e_calendar_tasks.py`)
 
 - [ ] **Phase 9 : Chronique Matinale Audio (Mini-Podcast Quotidien Enrichi)**
   - [ ] Agrégateur modulaire universel du matin (Météo locale, Agenda du jour, Tâches prioritaires, Séance de sport prévue, Menus déjeuner & dîner, Profil)
