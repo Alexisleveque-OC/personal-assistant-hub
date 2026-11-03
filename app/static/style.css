@@ -2030,6 +2030,56 @@ body {
 }
 
 /* --- DASHBOARD MULTI-ÉCHELLES (KPI & GRAPHIQUES) --- */
+/* Pagination des séances (30 par page) */
+.sessions-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 8px;
+}
+
+.sessions-page-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.sessions-pagination button:disabled,
+.dash-period-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Navigation dans les périodes passées du dashboard (‹ période ›) */
+.dash-period-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.dash-period-label {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-text);
+  text-align: center;
+  flex: 1;
+}
+
+.dash-period-nav button {
+  min-width: 40px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .dash-scale-switcher {
   display: flex;
   gap: 6px;
