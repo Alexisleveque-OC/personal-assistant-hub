@@ -28,6 +28,11 @@ Rendre l'onglet Sport plus utile au quotidien : historique des séances paginé,
 ### [x] Étape 4 : Navigation dans les périodes passées
 - [x] Flèches ‹ › : période précédente (veille de `start_date`), suivante (lendemain de `end_date`), › désactivée si la période contient aujourd'hui ; l'échelle choisie repart de la période en cours.
 
+### [x] Étape 4 bis : Graphique selon la carte touchée & semaines autour de la sélection (retours du 03/11, après déploiement)
+- [x] Cartes du dashboard cliquables : Volume → km ; Allure → hauteur = vitesse, étiquette en allure min/km ; Charge RPE → charge ; Sécurité & Plafond → km-effort avec la ligne de plafond +10 %. Changement d'indicateur sans appel réseau.
+- [x] Vue Semaine : 4 semaines avant, la semaine choisie (en surbrillance), 3 après (futures comprises) ; plafond et moyenne de référence inchangés (S-1, 7 semaines passées).
+- [x] Vues Mois et Année : surbrillance seulement sur la barre contenant aujourd'hui (plus de décembre surligné sur une saison passée) ; date du jour en heure de Paris (`paris_today`).
+
 ### [x] Étape 5 : Test d'intégration final
 - [x] Test E2E `tests/test_e2e_sport_tab_ux.py` (séances paginées et filtrées sur toute l'histoire, saison / semaine / mois passés en km) + contrat front `tests/test_pwa_sport_tab_ux.py`.
 - [ ] Test sur le téléphone.
