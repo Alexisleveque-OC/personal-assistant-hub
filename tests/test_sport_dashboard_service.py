@@ -123,15 +123,22 @@ def test_aggregate_week_safety_cap_alert_and_reference_average(history):
     assert dash.ecart_moyenne_pct == -47.4
 
 
-def test_aggregate_week_series_has_8_weeks_ending_on_current(history):
-    dash = aggregate_period(history, DashboardScale.WEEK, REF_DATE)
+def test_aggregate_week_series_has_4_weeks_before_and_3_after_the_selected_one(history):
+    """Retour d'usage du 03/11 : la semaine choisie au centre, semaines futures comprises."""
+    dash = aggregate_period(history, DashboardScale.WEEK, REF_DATE, today=REF_DATE)
 
-    assert len(dash.series) == 8
-    assert dash.series[-1].label == "S41"
-    assert dash.series[-1].is_current is True
+    assert [p.label for p in dash.series] == ["S37", "S38", "S39", "S40", "S41", "S42", "S43", "S44"]
+    assert [p.is_current for p in dash.series] == [False] * 4 + [True] + [False] * 3
     s40 = next(p for p in dash.series if p.label == "S40")
     assert s40.km_effort == 14.0
-    assert all(not p.is_current for p in dash.series[:-1])
+    assert dash.series[5].km_effort == 0.0  # semaine future vide
+
+
+def test_past_week_keeps_the_selected_week_highlighted(history):
+    dash = aggregate_period(history, DashboardScale.WEEK, date(2026, 9, 30), today=REF_DATE)
+
+    assert dash.series[4].label == "S40" and dash.series[4].is_current is True
+    assert dash.series[5].label == "S41" and dash.series[5].km_effort == 5.0  # semaine postérieure visible
 
 
 def test_aggregate_month_uses_calendar_month_and_weekly_series(history):
@@ -148,7 +155,7 @@ def test_aggregate_month_uses_calendar_month_and_weekly_series(history):
 
 
 def test_aggregate_year_monthly_series(history):
-    dash = aggregate_period(history, DashboardScale.YEAR, REF_DATE)
+    dash = aggregate_period(history, DashboardScale.YEAR, REF_DATE, today=REF_DATE)
 
     assert dash.label == "Saison 2026"
     assert len(dash.series) == 12
@@ -157,6 +164,22 @@ def test_aggregate_year_monthly_series(history):
     assert dash.series[9].km_effort == 14.0
     assert dash.series[9].is_current is True
     assert dash.moyenne_km_effort_reference is None  # Aucune saison précédente
+
+
+def test_past_season_highlights_no_month(history):
+    """La flèche ‹ demande le 31/12 de la saison précédente : décembre ne doit pas passer pour le mois en cours."""
+    dash = aggregate_period(history, DashboardScale.YEAR, date(2025, 12, 31), today=REF_DATE)
+
+    assert dash.label == "Saison 2025"
+    assert not any(p.is_current for p in dash.series)
+
+
+def test_month_highlights_the_week_of_today_only_when_it_is_the_current_month(history):
+    current = aggregate_period(history, DashboardScale.MONTH, REF_DATE, today=REF_DATE)
+    assert [p.label for p in current.series if p.is_current] == ["S41"]
+
+    past = aggregate_period(history, DashboardScale.MONTH, date(2026, 9, 30), today=REF_DATE)
+    assert not any(p.is_current for p in past.series)
 
 
 def test_aggregate_empty_history_is_safe():

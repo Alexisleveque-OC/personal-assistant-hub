@@ -75,13 +75,42 @@ def test_volume_card_shows_kilometres_big_and_km_effort_small():
 def test_volume_chart_is_in_kilometres_without_the_ceiling_line():
     js = _sport_js()
     dash = _function_body(js, "export function renderSportDashboard(")
-    chart = _function_body(js, "export function renderSvgBarChart(")
+    metrics = js[js.index("const DASH_METRICS = {"):js.index("};", js.index("const DASH_METRICS = {"))]
 
-    assert "renderSvgBarChart(series)" in dash
-    assert "Évolution Volume (km)" in dash
-    assert "distance_km" in chart
-    assert "km_effort" not in chart
-    assert "plafond" not in chart
+    assert "renderSvgBarChart(series, metric" in dash
+    assert 'volume: { title: "Évolution Volume (km)", value: (pt) => pt.distance_km' in metrics
+    volume = metrics[metrics.index("volume:"):metrics.index("allure:")]
+    assert "plafond" not in volume
+
+
+# Graphique selon la carte cliquée (retour du 03/11)
+def test_kpi_cards_select_the_chart_metric():
+    js = _sport_js()
+    dash = _function_body(js, "export function renderSportDashboard(")
+
+    for metric in ("volume", "allure", "charge", "securite"):
+        assert f'data-metric="{metric}"' in dash
+    assert "state.currentSportMetric = " in dash
+    assert "renderSportDashboard(data)" in dash  # pas de rechargement réseau au changement d'indicateur
+    assert 'currentSportMetric: "volume"' in client.get("/static/js/config.js").text
+
+
+def test_pace_bars_grow_with_speed_but_are_labelled_in_pace():
+    js = _sport_js()
+    metrics = js[js.index("const DASH_METRICS = {"):js.index("};", js.index("const DASH_METRICS = {"))]
+    allure = metrics[metrics.index("allure:"):metrics.index("charge:")]
+
+    assert "pt.vitesse_kmh" in allure
+    assert "formatPace(" in allure
+
+
+def test_safety_card_shows_km_effort_with_the_ceiling_line():
+    js = _sport_js()
+    metrics = js[js.index("const DASH_METRICS = {"):js.index("};", js.index("const DASH_METRICS = {"))]
+    securite = metrics[metrics.index("securite:"):]
+
+    assert "pt.km_effort" in securite
+    assert "showCeiling: true" in securite
 
 
 # Étape 4 : périodes passées
@@ -108,4 +137,4 @@ def test_switching_scale_goes_back_to_the_current_period():
 
 
 def test_service_worker_cache_bumped_for_the_sport_tab_changes():
-    assert "pah-pwa-cache-v27" in client.get("/sw.js").text
+    assert "pah-pwa-cache-v28" in client.get("/sw.js").text

@@ -148,9 +148,15 @@ def aggregate_period(
     history: List[SportSession],
     scale: DashboardScale,
     ref_date: Optional[date] = None,
+    today: Optional[date] = None,
 ) -> SportPeriodDashboard:
-    """Agrège l'historique sur l'échelle demandée (Semaine, Mois, Année)."""
-    target_date = ref_date or date.today()
+    """Agrège l'historique sur l'échelle demandée (Semaine, Mois, Année).
+
+    `ref_date` : un jour de la période affichée. `is_current` des barres : semaine choisie (échelle Semaine) ;
+    barre contenant `today` (échelles Mois et Année), aucune sur une période passée ou future.
+    """
+    today = today or date.today()
+    target_date = ref_date or today
 
     if scale == DashboardScale.WEEK:
         iso_year, iso_week, _ = target_date.isocalendar()
@@ -160,32 +166,32 @@ def aggregate_period(
         week_sessions = [s for s in history if s.date >= monday and s.date <= sunday]
         totals = _compute_period_totals(week_sessions)
 
-        # Série temporelle des 8 dernières semaines glissantes
-        series: List[PeriodSeriesPoint] = []
-        weeks_active_kme: List[float] = []
-
-        for offset in range(7, -1, -1):
-            w_start = monday - timedelta(weeks=offset)
+        def _week_totals(offset: int) -> PeriodTotals:
+            w_start = monday + timedelta(weeks=offset)
             w_end = w_start + timedelta(days=6)
-            w_iso_year, w_iso_num, _ = w_start.isocalendar()
-            s_in_w = [s for s in history if s.date >= w_start and s.date <= w_end]
-            w_tot = _compute_period_totals(s_in_w)
+            return _compute_period_totals([s for s in history if s.date >= w_start and s.date <= w_end])
 
-            is_cur = (offset == 0)
+        # Série centrée sur la semaine choisie : 4 semaines avant, elle, 3 après (futures comprises, retour du 03/11)
+        series: List[PeriodSeriesPoint] = []
+        for offset in range(-4, 4):
+            w_tot = _week_totals(offset)
             series.append(PeriodSeriesPoint(
-                label=f"S{w_iso_num}",
+                label=f"S{(monday + timedelta(weeks=offset)).isocalendar()[1]}",
                 km_effort=w_tot.km_effort,
                 distance_km=w_tot.distance_km,
                 duree_secondes=w_tot.duree_secondes,
                 vitesse_kmh=w_tot.vitesse_kmh,
                 charge_rpe=w_tot.charge_rpe,
-                is_current=is_cur,
+                is_current=(offset == 0),
             ))
-            if not is_cur and w_tot.km_effort > 0:
-                weeks_active_kme.append(w_tot.km_effort)
+
+        # Référence : les 7 semaines précédentes actives (indépendante de la fenêtre affichée)
+        weeks_active_kme: List[float] = [
+            kme for kme in (_week_totals(offset).km_effort for offset in range(-7, 0)) if kme > 0
+        ]
 
         # Semaine précédente (S-1) pour le plafond +10%
-        prev_w_kme = series[-2].km_effort if len(series) >= 2 else 0.0
+        prev_w_kme = _week_totals(-1).km_effort
         plafond = round(prev_w_kme * 1.10, 1) if prev_w_kme > 0 else None
 
         # Alerte sécurité
@@ -244,7 +250,7 @@ def aggregate_period(
             s_in_w = [s for s in history if s.date >= eff_start and s.date <= eff_end]
             w_tot = _compute_period_totals(s_in_w)
             iso_w_num = cur_w_start.isocalendar()[1]
-            is_cur = (target_date >= cur_w_start and target_date <= cur_w_end)
+            is_cur = (eff_start <= today <= eff_end)
 
             series.append(PeriodSeriesPoint(
                 label=f"S{iso_w_num}",
@@ -304,7 +310,7 @@ def aggregate_period(
                 duree_secondes=m_tot.duree_secondes,
                 vitesse_kmh=m_tot.vitesse_kmh,
                 charge_rpe=m_tot.charge_rpe,
-                is_current=(m_idx == target_date.month),
+                is_current=(m_s <= today <= m_e),
             ))
 
         return SportPeriodDashboard(

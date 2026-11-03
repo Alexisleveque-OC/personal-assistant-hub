@@ -32,6 +32,7 @@ from app.core.sport_dashboard_service import (
 from app.core.sport_gamification_service import SportGamificationService
 
 from app.core.dependencies import get_sport_connector, get_sport_connector_error
+from app.core.clock import paris_today
 
 logger = logging.getLogger(__name__)
 
@@ -367,9 +368,9 @@ async def get_sport_dashboard(
     connector=Depends(get_sport_connector_dep),
 ):
     """Retourne les totaux, métriques dérivées et séries temporelles pour les graphiques."""
-    target_date = date_param or date.today()
+    today = paris_today()
     all_sessions = connector.get_all_sessions()
-    return aggregate_period(all_sessions, scale, target_date)
+    return aggregate_period(all_sessions, scale, date_param or today, today=today)
 
 
 @router.get(

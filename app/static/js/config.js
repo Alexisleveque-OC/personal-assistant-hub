@@ -8,6 +8,7 @@ export const state = {
   currentMealSubview: "today", // 'today' | 'week'
   currentSportSubview: "today", // 'today' | 'dashboard' | 'gamification'
   currentSportScale: "week", // 'week' | 'month' | 'year'
+  currentSportMetric: "volume", // graphique du dashboard : 'volume' | 'allure' | 'charge' | 'securite'
   cachedShoppingData: { waiting_list: [], current_week_items: [], rayons_order: null },
   vadSilenceMs: parseInt(localStorage.getItem("pah_vad_silence_ms") || "2000", 10),
   pushToTalk: localStorage.getItem("pah_push_to_talk") === "true",

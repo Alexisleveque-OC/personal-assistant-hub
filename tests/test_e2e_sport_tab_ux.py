@@ -84,3 +84,14 @@ def test_previous_week_and_month_are_reachable_too(db):
 
     month = client.get("/api/v1/sport/dashboard", params={"scale": "month", "date": "2025-01-31"}).json()
     assert month["label"] == "Janvier 2025" and month["totals"]["nb_seances"] == 6
+
+
+def test_selected_week_is_centred_with_following_weeks_and_past_season_has_no_current_month(db):
+    week = client.get("/api/v1/sport/dashboard", params={"scale": "week", "date": "2025-02-05"}).json()
+    labels = [p["label"] for p in week["series"]]
+    assert labels == ["S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"]
+    assert [p["is_current"] for p in week["series"]].index(True) == 4  # S6, la semaine choisie
+    assert week["series"][5]["distance_km"] > 0  # semaine suivante visible (EF du 10/02)
+
+    season_2025 = client.get("/api/v1/sport/dashboard", params={"scale": "year", "date": "2025-12-31"}).json()
+    assert not any(p["is_current"] for p in season_2025["series"])
