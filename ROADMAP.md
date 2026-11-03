@@ -44,6 +44,10 @@ Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé
 - [ ] « Annule ça » via le journal d'annulation existant.
 - [ ] Validation réelle dans la liste « PAH tests » uniquement.
 
+### [ ] Étape 4 bis : Onglet Tâches dans la PWA (décision utilisateur du 03/11)
+- [ ] Onglet « Tâches » sur le modèle de l'onglet Courses : liste des tâches non terminées (échéance éventuelle), cocher, ajouter.
+- [ ] Endpoints REST typés réutilisant le connecteur Tasks de l'étape 3 (aucune logique dupliquée), invalidation du cache à chaque écriture.
+
 ### [ ] Étape 5 (optionnelle) : Voie rapide
 - [ ] Phrases exactes « qu'est-ce que j'ai aujourd'hui / demain » sans Gemini, si la latence de l'agent gêne à l'usage.
 
