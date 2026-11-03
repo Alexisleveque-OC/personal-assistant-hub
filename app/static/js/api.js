@@ -103,9 +103,12 @@ export async function fetchSportTodayData() {
   return await res.json();
 }
 
-export async function fetchSportDashboardData(scale = "week") {
+export async function fetchSportDashboardData(scale = "week", refDate = null) {
   const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
-  const res = await fetch(`/api/v1/sport/dashboard?scale=${scale}`, { headers });
+  // refDate (YYYY-MM-DD) : un jour de la période voulue ; absent = période en cours
+  const params = new URLSearchParams({ scale });
+  if (refDate) params.append("date", refDate);
+  const res = await fetch(`/api/v1/sport/dashboard?${params.toString()}`, { headers });
   if (!res.ok) {
     const errJson = await res.json().catch(() => null);
     const detailMsg = errJson && errJson.detail ? errJson.detail : ("Erreur serveur " + res.status);
