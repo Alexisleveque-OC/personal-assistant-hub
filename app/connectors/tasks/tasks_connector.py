@@ -1,7 +1,6 @@
 """Connecteur Google Tasks (API REST v1) : tâches non terminées de la liste par défaut « Mes tâches ».
 
-Les lectures sont mises en cache (règle 8 : quotas et temps de réponse) ; toute écriture future devra appeler
-`invalidate_cache`. Tâches avec échéance d'abord (date croissante), puis les autres dans l'ordre de la liste.
+Les lectures sont mises en cache (règle 8 : quotas et temps de réponse) ; chaque écriture invalide le cache. Tâches avec échéance d'abord (date croissante), puis les autres dans l'ordre de la liste.
 """
 import time
 from datetime import date
@@ -58,6 +57,29 @@ class TasksConnector:
         self._cache = (self._monotonic(), tasks)
         return tasks
 
+    def get_task(self, task_id: str) -> TaskItem:
+        return _to_task(self._api.request("GET", f"{_TASKS_URL}/{task_id}", f"en lisant la tâche {task_id}"))
+
+    def add_task(self, titre: str, echeance: Optional[date]) -> TaskItem:
+        body: Dict[str, Any] = {"title": titre}
+        if echeance:
+            body["due"] = f"{echeance.isoformat()}T00:00:00.000Z"  # Google Tasks ne garde que le jour
+        created = self._api.request("POST", _TASKS_URL, f"en ajoutant « {titre} » à « {DEFAULT_LIST_NAME} »", json=body)
+        self.invalidate_cache()
+        return _to_task(created)
+
+    def set_completed(self, task_id: str, completed: bool) -> TaskItem:
+        # Rouvrir une tâche : effacer aussi sa date de complétion, sinon Google la garde terminée.
+        body: Dict[str, Any] = {"status": "completed"} if completed else {"status": "needsAction", "completed": None}
+        action = f"en {'cochant' if completed else 'rouvrant'} la tâche {task_id}"
+        updated = self._api.request("PATCH", f"{_TASKS_URL}/{task_id}", action, json=body)
+        self.invalidate_cache()
+        return _to_task(updated)
+
+    def delete_task(self, task_id: str) -> None:
+        self._api.request("DELETE", f"{_TASKS_URL}/{task_id}", f"en supprimant la tâche {task_id}")
+        self.invalidate_cache()
+
     def invalidate_cache(self) -> None:
         self._cache = None
 
@@ -69,4 +91,5 @@ def _to_task(item: Dict[str, Any]) -> TaskItem:
         titre=item["title"].strip(),
         echeance=date.fromisoformat(due[:10]) if due else None,  # « 2026-11-05T00:00:00.000Z » : seul le jour compte
         notes=item.get("notes") or None,
+        terminee=item.get("status") == "completed",
     )

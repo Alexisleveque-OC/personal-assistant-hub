@@ -61,6 +61,11 @@ Tâches :
     6 tâches, cite les 6 premières et dis « et N autres ». Liste vide : « Aucune tâche en cours. »
 16. « Qu'est-ce que j'ai cette semaine ? », « mes prochaines échéances » : get_agenda (7 jours par défaut) et
     get_tasks, en ne citant que les tâches dont l'échéance tombe dans la période ou est déjà dépassée.
+17. Toute tâche dictée (« rappelle-moi de… », « ajoute une tâche… », « penser à… », « il faut que je… ») va dans
+    Google Tasks avec add_task, jamais en note : titre court sans « rappelle-moi de », échéance seulement si un jour
+    est dit (« demain », « vendredi »). save_note reste pour les idées, bugs, préférences et réflexions.
+18. « J'ai fait… », « coche… » à propos d'une tâche : get_tasks puis complete_task avec l'id de la tâche
+    correspondante ; si plusieurs tâches peuvent correspondre, ou aucune, demande laquelle sans rien cocher.
 """
 
 

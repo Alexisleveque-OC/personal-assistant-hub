@@ -66,15 +66,29 @@ def test_interact_answers_the_tasks_question_through_get_tasks(agent_with_tasks)
     assert "Payer la cantine" in str(llm.requests[1]["contents"])
 
 
-def test_remind_me_no_longer_gets_the_fake_legacy_confirmation(agent_with_tasks):
-    """L'ancien flux regex répondait « Tâche enregistrée » sans rien enregistrer : la phrase va désormais à l'agent."""
-    llm = ScriptedLLM([text_turn("Je ne sais pas encore ajouter de tâche.")])
-    set_agent_llm(llm)
+def test_remind_me_adds_a_google_task_that_undo_removes(isolate_sqlite_database, monkeypatch):
+    """« Rappelle-moi de… » : vraie tâche Google (plus la confirmation fictive du flux regex), « annule ça » la supprime."""
+    from tests.test_tasks_write_tools import FakeWritableTasks
 
-    resp = TestClient(app).post(
-        "/api/v1/interact", json={"query": "Rappelle-moi d'appeler la banque", "session_id": "tasks-add"},
-    )
+    monkeypatch.setattr(settings, "nlu_mode", "agent")
+    set_sport_connector(SqlSportConnector(db_manager=isolate_sqlite_database))
+    store = FakeWritableTasks()
+    set_tasks_connector(store)
+    set_agent_llm(ScriptedLLM([
+        call_turn({"name": "add_task", "args": {"titre": "Appeler la banque", "echeance": "2026-11-04"}}),
+        text_turn("C'est ajouté à tes tâches pour demain."),
+    ]))
+    client = TestClient(app)
+    try:
+        resp = client.post("/api/v1/interact", json={"query": "Rappelle-moi d'appeler la banque demain", "session_id": "tasks-add"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["spoken_response"] == "C'est ajouté à tes tâches pour demain."
+        assert [(t.titre, str(t.echeance)) for t in store.list_open_tasks()] == [("Appeler la banque", "2026-11-04")]
 
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["spoken_response"] == "Je ne sais pas encore ajouter de tâche."
-    assert len(llm.requests) == 1
+        undo = client.post("/api/v1/interact", json={"query": "annule ça", "session_id": "tasks-add"})
+        assert undo.status_code == 200, undo.text
+        assert "tâche « Appeler la banque » supprimée" in undo.json()["spoken_response"]
+        assert store.tasks == {}
+    finally:
+        set_sport_connector(None)
+        set_agent_llm(None)

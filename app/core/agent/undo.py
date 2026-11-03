@@ -13,6 +13,8 @@ from app.core.agent.tools.meals_models import (
 from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.tools.sport_models import UndoSnapshot
 from app.core.agent.tools.sport_tools import SportToolError, SportTools
+from app.core.agent.tools.tasks_models import TaskAddedUndo, TaskCompletedUndo
+from app.core.agent.tools.tasks_tools import TasksTools
 from app.core.agent.tools.tool_error import ToolError
 from app.core.database import DatabaseManager
 
@@ -23,10 +25,14 @@ class NoteUndo(BaseModel):
 
 
 AgentUndo = Annotated[
-    Union[UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo],
+    Union[
+        UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo,
+        TaskAddedUndo, TaskCompletedUndo,
+    ],
     Field(discriminator="kind"),
 ]
 _MEALS_UNDOS = (ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo)
+_TASKS_UNDOS = (TaskAddedUndo, TaskCompletedUndo)
 _UNDOS_ADAPTER = TypeAdapter(List[AgentUndo])
 
 
@@ -68,8 +74,10 @@ class UndoJournal:
 class UndoService:
     def __init__(
         self, sport_tools: SportTools, db: DatabaseManager, journal: UndoJournal, meals_tools: Optional[MealsTools] = None,
+        tasks_tools: Optional[TasksTools] = None,
     ) -> None:
         self.sport_tools = sport_tools
+        self.tasks_tools = tasks_tools
         self.db = db
         self.journal = journal
         self.meals_tools = meals_tools
@@ -98,6 +106,8 @@ class UndoService:
             return [("note", undo.note_id)]
         if isinstance(undo, UndoSnapshot):
             return [("sport_session", undo.session_id)]
+        if isinstance(undo, _TASKS_UNDOS):
+            return TasksTools.undo_targets(undo)
         return MealsTools.undo_targets(undo)
 
     def _meals(self) -> MealsTools:
@@ -105,7 +115,18 @@ class UndoService:
             raise UndoError("Annulation impossible : le classeur Repas & Courses est indisponible.")
         return self.meals_tools
 
+    def _tasks(self) -> TasksTools:
+        if self.tasks_tools is None:
+            raise UndoError("Annulation impossible : Google Tasks est indisponible.")
+        return self.tasks_tools
+
     def _check(self, undo: AgentUndo, targets: set) -> None:
+        if isinstance(undo, _TASKS_UNDOS):
+            try:
+                self._tasks().check_undo(undo)
+            except ToolError as exc:
+                raise UndoError(str(exc)) from exc
+            return
         if isinstance(undo, _MEALS_UNDOS):
             try:
                 self._meals().check_undo(undo, only=targets)
@@ -122,6 +143,8 @@ class UndoService:
             raise UndoError(str(exc)) from exc
 
     def _apply(self, undo: AgentUndo) -> str:
+        if isinstance(undo, _TASKS_UNDOS):
+            return self._tasks().apply_undo(undo)
         if isinstance(undo, _MEALS_UNDOS):
             return self._meals().apply_undo(undo)
         if isinstance(undo, NoteUndo):
