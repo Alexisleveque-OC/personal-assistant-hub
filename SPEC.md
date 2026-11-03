@@ -166,6 +166,10 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
     - Résolution définitive des confusions de transcription (ex: "Otis" pris pour "10", "RPE à trois" transcrit en "à Troyes", "renfort" vs "renforcement").
     - Pipeline audio direct vers backend (Gemini Multimodal Audio natif ou Faster-Whisper avec dictionnaire/lexique métier injecté) pour s'affranchir des faiblesses du Web Speech API navigateur.
     - Couche de normalisation phonétique et consignes de résilience sémantique dans le prompt système du LLM.
+    - **Constat utilisateur (03/11/2026) : le micro ne fonctionne quasiment jamais** avec la chaîne actuelle (wake word Vosk + dictée Web Speech de Chrome Android) ; les requêtes sont en pratique tapées au clavier.
+      - Diagnostic à faire en premier : conflit de capture micro entre Vosk (`getUserMedia`) et Web Speech, fin de parole (VAD), démarrage avant/après le bip. Le diag K (28/10) a montré un enregistrement propre : la capture brute n'est pas en cause.
+      - Piste STT serveur repérée (vidéo Underscore_ du 02/11/2026 avec Neil Zeghidour) : **Gradium** (API STT/TTS de l'équipe Kyutai, français supporté, REST/WebSocket). La PWA enverrait l'audio au backend, qui appellerait l'API (clé côté serveur). Le modèle open source Kyutai `stt-1b-en_fr` exige un GPU et ne convient pas à Cloud Run.
+      - À comparer en français avec Gemini audio (déjà en place, sans nouvelle dépendance), Google Cloud Speech-to-Text et Whisper/Voxtral avant de choisir.
   - [ ] **Déclenchement Mains-Libres & Wake Word :**
     - Mode écoute continue "Wake Word" dans l'application ouverte (détection du mot-clé "Otis").
     - Raccourci 1-tap Android (Widget écran d'accueil avec démarrage d'écoute immédiat).
