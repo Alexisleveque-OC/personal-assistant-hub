@@ -34,6 +34,9 @@ AGENT_ROUTED_INTENTS = frozenset({
     IntentType.ADD_RECIPE_INGREDIENTS,
     IntentType.MARK_SHOPPING_BOUGHT,
     IntentType.CHECK_SHOPPING_COMPLETION,
+    # Le flux regex n'a pour les tâches que des réponses fictives codées en dur : l'agent lit le vrai Google Tasks.
+    IntentType.LIST_TASKS,
+    IntentType.ADD_TASK,
 })
 
 

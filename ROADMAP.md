@@ -35,9 +35,11 @@ Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé
 - [ ] « Qu'est-ce que j'ai cette semaine ? » / « mes prochaines échéances » : agenda sur 7 jours par défaut (+ tâches avec échéance dès l'étape 3).
 - Constat prod du 03/11 : « qu'est-ce que j'ai cette semaine ? » est déjà bien traité par `get_agenda` (Gemini choisit seul la période) ; reste à y joindre les tâches à échéance après l'étape 3.
 
-### [ ] Étape 3 : Lecture des tâches
-- [ ] `app/connectors/tasks/` : liste par défaut, tâches non terminées (échéance éventuelle), cache 3 min.
-- [ ] Outil agent `get_tasks`.
+### [x] Étape 3 : Lecture des tâches
+- [x] `app/connectors/tasks/` : liste par défaut, tâches non terminées (échéance éventuelle), cache 3 min.
+- [x] Outil agent `get_tasks` + règles 15 (lecture à voix haute) et 16 (« cette semaine » = agenda + tâches à échéance) du prompt.
+- [x] Intentions regex `LIST_TASKS` / `ADD_TASK` routées vers l'agent : le flux regex n'y répondait que par des phrases fictives codées en dur.
+- [ ] Test sur le téléphone (« liste-moi mes tâches », « qu'est-ce que j'ai cette semaine ? »).
 
 ### [ ] Étape 4 : Ajout et complétion de tâches
 - [ ] Outils `add_task(titre, echeance?)` et `complete_task(id)`, invalidation du cache.
