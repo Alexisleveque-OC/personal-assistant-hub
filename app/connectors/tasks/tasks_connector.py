@@ -5,17 +5,17 @@ Les lectures sont mises en cache (règle 8 : quotas et temps de réponse) ; tout
 """
 import time
 from datetime import date
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
-
-from google.auth.exceptions import RefreshError
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.config import Settings
-from app.connectors.google_oauth import LOGIN_SCRIPT, build_user_session
+from app.connectors.google_oauth import build_user_session
+from app.connectors.google_rest import GoogleRestClient
 from app.connectors.tasks.models import TaskItem
 
 TASKS_API = "https://tasks.googleapis.com/tasks/v1"
 DEFAULT_LIST_ID = "@default"
 DEFAULT_LIST_NAME = "Mes tâches"
+_TASKS_URL = f"{TASKS_API}/lists/{DEFAULT_LIST_ID}/tasks"
 
 
 class TasksError(RuntimeError):
@@ -31,7 +31,7 @@ class TasksConnector:
         self, session: Any, ttl_seconds: int = 180, monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         """`session` : `AuthorizedSession` (ou doublure offrant `get(url, params=...)`)."""
-        self._session = session
+        self._api = GoogleRestClient(session, "Google Tasks", TasksError, TasksAuthError)
         self._ttl_seconds = ttl_seconds
         self._monotonic = monotonic
         self._cache: Optional[Tuple[float, List[TaskItem]]] = None
@@ -45,9 +45,10 @@ class TasksConnector:
     def list_open_tasks(self) -> List[TaskItem]:
         if self._cache and self._monotonic() - self._cache[0] < self._ttl_seconds:
             return self._cache[1]
-        items = self._paginate(
-            f"{TASKS_API}/lists/{DEFAULT_LIST_ID}/tasks",
+        items = self._api.paginate(
+            _TASKS_URL,
             {"showCompleted": "false", "showHidden": "false", "maxResults": "100"},
+            f"en lisant la liste « {DEFAULT_LIST_NAME} »",
         )
         tasks = [
             _to_task(item) for item in items
@@ -59,29 +60,6 @@ class TasksConnector:
 
     def invalidate_cache(self) -> None:
         self._cache = None
-
-    def _paginate(self, url: str, params: Dict[str, str]) -> Iterator[Dict[str, Any]]:
-        page_params = dict(params)
-        while True:
-            payload = self._get(url, page_params)
-            yield from payload.get("items", [])
-            token = payload.get("nextPageToken")
-            if not token:
-                return
-            page_params = {**params, "pageToken": token}
-
-    def _get(self, url: str, params: Dict[str, str]) -> Dict[str, Any]:
-        resource = f"la liste « {DEFAULT_LIST_NAME} »"
-        try:
-            response = self._session.get(url, params=params)
-        except RefreshError as exc:
-            raise TasksAuthError(
-                f"Jeton Google refusé (révoqué ou expiré) en lisant {resource} : relancer {LOGIN_SCRIPT}, puis mettre "
-                f"à jour GOOGLE_OAUTH_REFRESH_TOKEN (.env et secret GitHub). Détail : {exc}"
-            ) from exc
-        if response.status_code != 200:
-            raise TasksError(f"API Google Tasks : HTTP {response.status_code} en lisant {resource} : {response.text[:300]}")
-        return response.json()
 
 
 def _to_task(item: Dict[str, Any]) -> TaskItem:
