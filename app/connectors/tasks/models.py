@@ -6,8 +6,9 @@ from pydantic import BaseModel
 
 
 class TaskItem(BaseModel):
-    """Tâche non terminée. `echeance` : jour seulement (Google Tasks ne conserve pas l'heure d'échéance)."""
+    """Tâche Google. `echeance` : jour seulement (Google Tasks ne conserve pas l'heure d'échéance)."""
     id: str
     titre: str
     echeance: Optional[date] = None
     notes: Optional[str] = None
+    terminee: bool = False

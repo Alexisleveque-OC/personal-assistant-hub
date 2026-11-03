@@ -8,11 +8,10 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 from urllib.parse import quote
 
-from google.auth.exceptions import RefreshError
-
 from app.config import Settings
 from app.connectors.calendar.models import CalendarEvent
-from app.connectors.google_oauth import LOGIN_SCRIPT, build_user_session
+from app.connectors.google_oauth import build_user_session
+from app.connectors.google_rest import GoogleRestClient
 from app.core.clock import APP_TIMEZONE
 
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
@@ -34,7 +33,7 @@ class CalendarConnector:
         self, session: Any, ttl_seconds: int = 180, monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         """`session` : `AuthorizedSession` (ou doublure offrant `get(url, params=...)`)."""
-        self._session = session
+        self._api = GoogleRestClient(session, "Google Agenda", CalendarError, CalendarAuthError)
         self._ttl_seconds = ttl_seconds
         self._monotonic = monotonic
         self._cache: Dict[Tuple[date, date], Tuple[float, List[CalendarEvent]]] = {}
@@ -66,7 +65,7 @@ class CalendarConnector:
         return events
 
     def _selected_calendars(self) -> List[Tuple[str, str]]:
-        items = self._paginate(f"{CALENDAR_API}/users/me/calendarList", {}, "la liste des agendas")
+        items = self._api.paginate(f"{CALENDAR_API}/users/me/calendarList", {}, "en lisant la liste des agendas")
         return [
             (item["id"], item.get("summaryOverride") or item.get("summary") or item["id"])
             for item in items if item.get("selected") and not item["id"].endswith(WEEK_NUMBERS_SUFFIX)
@@ -84,34 +83,10 @@ class CalendarConnector:
             "maxResults": "250",
         }
         url = f"{CALENDAR_API}/calendars/{quote(calendar_id, safe='')}/events"
-        for item in self._paginate(url, params, f"l'agenda « {name} »"):
+        for item in self._api.paginate(url, params, f"en lisant l'agenda « {name} »"):
             if _declined_by_user(item):
                 continue
             yield _to_event(item, name)
-
-    def _paginate(self, url: str, params: Dict[str, str], resource: str) -> Iterator[Dict[str, Any]]:
-        page_params = dict(params)
-        while True:
-            payload = self._get(url, page_params, resource)
-            yield from payload.get("items", [])
-            token = payload.get("nextPageToken")
-            if not token:
-                return
-            page_params = {**params, "pageToken": token}
-
-    def _get(self, url: str, params: Dict[str, str], resource: str) -> Dict[str, Any]:
-        try:
-            response = self._session.get(url, params=params)
-        except RefreshError as exc:
-            raise CalendarAuthError(
-                f"Jeton Google refusé (révoqué ou expiré) en lisant {resource} : relancer {LOGIN_SCRIPT}, puis mettre "
-                f"à jour GOOGLE_OAUTH_REFRESH_TOKEN (.env et secret GitHub). Détail : {exc}"
-            ) from exc
-        if response.status_code != 200:
-            raise CalendarError(
-                f"API Google Agenda : HTTP {response.status_code} en lisant {resource} : {response.text[:300]}"
-            )
-        return response.json()
 
 
 def _declined_by_user(item: Dict[str, Any]) -> bool:
