@@ -68,7 +68,7 @@ def test_interact_answers_the_tasks_question_through_get_tasks(agent_with_tasks)
 
 def test_remind_me_adds_a_google_task_that_undo_removes(isolate_sqlite_database, monkeypatch):
     """« Rappelle-moi de… » : vraie tâche Google (plus la confirmation fictive du flux regex), « annule ça » la supprime."""
-    from tests.test_tasks_write_tools import FakeWritableTasks
+    from tests.tasks_fakes import FakeWritableTasks
 
     monkeypatch.setattr(settings, "nlu_mode", "agent")
     set_sport_connector(SqlSportConnector(db_manager=isolate_sqlite_database))

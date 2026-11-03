@@ -49,16 +49,19 @@ Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé
 - [x] Factoriser la lecture REST Google (pagination, jeton refusé) dupliquée entre les connecteurs Agenda et Tasks.
 - [x] Validation réelle : la liste « PAH tests » est abandonnée (le connecteur n'écrit que dans « Mes tâches ») ; la première écriture réelle est le transfert de la note PCO autorisé le 03/11, puis le test sur le téléphone.
 
-### [ ] Étape 4 bis : Onglet Tâches dans la PWA (décision utilisateur du 03/11)
-- [ ] Onglet « Tâches » sur le modèle de l'onglet Courses : liste des tâches non terminées (échéance éventuelle), cocher, ajouter.
-- [ ] Endpoints REST typés réutilisant le connecteur Tasks de l'étape 3 (aucune logique dupliquée), invalidation du cache à chaque écriture.
+### [x] Étape 4 bis : Onglet Tâches dans la PWA (décision utilisateur du 03/11)
+- [x] Onglet « Tâches » sur le modèle de l'onglet Courses : liste des tâches non terminées (échéance, « En retard » en rouge), cocher, ajouter (intitulé + échéance facultative).
+- [x] Décisions utilisateur du 03/11 : 6e bouton « Tâches » dans la barre du bas ; cocher écrit tout de suite dans Google Tasks et un toast « Annuler » rouvre la tâche.
+- [x] `app/routers/tasks.py` : `GET /api/v1/tasks`, `POST /api/v1/tasks`, `PATCH /api/v1/tasks/{id}` (`terminee`) via `TasksTools` (même validation et mêmes erreurs que l'agent, cache invalidé à chaque écriture) ; 503 si Tasks non configuré, 502 si Google échoue.
+- [ ] Test sur le téléphone.
 
 ### [ ] Étape 5 (optionnelle) : Voie rapide
 - [ ] Phrases exactes « qu'est-ce que j'ai aujourd'hui / demain » sans Gemini, si la latence de l'agent gêne à l'usage.
 
-### [ ] Étape 6 : Test d'intégration final & documentation
-- [ ] Test E2E de bout en bout (requête → agent → connecteurs simulés → réponse).
-- [ ] README (signaler l'écart de numérotation des phases SPEC/README avant toute correction).
+### [x] Étape 6 : Test d'intégration final & documentation
+- [x] Test E2E de bout en bout `tests/test_e2e_calendar_tasks.py` : phrase → agent (LLM scripté) → outils → vrais connecteurs Agenda et Tasks → API Google simulée en mémoire, puis onglet Tâches sur la même liste (cache partagé et invalidé à chaque écriture, cochage puis « Annuler », « annule ça » vocal).
+- [x] README : module « Agenda & Tâches », Phase 8 cochée, variables OAuth.
+- [ ] Écart de numérotation signalé à l'utilisateur, non corrigé : le README saute la Phase 9 (Chronique matinale = Phase 10 au README, Phase 9 au SPEC ; décalage d'un cran jusqu'à la Domotique) et sa Phase 8 citait Gmail, absent de la Phase 8 du SPEC.
 
 ---
 

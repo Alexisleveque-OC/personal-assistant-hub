@@ -18,6 +18,7 @@ import { showToastSuccess, showToastInfo } from "./js/toast.js";
 import { fetchLlmStats } from "./js/api.js";
 import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse } from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
+import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView, switchSportSubview } from "./js/views/sport_view.js";
 import { initSecondBrainView, loadSecondBrainNotes, loadSecondBrainCategories } from "./js/views/second_brain_view.js";
@@ -49,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
     chat: document.getElementById("view-chat"),
     "second-brain": document.getElementById("view-second-brain"),
     shopping: document.getElementById("view-shopping"),
+    tasks: document.getElementById("view-tasks"),
     meals: document.getElementById("view-meals"),
     sport: document.getElementById("view-sport")
   };
@@ -104,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initChatView();
   initSecondBrainView();
   initShoppingView();
+  initTasksView();
   initMealsView();
   initSportView();
 
@@ -123,6 +126,8 @@ document.addEventListener("DOMContentLoaded", () => {
         loadSecondBrainCategories();
       } else if (targetView === "shopping") {
         fetchShoppingList();
+      } else if (targetView === "tasks") {
+        loadTasks();
       } else if (targetView === "meals") {
         if (state.currentMealSubview === "today") {
           fetchMealToday();

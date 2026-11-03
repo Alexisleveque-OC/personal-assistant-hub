@@ -35,8 +35,9 @@ const DEFAULT_TITLES = {
  * @param {string} [options.title] - Titre court optionnel
  * @param {string} [options.icon] - Emoji / Icône personnalisée
  * @param {number} [options.duration] - Durée d'affichage en ms (défaut: 4000ms, 7000ms pour error)
+ * @param {{label: string, onClick: Function}} [options.action] - Bouton d'action (ex: « Annuler ») ; le toast se ferme au clic
  */
-export function showToast(message, type = "info", { title = null, icon = null, duration = null } = {}) {
+export function showToast(message, type = "info", { title = null, icon = null, duration = null, action = null } = {}) {
   const container = getOrCreateToastContainer();
 
   const toast = document.createElement("div");
@@ -53,6 +54,7 @@ export function showToast(message, type = "info", { title = null, icon = null, d
       ${displayTitle ? `<div class="toast-title">${escapeHtml(displayTitle)}</div>` : ""}
       <div class="toast-message">${escapeHtml(message)}</div>
     </div>
+    ${action ? `<button class="btn-undo-action" type="button">${escapeHtml(action.label)}</button>` : ""}
     <button class="toast-close" type="button" aria-label="Fermer la notification">×</button>
   `;
 
@@ -72,6 +74,13 @@ export function showToast(message, type = "info", { title = null, icon = null, d
   };
 
   closeBtn.addEventListener("click", dismiss);
+
+  if (action) {
+    toast.querySelector(".btn-undo-action").addEventListener("click", () => {
+      dismiss();
+      action.onClick();
+    }, { once: true });
+  }
 
   if (autoDuration > 0) {
     timerId = setTimeout(dismiss, autoDuration);

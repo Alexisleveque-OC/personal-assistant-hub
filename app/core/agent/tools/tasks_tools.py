@@ -75,6 +75,11 @@ class TasksTools:
             undos=[TaskCompletedUndo(task_id=task.id, titre=task.titre)],
         )
 
+    def reopen_task(self, task_id: str) -> TaskView:
+        """Rouvre une tâche cochée (bouton « Annuler » de l'onglet Tâches de la PWA)."""
+        task = self._call(lambda: self.connector.set_completed(task_id, False))
+        return _to_view(task, self._today())
+
     @staticmethod
     def undo_targets(undo: TaskUndo) -> List[tuple]:
         return [("task", undo.task_id)]
