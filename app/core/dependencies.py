@@ -12,6 +12,7 @@ from app.connectors.google_oauth import GoogleOAuthNotConfiguredError
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.connectors.sheets.sport_connector import SportConnector
 from app.connectors.sqlite.sport_connector import SqlSportConnector
+from app.connectors.tasks.tasks_connector import TasksConnector
 from app.core.database import (
     DatabaseManager,
     get_database_manager,
@@ -25,6 +26,8 @@ _sport_connector: Any = "UNSET"
 _sport_connector_error: Optional[str] = None
 _calendar_connector: Any = "UNSET"
 _calendar_connector_error: str = ""
+_tasks_connector: Any = "UNSET"
+_tasks_connector_error: str = ""
 _SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
@@ -69,6 +72,31 @@ def set_calendar_connector(connector: Optional[Any], error: str = "") -> None:
     global _calendar_connector, _calendar_connector_error
     _calendar_connector = connector
     _calendar_connector_error = error
+
+
+def get_tasks_connector() -> Optional[TasksConnector]:
+    """Récupère le connecteur Google Tasks (OAuth utilisateur) ou tente son initialisation ; cause d'échec conservée."""
+    global _tasks_connector, _tasks_connector_error
+    if _tasks_connector == "UNSET":
+        try:
+            _tasks_connector = TasksConnector.from_settings(settings)
+            _tasks_connector_error = ""
+        except GoogleOAuthNotConfiguredError as exc:
+            logger.warning(f"Google Tasks non configuré : {exc}")
+            _tasks_connector = None
+            _tasks_connector_error = str(exc)
+    return _tasks_connector
+
+
+def get_tasks_connector_error() -> str:
+    return _tasks_connector_error
+
+
+def set_tasks_connector(connector: Optional[Any], error: str = "") -> None:
+    """Permet l'injection d'un connecteur Tasks (doublure) ou son absence motivée, pour les tests."""
+    global _tasks_connector, _tasks_connector_error
+    _tasks_connector = connector
+    _tasks_connector_error = error
 
 
 def get_sport_connector_error() -> Optional[str]:

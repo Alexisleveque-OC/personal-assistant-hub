@@ -5,7 +5,7 @@ from app.config import settings
 from app.main import set_meals_connector
 from app.connectors.sheets.models import DayMealPlan, ShoppingItem, WaitingListItem
 from app.core.database import DatabaseManager, set_database_manager
-from app.core.dependencies import set_calendar_connector
+from app.core.dependencies import set_calendar_connector, set_tasks_connector
 from app.core.llm.rayon_suggester import set_rayon_suggester
 
 
@@ -35,6 +35,14 @@ def offline_calendar():
     set_calendar_connector(None, error="Agenda Google désactivé en test")
     yield
     set_calendar_connector(None, error="Agenda Google désactivé en test")
+
+
+@pytest.fixture(autouse=True)
+def offline_tasks():
+    """Aucun appel réel à Google Tasks (le .env peut contenir un vrai jeton) : doublure injectée par test."""
+    set_tasks_connector(None, error="Google Tasks désactivé en test")
+    yield
+    set_tasks_connector(None, error="Google Tasks désactivé en test")
 
 
 @pytest.fixture(autouse=True)
