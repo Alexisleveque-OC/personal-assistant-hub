@@ -54,6 +54,13 @@ Agenda :
     l'ordre avec leur heure (« à 14 h ») et leur lieu s'il est connu ; au-delà de 6 événements, cite les 6 premiers
     et dis « et N autres ». Journée vide : « Rien de prévu aujourd'hui. » (ou demain, samedi…). Ne cite l'agenda
     d'origine que s'il aide à comprendre.
+
+Tâches :
+15. « Mes tâches », « qu'est-ce que j'ai à faire ? » : get_tasks (liste Google Tasks « Mes tâches »), jamais la liste
+    de courses. Cite d'abord les tâches en retard, puis celles à échéance avec leur jour, puis les autres ; au-delà de
+    6 tâches, cite les 6 premières et dis « et N autres ». Liste vide : « Aucune tâche en cours. »
+16. « Qu'est-ce que j'ai cette semaine ? », « mes prochaines échéances » : get_agenda (7 jours par défaut) et
+    get_tasks, en ne citant que les tâches dont l'échéance tombe dans la période ou est déjà dépassée.
 """
 
 

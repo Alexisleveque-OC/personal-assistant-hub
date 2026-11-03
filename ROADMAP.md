@@ -23,25 +23,32 @@ Demander à Otis « qu'est-ce que j'ai aujourd'hui / demain ? », être informé
 
 ## Étapes d'Implémentation (chaque étape : TDD, 100 % vert)
 
-### [ ] Étape 1 : Agenda du jour / du lendemain (premier livrable)
-- [ ] `scripts/google_oauth_login.py` : consentement local (navigateur), affiche le jeton de rafraîchissement sans rien écrire dans le dépôt.
-- [ ] `app/connectors/google_oauth.py` : identifiants utilisateur depuis les réglages, erreurs explicites (réglage manquant, jeton révoqué).
-- [ ] `app/connectors/calendar/` : modèles Pydantic (`CalendarEvent`), lecture des agendas cochés, événements récurrents dépliés, fuseau Europe/Paris, cache 3 min.
-- [ ] Outil agent `get_agenda(date_debut, date_fin)` (14 jours max) + règle de formulation dans le prompt ; erreur explicite si l'agenda n'est pas configuré.
-- [ ] CD : injection des trois secrets OAuth.
-- [ ] Validation réelle en lecture (accord utilisateur du 30/10), puis test sur le téléphone.
+### [x] Étape 1 : Agenda du jour / du lendemain (premier livrable)
+- [x] `scripts/google_oauth_login.py` : consentement local (navigateur), affiche le jeton de rafraîchissement sans rien écrire dans le dépôt.
+- [x] `app/connectors/google_oauth.py` : identifiants utilisateur depuis les réglages, erreurs explicites (réglage manquant, jeton révoqué).
+- [x] `app/connectors/calendar/` : modèles Pydantic (`CalendarEvent`), lecture des agendas cochés, événements récurrents dépliés, fuseau Europe/Paris, cache 3 min.
+- [x] Outil agent `get_agenda(date_debut, date_fin)` (14 jours max) + règle de formulation dans le prompt ; erreur explicite si l'agenda n'est pas configuré.
+- [x] CD : injection des trois secrets OAuth.
+- [x] Validation réelle en lecture (accord utilisateur du 30/10), puis test sur le téléphone (utilisé en prod les 30/10 et 03/11, réponses correctes).
 
 ### [ ] Étape 2 : Échéances proches
 - [ ] « Qu'est-ce que j'ai cette semaine ? » / « mes prochaines échéances » : agenda sur 7 jours par défaut (+ tâches avec échéance dès l'étape 3).
+- Constat prod du 03/11 : « qu'est-ce que j'ai cette semaine ? » est déjà bien traité par `get_agenda` (Gemini choisit seul la période) ; reste à y joindre les tâches à échéance après l'étape 3.
 
-### [ ] Étape 3 : Lecture des tâches
-- [ ] `app/connectors/tasks/` : liste par défaut, tâches non terminées (échéance éventuelle), cache 3 min.
-- [ ] Outil agent `get_tasks`.
+### [x] Étape 3 : Lecture des tâches
+- [x] `app/connectors/tasks/` : liste par défaut, tâches non terminées (échéance éventuelle), cache 3 min.
+- [x] Outil agent `get_tasks` + règles 15 (lecture à voix haute) et 16 (« cette semaine » = agenda + tâches à échéance) du prompt.
+- [x] Intentions regex `LIST_TASKS` / `ADD_TASK` routées vers l'agent : le flux regex n'y répondait que par des phrases fictives codées en dur.
+- [ ] Test sur le téléphone (« liste-moi mes tâches », « qu'est-ce que j'ai cette semaine ? »).
 
 ### [ ] Étape 4 : Ajout et complétion de tâches
 - [ ] Outils `add_task(titre, echeance?)` et `complete_task(id)`, invalidation du cache.
 - [ ] « Annule ça » via le journal d'annulation existant.
 - [ ] Validation réelle dans la liste « PAH tests » uniquement.
+
+### [ ] Étape 4 bis : Onglet Tâches dans la PWA (décision utilisateur du 03/11)
+- [ ] Onglet « Tâches » sur le modèle de l'onglet Courses : liste des tâches non terminées (échéance éventuelle), cocher, ajouter.
+- [ ] Endpoints REST typés réutilisant le connecteur Tasks de l'étape 3 (aucune logique dupliquée), invalidation du cache à chaque écriture.
 
 ### [ ] Étape 5 (optionnelle) : Voie rapide
 - [ ] Phrases exactes « qu'est-ce que j'ai aujourd'hui / demain » sans Gemini, si la latence de l'agent gêne à l'usage.
