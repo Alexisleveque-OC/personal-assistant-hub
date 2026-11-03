@@ -351,3 +351,32 @@ export async function importSportScreenshot(imageFile, { referenceDate = null } 
 
 
 
+
+// Onglet Tâches (Google Tasks, liste « Mes tâches ») : le détail renvoyé par le serveur est explicite (503 non configuré, 502 erreur Google).
+async function tasksRequest(url, options, fallbackMessage) {
+  const res = await fetch(url, { headers: getAuthHeaders(), ...options });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const detail = errJson && errJson.detail;
+    throw new Error(typeof detail === "string" ? detail : `${fallbackMessage} (${res.status})`);
+  }
+  return await res.json();
+}
+
+export async function fetchTasks() {
+  return tasksRequest("/api/v1/tasks", { method: "GET" }, "Erreur de chargement des tâches");
+}
+
+export async function createTask(titre, echeance = null) {
+  return tasksRequest("/api/v1/tasks", {
+    method: "POST",
+    body: JSON.stringify({ titre, echeance: echeance || null }),
+  }, "Échec de l'ajout de la tâche");
+}
+
+export async function setTaskCompleted(taskId, terminee) {
+  return tasksRequest(`/api/v1/tasks/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ terminee }),
+  }, terminee ? "Échec du cochage de la tâche" : "Échec de la réouverture de la tâche");
+}
