@@ -2,6 +2,7 @@
 import { postInteract, postInteractAudio } from "./api.js";
 import { getActiveSessionId } from "./config.js";
 import { showToastSuccess, showToastInfo, showToastError } from "./toast.js";
+import { voiceDiagLog } from "./voice_diag_log.js";
 
 const DB_NAME = "pah_offline_db";
 const DB_VERSION = 1;
@@ -299,7 +300,9 @@ export async function syncOutbox(force = false) {
           blob = base64ToBlob(item.audioBase64, item.mimeType);
         }
         if (blob) {
+          voiceDiagLog.record("envoi", `Rejeu d'un message vocal en attente (${(blob.size / 1024).toFixed(1)} Ko)`);
           res = await postInteractAudio(blob, item.sessionId);
+          voiceDiagLog.record("envoi", `Rejeu : réponse HTTP ${res.status}`);
         } else {
           console.warn("[Outbox] Blob audio corrompu ou manquant, suppression de l'item:", item.id);
           await deleteFromOutbox(item.id);

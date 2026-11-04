@@ -3,6 +3,7 @@ import { state } from "./config.js";
 import { audioFocusManager } from "./audio_focus.js";
 import { VoskWakeWordDetector } from "./wake_word_vosk.js";
 import { showToastError, showToastInfo } from "./toast.js";
+import { voiceDiagLog } from "./voice_diag_log.js";
 
 export const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -26,6 +27,9 @@ let savedOnAudioBlobCallback = null;
 let activeStartAudioCapture = null;
 let activeStopAudioCapture = null;
 let initialInactivityTimer = null;
+// Diagnostic de la dictée (journal du micro) : début d'enregistrement et niveau VAD maximal atteint.
+let recordingStartedAt = 0;
+let peakVadLevel = null;
 
 // Gestion Audio Focus & Ducking
 let activeUtterance = null;
@@ -220,6 +224,8 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
   }
 
   async function startAudioCapture(isWakeTriggered = false) {
+    const trigger = isWakeTriggered ? "mot-clé" : (state.pushToTalk ? "maintien" : "bouton");
+    voiceDiagLog.record("dictée", `Démarrage (déclencheur : ${trigger})`);
     try {
       pauseWakeWordDetector();
       audioFocusManager.requestDucking("recording");
@@ -231,6 +237,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
         await new Promise((resolve) => setTimeout(resolve, 80));
       }
 
+      const micRequestedAt = performance.now();
       audioStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -238,6 +245,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
           autoGainControl: true,
         },
       });
+      voiceDiagLog.record("dictée", `Micro ouvert en ${Math.round(performance.now() - micRequestedAt)} ms (${preferredMime})`);
 
       mediaRecorder = new MediaRecorder(audioStream, { mimeType: preferredMime });
 
@@ -251,15 +259,21 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
         cleanupAudioNodes();
         const blob = new Blob(audioChunks, { type: preferredMime });
         if (blob.size > 1000 && onAudioBlobCallback) {
+          voiceDiagLog.record("dictée", `Enregistrement de ${(blob.size / 1024).toFixed(1)} Ko transmis pour transcription`);
           onAudioBlobCallback(blob);
         } else if (audioChunks.length > 0 && onResultCallback) {
           // Rien d'audible
           console.debug("[STT] Enregistrement trop court ou vide.");
         }
+        if (blob.size <= 1000) {
+          voiceDiagLog.record("dictée", `Enregistrement de ${blob.size} octets ignoré (trop court), rien n'est envoyé`);
+        }
       };
 
       mediaRecorder.start(250);
       isRecording = true;
+      recordingStartedAt = performance.now();
+      peakVadLevel = null;
 
       if (micWrapper) micWrapper.classList.add("recording");
       if (voiceBarArea) voiceBarArea.classList.add("active");
@@ -274,14 +288,23 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
 
     } catch (err) {
       console.warn("[VAD] Erreur accès microphone:", err);
-      stopAudioCapture();
+      voiceDiagLog.record("dictée", `Ouverture du micro impossible : ${err.name || ""} ${err.message}`);
+      stopAudioCapture("erreur");
       if (onNotAllowedCallback) onNotAllowedCallback();
     }
   }
 
-  function stopAudioCapture() {
+  // reason : silence, inactivité, bouton, relâché ou erreur (journal du micro).
+  function stopAudioCapture(reason = "inconnue") {
     if (!isRecording) return;
     isRecording = false;
+    const level = peakVadLevel === null
+      ? "VAD inactive"
+      : `parole détectée : ${isSpeakingDetected ? "oui" : "non"}, niveau max ${peakVadLevel.toFixed(0)} / seuil 18`;
+    voiceDiagLog.record(
+      "dictée",
+      `Arrêt (${reason}) après ${((performance.now() - recordingStartedAt) / 1000).toFixed(1)} s, ${level}`
+    );
 
     if (silenceTimer) {
       clearTimeout(silenceTimer);
@@ -356,7 +379,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
     initialInactivityTimer = setTimeout(() => {
       if (!isSpeakingDetected && isRecording) {
         console.debug("[VAD] Inactivité prolongée après réveil vocal. Arrêt.");
-        stopAudioCapture();
+        stopAudioCapture("inactivité");
       }
     }, 7000);
 
@@ -369,6 +392,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
         sum += dataArray[i];
       }
       const avgLevel = sum / bufferLength;
+      peakVadLevel = Math.max(peakVadLevel ?? 0, avgLevel);
 
       // Animation dynamique des barres proportionnelle à la voix
       if (visualBars && visualBars.length > 0) {
@@ -394,7 +418,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
         if (!silenceTimer) {
           silenceTimer = setTimeout(() => {
             console.debug(`[VAD] Silence toléré de ${silenceTimeoutMs}ms atteint. Expédition de l'audio.`);
-            stopAudioCapture();
+            stopAudioCapture("silence");
           }, silenceTimeoutMs);
         }
       }
@@ -450,7 +474,7 @@ export function setupMicButtonBehavior() {
           newMicBtn.releasePointerCapture(e.pointerId);
         }
       } catch (err) {}
-      if (isRecording) activeStopAudioCapture();
+      if (isRecording) activeStopAudioCapture("relâché");
     });
 
     window.addEventListener("pointercancel", (e) => {
@@ -459,7 +483,7 @@ export function setupMicButtonBehavior() {
           newMicBtn.releasePointerCapture(e.pointerId);
         }
       } catch (err) {}
-      if (isRecording) activeStopAudioCapture();
+      if (isRecording) activeStopAudioCapture("relâché");
     });
   } else {
     // Mode bascule VAD automatique (1 clic pour démarrer, 1 clic ou silence pour arrêter)
@@ -468,7 +492,7 @@ export function setupMicButtonBehavior() {
 
     newMicBtn.addEventListener("click", () => {
       if (isRecording) {
-        activeStopAudioCapture();
+        activeStopAudioCapture("bouton");
       } else {
         activeStartAudioCapture(false);
       }
@@ -669,7 +693,7 @@ function getVoskDetector() {
   if (!voskDetector) {
     voskDetector = new VoskWakeWordDetector({
       onWake: handleLocalWake,
-      log: (message) => console.debug("[WakeWord]", message),
+      log: (message) => voiceDiagLog.record("otis", message),
     });
   }
   return voskDetector;
@@ -677,6 +701,7 @@ function getVoskDetector() {
 
 // « Otis » → bip → dictée : la commande est dite après le bip (pas de commande enchaînée).
 function handleLocalWake() {
+  voiceDiagLog.record("otis", "Réveil : bip puis dictée");
   updateWakeWordIndicator("triggered");
   playWakeChime();
   triggerWakeCapture("");
@@ -684,6 +709,7 @@ function handleLocalWake() {
 
 function handleWakeEngineFailure(err) {
   console.error("[WakeWord] Détection locale indisponible :", err);
+  voiceDiagLog.record("otis", `Échec, mains-libres désactivé : ${err.message}`);
   showToastError(
     `Détection locale du mot-clé indisponible : ${err.message}. Mains-libres désactivé, le bouton micro reste utilisable.`,
     "Mot-clé « Otis »"
@@ -711,6 +737,7 @@ export function startWakeWordDetection(onWakeCallback = null) {
 
   const detector = getVoskDetector();
   if (detector.isRunning) return;
+  voiceDiagLog.record("otis", "Démarrage de l'écoute du mot-clé");
 
   // Premier chargement du modèle (≈ 45 Mo, une seule fois) : prévenir seulement s'il ne vient pas du cache.
   const slowLoadTimer = setTimeout(() => {
