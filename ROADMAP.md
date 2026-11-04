@@ -35,4 +35,4 @@ Rendre l'onglet Sport plus utile au quotidien : historique des séances paginé,
 
 ### [x] Étape 5 : Test d'intégration final
 - [x] Test E2E `tests/test_e2e_sport_tab_ux.py` (séances paginées et filtrées sur toute l'histoire, saison / semaine / mois passés en km) + contrat front `tests/test_pwa_sport_tab_ux.py`.
-- [ ] Test sur le téléphone.
+- [x] Test sur le téléphone : validé par l'utilisateur le 04/11 (pagination, dashboard en km, périodes passées, graphique par carte, semaines centrées).
