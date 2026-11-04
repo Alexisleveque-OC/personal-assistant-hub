@@ -443,11 +443,11 @@ class SportCoachService:
         }
 
         for candidate in candidates:
-            url = f"{GEMINI_API_BASE_URL}/models/{candidate}:generateContent?key={self.gemini_client.api_key}"
+            url = f"{GEMINI_API_BASE_URL}/models/{candidate}:generateContent"
             start_time = time.perf_counter()
             try:
                 async with httpx.AsyncClient(timeout=self.gemini_client.timeout) as http_client:
-                    response = await http_client.post(url, json=payload)
+                    response = await http_client.post(url, headers={"x-goog-api-key": self.gemini_client.api_key}, json=payload)
                     if response.status_code == 429:
                         self.gemini_client.mark_model_temporarily_unavailable(candidate, 60.0)
                         continue
