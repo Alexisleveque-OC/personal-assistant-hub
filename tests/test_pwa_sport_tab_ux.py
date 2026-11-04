@@ -137,4 +137,4 @@ def test_switching_scale_goes_back_to_the_current_period():
 
 
 def test_service_worker_cache_bumped_for_the_sport_tab_changes():
-    assert "pah-pwa-cache-v29" in client.get("/sw.js").text
+    assert "pah-pwa-cache-v30" in client.get("/sw.js").text

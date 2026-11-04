@@ -35,8 +35,20 @@ Hors périmètre : la conversation « speech-to-speech » temps réel.
 - [ ] `audio_diag.html` : lecture et vidage de ce journal, environnement (mémoire, stockage, base IndexedDB de Vosk), téléchargement du modèle seul avec progression, `AudioContext` créé sans geste.
 - [ ] Tests sur le téléphone par l'utilisateur, résultats reportés ici.
 
-### [ ] Étape 1 et suivantes : correctifs
-À décider avec l'utilisateur une fois les causes confirmées.
+### Premiers résultats du journal (04/11, usage réel)
+- **Mot-clé** : fonctionne (confiance 0,95 à 1,00, micro ouvert en 50 à 370 ms).
+- **D4 confirmé, cause = bouton « maintenir »** : tap puis tap → 1re capture lancée après le relâchement (micro ouvert en 410 ms), jamais arrêtée ; la 2e (0 octet) est jetée sans message.
+- **D2 confirmé et aggravé** : erreur 503 affichant l'URL Gemini **avec la clé API**. Le repli essayait 15 modèles, dont des modèles d'image à quota nul ; seule la dernière erreur (`3.7-flash`, 400) était gardée.
+- **D6 reproduit** : sur 3 s de son sans parole, le prompt actuel fait « transcrire » à `flash-lite` le début du prompt (« Tu es Otis. ») ; sans le schéma d'intention, il répond `<noise>`.
+
+### [x] Étape 1 : Correctifs urgents (décisions utilisateur du 04/11)
+- [x] Clé Gemini passée en en-tête `x-goog-api-key` dans tous les appels (plus jamais dans une URL ni dans un message d'erreur).
+- [x] Repli de transcription : modèles « image » exclus des candidats ; chaque échec est noté modèle par modèle dans les logs ; le téléphone reçoit un message clair (« Je n'ai pas pu transcrire ton message : quota Gemini atteint ou service surchargé… »).
+- [x] Bouton hybride en mode « maintenir » : appui long = parle tant que maintenu ; appui bref (< 400 ms) = bascule, arrêt au prochain toucher ou au silence. Jamais deux captures à la fois ; un arrêt demandé pendant l'ouverture du micro s'applique dès qu'il est ouvert ; écouteurs de relâchement remplacés au lieu d'être accumulés ; « Message trop court : rien n'a été envoyé. » affiché.
+- [ ] Test sur le téléphone par l'utilisateur.
+
+### [ ] Étape 2 et suivantes : correctifs restants
+Prompt de transcription (D6), délai client et rejeu (D1), message micro « refusé » (D3), bip (D5), mot-clé (V1 à V4) : à décider avec l'utilisateur.
 
 ### [ ] Comparatif STT serveur (français)
 Gemini audio (en place), Gradium, Voxtral : coût, latence, qualité, recommandation. Décision utilisateur avant toute nouvelle dépendance ou API payante.

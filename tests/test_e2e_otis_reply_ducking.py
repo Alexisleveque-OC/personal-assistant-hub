@@ -121,6 +121,6 @@ def test_e2e_application_serves_the_reply_ducking_chain():
 
     # 3. Service worker : nouvelle version pour livrer le module modifié aux PWA installées
     sw = client.get("/sw.js").text
-    assert "pah-pwa-cache-v29" in sw
+    assert "pah-pwa-cache-v30" in sw
     assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
     assert '"/static/js/audio_focus.js"' in assets
