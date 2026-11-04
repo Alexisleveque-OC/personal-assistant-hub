@@ -79,7 +79,7 @@ async def _call_gemini_coach_tip(context: Dict[str, Any]) -> SportCoachTip:
 
     candidates = await gemini_client.premium_candidate_models()
     for candidate in candidates:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate}:generateContent?key={gemini_client.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate}:generateContent"
         payload = {
             "contents": [{"role": "user", "parts": [{"text": f"{SPORT_COACH_SYSTEM_PROMPT}\n\n{prompt}"}]}],
             "generationConfig": {
@@ -90,7 +90,7 @@ async def _call_gemini_coach_tip(context: Dict[str, Any]) -> SportCoachTip:
         try:
             start_time = time.perf_counter()
             async with httpx.AsyncClient(timeout=gemini_client.timeout) as http_client:
-                response = await http_client.post(url, json=payload)
+                response = await http_client.post(url, headers={"x-goog-api-key": gemini_client.api_key}, json=payload)
                 if response.status_code == 429:
                     gemini_client.mark_model_temporarily_unavailable(candidate, 60.0)
                     continue

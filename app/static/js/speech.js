@@ -31,6 +31,19 @@ let initialInactivityTimer = null;
 let recordingStartedAt = 0;
 let peakVadLevel = null;
 
+// Bouton hybride (mode « maintenir », décision du 04/11) : appui long = parle tant que maintenu,
+// appui bref = bascule (arrêt au tap suivant ou au silence).
+export const HOLD_THRESHOLD_MS = 400;
+let isStartingCapture = false; // micro en cours d'ouverture : empêche une 2e capture fantôme
+let pendingStopReason = null; // arrêt demandé avant que le micro soit ouvert
+let pointerHeld = false; // le silence ne coupe jamais un appui maintenu
+let pressStartedAt = 0;
+let windowReleaseHandler = null;
+
+export function isHoldRelease(heldMs) {
+  return heldMs >= HOLD_THRESHOLD_MS;
+}
+
 // Gestion Audio Focus & Ducking
 let activeUtterance = null;
 let ttsWatchdogTimer = null;
@@ -225,6 +238,12 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
 
   async function startAudioCapture(isWakeTriggered = false) {
     const trigger = isWakeTriggered ? "mot-clé" : (state.pushToTalk ? "maintien" : "bouton");
+    if (isRecording || isStartingCapture) {
+      voiceDiagLog.record("dictée", `Démarrage ignoré (déclencheur : ${trigger}) : une capture est déjà en cours`);
+      return;
+    }
+    isStartingCapture = true;
+    pendingStopReason = null;
     voiceDiagLog.record("dictée", `Démarrage (déclencheur : ${trigger})`);
     try {
       pauseWakeWordDetector();
@@ -267,11 +286,13 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
         }
         if (blob.size <= 1000) {
           voiceDiagLog.record("dictée", `Enregistrement de ${blob.size} octets ignoré (trop court), rien n'est envoyé`);
+          showToastInfo("Message trop court : rien n'a été envoyé.", "Micro");
         }
       };
 
       mediaRecorder.start(250);
       isRecording = true;
+      isStartingCapture = false;
       recordingStartedAt = performance.now();
       peakVadLevel = null;
 
@@ -279,16 +300,26 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       if (voiceBarArea) voiceBarArea.classList.add("active");
       if (interimTranscript) {
         interimTranscript.textContent = (state.pushToTalk && !isWakeTriggered)
-          ? "Parlez en maintenant appuyé..."
+          ? "Je vous écoute (relâchez, ou touchez à nouveau pour envoyer)..."
           : "Je vous écoute (hésitations tolérées)...";
       }
 
-      // Initialisation du VAD via Web Audio API (forceVad = true lors d'un réveil mains-libres)
-      setupVoiceActivityDetection(isWakeTriggered);
+      // VAD dans tous les modes : un appui bref (bascule) doit pouvoir s'arrêter au silence ;
+      // un appui maintenu n'est jamais coupé par le silence (voir pointerHeld).
+      setupVoiceActivityDetection(true);
+
+      // Relâché ou retouché pendant l'ouverture du micro : l'arrêt demandé s'applique maintenant.
+      if (pendingStopReason) {
+        const reason = pendingStopReason;
+        pendingStopReason = null;
+        stopAudioCapture(reason);
+      }
 
     } catch (err) {
       console.warn("[VAD] Erreur accès microphone:", err);
       voiceDiagLog.record("dictée", `Ouverture du micro impossible : ${err.name || ""} ${err.message}`);
+      isStartingCapture = false;
+      pendingStopReason = null;
       stopAudioCapture("erreur");
       if (onNotAllowedCallback) onNotAllowedCallback();
     }
@@ -296,7 +327,13 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
 
   // reason : silence, inactivité, bouton, relâché ou erreur (journal du micro).
   function stopAudioCapture(reason = "inconnue") {
-    if (!isRecording) return;
+    if (!isRecording) {
+      if (isStartingCapture) {
+        pendingStopReason = reason;
+        voiceDiagLog.record("dictée", `Arrêt (${reason}) demandé pendant l'ouverture du micro : appliqué dès l'ouverture`);
+      }
+      return;
+    }
     isRecording = false;
     const level = peakVadLevel === null
       ? "VAD inactive"
@@ -377,6 +414,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
     // Watchdog d'inactivité initiale : si aucune voix n'est détectée sous 7 secondes après réveil
     if (initialInactivityTimer) clearTimeout(initialInactivityTimer);
     initialInactivityTimer = setTimeout(() => {
+      if (pointerHeld) return;
       if (!isSpeakingDetected && isRecording) {
         console.debug("[VAD] Inactivité prolongée après réveil vocal. Arrêt.");
         stopAudioCapture("inactivité");
@@ -417,6 +455,10 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
         // La personne a parlé et marque une pause / hésitation
         if (!silenceTimer) {
           silenceTimer = setTimeout(() => {
+            if (pointerHeld) {
+              silenceTimer = null; // réarmé à la prochaine pause une fois le bouton relâché
+              return;
+            }
             console.debug(`[VAD] Silence toléré de ${silenceTimeoutMs}ms atteint. Expédition de l'audio.`);
             stopAudioCapture("silence");
           }, silenceTimeoutMs);
@@ -455,36 +497,52 @@ export function setupMicButtonBehavior() {
   const newMicBtn = micBtn.cloneNode(true);
   micBtn.parentNode.replaceChild(newMicBtn, micBtn);
 
+  // Les écouteurs globaux de relâchement sont remplacés à chaque appel (sinon ils s'accumulent à chaque
+  // enregistrement des réglages et un relâchement arrêterait une capture lancée en mode bascule).
+  if (windowReleaseHandler) {
+    window.removeEventListener("pointerup", windowReleaseHandler);
+    window.removeEventListener("pointercancel", windowReleaseHandler);
+    windowReleaseHandler = null;
+  }
+  pointerHeld = false;
+
   if (state.pushToTalk) {
-    if (interimTranscript) interimTranscript.textContent = "Maintenez appuyé pour parler...";
-    newMicBtn.title = "Maintenir enfoncé pour parler (Push-to-Talk)";
+    if (interimTranscript) interimTranscript.textContent = "Maintenez pour parler, ou touchez pour démarrer / arrêter...";
+    newMicBtn.title = "Maintenir pour parler, ou toucher pour démarrer puis arrêter";
 
     // Gestion pointeur (souris PC + tactile mobile)
     newMicBtn.addEventListener("pointerdown", (e) => {
       e.preventDefault();
+      // Capture en cours (bascule après un appui bref, ou micro en cours d'ouverture) : ce toucher l'arrête.
+      if (isRecording || isStartingCapture) {
+        activeStopAudioCapture("bouton");
+        return;
+      }
       try {
         newMicBtn.setPointerCapture(e.pointerId);
       } catch (err) {}
+      pointerHeld = true;
+      pressStartedAt = performance.now();
       activeStartAudioCapture(false);
     });
 
-    window.addEventListener("pointerup", (e) => {
+    windowReleaseHandler = (e) => {
       try {
         if (newMicBtn.hasPointerCapture && newMicBtn.hasPointerCapture(e.pointerId)) {
           newMicBtn.releasePointerCapture(e.pointerId);
         }
       } catch (err) {}
-      if (isRecording) activeStopAudioCapture("relâché");
-    });
-
-    window.addEventListener("pointercancel", (e) => {
-      try {
-        if (newMicBtn.hasPointerCapture && newMicBtn.hasPointerCapture(e.pointerId)) {
-          newMicBtn.releasePointerCapture(e.pointerId);
-        }
-      } catch (err) {}
-      if (isRecording) activeStopAudioCapture("relâché");
-    });
+      if (!pointerHeld) return;
+      pointerHeld = false;
+      const heldMs = Math.round(performance.now() - pressStartedAt);
+      if (isHoldRelease(heldMs)) {
+        activeStopAudioCapture("relâché");
+      } else {
+        voiceDiagLog.record("dictée", `Appui bref (${heldMs} ms) : bascule, arrêt au prochain toucher ou au silence`);
+      }
+    };
+    window.addEventListener("pointerup", windowReleaseHandler);
+    window.addEventListener("pointercancel", windowReleaseHandler);
   } else {
     // Mode bascule VAD automatique (1 clic pour démarrer, 1 clic ou silence pour arrêter)
     if (interimTranscript) interimTranscript.textContent = "Cliquez sur le micro pour parler...";

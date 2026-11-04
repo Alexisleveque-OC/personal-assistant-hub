@@ -123,9 +123,9 @@ class GeminiClient:
 
         # 4. Auto-découverte via l'API Google
         try:
-            url = f"{GEMINI_API_BASE_URL}/models?key={self.api_key}"
+            url = f"{GEMINI_API_BASE_URL}/models"
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers={"x-goog-api-key": self.api_key})
                 response.raise_for_status()
                 data = response.json()
 
@@ -147,7 +147,8 @@ class GeminiClient:
         """Sélectionne les meilleurs modèles Flash en privilégiant ceux qui sont rapides, stables et sans surchauffe."""
         flash_models: List[str] = []
 
-        unstable_keywords = ("tts", "audio", "embed", "2.5")  # 2.5 est déprécié (404)
+        # 2.5 est déprécié (404) ; les modèles « image » génèrent des images (quota gratuit nul, constaté le 04/11)
+        unstable_keywords = ("tts", "audio", "embed", "2.5", "image")
 
         for m in models:
             raw_name = m.get("name", "")

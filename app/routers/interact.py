@@ -15,7 +15,7 @@ from app.core.models import (
 from app.core.intent_parser import IntentParser
 from app.core.llm.nlu_service import get_nlu_service
 from app.core.audio.phonetic_normalizer import normalize_phonetics
-from app.core.audio.stt_service import get_stt_service
+from app.core.audio.stt_service import STTUnavailableError, get_stt_service
 from app.core.dependencies import (
     get_meals_connector,
     get_sport_connector,
@@ -291,11 +291,15 @@ async def interact_audio(
             mime_type=content_type,
             context={"session_id": session_id},
         )
+    except STTUnavailableError as exc:
+        # Détail modèle par modèle dans les logs ; le téléphone reçoit un message lisible, sans détail technique.
+        logger.error(f"Transcription audio impossible : {exc}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.user_message)
     except Exception as exc:
-        logger.error(f"Erreur lors du traitement STT audio : {exc}")
+        logger.exception(f"Erreur inattendue lors du traitement STT audio : {type(exc).__name__}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service de reconnaissance audio temporairement indisponible : {exc}",
+            detail="Je n'ai pas pu transcrire ton message à cause d'une erreur interne. Réessaie ou tape-le.",
         )
 
     req = InteractionRequest(

@@ -315,11 +315,11 @@ class GeminiNLUService:
         per_model_timeout = min(self.gemini_client.timeout, 5.0)
 
         for candidate_model in candidates_to_try:
-            url = f"{GEMINI_API_BASE_URL}/models/{candidate_model}:generateContent?key={self.gemini_client.api_key}"
+            url = f"{GEMINI_API_BASE_URL}/models/{candidate_model}:generateContent"
             start_time = time.perf_counter()
             try:
                 async with httpx.AsyncClient(timeout=per_model_timeout) as http_client:
-                    response = await http_client.post(url, json=payload)
+                    response = await http_client.post(url, headers={"x-goog-api-key": self.gemini_client.api_key}, json=payload)
                     if response.status_code == 429:
                         self.gemini_client.mark_model_temporarily_unavailable(candidate_model, 60.0)
                         continue

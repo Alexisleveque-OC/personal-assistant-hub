@@ -133,11 +133,11 @@ def _call_gemini_vision(
     model_name = getattr(client, "_resolved_model", None) or getattr(client, "configured_model", "gemini-2.5-flash")
     if not model_name or model_name.lower() == "auto":
         model_name = "gemini-2.5-flash"
-    url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent?key={client.api_key}"
+    url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent"
 
     try:
         with httpx.Client(timeout=25.0) as http_client:
-            resp = http_client.post(url, json=payload)
+            resp = http_client.post(url, headers={"x-goog-api-key": client.api_key}, json=payload)
 
         if resp.status_code != 200:
             logger.error(f"[VisionService] Erreur Gemini API {resp.status_code}: {resp.text}")

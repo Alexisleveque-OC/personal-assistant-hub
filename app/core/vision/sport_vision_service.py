@@ -209,9 +209,9 @@ class SportVisionService:
         failures: list[str] = []
         async with httpx.AsyncClient(timeout=25.0) as http_client:
             for model_name in to_try:
-                url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent?key={client.api_key}"
+                url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent"
                 try:
-                    resp = await http_client.post(url, json=payload)
+                    resp = await http_client.post(url, headers={"x-goog-api-key": client.api_key}, json=payload)
                 except Exception as exc:
                     logger.warning(f"[SportVisionService] Échec appel {model_name} : {exc}")
                     failures.append(f"{model_name} ({type(exc).__name__}: {exc})")

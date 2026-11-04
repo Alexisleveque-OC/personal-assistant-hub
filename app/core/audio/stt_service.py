@@ -37,6 +37,34 @@ GEMINI_AUDIO_JSON_SCHEMA = {
 }
 
 
+STT_USER_FAILURE_MESSAGE = (
+    "Je n'ai pas pu transcrire ton message : quota Gemini atteint ou service surchargé. "
+    "Réessaie dans un instant ou tape-le."
+)
+
+_HTTP_FAILURE_LABELS = {429: "quota atteint", 503: "surchargé", 404: "modèle introuvable", 400: "requête refusée"}
+
+
+class STTUnavailableError(RuntimeError):
+    """Aucun modèle n'a pu transcrire : le détail (modèle par modèle) va aux logs, `user_message` au téléphone."""
+
+    def __init__(self, detail: str, user_message: str = STT_USER_FAILURE_MESSAGE) -> None:
+        super().__init__(detail)
+        self.user_message = user_message
+
+
+def _describe_failure(exc: Exception) -> str:
+    """Raison courte d'un échec, sans jamais reprendre l'URL appelée."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return f"{_HTTP_FAILURE_LABELS.get(status, 'erreur HTTP')} ({status})"
+    if isinstance(exc, httpx.TimeoutException):
+        return "délai dépassé"
+    if isinstance(exc, httpx.HTTPError):
+        return f"erreur réseau ({type(exc).__name__})"
+    return f"réponse inexploitable ({type(exc).__name__}: {exc})"
+
+
 class AudioSTTService:
     """Service de traitement direct des flux audio vers l'API multimodale Gemini."""
 
@@ -98,10 +126,16 @@ class AudioSTTService:
     ) -> Tuple[str, ParsedIntent]:
         """Envoie l'audio à Gemini et retourne le texte transcrit normalisé ainsi que l'intention extraite."""
         if not self.gemini_client.is_configured:
-            raise RuntimeError("Le service STT audio multimodal nécessite une clé GEMINI_API_KEY configurée.")
+            raise STTUnavailableError(
+                "Clé GEMINI_API_KEY absente pour le STT audio.",
+                user_message="Transcription impossible : la clé Gemini n'est pas configurée sur le serveur.",
+            )
 
         if self.gemini_client.is_daily_quota_exceeded():
-            raise RuntimeError("Plafond de requêtes journalières Gemini atteint pour le STT audio.")
+            raise STTUnavailableError(
+                "Plafond journalier Gemini atteint pour le STT audio.",
+                user_message="Je n'ai pas pu transcrire ton message : plafond journalier Gemini atteint. Tape-le en attendant.",
+            )
 
         model_name = await self.gemini_client.resolve_model()
         candidates_to_try = [model_name]
@@ -111,19 +145,18 @@ class AudioSTTService:
 
         payload = self.build_multimodal_gemini_payload(audio_bytes, mime_type, context)
         per_model_timeout = min(self.gemini_client.timeout, 12.0)
-        last_exception = None
+        failures: list[str] = []
 
         for candidate_model in candidates_to_try:
-            url = f"{GEMINI_API_BASE_URL}/models/{candidate_model}:generateContent?key={self.gemini_client.api_key}"
+            url = f"{GEMINI_API_BASE_URL}/models/{candidate_model}:generateContent"
             start_time = time.perf_counter()
             try:
                 async with httpx.AsyncClient(timeout=per_model_timeout) as http_client:
-                    response = await http_client.post(url, json=payload)
+                    response = await http_client.post(
+                        url, headers={"x-goog-api-key": self.gemini_client.api_key}, json=payload
+                    )
                     if response.status_code == 429:
                         self.gemini_client.mark_model_temporarily_unavailable(candidate_model, 60.0)
-                        continue
-                    if response.status_code in (503, 404):
-                        continue
                     response.raise_for_status()
                     data = response.json()
 
@@ -162,11 +195,12 @@ class AudioSTTService:
                 return normalized_transcription, parsed_intent
 
             except Exception as exc:
-                last_exception = exc
+                failures.append(f"{candidate_model} : {_describe_failure(exc)}")
                 continue
 
-        logger.error(f"Échec du traitement audio STT par Gemini : {last_exception}")
-        raise RuntimeError(f"Échec de transcription audio : {last_exception}")
+        detail = "Échec de transcription audio sur tous les modèles : " + " ; ".join(failures)
+        logger.error(detail)
+        raise STTUnavailableError(detail)
 
 
 _stt_service: Optional[AudioSTTService] = None
