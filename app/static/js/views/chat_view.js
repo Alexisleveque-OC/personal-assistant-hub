@@ -11,6 +11,7 @@ import { importSportScreenshotWithDatePrompt, DATE_CANCELLED_CODE } from "../scr
 import { getActiveSessionId, resetActiveSessionId } from "../config.js";
 import { showToastInfo, showToastSuccess, showToastError } from "../toast.js";
 import { enqueueTextRequest, enqueueAudioRequest, syncOutbox } from "../offline_outbox.js";
+import { voiceDiagLog } from "../voice_diag_log.js";
 
 const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
@@ -269,14 +270,19 @@ export async function sendAudioInteraction(audioBlob) {
 
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     await enqueueAudioRequest(audioBlob);
+    voiceDiagLog.record("envoi", "Hors-ligne : message vocal mis en attente");
     appendAssistantMessage("⏳ Vous êtes actuellement hors-ligne (pas de réseau). Votre message vocal a été enregistré localement et sera transmis automatiquement dès le retour de la connexion.");
     return;
   }
 
+  const sentAt = performance.now();
+  const elapsed = () => `${((performance.now() - sentAt) / 1000).toFixed(1)} s`;
+  voiceDiagLog.record("envoi", `POST /interact/audio (${(audioBlob.size / 1024).toFixed(1)} Ko, ${audioBlob.type || "type inconnu"})`);
   try {
     showThinkingIndicator();
     const res = await postInteractAudio(audioBlob);
     hideThinkingIndicator(); // avant de chercher la dernière bulle utilisateur (:last-of-type)
+    voiceDiagLog.record("envoi", `Réponse HTTP ${res.status} en ${elapsed()}`);
 
     if (res.status === 401) {
       appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Cliquez sur l'engrenage pour la renseigner.");
@@ -285,6 +291,7 @@ export async function sendAudioInteraction(audioBlob) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
+      voiceDiagLog.record("envoi", `Erreur affichée : ${errData.detail || "(sans détail)"}`);
       appendAssistantMessage(errData.detail || `Erreur serveur (${res.status}) lors du traitement vocal.`);
       return;
     }
@@ -294,6 +301,7 @@ export async function sendAudioInteraction(audioBlob) {
     // Remplacer le texte temporaire par la transcription exacte (transcribed_text ou user_transcription)
     const lastUserBubble = chatStream.querySelector(".chat-bubble.user:last-of-type");
     const transcription = data.transcribed_text || data.user_transcription;
+    voiceDiagLog.record("envoi", `Transcription : « ${transcription || ""} »`);
     if (lastUserBubble && transcription) {
       const fullText = `🎤 ${transcription}`;
       lastUserBubble.textContent = fullText;
@@ -315,6 +323,7 @@ export async function sendAudioInteraction(audioBlob) {
     console.warn("[Chat] Échec envoi audio:", err);
     hideThinkingIndicator();
     await enqueueAudioRequest(audioBlob);
+    voiceDiagLog.record("envoi", `Échec après ${elapsed()} (${err && err.name}: ${err && err.message}), message vocal mis en attente`);
     if (err && err.name === "AbortError") {
       appendAssistantMessage("⏳ Délai réseau dépassé. Votre message vocal a été enregistré localement et sera transmis dès le retour d'une connexion stable.");
     } else {

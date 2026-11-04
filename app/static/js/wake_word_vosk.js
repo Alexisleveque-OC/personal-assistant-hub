@@ -16,6 +16,9 @@ const WAKE_GRAMMAR = JSON.stringify(["otis", "[unk]"]);
 // Mesuré sur le téléphone : vrais « Otis » à 1,00 ; « mes hôtes sont partis tôt » → « [unk] otis » à 0,90.
 const MIN_CONFIDENCE = 0.95;
 const LOAD_TIMEOUT_MS = 120000;
+// Diagnostic : progression du chargement et AudioContext resté suspendu (démarrage sans geste de l'utilisateur).
+const LOAD_HEARTBEAT_MS = 10000;
+const RESUME_PENDING_WARNING_MS = 3000;
 const RAW_MIC_CONSTRAINTS = {
   audio: {
     echoCancellation: false,
@@ -62,6 +65,14 @@ function loadVoskClient(log) {
       wasmUrl: VOSK_WASM_URL,
       logLevel: -1,
     });
+    log("Chargement du modèle Vosk démarré (lu depuis IndexedDB, sinon téléchargé : 42 Mo)");
+    // Un worker qui plante (mémoire saturée…) n'envoie aucun message au client : sans cet écouteur, on attend le délai.
+    client.worker.addEventListener("error", (event) => {
+      log(`Worker Vosk en erreur : ${event.message || "sans message (mémoire saturée ?)"}`);
+    });
+    const heartbeat = setInterval(() => {
+      log(`Modèle Vosk toujours en chargement (${((performance.now() - startedAt) / 1000).toFixed(0)} s)`);
+    }, LOAD_HEARTBEAT_MS);
 
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -76,7 +87,7 @@ function loadVoskClient(log) {
         clearTimeout(timer);
         reject(new WakeWordLoadError(`Erreur du moteur Vosk : ${message.error}`));
       });
-    });
+    }).finally(() => clearInterval(heartbeat));
 
     log(`Modèle Vosk prêt en ${((performance.now() - startedAt) / 1000).toFixed(1)} s`);
     return client;
@@ -129,12 +140,20 @@ export class VoskWakeWordDetector {
     };
 
     try {
+      const micRequestedAt = performance.now();
       stream = await navigator.mediaDevices.getUserMedia(RAW_MIC_CONSTRAINTS);
-      if (isCancelled()) return release();
+      this.log(`Micro brut ouvert par getUserMedia en ${Math.round(performance.now() - micRequestedAt)} ms`);
+      if (isCancelled()) {
+        this.log("Démarrage abandonné : arrêt demandé pendant l'ouverture du micro");
+        return release();
+      }
       audioContext = new AudioContext();
-      if (audioContext.state === "suspended") await audioContext.resume();
+      if (audioContext.state === "suspended") await this.resumeWithDiagnostic(audioContext);
       await audioContext.audioWorklet.addModule(CAPTURE_WORKLET_URL);
-      if (isCancelled()) return release();
+      if (isCancelled()) {
+        this.log("Démarrage abandonné : arrêt demandé pendant la préparation de l'audio");
+        return release();
+      }
     } catch (err) {
       release();
       if (isCancelled()) return;
@@ -163,6 +182,21 @@ export class VoskWakeWordDetector {
 
     this.running = true;
     this.log(`Écoute locale du mot-clé démarrée (${sampleRate} Hz, micro brut)`);
+  }
+
+  // Journalise un resume() qui ne se résout pas : Chrome le laisse en attente tant qu'aucun geste n'a eu lieu.
+  async resumeWithDiagnostic(audioContext) {
+    const requestedAt = performance.now();
+    this.log("AudioContext suspendu à la création : resume() demandé");
+    const warning = setTimeout(() => {
+      this.log(`AudioContext : resume() toujours en attente après ${RESUME_PENDING_WARNING_MS / 1000} s (aucun geste de l'utilisateur ?)`);
+    }, RESUME_PENDING_WARNING_MS);
+    try {
+      await audioContext.resume();
+      this.log(`AudioContext repris en ${Math.round(performance.now() - requestedAt)} ms`);
+    } finally {
+      clearTimeout(warning);
+    }
   }
 
   handleResult(result) {
@@ -203,4 +237,4 @@ export class VoskWakeWordDetector {
   }
 }
 
-export { VOSK_BASE, LOAD_TIMEOUT_MS, MIN_CONFIDENCE };
+export { VOSK_BASE, VOSK_MODEL_URL, LOAD_TIMEOUT_MS, MIN_CONFIDENCE };
