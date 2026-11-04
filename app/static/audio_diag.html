@@ -34,6 +34,10 @@
 </head>
 <body>
   <h1>Diagnostic micro &amp; musique</h1>
+  <h2>Journal du micro de l'app</h2>
+  <p class="hint">Utilisez d'abord l'app installée (mot-clé « Otis », bouton micro), puis ouvrez cette page : l'app y note chaque étape du mot-clé, de la dictée et de l'envoi.</p>
+  <div class="log-actions"><button id="btn-app-journal">Afficher le journal de l'app</button><button id="btn-app-journal-clear">Vider le journal de l'app</button></div>
+
   <p class="hint">Lancez la musique à volume fixe, puis démarrez un mode à la fois pendant ~30 s. Notez l'effet sur la musique (aucun / baisse / pause), la reprise à l'arrêt et les bips.</p>
 
   <div class="mode" data-mode="speech-continuous">
@@ -62,6 +66,11 @@
     <div class="mode-head"><div><div class="mode-title">F. Mot-clé local (Vosk)</div><div class="mode-desc">Micro brut + détection de « Otis » sur le téléphone. 1er démarrage : ~45 Mo à télécharger (Wi-Fi conseillé)</div></div><button>Démarrer</button></div>
     <div class="timer"></div>
     <div class="timer detections"></div>
+  </div>
+
+  <div class="mode" data-mode="vosk-model-download">
+    <div class="mode-head"><div><div class="mode-title">L. Téléchargement du modèle seul</div><div class="mode-desc">Télécharge les 42 Mo du modèle sans Vosk, avec la progression : isole le réseau du moteur</div></div><button>Démarrer</button></div>
+    <div class="timer"></div>
   </div>
 
   <h2>Réponse d'Otis</h2>
@@ -214,6 +223,35 @@
       };
     }
 
+    // Réseau seul : progression tous les 5 Mo ; arrêt possible à tout moment.
+    async function startModelDownload() {
+      const { VOSK_MODEL_URL } = await import("/static/js/wake_word_vosk.js");
+      const controller = new AbortController();
+      const startedAt = performance.now();
+      const seconds = () => ((performance.now() - startedAt) / 1000).toFixed(1);
+      (async () => {
+        const res = await fetch(VOSK_MODEL_URL, { signal: controller.signal });
+        log(`Modèle: HTTP ${res.status}, Content-Length ${res.headers.get("Content-Length") || "absent (flux)"}, après ${seconds()} s`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const reader = res.body.getReader();
+        let bytes = 0;
+        let nextStep = 5 * 1024 * 1024;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          bytes += value.length;
+          if (bytes >= nextStep) {
+            log(`Modèle: ${(bytes / 1048576).toFixed(0)} Mo reçus en ${seconds()} s`);
+            nextStep += 5 * 1024 * 1024;
+          }
+        }
+        log(`Modèle téléchargé: ${(bytes / 1048576).toFixed(1)} Mo en ${seconds()} s`);
+      })().catch((err) => {
+        if (err.name !== "AbortError") log(`ERREUR téléchargement du modèle après ${seconds()} s: ${err.name} ${err.message}`);
+      });
+      return () => controller.abort();
+    }
+
     const OTIS_REPLY = "J'ai ajouté du lait à la liste de courses. Il reste aussi des tomates, des pâtes et du fromage. Bonne séance ce soir !";
 
     // Répète la réponse d'Otis (mêmes réglages que speech.js) ; beforeSpeak / afterSpeak encadrent chaque phrase.
@@ -355,6 +393,7 @@
       "gum-raw": () => startMicrophone(RAW_CONSTRAINTS, false, null),
       "gum-raw-analyser": (card) => startMicrophone(RAW_CONSTRAINTS, true, card.querySelector(".meter > div")),
       "vosk-wake": (card) => startVoskWake(card),
+      "vosk-model-download": () => startModelDownload(),
       "tts-only": () => startTtsLoop(),
       "tts-mic-processed": (card) => startTtsWithProcessedMicrophone(card),
       "tts-audio-element": (card) => startTtsWithAudioElement(Number(card.querySelector("#carrier-duration").value), false),
@@ -408,8 +447,60 @@
       }
     });
 
+    // Journal écrit par l'app (voice_diag_log.js) : même origine, donc même localStorage que la PWA installée.
+    const journalModule = import("/static/js/voice_diag_log.js");
+    document.getElementById("btn-app-journal").addEventListener("click", async () => {
+      const { voiceDiagLog, formatVoiceDiagEntries } = await journalModule;
+      const entries = voiceDiagLog.read();
+      log(`--- Journal de l'app (${entries.length} événements) ---`);
+      if (entries.length) logEl.textContent += `${formatVoiceDiagEntries(entries)}\n`;
+      log("--- Fin du journal de l'app ---");
+    });
+    document.getElementById("btn-app-journal-clear").addEventListener("click", async () => {
+      const { voiceDiagLog } = await journalModule;
+      voiceDiagLog.clear();
+      log("Journal de l'app vidé");
+    });
+
+    // Environnement du téléphone : mémoire, stockage et base IndexedDB où Vosk garde le modèle extrait.
+    async function logEnvironment() {
+      log(`Mémoire de l'appareil (deviceMemory): ${navigator.deviceMemory ?? "inconnue"} Go | réseau: ${navigator.connection ? `${navigator.connection.effectiveType}, ${navigator.connection.downlink} Mb/s` : "inconnu"}`);
+      log(`Mot-clé activé dans l'app: ${localStorage.getItem("pah_wake_word_enabled") === "true" ? "oui" : "non"}`);
+      try {
+        const { usage, quota } = await navigator.storage.estimate();
+        const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : "inconnu";
+        log(`Stockage (storage.estimate): ${(usage / 1048576).toFixed(0)} Mo utilisés / ${(quota / 1048576).toFixed(0)} Mo, persistant: ${persisted}`);
+      } catch (err) {
+        log(`Stockage: estimation impossible (${err.message})`);
+      }
+      try {
+        const databases = indexedDB.databases ? await indexedDB.databases() : [];
+        log(`Bases IndexedDB (indexedDB.databases): ${databases.map((db) => db.name).join(", ") || "aucune"} (modèle Vosk en cache si « /vosk » figure)`);
+      } catch (err) {
+        log(`Bases IndexedDB: liste impossible (${err.message})`);
+      }
+    }
+
+    // Comme l'app au lancement : AudioContext créé sans geste de l'utilisateur, resume() se résout-il ?
+    function checkAudioContextWithoutGesture() {
+      const ctx = new AudioContext();
+      log(`AudioContext créé sans geste: état ${ctx.state}`);
+      if (ctx.state !== "suspended") return ctx.close();
+      let resolved = false;
+      ctx.resume().then(() => {
+        resolved = true;
+        log("AudioContext sans geste: resume() résolu");
+        ctx.close();
+      });
+      setTimeout(() => {
+        if (!resolved) log("AudioContext sans geste: resume() toujours en attente après 3 s (se débloque au premier toucher ?)");
+      }, 3000);
+    }
+
     log(`Contexte sécurisé: ${window.isSecureContext} | Web Speech: ${!!SpeechRecognitionCtor} | getUserMedia: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
     log(`navigator.audioSession: ${"audioSession" in navigator} | UA: ${navigator.userAgent}`);
+    logEnvironment();
+    checkAudioContextWithoutGesture();
   </script>
 </body>
 </html>
