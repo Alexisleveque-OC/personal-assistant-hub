@@ -60,7 +60,7 @@ class GeminiRayonSuggester:
             url = f"{GEMINI_API_BASE_URL}/models/{model}:generateContent"
             try:
                 async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as http:
-                    resp = await http.post(url, params={"key": client.api_key}, json=payload)
+                    resp = await http.post(url, headers={"x-goog-api-key": client.api_key}, json=payload)
                 if resp.status_code in (429, 503):
                     client.mark_model_temporarily_unavailable(model)
                     continue
