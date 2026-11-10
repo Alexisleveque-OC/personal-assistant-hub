@@ -57,4 +57,4 @@ def test_service_worker_caches_the_tasks_view_with_a_new_version():
 
     assert "/static/js/views/tasks_view.js" in sw
     assert "/static/js/toast.js" in sw
-    assert "pah-pwa-cache-v32" in sw
+    assert "pah-pwa-cache-v33" in sw

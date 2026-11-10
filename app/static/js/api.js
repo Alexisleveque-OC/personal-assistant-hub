@@ -373,6 +373,24 @@ async function tasksRequest(url, options, fallbackMessage) {
   return await res.json();
 }
 
+// Accueil (refonte UX) : 3 dernières actions d'Otis ; seule la plus récente de cette session est annulable.
+export async function fetchRecentActions(sessionId) {
+  const params = new URLSearchParams({ session_id: sessionId });
+  const res = await fetch(`/api/v1/home/recent-actions?${params.toString()}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Dernières actions indisponibles (${res.status})`);
+  return await res.json();
+}
+
+// Liste de courses lue directement (sans question à Otis, donc sans écrire dans le journal).
+export async function fetchShoppingData() {
+  const res = await fetch("/api/v1/meals/shopping", { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    throw new Error((errJson && errJson.detail) || `Liste de courses indisponible (${res.status})`);
+  }
+  return await res.json();
+}
+
 export async function fetchTasks() {
   return tasksRequest("/api/v1/tasks", { method: "GET" }, "Erreur de chargement des tâches");
 }

@@ -671,6 +671,9 @@ export function triggerWakeCapture(detectedTranscript = "") {
 }
 
 export function updateWakeWordIndicator(statusOverride = null) {
+  // Interrupteur « Mains-libres » du menu (refonte UX) : suit l'état réel (réglages, coupure auto sur échec).
+  const wakeSwitch = document.getElementById("wake-word-switch");
+  if (wakeSwitch) wakeSwitch.checked = !!state.wakeWordEnabled;
   const indicator = document.getElementById("wake-word-indicator");
   if (!indicator) return;
 
