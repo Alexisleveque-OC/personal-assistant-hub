@@ -17,10 +17,10 @@ const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
 const queryInput = document.getElementById("query-input");
 
-// Refonte UX : la conversation est sur l'accueil ; quand une feuille la recouvre, on ne fait pas défiler la page.
+// Refonte UX : la conversation est dans la feuille « Conversation » ; fermée, on ne fait pas défiler la page.
 function isHomeVisible() {
-  const home = document.getElementById("view-chat");
-  return !home || home.classList.contains("active");
+  const conversation = document.getElementById("view-conversation");
+  return !conversation || conversation.classList.contains("active");
 }
 
 const CHAT_STORAGE_KEY = "pah_chat_ui_history";
@@ -458,7 +458,7 @@ export function initChatView() {
 
   // Support du collage (Paste / Ctrl+V) d'une capture dans le Chat
   window.addEventListener("paste", (e) => {
-    const activeView = document.getElementById("view-chat");
+    const activeView = document.getElementById("view-conversation");
     if (!activeView || !activeView.classList.contains("active")) return;
 
     const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;

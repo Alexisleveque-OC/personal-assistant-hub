@@ -25,6 +25,7 @@ from app.routers.meals import router as meals_router
 from app.routers.sport import router as sport_router
 from app.routers.strava import router as strava_router
 from app.routers.second_brain import router as second_brain_router
+from app.routers.home import router as home_router
 from app.routers.pwa import router as pwa_router, mount_static_files
 from app.routers.wake_word import router as wake_word_router
 from app.routers.tasks import router as tasks_router
@@ -134,6 +135,7 @@ app.include_router(tasks_router)
 app.include_router(sport_router)
 app.include_router(strava_router)
 app.include_router(second_brain_router)
+app.include_router(home_router)
 app.include_router(pwa_router)
 app.include_router(wake_word_router)
 

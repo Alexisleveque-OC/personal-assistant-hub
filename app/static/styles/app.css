@@ -44,3 +44,46 @@ label.drawer__item { cursor: pointer; }
 .drawer__item .count:empty { display: none; }
 .drawer__brand-text { flex: 1; }
 .avatar-otis--lg { width: 44px; height: 44px; font-size: 18px; }
+
+/* ---------- Accueil : dernières actions + bulles ---------- */
+.home { display: flex; flex-direction: column; gap: var(--s-3); }
+
+/* En-tête et dernière réponse d'Otis : boutons qui ouvrent la feuille Conversation */
+button.activity__head,
+button.activity__item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.activity__head { font-size: var(--fs-md); font-weight: 800; }
+.activity__item--reply .activity__text {
+  color: var(--text-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.activity__item--reply .activity__text::before { content: "Otis : "; font-weight: 800; color: var(--accent); }
+.activity__item--empty { color: var(--muted); font-size: var(--fs-md); }
+button.activity__undo {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 0 0 0 var(--s-2);
+  min-height: var(--tap);
+  cursor: pointer;
+}
+button.activity__undo:disabled { color: var(--disabled); cursor: default; }
+
+/* Bulles : textes longs coupés pour garder la grille régulière */
+.bubble__value { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.bubble__foot { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Menu : état en direct du mains-libres « Otis » sous son libellé */
+.drawer__label { display: flex; flex-direction: column; }
+.drawer__label .wake-word-indicator {
+  display: flex; align-items: center; gap: 6px;
+  margin: 2px 0 0; padding: 0; border: 0; background: none;
+  font-size: var(--fs-xs); font-weight: 600; color: var(--muted);
+}
