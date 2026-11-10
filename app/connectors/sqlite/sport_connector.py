@@ -610,8 +610,16 @@ class SqlSportConnector(BaseConnector):
                 self.get_weekly_summary(week_num=w, year=y)
             rows = self.db.get_all_sport_weekly_summaries(annee=year)
 
+        # La S-1 est lue à jour depuis sa propre ligne : les colonnes previous_week_* persistées
+        # sont une copie figée au calcul de S, périmée dès que S-1 change ensuite.
+        rows_by_week = {
+            (r["annee"], r["semaine"]): r for r in self.db.get_all_sport_weekly_summaries()
+        }
+
         results: List[SportWeeklySummary] = []
         for r in rows:
+            prev_iso = (date.fromisocalendar(r["annee"], r["semaine"], 1) - timedelta(days=7)).isocalendar()
+            prev = rows_by_week.get((prev_iso[0], prev_iso[1]))
             results.append(
                 SportWeeklySummary(
                     semaine=r["semaine"],
@@ -625,9 +633,9 @@ class SqlSportConnector(BaseConnector):
                     vitesse_moyenne_kmh=r.get("vitesse_moyenne_kmh"),
                     charge_rpe_totale=r["charge_rpe_totale"],
                     nb_renfo=r["nb_renfo"],
-                    previous_week_km_effort=r.get("previous_week_km_effort"),
-                    previous_week_vitesse_kmh=r.get("previous_week_vitesse_kmh"),
-                    previous_week_charge_rpe=r.get("previous_week_charge_rpe"),
+                    previous_week_km_effort=prev["km_effort_total"] if prev else None,
+                    previous_week_vitesse_kmh=prev.get("vitesse_moyenne_kmh") if prev else None,
+                    previous_week_charge_rpe=prev["charge_rpe_totale"] if prev else None,
                 )
             )
         results.sort(key=lambda s: (s.annee, s.semaine), reverse=True)
