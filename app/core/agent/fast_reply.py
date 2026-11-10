@@ -76,6 +76,8 @@ def _details(values: Dict[str, Any]) -> List[str]:
         "vitesse_cible": lambda v: f"vitesse {v}",
         "programme": lambda v: "programme mis à jour",
         "remarques": lambda v: "remarque ajoutée",
+        "douleur_intensite": lambda v: f"douleur {v}/10",
+        "douleur_zone": lambda v: f"zone {v}",
     }
     return [fmt(values[key]) for key, fmt in formats.items() if values.get(key) is not None]
 

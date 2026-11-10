@@ -3,7 +3,7 @@ from datetime import date, datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks, File, Form, UploadFile
 
 from app.config import settings
 from app.core.security import verify_api_key
@@ -24,6 +24,8 @@ from app.connectors.sheets.sport_models import (
 )
 from app.core.vision.sport_vision_service import get_sport_vision_service, VisionServiceUnavailableError
 from app.core.date_resolver import parse_screenshot_date, format_natural_spoken_date
+from app.core.audio.stt_service import STTUnavailableError, get_stt_service
+from app.core.sport_session_draft import SessionDraftUnavailableError, get_session_draft_service
 from app.core.sport_dashboard_service import (
     CoachTipProvider,
     aggregate_period,
@@ -159,6 +161,8 @@ async def get_sport_sessions(
     type_seance: Optional[str] = Query(None, description="Filtrer par type de séance (ex: EF, Fractionné, Renforcement)"),
     limit: int = Query(100, ge=1, le=500, description="Limite pour la pagination"),
     offset: int = Query(0, ge=0, description="Offset pour la pagination"),
+    date_from: Optional[date] = Query(None, description="Première date incluse (AAAA-MM-JJ)"),
+    date_to: Optional[date] = Query(None, description="Dernière date incluse (AAAA-MM-JJ)"),
     connector=Depends(get_sport_connector_dep),
 ):
     """Retourne la liste des séances avec tri chronologique / antichronologique et filtres."""
@@ -166,6 +170,8 @@ async def get_sport_sessions(
 
     filtered = []
     for s in all_sessions:
+        if (date_from and s.date < date_from) or (date_to and s.date > date_to):
+            continue
         if statut:
             target_st = statut.strip().lower()
             current_st = s.statut.value.lower() if hasattr(s.statut, "value") else str(s.statut).lower()
@@ -259,6 +265,46 @@ async def create_sport_session_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Échec de création de la séance : {exc}",
         )
+
+
+@router.post("/session/draft", summary="Brouillon de séance à partir d'une dictée (rien n'est enregistré)")
+async def draft_sport_session(
+    audio_file: Optional[UploadFile] = File(None, description="Dictée enregistrée par le téléphone"),
+    text: Optional[str] = Form(None, description="Dictée déjà écrite (alternative à l'audio)"),
+):
+    """« Dicte ta séance » : transcription éventuelle + champs extraits pour pré-remplir le formulaire Séance.
+
+    Aucune écriture : ni séance, ni journal des conversations, ni historique de session."""
+    transcription = (text or "").strip()
+    if audio_file is not None:
+        audio_bytes = await audio_file.read()
+        if not audio_bytes:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Le flux audio envoyé est vide.")
+        mime = (audio_file.content_type or "audio/webm").split(";")[0].strip().lower()
+        try:
+            transcription, _ = await get_stt_service().process_audio(audio_bytes=audio_bytes, mime_type=mime, context={})
+        except STTUnavailableError as exc:
+            logger.error(f"Brouillon de séance : transcription impossible : {exc}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.user_message)
+        transcription = (transcription or "").strip()
+    if not transcription:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Dictée vide : envoyer un texte ou audio contenant la description de la séance.",
+        )
+    try:
+        result = await get_session_draft_service().draft(transcription)
+    except SessionDraftUnavailableError as exc:
+        logger.error(f"Brouillon de séance impossible : {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Otis n'a pas pu lire la dictée pour l'instant : remplis le formulaire à la main ou réessaie.",
+        )
+    return {
+        "transcription": transcription,
+        "draft": result.draft.model_dump(mode="json", exclude_none=True),
+        "dropped": result.dropped,
+    }
 
 
 @router.patch("/session/{target_date}")

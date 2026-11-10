@@ -25,6 +25,18 @@ class SportSessionType(str, Enum):
     RENFORCEMENT = "Renforcement"
 
 
+class ProposedSessionType(str, Enum):
+    """Types proposés pour une nouvelle séance ou un changement de type (formulaire, Otis, coach ; décision du 10/11).
+
+    Tempo et Récup ne sont plus proposés : les séances existantes de ces types restent lisibles (SportSessionType)."""
+    EF = "EF"
+    COURSE = "Course"
+    SORTIE_LONGUE = "Sortie Longue"
+    VITESSE = "Vitesse"
+    FRACTIONNE = "Fractionné"
+    RENFORCEMENT = "Renforcement"
+
+
 def calculate_km_effort(distance_km: Optional[float], denivele_d_plus: Optional[int]) -> Optional[float]:
     """Calcule le Kilomètre-Effort standard : Distance (km) + D+ (m) / 100."""
     if distance_km is None:
@@ -86,6 +98,8 @@ class SportSession(BaseModel):
     allure_cible: Optional[str] = Field(default=None, description="Allure cible conseillée (ex: 06:30/km (+/- 15s))")
     vitesse_cible: Optional[str] = Field(default=None, description="Vitesse cible conseillée (ex: 9.2 km/h (+/- 0.4 km/h))")
     strava_id: Optional[str] = None
+    douleur_intensite: Optional[int] = Field(None, ge=0, le=10, description="Douleur de 0 (aucune) à 10 ; vide = non renseignée")
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse (ex : tibia / genou)")
 
     @field_validator("statut", mode="before")
     @classmethod
@@ -267,6 +281,8 @@ class SportSessionCreate(BaseModel):
     remarques: Optional[str] = ""
     notes: Optional[str] = ""
     strava_id: Optional[str] = None
+    douleur_intensite: Optional[int] = Field(None, ge=0, le=10, description="Douleur de 0 (aucune) à 10 ; vide = non renseignée")
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse (ex : tibia / genou)")
 
     @field_validator("statut", mode="before")
     @classmethod
@@ -310,6 +326,8 @@ class SportSessionUpdate(BaseModel):
     fc_moyenne: Optional[int] = Field(None, ge=30, le=250)
     fc_max: Optional[int] = Field(None, ge=30, le=250)
     meteo_note: Optional[int] = Field(None, ge=1, le=10)
+    douleur_intensite: Optional[int] = Field(None, ge=0, le=10, description="Douleur de 0 (aucune) à 10 ; vide = non renseignée")
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse (ex : tibia / genou)")
 
     @model_validator(mode="before")
     @classmethod
@@ -425,6 +443,7 @@ class PeriodTotals(BaseModel):
     km_effort: float = 0.0
     duree_secondes: int = 0
     charge_rpe: int = 0
+    denivele_d_plus: int = Field(0, description="D+ total des séances réalisées (m)")
     vitesse_kmh: Optional[float] = None
     allure_formatted: Optional[str] = None
 
