@@ -443,6 +443,7 @@ class PeriodTotals(BaseModel):
     km_effort: float = 0.0
     duree_secondes: int = 0
     charge_rpe: int = 0
+    denivele_d_plus: int = Field(0, description="D+ total des séances réalisées (m)")
     vitesse_kmh: Optional[float] = None
     allure_formatted: Optional[str] = None
 

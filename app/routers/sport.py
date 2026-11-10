@@ -159,6 +159,8 @@ async def get_sport_sessions(
     type_seance: Optional[str] = Query(None, description="Filtrer par type de séance (ex: EF, Fractionné, Renforcement)"),
     limit: int = Query(100, ge=1, le=500, description="Limite pour la pagination"),
     offset: int = Query(0, ge=0, description="Offset pour la pagination"),
+    date_from: Optional[date] = Query(None, description="Première date incluse (AAAA-MM-JJ)"),
+    date_to: Optional[date] = Query(None, description="Dernière date incluse (AAAA-MM-JJ)"),
     connector=Depends(get_sport_connector_dep),
 ):
     """Retourne la liste des séances avec tri chronologique / antichronologique et filtres."""
@@ -166,6 +168,8 @@ async def get_sport_sessions(
 
     filtered = []
     for s in all_sessions:
+        if (date_from and s.date < date_from) or (date_to and s.date > date_to):
+            continue
         if statut:
             target_st = statut.strip().lower()
             current_st = s.statut.value.lower() if hasattr(s.statut, "value") else str(s.statut).lower()

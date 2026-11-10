@@ -13,6 +13,7 @@ from app.connectors.sheets.sport_models import SportSessionCreate, SportSessionU
 from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.agent.tools.sport_models import LogSessionArgs, SessionChanges, SessionRow, SessionView
 from app.core.database import DatabaseManager
+from app.core import dependencies
 from app.main import app
 
 
@@ -68,7 +69,9 @@ def test_otis_can_log_and_change_the_pain_and_sees_it():
         assert {"douleur_intensite", "douleur_zone"} <= set(model.model_fields), model.__name__
 
 
-def test_api_creates_and_patches_the_pain(isolate_sqlite_database):
+def test_api_creates_and_patches_the_pain(isolate_sqlite_database, monkeypatch):
+    # La route lit le connecteur global : il doit pointer sur la base isolée de ce test.
+    monkeypatch.setattr(dependencies, "_sport_connector", SqlSportConnector(db_manager=isolate_sqlite_database))
     client = TestClient(app)
 
     created = client.post("/api/v1/sport/session", json={

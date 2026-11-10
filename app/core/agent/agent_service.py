@@ -1,4 +1,5 @@
 """Boucle agent : Gemini raisonne, appelle les outils métier (function calling), puis formule la réponse vocale."""
+import logging
 import time
 from typing import Any, Dict, List, Literal, Optional, Sequence
 
@@ -10,8 +11,8 @@ from app.core.agent.llm import AgentLLM
 from app.core.agent.prompt import build_system_prompt
 from app.core.agent.tool_registry import ToolExecution, ToolRegistry
 from app.core.agent.tools.session_types import cited_session_types
-from app.core.agent.tools.sport_models import FindSessionsArgs
-from app.core.agent.tools.sport_tools import SportTools
+from app.core.agent.tools.sport_models import FindSessionsArgs, SessionView
+from app.core.agent.tools.sport_tools import SportSessionNotFoundError, SportTools
 from app.core.agent.undo import AgentUndo
 
 __all__ = ["AgentLoopLimitError", "AgentReply", "AgentResponseError", "AgentService", "ConversationTurn"]
@@ -42,6 +43,9 @@ class AgentReply(BaseModel):
         return [undo for e in self.executions for undo in e.undos]
 
 
+logger = logging.getLogger(__name__)
+
+
 class AgentService:
     def __init__(
         self, llm: AgentLLM, registry: ToolRegistry, sport_tools: SportTools, max_llm_calls: int = 4,
@@ -54,14 +58,29 @@ class AgentService:
         self.max_llm_calls = max_llm_calls
         self.fast_replies = fast_replies
 
+    def _open_session(self, session_id: Optional[int]) -> Optional[SessionView]:
+        """Séance affichée sur le téléphone ; supprimée entre-temps : signalé dans les logs et ignoré."""
+        if not session_id:
+            return None
+        try:
+            return self.sport_tools.get_sport_session(int(session_id))
+        except SportSessionNotFoundError:
+            logger.warning(f"Séance ouverte {session_id} introuvable (supprimée ?) : non signalée à l'agent.")
+            return None
+
     async def run(
         self, query: str, history: Sequence[ConversationTurn] = (), ui_context: Optional[str] = None,
+        ui_session_id: Optional[int] = None,
     ) -> AgentReply:
-        """`ui_context` : feuille de la PWA d'où parle l'utilisateur (ex. « courses »), signalée à l'agent."""
+        """`ui_context` : feuille de la PWA d'où parle l'utilisateur (ex. « courses »), signalée à l'agent.
+
+        `ui_session_id` : séance affichée en détail ; une correction sans séance précisée porte sur elle."""
         previous_user_turns = [turn.text for turn in history if turn.role == "user"][-1:]
         self.sport_tools.cited_types = frozenset(cited_session_types([query, *previous_user_turns]))
         recent = self.sport_tools.find_sport_sessions(FindSessionsArgs(limit=RECENT_SESSIONS_LIMIT))
-        system_instruction = build_system_prompt(self.sport_tools.today(), recent, ui_context=ui_context)
+        system_instruction = build_system_prompt(
+            self.sport_tools.today(), recent, ui_context=ui_context, open_session=self._open_session(ui_session_id),
+        )
         contents: List[Dict[str, Any]] = [
             {"role": "model" if turn.role == "assistant" else "user", "parts": [{"text": turn.text}]} for turn in history
         ]

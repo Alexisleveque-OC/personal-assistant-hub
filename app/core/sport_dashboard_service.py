@@ -119,6 +119,7 @@ def _compute_period_totals(sessions_in_period: List[SportSession]) -> PeriodTota
     kme_tot = sum(s.km_effort or 0.0 for s in realised)
     dur_tot = sum(s.duree_secondes or 0 for s in realised)
     charge_rpe_tot = sum(s.charge_rpe or 0 for s in realised)
+    d_plus_tot = sum(s.denivele_d_plus or 0 for s in realised)
 
     # Durée et km des courses uniquement (pour exclure le renfo du calcul de vitesse / allure)
     running = [s for s in realised if s.type_seance != SportSessionType.RENFORCEMENT and (s.distance_km or 0) > 0]
@@ -139,6 +140,7 @@ def _compute_period_totals(sessions_in_period: List[SportSession]) -> PeriodTota
         km_effort=round(kme_tot, 2),
         duree_secondes=dur_tot,
         charge_rpe=charge_rpe_tot,
+        denivele_d_plus=d_plus_tot,
         vitesse_kmh=vit_moy,
         allure_formatted=allure_fmt,
     )
