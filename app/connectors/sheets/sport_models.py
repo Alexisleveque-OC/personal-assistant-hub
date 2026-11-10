@@ -241,7 +241,7 @@ class SportWeeklySummary(BaseModel):
             return f"🔴 Risque Blessure ({', '.join(reasons)})"
         if prog > 10.0:
             return f"🟡 Vigilance (+{prog:.1f}%)"
-        return f"🟢 Progression Saine (+{prog:.1f}%)"
+        return f"🟢 Progression Saine ({prog:+.1f}%)"
 
     @computed_field
     @property

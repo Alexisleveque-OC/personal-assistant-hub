@@ -294,3 +294,52 @@ def test_plan_weekly_sessions_skips_days_already_completed(temp_sql_connector):
     assert [s.date for s in inserted] == [date(2026, 10, 21)]
     monday = db.get_sport_sessions(start_date="2026-10-19", end_date="2026-10-19")
     assert [(s["id"], s["statut"], s["type_seance"]) for s in monday] == [(done_id, "Réalisé", "EF")]
+
+
+def _log_run(connector, day, km, minutes, rpe):
+    connector.log_session(SportSessionCreate(
+        date=day,
+        statut=SportSessionStatus.REALISE,
+        type_seance=SportSessionType.EF,
+        distance_km=km,
+        duree_secondes=minutes * 60,
+        ressenti_rpe=rpe,
+    ))
+
+
+def _summary(summaries, annee, semaine):
+    return next(s for s in summaries if s.annee == annee and s.semaine == semaine)
+
+
+def test_all_summaries_compare_with_the_current_previous_week(temp_sql_connector):
+    """La S-1 est lue à jour : une séance ajoutée en S45 après le calcul de S46 change la comparaison de S46."""
+    _log_run(temp_sql_connector, date(2026, 11, 3), 5.0, 30, 4)   # S45 : charge 120
+    _log_run(temp_sql_connector, date(2026, 11, 9), 7.0, 46, 6)   # S46 : charge 276
+    _log_run(temp_sql_connector, date(2026, 11, 6), 5.0, 30, 4)   # S45 complétée après S46 : charge 240
+
+    s46 = _summary(temp_sql_connector.get_all_summaries(year=2026), 2026, 46)
+
+    assert s46.previous_week_charge_rpe == 240
+    assert s46.previous_week_km_effort == 10.0
+    assert s46.evolution_rpe_pct == 15.0
+
+
+def test_all_summaries_previous_week_crosses_the_year_boundary(temp_sql_connector):
+    """La S1 2026 se compare à la dernière semaine 2025, même avec un filtre sur l'année."""
+    _log_run(temp_sql_connector, date(2026, 1, 2), 6.0, 36, 5)    # S1 2026
+    _log_run(temp_sql_connector, date(2025, 12, 23), 5.0, 30, 4)  # S52 2025, après coup
+
+    s1 = _summary(temp_sql_connector.get_all_summaries(year=2026), 2026, 1)
+
+    assert s1.previous_week_charge_rpe == 120
+    assert s1.previous_week_km_effort == 5.0
+
+
+def test_all_summaries_without_previous_week_is_a_first_week(temp_sql_connector):
+    """Sans séance la semaine précédente, pas de comparaison."""
+    _log_run(temp_sql_connector, date(2026, 11, 9), 7.0, 46, 6)
+
+    s46 = _summary(temp_sql_connector.get_all_summaries(year=2026), 2026, 46)
+
+    assert s46.previous_week_charge_rpe is None
+    assert "Première semaine" in s46.alerte_securite
