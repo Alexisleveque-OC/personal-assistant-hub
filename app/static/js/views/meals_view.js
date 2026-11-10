@@ -71,7 +71,7 @@ export async function fetchMealToday() {
     mealContainer.querySelectorAll(".chip-btn").forEach((chip) => {
       chip.addEventListener("click", () => {
         const q = chip.getAttribute("data-query");
-        document.querySelector('.nav-item[data-view="chat"]').click();
+        // Refonte UX : plus d'onglet Vocal ; la réponse s'affiche en toast sur la feuille Repas.
         sendInteraction(q);
       });
     });

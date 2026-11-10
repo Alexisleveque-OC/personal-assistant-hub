@@ -49,7 +49,7 @@ def test_e2e_pwa_manifest_and_sw_integration():
     assert resp_app.status_code == 200
     assert resp_app.headers.get("cache-control") == "no-cache, no-store, must-revalidate"
     assert "Assistant Hub" in resp_app.text
-    assert "brand-logo-img" in resp_app.text
+    assert 'class="drawer__brand"' in resp_app.text  # refonte UX : la marque est dans le menu burger
 
 
 def test_e2e_mobile_voice_interaction_flow():

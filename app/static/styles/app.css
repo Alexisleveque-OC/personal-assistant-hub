@@ -1,0 +1,38 @@
+/* ==========================================================================
+   Compléments de hub.css propres à l'app (hub.css reste une copie exacte du kit de refonte).
+   Éléments natifs (<button> du menu), emplacements de la barre de saisie déplaçable, tailles d'icônes.
+   ========================================================================== */
+
+/* Accueil : la barre de saisie reste collée en bas */
+#composer-home-slot { position: sticky; bottom: 0; z-index: 2; background: var(--bg); }
+
+/* Barre de saisie dans une feuille : toujours visible sous le contenu qui défile */
+.sheet .composer-slot { flex-shrink: 0; background: inherit; }
+.sheet .composer-slot:empty { display: none; }
+.mic-slot { display: inline-flex; }
+
+/* Feuille fermée : masquée une fois descendue (sinon son ombre dépasse en bas de l'écran) */
+.sheet { visibility: hidden; transition: transform .32s var(--ease), visibility 0s linear .32s; }
+.sheet.is-open { visibility: visible; transition: transform .32s var(--ease), visibility 0s; }
+/* Le corps de feuille est une colonne flex qui défile : ses blocs gardent leur hauteur */
+.sheet__body > * { flex-shrink: 0; }
+
+/* Feuilles et menu : le focus programmatique (ouverture) ne dessine pas de cadre ; glissé vers le bas */
+.sheet:focus, .drawer:focus { outline: none; }
+.sheet__handle, .sheet__header { touch-action: none; }
+body:has(.sheet.is-open), body:has(.drawer.is-open) { overflow: hidden; }
+
+/* Menu : les entrées sont des <button> (hub.css les dessine comme des liens) */
+button.drawer__item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+label.drawer__item { cursor: pointer; }
+.drawer__item svg { width: 22px; height: 22px; flex-shrink: 0; }
+.drawer__label { flex: 1; }
+.drawer__item .count:empty { display: none; }
+.drawer__brand-text { flex: 1; }
+.avatar-otis--lg { width: 44px; height: 44px; font-size: 18px; }
