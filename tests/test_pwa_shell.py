@@ -280,7 +280,7 @@ def test_new_styles_and_modules_are_served_and_precached():
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"
     for css in ("hub.css", "app.css", "legacy-bridge.css"):
         assert f"/static/styles/{css}" in html
-    assert "pah-pwa-cache-v32" in sw
+    assert "pah-pwa-cache-v33" in sw
 
 
 def test_theme_is_set_before_first_paint_from_saved_choice_or_system():
@@ -304,7 +304,7 @@ def test_static_files_are_revalidated_instead_of_heuristically_cached():
 def test_service_worker_bypasses_the_http_cache_when_it_fetches_assets():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v32" in sw
+    assert "pah-pwa-cache-v33" in sw
     assert 'new Request(url, { cache: "reload" })' in sw  # précache à l'installation
     assert sw.count('fetch(event.request, { cache: "no-cache" })') == 2  # JS réseau d'abord + autres assets
 

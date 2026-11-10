@@ -12,4 +12,3 @@ body {
   font-family: var(--font);
 }
 .app { position: relative; z-index: 1; }
-.home-chat { display: flex; flex-direction: column; }

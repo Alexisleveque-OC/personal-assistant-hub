@@ -34,7 +34,7 @@
   <!-- Refonte UX : l'ancien style.css reste chargé tant que chaque écran n'est pas migré (ROADMAP étape 8). -->
   <link rel="stylesheet" href="/static/style.css?v=8.4" />
   <link rel="stylesheet" href="/static/styles/hub.css?v=1" />
-  <link rel="stylesheet" href="/static/styles/app.css?v=2" />
+  <link rel="stylesheet" href="/static/styles/app.css?v=3" />
   <link rel="stylesheet" href="/static/styles/legacy-bridge.css?v=1" />
 </head>
 <body>
@@ -69,17 +69,8 @@
   <!-- Main Content Area -->
   <main class="app__main">
 
-    <!-- VIEW 1: VOCAL & CHAT -->
-    <section id="view-chat" class="home-chat active" aria-label="Conversation avec Otis">
-      <!-- Suggestion chips -->
-      <div class="chips-container" id="chips-container">
-        <button class="chip-btn chip-action" id="chip-new-chat" title="Démarrer un nouveau fil de discussion">✨ Nouveau fil</button>
-        <button class="chip-btn" data-query="Qu'est-ce qu'on mange ce soir ?">🍽️ Repas ce soir</button>
-        <button class="chip-btn" data-query="Donne-moi la liste de courses">🛒 Liste de courses</button>
-        <button class="chip-btn" data-query="Ajoute du pain et du beurre">🥖 Pain et beurre</button>
-        <button class="chip-btn" data-query="Qu'est-ce qu'on mange demain midi ?">☀️ Demain midi</button>
-      </div>
-
+    <!-- ACCUEIL : dernières actions d'Otis + 4 bulles (la conversation complète est dans la feuille Conversation) -->
+    <section id="view-home" class="home active" aria-label="Accueil">
       <!-- Live Voice Bar Visualizer -->
       <div id="voice-bar-area" class="voice-bar-area">
         <div class="voice-visualizer">
@@ -93,31 +84,35 @@
         <div id="interim-transcript" class="interim-transcript">Je vous écoute...</div>
       </div>
 
-      <!-- Messages Stream -->
-      <div id="chat-stream" class="chat-stream">
-        <div class="chat-bubble assistant">
-          <div class="bubble-header">
-            <span>Assistant Hub</span>
-          </div>
-          <div class="bubble-content">
-            Bonjour ! Je suis votre assistant personnel. Appuyez sur le micro ou tapez un message pour gérer vos repas ou votre liste de courses.
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Undo Floating Toast -->
-      <div id="undo-toast" class="undo-toast" style="display:none;">
-        <span id="undo-toast-text">Action enregistrée</span>
-        <button id="btn-undo-action" class="btn-undo-action" title="Annuler l'action précédente">
-          ↩ Annuler
+      <section class="activity" id="home-activity" aria-label="Dernières actions">
+        <button type="button" class="activity__head" data-open-conversation aria-label="Dernières actions — ouvrir la conversation avec Otis">
+          Dernières actions <span class="avatar-otis" aria-hidden="true">O</span>
         </button>
-      </div>
+        <div id="home-activity-list" aria-live="polite"></div>
+      </section>
 
-      <!-- Mains-libres « Otis » : bascule mot-clé / micro au clic -->
-      <div id="wake-word-indicator" class="wake-word-indicator" style="cursor:pointer;" title="Cliquez pour basculer entre mode mains-libres et mode au clic (musique protégée)">
-          <span class="wake-dot"></span>
-          <span class="wake-label">Micro au clic</span>
-        </div>
+      <div class="bubble-grid">
+      <a href="#" class="bubble" data-section="repas" id="bubble-repas">
+        <span class="bubble__label">🍲 Ce soir</span>
+        <span class="bubble__value">…</span>
+        <span class="bubble__foot"></span>
+      </a>
+      <a href="#" class="bubble" data-section="sport" id="bubble-sport">
+        <span class="bubble__label">🏃 Sport du jour</span>
+        <span class="bubble__value">…</span>
+        <span class="bubble__foot"></span>
+      </a>
+      <a href="#" class="bubble" data-section="courses" id="bubble-courses">
+        <span class="bubble__label">🛒 À acheter</span>
+        <span class="bubble__value">…</span>
+        <span class="bubble__foot"></span>
+      </a>
+      <a href="#" class="bubble" data-section="taches" id="bubble-taches">
+        <span class="bubble__label">📌 Prochaine tâche</span>
+        <span class="bubble__value">…</span>
+        <span class="bubble__foot"></span>
+      </a>
+      </div>
     </section>
   </main>
   <!-- Barre de saisie universelle : déplacée dans la feuille ouverte (seul le placeholder change) -->
@@ -139,6 +134,49 @@
     </form>
   </div>
   </div>
+
+    <!-- CONVERSATION : historique complet avec Otis (s'ouvre depuis « Dernières actions ») -->
+    <section class="sheet" id="view-conversation" role="dialog" aria-modal="true" aria-labelledby="view-conversation-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header">
+        <h2 class="sheet__title" id="view-conversation-title">Conversation</h2>
+        <button type="button" class="icon-btn" id="btn-new-chat" aria-label="Nouveau fil de discussion">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet__body">
+      <!-- Suggestion chips -->
+      <div class="chips-container" id="chips-container">
+        <button class="chip-btn chip-action" id="chip-new-chat" title="Démarrer un nouveau fil de discussion">✨ Nouveau fil</button>
+        <button class="chip-btn" data-query="Qu'est-ce qu'on mange ce soir ?">🍽️ Repas ce soir</button>
+        <button class="chip-btn" data-query="Donne-moi la liste de courses">🛒 Liste de courses</button>
+        <button class="chip-btn" data-query="Ajoute du pain et du beurre">🥖 Pain et beurre</button>
+        <button class="chip-btn" data-query="Qu'est-ce qu'on mange demain midi ?">☀️ Demain midi</button>
+      </div>
+
+      <!-- Messages Stream -->
+      <div id="chat-stream" class="chat-stream">
+        <div class="chat-bubble assistant">
+          <div class="bubble-header">
+            <span>Assistant Hub</span>
+          </div>
+          <div class="bubble-content">
+            Bonjour ! Je suis votre assistant personnel. Appuyez sur le micro ou tapez un message pour gérer vos repas ou votre liste de courses.
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Undo Floating Toast -->
+      <div id="undo-toast" class="undo-toast" style="display:none;">
+        <span id="undo-toast-text">Action enregistrée</span>
+        <button id="btn-undo-action" class="btn-undo-action" title="Annuler l'action précédente">
+          ↩ Annuler
+        </button>
+      </div>
+      </div>
+      <div class="composer-slot"></div>
+    </section>
 
     <!-- VIEW 2: SHOPPING LIST -->
     <section class="sheet" id="view-shopping" role="dialog" aria-modal="true" aria-labelledby="view-shopping-title" aria-hidden="true" tabindex="-1" inert>
@@ -426,6 +464,9 @@
     <button type="button" class="drawer__item" id="drawer-journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6"/></svg><span class="drawer__label">Journal &amp; feedback</span></button>
     <div class="drawer__footer">
       <button type="button" class="drawer__item" id="btn-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="drawer__label">Réglages &amp; voix</span></button>
+      <label class="drawer__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg><span class="drawer__label">Mains-libres « Otis »<span id="wake-word-indicator" class="wake-word-indicator"><span class="wake-dot"></span><span class="wake-label">Micro au clic</span></span></span>
+        <span class="switch"><input type="checkbox" id="wake-word-switch" /><span></span></span>
+      </label>
       <label class="drawer__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg><span class="drawer__label">Thème sombre</span>
         <span class="switch"><input type="checkbox" id="theme-switch" /><span></span></span>
       </label>
@@ -753,6 +794,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=17.0"></script>
+  <script type="module" src="/static/app.js?v=18.0"></script>
 </body>
 </html>

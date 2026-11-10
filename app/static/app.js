@@ -25,6 +25,7 @@ import { initSecondBrainView, switchBrainSubview, getBrainSubview } from "./js/v
 import { initOfflineSync, syncOutbox } from "./js/offline_outbox.js";
 import { SECTIONS, sectionForSheet, sectionForAction, greetingFor, formatLongDate } from "./js/ui_shell.js";
 import { createSheetManager, bindSheetInteractions } from "./js/sheets.js";
+import { initHomeView, loadHome } from "./js/views/home_view.js";
 
 // Export / Référence SpeechRecognition pour les vérifications de compatibilité
 export { SpeechRecognition };
@@ -225,12 +226,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Clic direct sur l'indicateur pour basculer instantanément le Wake-Word (mains-libres vs micro au clic)
-  const wakeWordIndicator = document.getElementById("wake-word-indicator");
-  if (wakeWordIndicator) {
-    wakeWordIndicator.addEventListener("click", () => {
-      const isNowEnabled = toggleWakeWord();
-      if (isNowEnabled) {
+  // Refonte UX : l'indicateur est dans l'interrupteur « Mains-libres » du menu (un <label>) ; c'est la case qui bascule,
+  // un écouteur de clic sur l'indicateur basculerait une seconde fois.
+  // const wakeWordIndicator = document.getElementById("wake-word-indicator");
+  // if (wakeWordIndicator) {
+  //   wakeWordIndicator.addEventListener("click", () => {
+  //     const isNowEnabled = toggleWakeWord();
+  //     if (isNowEnabled) {
+  //       showToastInfo("Mains-libres 'Otis' activé (détection sur le téléphone, la musique n'est pas coupée).", "Otis à l'écoute");
+  //     } else {
+  //       showToastSuccess("Mode au clic activé : micro coupé, votre musique joue à 100% de volume.", "Micro au clic");
+  //     }
+  //   });
+  // }
+  const wakeWordSwitch = document.getElementById("wake-word-switch");
+  if (wakeWordSwitch) {
+    wakeWordSwitch.addEventListener("change", (e) => {
+      setWakeWordEnabled(e.target.checked);
+      if (e.target.checked) {
         showToastInfo("Mains-libres 'Otis' activé (détection sur le téléphone, la musique n'est pas coupée).", "Otis à l'écoute");
       } else {
         showToastSuccess("Mode au clic activé : micro coupé, votre musique joue à 100% de volume.", "Micro au clic");
@@ -358,7 +371,7 @@ function initShell() {
   const composer = document.getElementById("query-form");
   const queryInput = document.getElementById("query-input");
   const homeSlot = document.getElementById("composer-home-slot");
-  const home = document.getElementById("view-chat");
+  const home = document.getElementById("view-home");
   const drawerItems = document.querySelectorAll(".drawer__item[data-section]");
 
   const now = new Date();
@@ -377,6 +390,7 @@ function initShell() {
     if (queryInput) queryInput.placeholder = config.placeholder;
     state.uiContext = config.context;
     if (home) home.classList.toggle("active", !topId);
+    if (!topId) loadHome(); // retour à l'accueil : les bulles reflètent ce qui a changé dans la feuille
     drawerItems.forEach((item) => {
       if (item.dataset.section === section) item.setAttribute("aria-current", "page");
       else item.removeAttribute("aria-current");
@@ -414,10 +428,22 @@ function initShell() {
     journalItem.addEventListener("click", () => openSection("second_cerveau", burger, { brainView: "audit" }));
   }
 
-  // Réponse d'Otis pendant qu'une feuille est ouverte : toast + rafraîchissement de la section.
+  // Feuille Conversation : depuis « Dernières actions » (en-tête ou dernière réponse d'Otis).
+  document.addEventListener("click", (e) => {
+    const opener = e.target.closest("[data-open-conversation]");
+    if (opener) manager.openSection("view-conversation", opener);
+  });
+  initHomeView();
+
+  // Réponse d'Otis : sur l'accueil, les dernières actions se mettent à jour ; sur une feuille
+  // (hors Conversation, où elle s'affiche déjà) : toast + rafraîchissement de la section.
   window.addEventListener("otis-reply", (e) => {
     const topId = manager.topSheetId();
-    if (!topId) return;
+    if (!topId) {
+      loadHome();
+      return;
+    }
+    if (topId === "view-conversation") return;
     const text = e.detail && e.detail.text;
     if (text) showToastInfo(text, "Otis");
     loadSection(sectionForSheet(topId));
