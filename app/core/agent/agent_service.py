@@ -54,11 +54,14 @@ class AgentService:
         self.max_llm_calls = max_llm_calls
         self.fast_replies = fast_replies
 
-    async def run(self, query: str, history: Sequence[ConversationTurn] = ()) -> AgentReply:
+    async def run(
+        self, query: str, history: Sequence[ConversationTurn] = (), ui_context: Optional[str] = None,
+    ) -> AgentReply:
+        """`ui_context` : feuille de la PWA d'où parle l'utilisateur (ex. « courses »), signalée à l'agent."""
         previous_user_turns = [turn.text for turn in history if turn.role == "user"][-1:]
         self.sport_tools.cited_types = frozenset(cited_session_types([query, *previous_user_turns]))
         recent = self.sport_tools.find_sport_sessions(FindSessionsArgs(limit=RECENT_SESSIONS_LIMIT))
-        system_instruction = build_system_prompt(self.sport_tools.today(), recent)
+        system_instruction = build_system_prompt(self.sport_tools.today(), recent, ui_context=ui_context)
         contents: List[Dict[str, Any]] = [
             {"role": "model" if turn.role == "assistant" else "user", "parts": [{"text": turn.text}]} for turn in history
         ]

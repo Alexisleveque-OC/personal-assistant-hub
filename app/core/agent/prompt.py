@@ -1,7 +1,7 @@
 """Prompt système de l'agent : date du jour (Paris), règles de raisonnement et séances récentes avec identifiants."""
 from collections import Counter
 from datetime import date, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.core.agent.tools.sport_models import WEEKDAYS_FR, SessionView
 
@@ -108,14 +108,37 @@ def _multi_session_days(sessions: List[SessionView]) -> str:
     )
 
 
-def build_system_prompt(today: date, recent_sessions: List[SessionView]) -> str:
+# Feuille de la PWA d'où parle l'utilisateur (`ui_context`) → libellé donné à l'agent. L'accueil n'oriente rien.
+_UI_CONTEXT_LABELS: Dict[str, str] = {
+    "courses": "Courses (liste de courses)",
+    "repas": "Repas (planning des repas)",
+    "taches": "Tâches (Google Tasks)",
+    "sport": "Sport (séances de course et de renfo)",
+    "second_cerveau": "Second cerveau (notes et idées)",
+}
+
+
+def _open_screen(ui_context: Optional[str]) -> str:
+    label = _UI_CONTEXT_LABELS.get(ui_context or "")
+    if not label:
+        return ""
+    return (
+        f"Écran ouvert : {label}. L'utilisateur parle depuis cette section de l'application : "
+        "en cas d'ambiguïté, privilégie ce domaine.\n"
+    )
+
+
+def build_system_prompt(
+    today: date, recent_sessions: List[SessionView], ui_context: Optional[str] = None,
+) -> str:
     per_day = Counter(s.date for s in recent_sessions)
     sessions = "\n".join(
         _format_session(s, shared_day=per_day[s.date] > 1) for s in recent_sessions
     ) or "- (aucune séance enregistrée)"
     return (
         f"{_RULES}\n"
-        f"Aujourd'hui : {_format_day(today)} (heure de Paris). Hier : {_format_day(today - timedelta(days=1))}.\n\n"
+        f"Aujourd'hui : {_format_day(today)} (heure de Paris). Hier : {_format_day(today - timedelta(days=1))}.\n"
+        f"{_open_screen(ui_context)}\n"
         f"Séances récentes du carnet (les plus récentes d'abord) :\n{sessions}\n"
         f"{_multi_session_days(recent_sessions)}"
     )
