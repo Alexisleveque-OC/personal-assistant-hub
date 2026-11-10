@@ -25,6 +25,18 @@ class SportSessionType(str, Enum):
     RENFORCEMENT = "Renforcement"
 
 
+class ProposedSessionType(str, Enum):
+    """Types proposés pour une nouvelle séance ou un changement de type (formulaire, Otis, coach ; décision du 10/11).
+
+    Tempo et Récup ne sont plus proposés : les séances existantes de ces types restent lisibles (SportSessionType)."""
+    EF = "EF"
+    COURSE = "Course"
+    SORTIE_LONGUE = "Sortie Longue"
+    VITESSE = "Vitesse"
+    FRACTIONNE = "Fractionné"
+    RENFORCEMENT = "Renforcement"
+
+
 def calculate_km_effort(distance_km: Optional[float], denivele_d_plus: Optional[int]) -> Optional[float]:
     """Calcule le Kilomètre-Effort standard : Distance (km) + D+ (m) / 100."""
     if distance_km is None:

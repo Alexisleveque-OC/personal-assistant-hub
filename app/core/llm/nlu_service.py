@@ -59,7 +59,7 @@ Liste des intentions disponibles :
      - "distance_km" : float (ex: 8.0, 7.5, 10.2). Optionnel pour le renforcement musculaire.
      - "duration_seconds" : int (convertis la durée orale en secondes totales, ex: 42 min -> 2520, 30 min -> 1800).
      - "denivele_d_plus" : int en mètres (ex: 120, 80) si précisé.
-     - "type_seance" : "EF", "Fractionné", "Sortie Longue", "Tempo", "Récup", "Renforcement".
+     - "type_seance" : "EF", "Course", "Sortie Longue", "Vitesse", "Fractionné", "Renforcement".
      - "ressenti_rpe" : int de 1 à 10 (effort perçu).
      - "meteo_note" : int de 1 à 10 (difficulté météo si mentionnée).
      - "notes" : texte libre ou détails fractionné/renfo.

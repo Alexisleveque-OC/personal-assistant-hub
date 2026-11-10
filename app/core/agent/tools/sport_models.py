@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.connectors.sheets.sport_models import SportSession, SportSessionStatus, SportSessionType
+from app.connectors.sheets.sport_models import ProposedSessionType, SportSession, SportSessionStatus, SportSessionType
 
 WEEKDAYS_FR = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 
@@ -36,7 +36,7 @@ class SessionChanges(StrictArgs):
     """Champs à modifier sur une séance existante ; seuls les champs renseignés sont appliqués."""
     date: Optional[dt_date] = None
     statut: Optional[SportSessionStatus] = None
-    type_seance: Optional[SportSessionType] = None
+    type_seance: Optional[ProposedSessionType] = None
     distance_km: Optional[float] = Field(None, ge=0.0)
     duree_secondes: Optional[int] = Field(None, ge=0, description="Durée en secondes.")
     denivele_d_plus: Optional[int] = Field(None, ge=0)
@@ -66,7 +66,7 @@ class UpdateSessionArgs(StrictArgs):
 class LogSessionArgs(StrictArgs):
     """Séance réalisée à créer. Aucune valeur n'est déduite : ce qui n'est pas dit reste vide."""
     date: dt_date
-    type_seance: SportSessionType
+    type_seance: ProposedSessionType
     distance_km: Optional[float] = Field(None, ge=0.0)
     duree_secondes: Optional[int] = Field(None, ge=0, description="Durée en secondes.")
     denivele_d_plus: Optional[int] = Field(None, ge=0)
@@ -85,7 +85,7 @@ class LogSessionArgs(StrictArgs):
 class PlanSessionArgs(StrictArgs):
     """Séance future à planifier."""
     date: dt_date
-    type_seance: SportSessionType
+    type_seance: ProposedSessionType
     distance_km: Optional[float] = Field(None, ge=0.0)
     duree_secondes: Optional[int] = Field(None, gt=0)
     programme: Optional[str] = None
