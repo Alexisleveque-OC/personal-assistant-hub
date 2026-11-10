@@ -4,10 +4,13 @@ Les simples lectures (« donne-moi la liste ») et les échecs sont ignorés ; c
 Seule la plus récente peut être annulée, et seulement depuis la session qui l'a faite : le serveur n'annule
 que la dernière action d'une session (« annule ça »)."""
 import json
+import logging
 from datetime import date
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 WEEKDAYS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 UNDO_INTENT = "undo_last_action"
@@ -80,14 +83,21 @@ _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
 }
 
 
+def _added_articles(p: Dict[str, Any]) -> Optional[str]:
+    """Articles réellement ajoutés : le journal garde des objets pour les ajouts, et de simples chaînes
+    quand Otis demande d'abord le rayon (« rayon_question » : rien n'est encore dans la liste)."""
+    names = [x.get("item", "") for x in p.get("items") or [] if isinstance(x, dict)]
+    return _items_label(names, "ajouté", "aux courses")
+
+
 def _session(p: Dict[str, Any]) -> Dict[str, Any]:
     return p.get("session") or {}
 
 
 # Intentions historiques (flux regex / NLU) qui modifient des données → libellé (à partir des paramètres journalisés).
 _INTENT_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
-    "add_shopping_item": lambda p: _items_label([x.get("item", "") for x in p.get("items", [])], "ajouté", "aux courses")
-    or "Article ajouté aux courses",
+    "add_shopping_item": _added_articles,
+    "choose_rayon": _added_articles,  # réponse à « dans quel rayon ? » : l'article est ajouté à ce moment-là
     "add_recipe_ingredients": lambda p: "Ingrédients ajoutés aux courses",
     "mark_shopping_bought": lambda p: "Articles cochés dans les courses",
     "clear_shopping_list": lambda p: "Articles achetés retirés des courses",
@@ -148,7 +158,12 @@ def recent_actions(logs: Iterable[Dict[str, Any]], session_id: Optional[str], li
     for log in logs:
         if not log.get("success"):
             continue
-        label = action_label(log)
+        try:
+            label = action_label(log)
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            # Une entrée au format inattendu ne doit pas vider l'accueil : elle est signalée et sautée.
+            logger.warning(f"Dernières actions : journal n°{log.get('id')} ({log.get('intent')}) illisible, ignoré : {exc!r}")
+            continue
         if not label:
             continue
         undoable = not items and bool(session_id) and log.get("session_id") == session_id and not _is_undo(log)

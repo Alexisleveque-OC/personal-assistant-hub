@@ -112,3 +112,28 @@ def test_route_reads_the_conversation_journal(isolate_sqlite_database):
     assert res.status_code == 200, res.text
     items = res.json()["items"]
     assert [(i["label"], i["undoable"]) for i in items] == [("Lait ajouté aux courses", True)]
+
+
+# ---------- Formats réels du journal de prod (500 du 10/11) ----------
+
+def test_rayon_question_alone_is_not_an_action_and_string_items_are_not_added_articles():
+    params = {"items": ["champignon"], "item": "champignon", "rayon_question": {"article": "Champignon"}}
+    assert action_label(_log("add_shopping_item", params)) is None
+
+
+def test_rayon_answer_that_adds_the_article_is_an_action():
+    params = {"items": [{"item": "Champignon", "is_bought": False, "rayon": "Légumes"}]}
+    assert action_label(_log("choose_rayon", params)) == "Champignon ajouté aux courses"
+    assert action_label(_log("choose_rayon", {})) is None
+
+
+def test_a_malformed_journal_entry_is_skipped_with_a_warning_instead_of_breaking_the_home(caplog):
+    logs = [
+        _log("log_sport_session", {"session": {"date": "2026-11-09", "distance_km": "sept"}}, log_id=2),
+        _log("save_note", log_id=1),
+    ]
+
+    items = recent_actions(logs, session_id="s1")
+
+    assert [i.id for i in items] == [1]
+    assert "journal n°2" in caplog.text
