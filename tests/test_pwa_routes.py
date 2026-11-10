@@ -23,14 +23,14 @@ def test_get_app_returns_200_html():
     assert 'id="meal-container"' in html
     assert 'id="btn-clear-bought"' in html
     assert 'id="view-sport"' in html
-    assert 'data-view="sport"' in html
+    assert 'data-section="sport"' in html
     assert 'id="sport-today-container"' in html
     assert 'id="sport-dashboard-container"' in html
     assert 'id="sport-coach-bubble"' in html
     assert 'id="tab-sport-gamification"' in html
     assert 'id="sport-gamification-container"' in html
     assert 'id="view-second-brain"' in html
-    assert 'data-view="second-brain"' in html
+    assert 'data-section="second_cerveau"' in html
     assert 'id="second-brain-notes-container"' in html
     assert 'id="second-brain-audit-container"' in html
     assert 'id="second-brain-list"' in html

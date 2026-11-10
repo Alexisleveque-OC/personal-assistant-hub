@@ -1,4 +1,5 @@
 """Router FastAPI pour l'analyse NLU et l'interaction conversationnelle universelle."""
+import json
 import logging
 import time
 from typing import Any, Dict, Optional
@@ -255,6 +256,25 @@ async def interact(
     )
 
 
+def _parse_form_context(raw: Optional[str]) -> Dict[str, Any]:
+    """Le formulaire multipart transporte le contexte en JSON : il doit décrire un objet."""
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Champ « context » invalide : JSON attendu (ex. {{\"ui_context\": \"courses\"}}), reçu {raw!r} ({exc.msg}).",
+        )
+    if not isinstance(parsed, dict):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Champ « context » invalide : objet JSON attendu, reçu {type(parsed).__name__}.",
+        )
+    return parsed
+
+
 @router.post(
     "/interact/audio",
     response_model=InteractionResponse,
@@ -264,10 +284,12 @@ async def interact(
 async def interact_audio(
     audio_file: UploadFile = File(..., description="Fichier audio brut capté par le client"),
     session_id: Optional[str] = Form(None),
+    context: Optional[str] = Form(None, description='Contexte JSON de l\'écran, ex. {"ui_context": "courses"}'),
     background_tasks: BackgroundTasks = None,
 ):
     """Reçoit un fichier audio, effectue la transcription STT multimodale avec Gemini,
     applique la normalisation phonétique et exécute l'intention associée."""
+    request_context = _parse_form_context(context)
     raw_content_type = audio_file.content_type or ""
     content_type = raw_content_type.split(";")[0].strip().lower()
     allowed_prefixes = ("audio/", "video/webm", "video/ogg", "video/mp4")
@@ -306,6 +328,7 @@ async def interact_audio(
         query=transcribed_text,
         session_id=session_id,
         source="audio_direct",
+        context=request_context,
     )
     resp = await interact(request=req, background_tasks=background_tasks)
     resp.transcribed_text = transcribed_text

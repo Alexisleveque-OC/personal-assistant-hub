@@ -9,22 +9,23 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_bottom_nav_has_a_tasks_button_and_a_tasks_view():
+def test_menu_has_a_tasks_entry_and_a_tasks_sheet():
     html = client.get("/app").text
 
-    assert 'data-view="tasks"' in html
+    assert 'data-section="taches"' in html
     assert 'id="view-tasks"' in html
     assert 'id="tasks-list-container"' in html
     assert 'id="tasks-add-form"' in html
 
 
-def test_app_wires_the_tasks_view_and_reloads_it_when_the_tab_opens():
+def test_app_wires_the_tasks_view_and_reloads_it_when_the_sheet_opens():
     js = client.get("/static/app.js").text
+    shell = client.get("/static/js/ui_shell.js").text
 
     assert 'from "./js/views/tasks_view.js"' in js
     assert "initTasksView()" in js
-    assert 'document.getElementById("view-tasks")' in js
-    assert 'targetView === "tasks"' in js
+    assert 'sheetId: "view-tasks"' in shell
+    assert 'section === "taches"' in js and "loadTasks()" in js
 
 
 def test_api_client_reads_adds_and_toggles_tasks():
@@ -56,4 +57,4 @@ def test_service_worker_caches_the_tasks_view_with_a_new_version():
 
     assert "/static/js/views/tasks_view.js" in sw
     assert "/static/js/toast.js" in sw
-    assert "pah-pwa-cache-v30" in sw
+    assert "pah-pwa-cache-v31" in sw

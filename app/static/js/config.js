@@ -1,9 +1,16 @@
 // Configuration, État global et Persistance locale pour la PWA
+import { resolveTheme } from "./ui_shell.js";
+
+const prefersDarkScheme = () =>
+  typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
 export const state = {
   apiKey: localStorage.getItem("pah_api_key") || "",
   ttsEnabled: localStorage.getItem("pah_tts_enabled") !== "false",
   selectedVoiceUri: localStorage.getItem("pah_voice_uri") || "",
-  currentTheme: localStorage.getItem("pah_theme") || "light",
+  // Choix enregistré (bascule du menu), sinon thème du système.
+  currentTheme: resolveTheme(localStorage.getItem("pah_theme"), prefersDarkScheme()),
+  uiContext: "accueil", // feuille ouverte, transmise à Otis (voir SECTIONS dans ui_shell.js)
   currentShoppingSubview: "cette-semaine", // 'cette-semaine' | 'liste-attente'
   currentMealSubview: "today", // 'today' | 'week'
   currentSportSubview: "today", // 'today' | 'dashboard' | 'gamification'
@@ -32,10 +39,14 @@ export function clearStoredCheckedItems() {
   localStorage.removeItem("pah_checked_cette_semaine");
 }
 
-export function applyTheme(theme) {
+// `persist` : seul un choix explicite (bascule du menu) est enregistré ; sinon le thème suit le système.
+export function applyTheme(theme, { persist = true } = {}) {
   state.currentTheme = theme;
   document.documentElement.setAttribute("data-theme", theme);
-  localStorage.setItem("pah_theme", theme);
+  if (persist) localStorage.setItem("pah_theme", theme);
+
+  const themeSwitch = document.getElementById("theme-switch");
+  if (themeSwitch) themeSwitch.checked = theme === "dark";
 
   const themeIconSun = document.getElementById("theme-icon-sun");
   const themeIconMoon = document.getElementById("theme-icon-moon");
@@ -55,12 +66,16 @@ export function applyTheme(theme) {
 
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    metaThemeColor.setAttribute("content", theme === "dark" ? "#0d1721" : "#f4f3ef");
+    metaThemeColor.setAttribute("content", theme === "dark" ? "#141416" : "#F6F4EF"); // --bg de hub.css
   }
 }
 
 export function initTheme() {
-  applyTheme(state.currentTheme);
+  applyTheme(state.currentTheme, { persist: false });
+  const themeSwitch = document.getElementById("theme-switch");
+  if (themeSwitch) {
+    themeSwitch.addEventListener("change", (e) => applyTheme(e.target.checked ? "dark" : "light"));
+  }
   const btnThemeToggle = document.getElementById("btn-theme-toggle");
   if (btnThemeToggle) {
     btnThemeToggle.addEventListener("click", () => {
