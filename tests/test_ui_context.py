@@ -57,7 +57,7 @@ async def test_agent_run_puts_the_open_screen_in_the_system_instruction(isolate_
 async def test_agent_turn_forwards_the_session_screen_to_the_agent(monkeypatch):
     captured = {}
 
-    async def fake_run(query, history=(), ui_context=None):
+    async def fake_run(query, history=(), ui_context=None, ui_session_id=None):
         captured["ui_context"] = ui_context
         return AgentReply(text="Ok", executions=[])
 
@@ -107,3 +107,52 @@ def test_audio_interaction_rejects_a_context_that_is_not_a_json_object():
 
     assert resp.status_code == 422
     assert "context" in resp.json()["detail"]
+
+
+# ---------- Détail d'une séance : la séance ouverte est signalée à Otis (décision du 10/11) ----------
+
+def _open_view():
+    from app.core.agent.tools.sport_models import SessionView
+    return SessionView(id=16, date=date(2026, 11, 9), jour="lundi", statut="Réalisé", type_seance="Sortie Longue",
+                       distance_km=7.01)
+
+
+def test_prompt_names_the_open_session_and_makes_it_the_default_target():
+    prompt = build_system_prompt(TODAY, [], ui_context="sport", open_session=_open_view())
+
+    assert "Séance ouverte à l'écran : - id=16" in prompt
+    assert "porte sur cette séance, même si une séance plus récente existe" in prompt
+
+
+@pytest.mark.asyncio
+async def test_agent_run_looks_up_the_open_session(isolate_sqlite_database):
+    db = isolate_sqlite_database
+    session_id = db.add_sport_session({"date": "2026-11-09", "type_seance": "Sortie Longue", "statut": "Réalisé"})
+    tools = SportTools(SqlSportConnector(db_manager=db), today=lambda: TODAY)
+    llm = ScriptedLLM([text_turn("Ok"), text_turn("Ok")])
+    service = AgentService(llm=llm, registry=build_sport_registry(tools), sport_tools=tools)
+
+    await service.run("c'était 48 minutes", ui_context="sport", ui_session_id=session_id)
+    await service.run("c'était 48 minutes", ui_context="sport", ui_session_id=99999)  # supprimée entre-temps
+
+    assert f"Séance ouverte à l'écran : - id={session_id}" in llm.requests[0]["system_instruction"]
+    assert "Séance ouverte" not in llm.requests[1]["system_instruction"]
+
+
+@pytest.mark.asyncio
+async def test_agent_turn_forwards_the_open_session(monkeypatch):
+    captured = {}
+
+    async def fake_run(query, history=(), ui_context=None, ui_session_id=None):
+        captured.update(ui_context=ui_context, ui_session_id=ui_session_id)
+        return AgentReply(text="Ok", executions=[])
+
+    monkeypatch.setattr(
+        agent_handler, "build_agent_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None),
+    )
+
+    await agent_handler.handle_agent_turn(
+        "c'était 48 minutes", "s-ui", {"ui_context": "sport", "ui_session_id": 16}, sport_connector=None,
+    )
+
+    assert captured == {"ui_context": "sport", "ui_session_id": 16}

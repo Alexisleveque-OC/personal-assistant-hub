@@ -10,6 +10,7 @@ import httpx
 from app.config import settings
 from app.connectors.sheets.sport_connector import SportConnector
 from app.connectors.sheets.sport_models import (
+    ProposedSessionType,
     SportPlannedSessionProposal,
     SportSession,
     SportSessionStatus,
@@ -109,7 +110,7 @@ GEMINI_WEEKLY_PLAN_SCHEMA = {
                     "jour": {"type": "STRING", "enum": ["Lundi", "Mardi", "Jeudi", "Samedi"]},
                     "type_seance": {
                         "type": "STRING",
-                        "enum": ["Fractionné", "Renforcement", "EF", "Sortie Longue", "Seuil", "Récup"],
+                        "enum": [t.value for t in ProposedSessionType],  # Tempo / Récup / Seuil retirés (décision du 10/11)
                     },
                     "distance_km": {"type": "NUMBER"},
                     "duree_minutes": {"type": "INTEGER"},

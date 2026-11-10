@@ -113,6 +113,8 @@ class SqlSportConnector(BaseConnector):
             allure_cible=row.get("allure_cible"),
             vitesse_cible=row.get("vitesse_cible"),
             strava_id=row.get("strava_id"),
+            douleur_intensite=int(row["douleur_intensite"]) if row.get("douleur_intensite") is not None else None,
+            douleur_zone=row.get("douleur_zone"),
         )
 
     def get_all_sessions(self) -> List[SportSession]:
@@ -229,6 +231,10 @@ class SqlSportConnector(BaseConnector):
                 "remarques": final_rem,
                 "notes": final_rem,
                 "strava_id": session_data.strava_id or existing.get("strava_id"),
+                "douleur_intensite": session_data.douleur_intensite
+                if session_data.douleur_intensite is not None else existing.get("douleur_intensite"),
+                "douleur_zone": session_data.douleur_zone
+                if session_data.douleur_zone is not None else existing.get("douleur_zone"),
             }
             self.db.update_sport_session(existing["id"], updates)
             saved_id = existing["id"]
@@ -251,6 +257,8 @@ class SqlSportConnector(BaseConnector):
                 "allure_cible": None,
                 "vitesse_cible": None,
                 "strava_id": session_data.strava_id,
+                "douleur_intensite": session_data.douleur_intensite,
+                "douleur_zone": session_data.douleur_zone,
             }
             saved_id = self.db.add_sport_session(insert_data)
 
@@ -390,6 +398,10 @@ class SqlSportConnector(BaseConnector):
         )
         # Filtrer strictement les valeurs None pour ne jamais écraser les métriques existantes
         update_dict = {k: v for k, v in update_dict.items() if v is not None}
+        # Les routes PATCH transmettent un dictionnaire brut : la douleur est bornée ici (0 = aucune douleur).
+        pain = update_dict.get("douleur_intensite")
+        if pain is not None and not (isinstance(pain, int) and 0 <= pain <= 10):
+            raise ValueError(f"douleur_intensite doit être un entier de 0 à 10 (reçu : {pain!r}).")
 
         # Transition automatique vers Réalisé si métriques réelles enregistrées sur une séance prévue
         if "statut" not in update_dict and existing.get("statut") in (SportSessionStatus.PLANIFIE.value, "Prévu", "Planifié"):
@@ -473,6 +485,10 @@ class SqlSportConnector(BaseConnector):
         )
         # Filtrer strictement les valeurs None pour ne jamais écraser les métriques existantes
         update_dict = {k: v for k, v in update_dict.items() if v is not None}
+        # Les routes PATCH transmettent un dictionnaire brut : la douleur est bornée ici (0 = aucune douleur).
+        pain = update_dict.get("douleur_intensite")
+        if pain is not None and not (isinstance(pain, int) and 0 <= pain <= 10):
+            raise ValueError(f"douleur_intensite doit être un entier de 0 à 10 (reçu : {pain!r}).")
 
         # Gestion de append_remarques / append_notes
         if update_dict.get("append_remarques") or update_dict.get("append_notes"):

@@ -85,6 +85,8 @@ def _format_session(s: SessionView, shared_day: bool = False) -> str:
         details.append(f"météo {s.meteo_note}")
     if s.fc_moyenne is not None:
         details.append(f"FC moy {s.fc_moyenne}")
+    if s.douleur_intensite:
+        details.append(f"douleur {s.douleur_intensite}/10" + (f" ({s.douleur_zone})" if s.douleur_zone else ""))
     if s.remarques:
         details.append(f"remarques : {s.remarques[:80]}")
     if shared_day:
@@ -128,8 +130,19 @@ def _open_screen(ui_context: Optional[str]) -> str:
     )
 
 
+def _open_session(session: Optional[SessionView]) -> str:
+    if session is None:
+        return ""
+    return (
+        f"Séance ouverte à l'écran : {_format_session(session)}\n"
+        "Toute précision ou correction qui ne nomme pas une autre séance (durée, distance, douleur, ressenti, "
+        "remarque…) porte sur cette séance, même si une séance plus récente existe.\n"
+    )
+
+
 def build_system_prompt(
     today: date, recent_sessions: List[SessionView], ui_context: Optional[str] = None,
+    open_session: Optional[SessionView] = None,
 ) -> str:
     per_day = Counter(s.date for s in recent_sessions)
     sessions = "\n".join(
@@ -138,7 +151,7 @@ def build_system_prompt(
     return (
         f"{_RULES}\n"
         f"Aujourd'hui : {_format_day(today)} (heure de Paris). Hier : {_format_day(today - timedelta(days=1))}.\n"
-        f"{_open_screen(ui_context)}\n"
+        f"{_open_screen(ui_context)}{_open_session(open_session)}\n"
         f"Séances récentes du carnet (les plus récentes d'abord) :\n{sessions}\n"
         f"{_multi_session_days(recent_sessions)}"
     )
