@@ -268,3 +268,19 @@ def test_sport_weekly_summary_multicriteria_progression_s39_s40():
 
 
 
+
+
+def test_sport_weekly_summary_negative_progression_has_no_plus_sign():
+    """Une progression négative s'affiche « -x% » et non « +-x% »."""
+    summary = SportWeeklySummary(
+        semaine=44,
+        annee=2026,
+        nb_seances=2,
+        km_total=10.0,
+        d_plus_total=0,
+        km_effort_total=10.0,
+        duree_secondes=3600,
+        previous_week_km_effort=20.0,
+    )
+
+    assert summary.alerte_securite == "🟢 Progression Saine (-50.0%)"
