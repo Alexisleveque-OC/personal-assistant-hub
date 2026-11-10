@@ -15,7 +15,7 @@ Plus de barre d'onglets : menu burger (`.drawer`) + accueil à bulles + sections
 - L'app reste utilisable à chaque déploiement : dès le socle, toutes les sections passent en feuilles avec leur contenu actuel, puis chaque écran est rhabillé.
 
 ## Étapes
-- [ ] **0. Socle** : `hub.css`, topbar, menu burger, système de feuilles (Échap, glissé, focus rendu, empilement), barre de saisie unique déplacée dans la feuille ouverte, contexte transmis (texte + audio) et lu par l'agent, thème (préférence sinon `prefers-color-scheme`), raccourcis `?action=`, SW v31.
+- [x] **0. Socle** (déployé le 10/11, SW v31) : `hub.css`, topbar, menu burger, système de feuilles (Échap, glissé, focus rendu, empilement), barre de saisie unique déplacée dans la feuille ouverte, contexte transmis (texte + audio) et lu par l'agent, thème (préférence sinon `prefers-color-scheme`), raccourcis `?action=`, SW v31.
 - [ ] **1. Accueil** : « Dernières actions » (+ dernière réponse d'Otis), 4 bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche), feuille « Conversation ».
 - [ ] **2. Sport** : vues Semaine, Mois · Année, Séances ; détail en feuille empilée ; formulaire Séance unique (créer/modifier) avec « Dicte ta séance » (route d'analyse sans enregistrement) ; barre d'actions.
 - [ ] **3. Trophées** : icône 🏆 de l'en-tête, `.is-locked`, `.just-unlocked`.

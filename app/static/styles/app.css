@@ -3,6 +3,14 @@
    Éléments natifs (<button> du menu), emplacements de la barre de saisie déplaçable, tailles d'icônes.
    ========================================================================== */
 
+/* Accueil : la barre du haut (menu) reste visible quand la conversation défile */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+}
+
 /* Accueil : la barre de saisie reste collée en bas */
 #composer-home-slot { position: sticky; bottom: 0; z-index: 2; background: var(--bg); }
 

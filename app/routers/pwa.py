@@ -9,10 +9,22 @@ router = APIRouter(include_in_schema=False)
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Fichiers statiques revalidés à chaque requête (ETag → 304).
+
+    Sans Cache-Control, le navigateur applique une fraîcheur heuristique (jusqu'à plusieurs heures) : un téléphone
+    gardait l'ancien app.js avec la nouvelle page (retour du 10/11, menu burger inopérant)."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def mount_static_files(app):
     """Monte le dossier static sur l'application FastAPI principale."""
     if STATIC_DIR.exists():
-        app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+        app.mount("/static", RevalidatedStaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @router.get("/app")
