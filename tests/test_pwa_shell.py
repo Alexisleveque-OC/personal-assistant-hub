@@ -280,7 +280,7 @@ def test_new_styles_and_modules_are_served_and_precached():
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"
     for css in ("hub.css", "app.css", "legacy-bridge.css"):
         assert f"/static/styles/{css}" in html
-    assert "pah-pwa-cache-v31" in sw
+    assert "pah-pwa-cache-v32" in sw
 
 
 def test_theme_is_set_before_first_paint_from_saved_choice_or_system():
@@ -289,3 +289,27 @@ def test_theme_is_set_before_first_paint_from_saved_choice_or_system():
 
     assert 'localStorage.getItem("pah_theme")' in head
     assert "prefers-color-scheme: dark" in head
+
+
+# ---------- Retour téléphone du 10/11 : vieux JS servi par le cache HTTP, barre du haut qui défile ----------
+
+def test_static_files_are_revalidated_instead_of_heuristically_cached():
+    for path in ("/static/app.js", "/static/js/config.js", "/static/styles/hub.css"):
+        res = client.get(path)
+        assert res.status_code == 200
+        assert res.headers.get("cache-control") == "no-cache", path
+        assert res.headers.get("etag"), path
+
+
+def test_service_worker_bypasses_the_http_cache_when_it_fetches_assets():
+    sw = client.get("/sw.js").text
+
+    assert "pah-pwa-cache-v32" in sw
+    assert 'new Request(url, { cache: "reload" })' in sw  # précache à l'installation
+    assert sw.count('fetch(event.request, { cache: "no-cache" })') == 2  # JS réseau d'abord + autres assets
+
+
+def test_top_bar_stays_visible_while_the_home_scrolls():
+    css = client.get("/static/styles/app.css").text
+
+    assert ".topbar {" in css and "position: sticky;" in css and "top: 0;" in css
