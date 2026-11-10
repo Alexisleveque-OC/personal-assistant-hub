@@ -180,6 +180,12 @@ class DatabaseManager:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_sport_sessions_statut ON sport_sessions(statut);"
             )
+            # Refonte UX (10/11) : douleur de la séance (0-10, vide = jamais renseignée) et zone ; ajout idempotent
+            # sur les bases existantes, sans reprise de l'historique.
+            existing_columns = {row[1] for row in cursor.execute("PRAGMA table_info(sport_sessions)")}
+            for column, ddl in (("douleur_intensite", "INTEGER"), ("douleur_zone", "TEXT")):
+                if column not in existing_columns:
+                    cursor.execute(f"ALTER TABLE sport_sessions ADD COLUMN {column} {ddl}")
 
             # 6. Synthèses hebdomadaires sport (sport_weekly_summaries)
             cursor.execute(
@@ -713,8 +719,9 @@ class DatabaseManager:
                     date, semaine, statut, type_seance, distance_km,
                     denivele_d_plus, duree_secondes, ressenti_rpe,
                     fc_moyenne, fc_max, meteo_note, programme,
-                    remarques, notes, allure_cible, vitesse_cible, strava_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    remarques, notes, allure_cible, vitesse_cible, strava_id,
+                    douleur_intensite, douleur_zone
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_val,
@@ -734,6 +741,8 @@ class DatabaseManager:
                     data.get("allure_cible"),
                     data.get("vitesse_cible"),
                     data.get("strava_id"),
+                    int(data["douleur_intensite"]) if data.get("douleur_intensite") is not None else None,
+                    data.get("douleur_zone"),
                 ),
             )
             return cursor.lastrowid
@@ -849,6 +858,7 @@ class DatabaseManager:
             "denivele_d_plus", "duree_secondes", "ressenti_rpe",
             "fc_moyenne", "fc_max", "meteo_note", "programme",
             "remarques", "notes", "allure_cible", "vitesse_cible", "strava_id",
+            "douleur_intensite", "douleur_zone",
         }
         fields = []
         params: List[Any] = []

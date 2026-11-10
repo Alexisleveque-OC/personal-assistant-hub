@@ -86,6 +86,8 @@ class SportSession(BaseModel):
     allure_cible: Optional[str] = Field(default=None, description="Allure cible conseillée (ex: 06:30/km (+/- 15s))")
     vitesse_cible: Optional[str] = Field(default=None, description="Vitesse cible conseillée (ex: 9.2 km/h (+/- 0.4 km/h))")
     strava_id: Optional[str] = None
+    douleur_intensite: Optional[int] = Field(None, ge=0, le=10, description="Douleur de 0 (aucune) à 10 ; vide = non renseignée")
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse (ex : tibia / genou)")
 
     @field_validator("statut", mode="before")
     @classmethod
@@ -267,6 +269,8 @@ class SportSessionCreate(BaseModel):
     remarques: Optional[str] = ""
     notes: Optional[str] = ""
     strava_id: Optional[str] = None
+    douleur_intensite: Optional[int] = Field(None, ge=0, le=10, description="Douleur de 0 (aucune) à 10 ; vide = non renseignée")
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse (ex : tibia / genou)")
 
     @field_validator("statut", mode="before")
     @classmethod
@@ -310,6 +314,8 @@ class SportSessionUpdate(BaseModel):
     fc_moyenne: Optional[int] = Field(None, ge=30, le=250)
     fc_max: Optional[int] = Field(None, ge=30, le=250)
     meteo_note: Optional[int] = Field(None, ge=1, le=10)
+    douleur_intensite: Optional[int] = Field(None, ge=0, le=10, description="Douleur de 0 (aucune) à 10 ; vide = non renseignée")
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse (ex : tibia / genou)")
 
     @model_validator(mode="before")
     @classmethod

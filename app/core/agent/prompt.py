@@ -85,6 +85,8 @@ def _format_session(s: SessionView, shared_day: bool = False) -> str:
         details.append(f"météo {s.meteo_note}")
     if s.fc_moyenne is not None:
         details.append(f"FC moy {s.fc_moyenne}")
+    if s.douleur_intensite:
+        details.append(f"douleur {s.douleur_intensite}/10" + (f" ({s.douleur_zone})" if s.douleur_zone else ""))
     if s.remarques:
         details.append(f"remarques : {s.remarques[:80]}")
     if shared_day:

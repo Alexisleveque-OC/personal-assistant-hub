@@ -46,6 +46,10 @@ class SessionChanges(StrictArgs):
     meteo_note: Optional[int] = Field(None, ge=1, le=10, description="Difficulté liée à la météo de 1 (idéale) à 10.")
     programme: Optional[str] = None
     remarques: Optional[str] = Field(None, description="Ressenti libre (sensations, douleurs), en français.")
+    douleur_intensite: Optional[int] = Field(
+        None, ge=0, le=10, description="Douleur dite par l'utilisateur, de 0 (aucune) à 10 ; vide si rien n'est dit.",
+    )
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse dite (ex : « tibia / genou »).")
 
     @model_validator(mode="after")
     def at_least_one_change(self) -> "SessionChanges":
@@ -72,6 +76,10 @@ class LogSessionArgs(StrictArgs):
     meteo_note: Optional[int] = Field(None, ge=1, le=10, description="Difficulté liée à la météo de 1 (idéale) à 10.")
     programme: Optional[str] = None
     remarques: Optional[str] = Field(None, description="Ressenti libre (sensations, douleurs), en français.")
+    douleur_intensite: Optional[int] = Field(
+        None, ge=0, le=10, description="Douleur dite par l'utilisateur, de 0 (aucune) à 10 ; vide si rien n'est dit.",
+    )
+    douleur_zone: Optional[str] = Field(None, max_length=60, description="Zone douloureuse dite (ex : « tibia / genou »).")
 
 
 class PlanSessionArgs(StrictArgs):
@@ -101,6 +109,8 @@ class SessionView(BaseModel):
     fc_max: Optional[int] = None
     programme: str = ""
     remarques: str = ""
+    douleur_intensite: Optional[int] = None
+    douleur_zone: Optional[str] = None
 
     @classmethod
     def from_session(cls, session: SportSession) -> "SessionView":
@@ -120,6 +130,8 @@ class SessionView(BaseModel):
             fc_max=session.fc_max,
             programme=session.programme or "",
             remarques=session.remarques or "",
+            douleur_intensite=session.douleur_intensite,
+            douleur_zone=session.douleur_zone,
         )
 
 
@@ -143,6 +155,8 @@ class SessionRow(BaseModel):
     allure_cible: Optional[str] = None
     vitesse_cible: Optional[str] = None
     strava_id: Optional[str] = None
+    douleur_intensite: Optional[int] = None
+    douleur_zone: Optional[str] = None
 
 
 class UndoSnapshot(BaseModel):
