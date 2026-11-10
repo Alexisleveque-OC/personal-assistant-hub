@@ -25,5 +25,7 @@ Plus de barre d'onglets : menu burger (`.drawer`) + accueil à bulles + sections
 - [ ] **7. Second cerveau**, puis feuilles « Journal & feedback » et « Réglages & voix ».
 - [ ] **8. Nettoyage** : suppression de l'ancien `style.css`, test E2E de la navigation, README.
 
+- [ ] **9. Nouveau logo** (« Sceau du scribe », demandé le 10/11, après la refonte) : kit dans `icons/` (racine, consignes `icons/ICONES.md`) → icônes PWA remplacées (anciennes supprimées), `manifest.json` (clés `icons`, `background_color`, `theme_color` seulement), balises favicon / apple-touch-icon / theme-color du `<head>`, logo de l'appli (avatar du menu…) → `logo-otis.svg`, précache du SW + version. Rappeler à l'utilisateur de désinstaller / réinstaller la PWA.
+
 ## Plus tard (hors périmètre)
 - [ ] Annuler n'importe laquelle des 3 dernières actions (aujourd'hui : seulement la plus récente, limite du serveur).
