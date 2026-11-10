@@ -1,6 +1,6 @@
 """Router FastAPI pour les fonctionnalités repas et courses."""
 from typing import List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.core.security import verify_api_key
@@ -27,6 +27,18 @@ async def get_week_meals():
         week_plan = connector.get_week_meal_plans()
         return {"success": True, "week_plan": week_plan}
     return {"success": False, "week_plan": [], "message": "Connecteur non disponible"}
+
+
+@router.get("/shopping")
+async def get_shopping_list():
+    """Liste de courses (Cette semaine + Liste d'attente), lue sans passer par Otis (cache du connecteur)."""
+    connector = get_meals_connector()
+    if connector is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Liste de courses indisponible : connecteur Google Sheets non initialisé (identifiants ou classeur).",
+        )
+    return connector.get_shopping_list()
 
 
 @router.post("/shopping/reset")
