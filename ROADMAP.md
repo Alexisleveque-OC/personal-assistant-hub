@@ -19,6 +19,7 @@ Plus de barre d'onglets : menu burger (`.drawer`) + accueil à bulles + sections
 - Douleur : nouveaux champs en base `douleur_intensite` (0-10, vide = rien signalé) et `douleur_zone` (texte court) ; formulaire avec case « Douleur signalée » → curseur + zone ; Otis les remplit depuis la dictée. Pas de reprise de l'historique : tag « Douleur ? » déduit des remarques tant que le champ est vide.
 - Vue Semaine : D+ total ajouté aux totaux de période ; jauge km-effort / plafond de la semaine affichée (S-1 + 10 %) ; badge Saine / Vigilance / Risque issu de l'alerte existante.
 - Détail d'une séance : le contexte envoyé à Otis inclut la séance ouverte (« c'était 48 minutes » modifie celle-là).
+- Dictée de séance : route brouillon `POST /api/v1/sport/session/draft` (audio ou texte → transcription + 1 appel Gemini en sortie structurée, rien n'est écrit) ; « Dicter une séance » ouvre d'abord le formulaire et lance l'écoute, « OK » enregistre.
 
 ## Étapes
 - [x] **0. Socle** (déployé le 10/11, SW v31) : `hub.css`, topbar, menu burger, système de feuilles (Échap, glissé, focus rendu, empilement), barre de saisie unique déplacée dans la feuille ouverte, contexte transmis (texte + audio) et lu par l'agent, thème (préférence sinon `prefers-color-scheme`), raccourcis `?action=`, SW v31.
