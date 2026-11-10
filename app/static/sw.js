@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v31";
+const CACHE_NAME = "pah-pwa-cache-v32";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
@@ -37,7 +37,8 @@ const ASSETS_TO_CACHE = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // `reload` : jamais une copie périmée du cache HTTP du navigateur dans le précache.
+      return cache.addAll(ASSETS_TO_CACHE.map((url) => new Request(url, { cache: "reload" })));
     }).then(() => self.skipWaiting())
   );
 });
@@ -86,7 +87,8 @@ self.addEventListener("fetch", (event) => {
   // Pour les fichiers JS de logique (views, config, api, speech) : Network-First pour actualisation immédiate
   if (url.pathname.startsWith("/static/js/") || url.pathname.startsWith("/static/app.js")) {
     event.respondWith(
-      fetch(event.request)
+      // `no-cache` : revalide auprès du serveur au lieu d'une copie heuristiquement « fraîche » du cache HTTP.
+      fetch(event.request, { cache: "no-cache" })
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
@@ -102,7 +104,7 @@ self.addEventListener("fetch", (event) => {
   // Pour les assets de l'application (HTML, CSS, JS, icônes) : Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
+      const fetchPromise = fetch(event.request, { cache: "no-cache" }).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && event.request.method === "GET") {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
