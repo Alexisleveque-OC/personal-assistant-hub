@@ -21,8 +21,10 @@ import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView, switchSportSubview } from "./js/views/sport_view.js";
-import { initSecondBrainView, loadSecondBrainNotes, loadSecondBrainCategories } from "./js/views/second_brain_view.js";
+import { initSecondBrainView, switchBrainSubview, getBrainSubview } from "./js/views/second_brain_view.js";
 import { initOfflineSync, syncOutbox } from "./js/offline_outbox.js";
+import { SECTIONS, sectionForSheet, sectionForAction, greetingFor, formatLongDate } from "./js/ui_shell.js";
+import { createSheetManager, bindSheetInteractions } from "./js/sheets.js";
 
 // Export / Référence SpeechRecognition pour les vérifications de compatibilité
 export { SpeechRecognition };
@@ -44,16 +46,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const pushToTalkToggle = document.getElementById("push-to-talk-toggle");
   const wakeWordToggle = document.getElementById("wake-word-toggle");
   const vadSilenceSelect = document.getElementById("vad-silence-select");
-  const navItems = document.querySelectorAll(".nav-item");
-
-  const views = {
-    chat: document.getElementById("view-chat"),
-    "second-brain": document.getElementById("view-second-brain"),
-    shopping: document.getElementById("view-shopping"),
-    tasks: document.getElementById("view-tasks"),
-    meals: document.getElementById("view-meals"),
-    sport: document.getElementById("view-sport")
-  };
 
   // 3. Initialisation de la clé API
   if (apiKeyInput) apiKeyInput.value = state.apiKey;
@@ -61,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 4. Initialisation TTS (Bouton switch)
   function updateTtsButtonState() {
     if (!btnTtsToggle) return;
+    btnTtsToggle.setAttribute("aria-pressed", state.ttsEnabled ? "true" : "false");
     if (state.ttsEnabled) {
       btnTtsToggle.classList.add("active");
       btnTtsToggle.title = "Voix activée (cliquez pour couper)";
@@ -110,35 +103,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initMealsView();
   initSportView();
 
-  // 8. Navigation par Onglets (Bottom Bar)
-  navItems.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const targetView = btn.getAttribute("data-view");
-      navItems.forEach((n) => n.classList.remove("active"));
-      btn.classList.add("active");
-
-      Object.keys(views).forEach((k) => {
-        if (views[k]) views[k].classList.toggle("active", k === targetView);
-      });
-
-      if (targetView === "second-brain") {
-        loadSecondBrainNotes();
-        loadSecondBrainCategories();
-      } else if (targetView === "shopping") {
-        fetchShoppingList();
-      } else if (targetView === "tasks") {
-        loadTasks();
-      } else if (targetView === "meals") {
-        if (state.currentMealSubview === "today") {
-          fetchMealToday();
-        } else {
-          fetchMealWeek();
-        }
-      } else if (targetView === "sport") {
-        switchSportSubview(state.currentSportSubview);
-      }
-    });
-  });
+  // 8. Navigation : menu burger + feuilles (refonte UX, remplace la barre d'onglets du bas)
+  const shell = initShell();
 
   // 9. Gestion Modal Paramètres & Stats LLM
   async function refreshLlmStats() {
@@ -176,6 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (btnSettings) {
     btnSettings.addEventListener("click", () => {
+      shell.manager.closeDrawer({ restoreFocus: false });
       if (apiKeyInput) apiKeyInput.value = state.apiKey;
       if (pushToTalkToggle) pushToTalkToggle.checked = !!state.pushToTalk;
       if (wakeWordToggle) wakeWordToggle.checked = !!state.wakeWordEnabled;
@@ -324,21 +291,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 10. Gestion des raccourcis d'URL (?action=...)
-  const urlParams = new URLSearchParams(window.location.search);
-  const actionParam = urlParams.get("action");
-  if (actionParam === "shopping_list") {
-    document.querySelector('.nav-item[data-view="shopping"]')?.click();
-  } else if (actionParam === "meal_today") {
-    document.querySelector('.nav-item[data-view="meals"]')?.click();
-  } else if (actionParam === "sport_today") {
-    document.querySelector('.nav-item[data-view="sport"]')?.click();
-  } else if (actionParam === "sport_gamification") {
-    document.querySelector('.nav-item[data-view="sport"]')?.click();
-    const tabSportGamification = document.getElementById("tab-sport-gamification");
-    if (tabSportGamification) tabSportGamification.click();
-  } else if (actionParam === "second_brain") {
-    document.querySelector('.nav-item[data-view="second-brain"]')?.click();
+  // 10. Gestion des raccourcis d'URL (?action=...) : ouvrent la feuille correspondante
+  const shortcut = sectionForAction(new URLSearchParams(window.location.search).get("action"));
+  if (shortcut) {
+    shell.openSection(shortcut.section);
+    if (shortcut.subview === "gamification") switchSportSubview("gamification");
   }
 
   // 11. Enregistrement PWA Service Worker
@@ -370,3 +327,101 @@ document.addEventListener("DOMContentLoaded", () => {
     handleOfflineSyncedResponse(item, data);
   });
 });
+
+// Chargement des données d'une section à son ouverture (et après une réponse d'Otis).
+function loadSection(section) {
+  if (section === "courses") {
+    fetchShoppingList();
+  } else if (section === "taches") {
+    loadTasks();
+  } else if (section === "repas") {
+    if (state.currentMealSubview === "today") fetchMealToday();
+    else fetchMealWeek();
+  } else if (section === "sport") {
+    switchSportSubview(state.currentSportSubview);
+  } else if (section === "second_cerveau") {
+    switchBrainSubview(getBrainSubview()); // recharge la sous-vue affichée (notes ou journal)
+  }
+}
+
+// Coquille de l'app : menu, feuilles, barre de saisie unique déplacée dans la feuille ouverte.
+function initShell() {
+  const manager = createSheetManager({
+    getSheet: (id) => document.getElementById(id),
+    app: document.getElementById("app-home"),
+    drawer: document.getElementById("drawer"),
+    backdrop: document.querySelector(".sheet-backdrop"),
+    burger: document.getElementById("btn-open-drawer"),
+  });
+  bindSheetInteractions(manager, document);
+
+  const composer = document.getElementById("query-form");
+  const queryInput = document.getElementById("query-input");
+  const homeSlot = document.getElementById("composer-home-slot");
+  const home = document.getElementById("view-chat");
+  const drawerItems = document.querySelectorAll(".drawer__item[data-section]");
+
+  const now = new Date();
+  const greeting = document.getElementById("topbar-greeting");
+  const dateLabel = document.getElementById("topbar-date");
+  if (greeting) greeting.textContent = `${greetingFor(now)} Alexis`;
+  if (dateLabel) dateLabel.textContent = formatLongDate(now);
+
+  // La feuille du dessus reçoit la barre de saisie (si elle a un emplacement), son placeholder et son contexte.
+  manager.onChange((topId) => {
+    const section = sectionForSheet(topId);
+    const config = SECTIONS[section];
+    const topSheet = topId ? document.getElementById(topId) : null;
+    const slot = topSheet ? topSheet.querySelector(".composer-slot") : homeSlot;
+    if (slot && composer && composer.parentElement !== slot) slot.appendChild(composer);
+    if (queryInput) queryInput.placeholder = config.placeholder;
+    state.uiContext = config.context;
+    if (home) home.classList.toggle("active", !topId);
+    drawerItems.forEach((item) => {
+      if (item.dataset.section === section) item.setAttribute("aria-current", "page");
+      else item.removeAttribute("aria-current");
+    });
+  });
+
+  // `brainView` : sous-vue de Second cerveau choisie par le menu (« notes », ou « audit » pour Journal & feedback).
+  function openSection(section, trigger = null, { brainView = "notes" } = {}) {
+    const config = SECTIONS[section];
+    if (!config) throw new Error(`Section inconnue : « ${section} » (attendu : ${Object.keys(SECTIONS).join(", ")}).`);
+    if (!config.sheetId) {
+      manager.closeDrawer({ restoreFocus: false });
+      manager.closeAll();
+      return;
+    }
+    manager.openSection(config.sheetId, trigger);
+    if (section === "second_cerveau") switchBrainSubview(brainView);
+    else loadSection(section);
+  }
+
+  const burger = document.getElementById("btn-open-drawer");
+  if (burger) burger.addEventListener("click", () => manager.openDrawer(burger));
+
+  // Menu et bulles de l'accueil : `data-section` ouvre la section ; le focus revient au burger à la fermeture.
+  document.addEventListener("click", (e) => {
+    const opener = e.target.closest("[data-section]");
+    if (!opener) return;
+    e.preventDefault();
+    const fromDrawer = !!opener.closest(".drawer");
+    openSection(opener.dataset.section, fromDrawer ? burger : opener);
+  });
+
+  const journalItem = document.getElementById("drawer-journal");
+  if (journalItem) {
+    journalItem.addEventListener("click", () => openSection("second_cerveau", burger, { brainView: "audit" }));
+  }
+
+  // Réponse d'Otis pendant qu'une feuille est ouverte : toast + rafraîchissement de la section.
+  window.addEventListener("otis-reply", (e) => {
+    const topId = manager.topSheetId();
+    if (!topId) return;
+    const text = e.detail && e.detail.text;
+    if (text) showToastInfo(text, "Otis");
+    loadSection(sectionForSheet(topId));
+  });
+
+  return { manager, openSection };
+}

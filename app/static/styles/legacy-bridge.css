@@ -1,0 +1,15 @@
+/* ==========================================================================
+   Pont transitoire de la refonte UX : neutralise l'ancien squelette de style.css
+   (marge de la barre d'onglets supprimée, fond botanique, police) le temps de migrer
+   les écrans un par un. À supprimer avec style.css (ROADMAP étape 8).
+   ========================================================================== */
+body {
+  display: block;
+  padding-bottom: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+.app { position: relative; z-index: 1; }
+.home-chat { display: flex; flex-direction: column; }

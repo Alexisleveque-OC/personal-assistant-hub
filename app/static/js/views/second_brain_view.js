@@ -145,6 +145,11 @@ export function initSecondBrainView() {
   }
 }
 
+// Sous-vue affichée (« notes » ou « audit ») : relue par app.js pour rafraîchir la feuille sans changer d'onglet.
+export function getBrainSubview() {
+  return currentBrainSubview;
+}
+
 export function switchBrainSubview(subview) {
   currentBrainSubview = subview;
   const tabNotes = document.getElementById("tab-brain-notes");

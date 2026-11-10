@@ -17,6 +17,12 @@ const chatStream = document.getElementById("chat-stream");
 const queryForm = document.getElementById("query-form");
 const queryInput = document.getElementById("query-input");
 
+// Refonte UX : la conversation est sur l'accueil ; quand une feuille la recouvre, on ne fait pas défiler la page.
+function isHomeVisible() {
+  const home = document.getElementById("view-chat");
+  return !home || home.classList.contains("active");
+}
+
 const CHAT_STORAGE_KEY = "pah_chat_ui_history";
 const MAX_SAVED_MESSAGES = 20;
 
@@ -59,7 +65,7 @@ function renderUserBubble(text, shouldScroll = true) {
   bubble.className = "chat-bubble user";
   bubble.textContent = text;
   chatStream.appendChild(bubble);
-  if (shouldScroll) {
+  if (shouldScroll && isHomeVisible()) {
     bubble.scrollIntoView({ behavior: "smooth" });
   }
   return bubble;
@@ -92,7 +98,7 @@ function renderAssistantBubble(text, shouldScroll = true) {
     btnReplay.addEventListener("click", () => speak(text));
   }
 
-  if (shouldScroll) {
+  if (shouldScroll && isHomeVisible()) {
     bubble.scrollIntoView({ behavior: "smooth" });
   }
   return bubble;
@@ -115,7 +121,7 @@ function showThinkingIndicator() {
   thinkingBubble.setAttribute("aria-live", "polite");
   thinkingBubble.innerHTML = `Otis réfléchit<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>`;
   chatStream.appendChild(thinkingBubble);
-  thinkingBubble.scrollIntoView({ behavior: "smooth" });
+  if (isHomeVisible()) thinkingBubble.scrollIntoView({ behavior: "smooth" });
 }
 
 function hideThinkingIndicator() {
@@ -126,6 +132,8 @@ function hideThinkingIndicator() {
 export function appendAssistantMessage(text) {
   renderAssistantBubble(text, true);
   saveChatMessage("assistant", text);
+  // Refonte UX : app.js affiche la réponse en toast si une feuille est ouverte, puis la rafraîchit.
+  window.dispatchEvent(new CustomEvent("otis-reply", { detail: { text } }));
 }
 
 export async function restoreChatHistory() {

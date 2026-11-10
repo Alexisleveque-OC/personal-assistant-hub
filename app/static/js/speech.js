@@ -213,8 +213,16 @@ export function hideUndoToast() {
 // 3. Moteur VAD Anti-Coupure (MediaRecorder & Analyse Audio Fréquentielle)
 // ============================================================================
 
+// État « écoute » du micro : `.is-listening` sur le bouton (hub.css), `.recording` sur son conteneur.
+// Relu à chaque fois : le bouton est remplacé par setupMicButtonBehavior() et la barre de saisie change de feuille.
+function setMicListening(listening) {
+  const wrapper = document.getElementById("mic-wrapper");
+  const button = document.getElementById("mic-btn");
+  if (wrapper) wrapper.classList.toggle("recording", listening);
+  if (button) button.classList.toggle("is-listening", listening);
+}
+
 export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, onAudioBlobCallback) {
-  const micWrapper = document.getElementById("mic-wrapper");
   const micBtn = document.getElementById("mic-btn");
   const voiceBarArea = document.getElementById("voice-bar-area");
   const interimTranscript = document.getElementById("interim-transcript");
@@ -296,7 +304,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       recordingStartedAt = performance.now();
       peakVadLevel = null;
 
-      if (micWrapper) micWrapper.classList.add("recording");
+      setMicListening(true);
       if (voiceBarArea) voiceBarArea.classList.add("active");
       if (interimTranscript) {
         interimTranscript.textContent = (state.pushToTalk && !isWakeTriggered)
@@ -352,7 +360,7 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       initialInactivityTimer = null;
     }
 
-    if (micWrapper) micWrapper.classList.remove("recording");
+    setMicListening(false);
     if (voiceBarArea) voiceBarArea.classList.remove("active");
     if (interimTranscript) interimTranscript.textContent = "Analyse en cours...";
 
@@ -884,7 +892,6 @@ if (typeof document !== "undefined") {
 
 // Fallback legacy Web Speech API si MediaRecorder indisponible
 function initLegacyWebSpeech(onResultCallback, onNotAllowedCallback) {
-  const micWrapper = document.getElementById("mic-wrapper");
   const micBtn = document.getElementById("mic-btn");
   const voiceBarArea = document.getElementById("voice-bar-area");
   const interimTranscript = document.getElementById("interim-transcript");
@@ -895,7 +902,7 @@ function initLegacyWebSpeech(onResultCallback, onNotAllowedCallback) {
   legacyRecognition.continuous = false;
 
   legacyRecognition.onstart = () => {
-    if (micWrapper) micWrapper.classList.add("recording");
+    setMicListening(true);
     if (voiceBarArea) voiceBarArea.classList.add("active");
     if (interimTranscript) interimTranscript.textContent = "Je vous écoute...";
   };
@@ -917,13 +924,13 @@ function initLegacyWebSpeech(onResultCallback, onNotAllowedCallback) {
   };
 
   legacyRecognition.onerror = (e) => {
-    if (micWrapper) micWrapper.classList.remove("recording");
+    setMicListening(false);
     if (voiceBarArea) voiceBarArea.classList.remove("active");
     if (e.error === "not-allowed" && onNotAllowedCallback) onNotAllowedCallback();
   };
 
   legacyRecognition.onend = () => {
-    if (micWrapper) micWrapper.classList.remove("recording");
+    setMicListening(false);
     if (voiceBarArea) voiceBarArea.classList.remove("active");
   };
 

@@ -9,12 +9,18 @@ export function getAuthHeaders() {
   return headers;
 }
 
+// Feuille ouverte (« courses », « sport »…) transmise à Otis pour lever les ambiguïtés (refonte UX).
+// Un message rejoué par la file hors-ligne part avec la feuille ouverte au moment du rejeu.
+export function currentInteractionContext() {
+  return { ui_context: state.uiContext || "accueil" };
+}
+
 export async function postInteract(queryText, sessionId = null) {
   const finalSessionId = sessionId || getActiveSessionId();
   const res = await fetch("/api/v1/interact", {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ query: queryText, session_id: finalSessionId })
+    body: JSON.stringify({ query: queryText, session_id: finalSessionId, context: currentInteractionContext() })
   });
   return res;
 }
@@ -36,6 +42,7 @@ export async function postInteractAudio(audioBlob, sessionId = null) {
 
   formData.append("audio_file", audioBlob, filename);
   formData.append("session_id", finalSessionId);
+  formData.append("context", JSON.stringify(currentInteractionContext()));
   const headers = {};
   if (state.apiKey) {
     headers["X-API-Key"] = state.apiKey;
