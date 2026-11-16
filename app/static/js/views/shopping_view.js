@@ -1,313 +1,210 @@
-// Vue Liste de Courses (Cette semaine / Liste d'attente / Rayons)
+// Feuille Courses (refonte UX, maquette E-Courses) : Cette semaine / En attente, groupes par rayon, cases à cocher.
+// Lecture directe (GET /api/v1/meals/shopping, sans question à Otis) ; les coches restent sur le téléphone
+// jusqu'à « J'ai fini mes courses », qui les synchronise dans le classeur.
 import { state, getStoredCheckedItems, setStoredCheckedItems, clearStoredCheckedItems } from "../config.js";
 import { speak } from "../speech.js";
-import { postInteract, resetShoppingList, postShoppingComplete } from "../api.js";
+import { fetchShoppingData, postInteract, resetShoppingList, postShoppingComplete } from "../api.js";
+import { showToast } from "../toast.js";
+import { shoppingLists, groupByRayon, remainingCount, remainingNames, toggleStoredCheck, completionMessage } from "../shopping_model.js";
+import { el, button } from "./sport/dom.js";
 
-const shoppingListContainer = document.getElementById("shopping-list-container");
-const btnResetShopping = document.getElementById("btn-reset-shopping");
-const btnClearBought = document.getElementById("btn-clear-bought");
-const btnCheckCompletion = document.getElementById("btn-check-completion");
-const completionBanner = document.getElementById("shopping-completion-banner");
-const tabCetteSemaine = document.getElementById("tab-cette-semaine");
-const tabListeAttente = document.getElementById("tab-liste-attente");
-const badgeCetteSemaine = document.getElementById("badge-cette-semaine");
-const badgeListeAttente = document.getElementById("badge-liste-attente");
+const WEEK = "cette-semaine";
+const WAITING = "liste-attente";
+
+const listContainer = document.getElementById("shopping-list-container");
+const banner = document.getElementById("shopping-completion-banner");
+const tabs = { [WEEK]: document.getElementById("tab-cette-semaine"), [WAITING]: document.getElementById("tab-liste-attente") };
+const badges = { [WEEK]: document.getElementById("badge-cette-semaine"), [WAITING]: document.getElementById("badge-liste-attente") };
+const moreButton = document.getElementById("btn-shopping-more");
+const menu = document.getElementById("shopping-menu");
+
+function currentLists() {
+  return shoppingLists(state.cachedShoppingData, getStoredCheckedItems());
+}
+
+function updateBadges() {
+  const lists = currentLists();
+  if (badges[WEEK]) badges[WEEK].textContent = String(remainingCount(lists.week));
+  if (badges[WAITING]) badges[WAITING].textContent = String(remainingCount(lists.waiting));
+}
+
+function note(text, className = "muted") {
+  return el("p", `shopping-note ${className}`, text);
+}
 
 export async function fetchShoppingList() {
-  if (!shoppingListContainer) return;
-  shoppingListContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement des courses...</div>';
-
+  if (!listContainer) return;
+  listContainer.replaceChildren(note("Chargement des courses…"));
   try {
-    const res = await postInteract("Donne-moi la liste de courses");
-
-    if (!res.ok) {
-      shoppingListContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-rose)">Impossible de charger les courses.</div>';
-      return;
-    }
-
-    const payload = await res.json();
-    const pData = payload.data || {};
-    const shopObj = pData.shopping_list || {};
-
-    state.cachedShoppingData.waiting_list = pData.waiting_list || shopObj.waiting_list || [];
-    state.cachedShoppingData.current_week_items = pData.current_week_items || shopObj.current_week_items || [];
-    state.cachedShoppingData.rayons_order = pData.rayons_order || shopObj.rayons_order || null;
-
-    if (badgeCetteSemaine) badgeCetteSemaine.textContent = state.cachedShoppingData.current_week_items.length;
-    if (badgeListeAttente) badgeListeAttente.textContent = state.cachedShoppingData.waiting_list.length;
-
+    const data = await fetchShoppingData();
+    state.cachedShoppingData.current_week_items = data.current_week_items || [];
+    state.cachedShoppingData.waiting_list = data.waiting_list || [];
+    state.cachedShoppingData.rayons_order = data.rayons_order || null;
     renderShoppingItems();
   } catch (err) {
-    shoppingListContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-rose)">Erreur de connexion lors du chargement.</div>';
+    listContainer.replaceChildren(note(err.message || "Impossible de charger les courses.", "shopping-note--error"));
   }
+}
+
+// Coche d'un article : gardée sur le téléphone (Cette semaine) ou en mémoire (En attente) jusqu'à « J'ai fini ».
+function onToggle(isWaiting, name, checked) {
+  if (isWaiting) {
+    const target = state.cachedShoppingData.waiting_list.find((it) => it.item === name);
+    if (target) target.is_bought = checked;
+  } else {
+    setStoredCheckedItems(toggleStoredCheck(getStoredCheckedItems(), name, checked));
+    const target = state.cachedShoppingData.current_week_items.find((it) => it.name === name);
+    if (target) target.checked = checked;
+  }
+  updateBadges();
+}
+
+function itemRow(item, isWaiting) {
+  const row = el("label", "list-row");
+  const box = el("input", "check");
+  box.type = "checkbox";
+  box.checked = item.checked;
+  box.addEventListener("change", () => onToggle(isWaiting, item.name, box.checked));
+  row.append(box, el("span", "list-row__text", item.label));
+  if (item.qty) row.append(el("span", "list-row__qty", item.qty));
+  return row;
+}
+
+function rayonGroup(group, isWaiting) {
+  const card = el("div", "list-group");
+  const head = el("div", "list-group__head");
+  head.append(el("span", null, group.rayon), el("span", null, String(group.count)));
+  card.append(head, ...group.items.map((item) => itemRow(item, isWaiting)));
+  return card;
 }
 
 export function renderShoppingItems() {
-  if (!shoppingListContainer) return;
+  if (!listContainer) return;
+  const isWaiting = state.currentShoppingSubview === WAITING;
+  const lists = currentLists();
+  const items = isWaiting ? lists.waiting : lists.week;
+  updateBadges();
 
-  const isWaiting = state.currentShoppingSubview === "liste-attente";
-  const rawItems = isWaiting ? state.cachedShoppingData.waiting_list : state.cachedShoppingData.current_week_items;
-
-  if (!rawItems || rawItems.length === 0) {
-    shoppingListContainer.innerHTML = `
-      <div style="text-align:center; padding:40px 20px; color:var(--text-muted)">
-        <p>Aucun article dans ${isWaiting ? "la liste d'attente" : "la liste de cette semaine"}.</p>
-      </div>`;
+  if (!items.length) {
+    listContainer.replaceChildren(note(`Aucun article dans ${isWaiting ? "la liste d'attente" : "la liste de cette semaine"}.`));
     return;
   }
+  const finish = button("btn btn--primary btn--block", "🏁 J'ai fini mes courses");
+  finish.addEventListener("click", checkShoppingCompletion);
+  listContainer.replaceChildren(
+    ...groupByRayon(items, state.cachedShoppingData.rayons_order).map((group) => rayonGroup(group, isWaiting)),
+    finish,
+  );
+}
 
-  const storedChecked = getStoredCheckedItems();
-
-  // Groupement par Rayon
-  const grouped = {};
-  rawItems.forEach((it) => {
-    const name = isWaiting ? it.item : it.name;
-    const isBought = isWaiting ? it.is_bought : (it.checked || storedChecked.includes(name));
-    const rayon = it.rayon || "Divers";
-    if (!grouped[rayon]) grouped[rayon] = [];
-    grouped[rayon].push({ name, isBought, raw: it });
-  });
-
-  function normRayon(r) {
-    return (r || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
+function showBanner(message) {
+  if (!banner) return;
+  const box = el("div", `callout ${message.tone === "success" ? "callout--accent" : "callout--warn"} shopping-banner`);
+  box.setAttribute("role", "status");
+  const body = el("div");
+  body.append(el("strong", "callout__title", message.title));
+  if (message.text) body.append(el("p", "callout__text", message.text));
+  if (message.items.length) {
+    const left = el("div", "shopping-banner__items");
+    left.append(...message.items.map((name) => el("span", "badge", name)));
+    body.append(left);
   }
-
-  const defaultRayonsOrder = {
-    "fruits": 1,
-    "legumes": 2,
-    "plat prepare": 3,
-    "viande": 4,
-    "charcuterie": 5,
-    "dessert": 6,
-    "fromage/beurre/creme": 7,
-    "apero": 8,
-    "oeufs/farine/lait": 9,
-    "petit dej + bio": 10,
-    "produit du monde": 11,
-    "epicerie": 12,
-    "boisson": 13,
-    "hygiene": 14,
-    "pq + entretien": 15,
-    "surgele": 16,
-    "divers": 999
-  };
-
-  const rawOrder = state.cachedShoppingData.rayons_order || {};
-  const normalizedOrderMap = { ...defaultRayonsOrder };
-  Object.keys(rawOrder).forEach((k) => {
-    normalizedOrderMap[normRayon(k)] = rawOrder[k];
-  });
-
-  const sortedRayonNames = Object.keys(grouped).sort((a, b) => {
-    const nA = normRayon(a);
-    const nB = normRayon(b);
-    const ordA = normalizedOrderMap[nA] !== undefined ? normalizedOrderMap[nA] : 900;
-    const ordB = normalizedOrderMap[nB] !== undefined ? normalizedOrderMap[nB] : 900;
-    if (ordA !== ordB) return ordA - ordB;
-    return a.localeCompare(b);
-  });
-
-  let html = "";
-  sortedRayonNames.forEach((rayon) => {
-    const items = grouped[rayon];
-    html += `
-      <div class="rayon-card">
-        <div class="rayon-card-header">
-          <span>${rayon}</span>
-          <span>${items.length}</span>
-        </div>
-        <div class="rayon-items">
-    `;
-    items.forEach((item) => {
-      const checkedClass = item.isBought ? "checked" : "";
-      html += `
-        <div class="shopping-item-row ${checkedClass}" data-item="${encodeURIComponent(item.name)}" data-is-waiting="${isWaiting}">
-          <div class="custom-checkbox">
-            <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-          </div>
-          <span class="item-label">${item.name}</span>
-        </div>
-      `;
-    });
-    html += `</div></div>`;
-  });
-
-  // Bouton de fin des courses
-  html += `
-    <button id="btn-finish-shopping-bottom" class="btn-finish-big">
-      🏁 J'ai fini mes courses !
-    </button>
-  `;
-
-  shoppingListContainer.innerHTML = html;
-
-  // Clic sur une ligne d'article
-  shoppingListContainer.querySelectorAll(".shopping-item-row").forEach((row) => {
-    row.addEventListener("click", async () => {
-      const itemName = decodeURIComponent(row.getAttribute("data-item"));
-      const fromWaiting = row.getAttribute("data-is-waiting") === "true";
-      const wasChecked = row.classList.contains("checked");
-
-      row.classList.toggle("checked");
-      const isNowChecked = !wasChecked;
-
-      if (!fromWaiting) {
-        let stored = getStoredCheckedItems();
-        if (isNowChecked) {
-          if (!stored.includes(itemName)) stored.push(itemName);
-        } else {
-          stored = stored.filter((it) => it !== itemName);
-        }
-        setStoredCheckedItems(stored);
-
-        const target = state.cachedShoppingData.current_week_items.find((it) => it.name === itemName);
-        if (target) target.checked = isNowChecked;
-      } else {
-        const target = state.cachedShoppingData.waiting_list.find((it) => it.item === itemName);
-        if (target) target.is_bought = isNowChecked;
-      }
-    });
-  });
-
-  const btnBottomFinish = document.getElementById("btn-finish-shopping-bottom");
-  if (btnBottomFinish) {
-    btnBottomFinish.addEventListener("click", checkShoppingCompletion);
-  }
+  if (message.synced) body.append(el("p", "callout__text", "✅ Synchronisé dans votre Google Sheet (Cette semaine & Liste d'attente)"));
+  box.append(body);
+  banner.replaceChildren(box);
+  banner.hidden = false;
+  banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 export async function checkShoppingCompletion() {
-  const storedChecked = getStoredCheckedItems();
-  const isWaiting = state.currentShoppingSubview === "liste-attente";
+  const lists = currentLists();
+  const checkedWeek = lists.week.filter((it) => it.checked).map((it) => it.name);
+  const checkedWaiting = lists.waiting.filter((it) => it.checked).map((it) => it.name);
 
-  // Articles cochés dans Cette semaine et Liste d'attente
-  const checkedCurrent = (state.cachedShoppingData.current_week_items || [])
-    .filter((it) => it.checked || storedChecked.includes(it.name))
-    .map((it) => it.name);
-
-  const checkedWaiting = (state.cachedShoppingData.waiting_list || [])
-    .filter((it) => it.is_bought)
-    .map((it) => it.item);
-
-  // Synchronisation groupée vers Google Sheets (Cette semaine + Liste d'attente)
-  let syncSuccess = false;
-  if (checkedCurrent.length > 0 || checkedWaiting.length > 0) {
+  let synced = false;
+  if (checkedWeek.length || checkedWaiting.length) {
     try {
-      await postShoppingComplete({
-        current_week_items: checkedCurrent,
-        waiting_items: checkedWaiting,
-      });
-      syncSuccess = true;
+      await postShoppingComplete({ current_week_items: checkedWeek, waiting_items: checkedWaiting });
+      synced = true;
       clearStoredCheckedItems();
-      (state.cachedShoppingData.current_week_items || []).forEach((it) => {
-        if (checkedCurrent.includes(it.name)) it.checked = true;
-      });
     } catch (err) {
       console.warn("Échec de synchronisation Google Sheets:", err);
+      showToast(err.message, "error", { title: "Courses non synchronisées" });
     }
   }
 
-  let remaining = [];
-  if (isWaiting) {
-    remaining = (state.cachedShoppingData.waiting_list || [])
-      .filter((it) => !it.is_bought)
-      .map((it) => it.item);
-  } else {
-    remaining = (state.cachedShoppingData.current_week_items || [])
-      .filter((it) => !it.checked && !storedChecked.includes(it.name))
-      .map((it) => it.name);
-  }
+  const remaining = remainingNames(state.currentShoppingSubview === WAITING ? lists.waiting : lists.week);
+  const message = completionMessage(remaining, synced);
+  showBanner(message);
+  speak(message.speech);
+}
 
-  if (completionBanner) {
-    const syncBadge = syncSuccess ? "<div style='margin-top:6px; font-size:0.85rem; color:#4ade80; font-weight:600;'>✅ Synchronisé dans votre Google Sheet (Cette semaine & Liste d'attente)</div>" : "";
-    if (remaining.length === 0) {
-      completionBanner.className = "completion-banner success";
-      completionBanner.innerHTML = `
-        <div>
-          <span>🎉 <strong>Félicitations !</strong> Vous avez tout pris dans votre liste. Vos courses sont complètes !</span>
-          ${syncBadge}
-        </div>
-      `;
-      completionBanner.style.display = "block";
-      speak("Félicitations, vous avez tout pris ! Vos courses sont complètes et enregistrées dans le Google Sheet.");
-    } else {
-      completionBanner.className = "completion-banner warning";
-      completionBanner.innerHTML = `
-        <div>
-          <span>⚠️ <strong>Attention, il vous reste encore ${remaining.length} article(s) à prendre :</strong></span>
-          <div style="margin-top:6px; font-size:0.85rem; display:flex; flex-wrap:wrap; gap:4px;">
-            ${remaining.map((it) => `<span style="background:rgba(0,0,0,0.25); padding:2px 7px; border-radius:4px; font-weight:600;">${it}</span>`).join("")}
-          </div>
-          ${syncBadge}
-        </div>
-      `;
-      completionBanner.style.display = "block";
-      speak(`Attention, il vous reste encore ${remaining.length} article(s) à prendre : ${remaining.slice(0, 4).join(", ")}.`);
-    }
-    completionBanner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+function selectTab(subview) {
+  state.currentShoppingSubview = subview;
+  Object.entries(tabs).forEach(([key, tab]) => tab && tab.setAttribute("aria-selected", String(key === subview)));
+  if (listContainer && tabs[subview]) listContainer.setAttribute("aria-labelledby", tabs[subview].id);
+  renderShoppingItems();
+}
+
+// Menu ⋯ : Réinitialiser la semaine / Vider les achetés.
+function setMenuOpen(open) {
+  if (!menu || !moreButton) return;
+  menu.hidden = !open;
+  moreButton.setAttribute("aria-expanded", String(open));
+  if (open) {
+    const first = menu.querySelector('[role="menuitem"]');
+    if (first) first.focus();
+  }
+}
+
+function initMenu() {
+  if (!menu || !moreButton) return;
+  moreButton.addEventListener("click", () => setMenuOpen(menu.hidden));
+  menu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation(); // Échap ferme le menu, pas la feuille
+    setMenuOpen(false);
+    moreButton.focus();
+  });
+  document.addEventListener("click", (event) => {
+    if (!menu.hidden && !menu.contains(event.target) && !moreButton.contains(event.target)) setMenuOpen(false);
+  });
+}
+
+async function resetWeek() {
+  setMenuOpen(false);
+  if (!confirm("Voulez-vous réinitialiser tous les articles cochés pour cette semaine ?")) return;
+  try {
+    clearStoredCheckedItems();
+    if (banner) banner.hidden = true;
+    await resetShoppingList();
+    speak("La liste de courses de la semaine a été réinitialisée.");
+    await fetchShoppingList();
+  } catch (err) {
+    showToast(err.message, "error", { title: "Réinitialisation impossible" });
+  }
+}
+
+async function clearBought() {
+  setMenuOpen(false);
+  if (!confirm("Voulez-vous vider les articles cochés de la liste d'attente ?")) return;
+  try {
+    // Passe par Otis : l'action est journalisée, donc annulable depuis l'accueil.
+    const res = await postInteract("Vide la liste de courses");
+    if (!res.ok) throw new Error(`Nettoyage refusé (erreur ${res.status})`);
+    const data = await res.json();
+    showToast(data.spoken_response || "Articles nettoyés", "success", { title: "Courses" });
+    await fetchShoppingList();
+  } catch (err) {
+    showToast(err.message, "error", { title: "Nettoyage impossible" });
   }
 }
 
 export function initShoppingView() {
-  if (tabCetteSemaine && tabListeAttente) {
-    tabCetteSemaine.addEventListener("click", () => {
-      state.currentShoppingSubview = "cette-semaine";
-      tabCetteSemaine.classList.add("active");
-      tabListeAttente.classList.remove("active");
-      if (btnClearBought) btnClearBought.style.display = "none";
-      if (btnResetShopping) btnResetShopping.style.display = "inline-block";
-      renderShoppingItems();
-    });
-
-    tabListeAttente.addEventListener("click", () => {
-      state.currentShoppingSubview = "liste-attente";
-      tabListeAttente.classList.add("active");
-      tabCetteSemaine.classList.remove("active");
-      if (btnClearBought) btnClearBought.style.display = "block";
-      if (btnResetShopping) btnResetShopping.style.display = "none";
-      renderShoppingItems();
-    });
-  }
-
-  if (btnCheckCompletion) {
-    btnCheckCompletion.addEventListener("click", checkShoppingCompletion);
-  }
-
-  if (btnResetShopping) {
-    btnResetShopping.addEventListener("click", async () => {
-      if (!confirm("Voulez-vous réinitialiser tous les articles cochés pour cette semaine ?")) return;
-      try {
-        clearStoredCheckedItems();
-        if (state.cachedShoppingData.current_week_items) {
-          state.cachedShoppingData.current_week_items.forEach((it) => {
-            it.checked = false;
-          });
-        }
-        if (completionBanner) completionBanner.style.display = "none";
-        renderShoppingItems();
-        await resetShoppingList();
-        speak("La liste de courses de la semaine a été réinitialisée.");
-        await fetchShoppingList();
-      } catch (err) {
-        alert("Erreur lors de la réinitialisation : " + err.message);
-      }
-    });
-  }
-
-  if (btnClearBought) {
-    btnClearBought.addEventListener("click", async () => {
-      if (!confirm("Voulez-vous vider les articles cochés de la liste d'attente ?")) return;
-      try {
-        const res = await postInteract("Vide la liste de courses");
-        const data = await res.json();
-        alert(data.spoken_response || "Articles nettoyés");
-        fetchShoppingList();
-      } catch (err) {
-        alert("Erreur lors du nettoyage de la liste");
-      }
-    });
-  }
+  Object.entries(tabs).forEach(([key, tab]) => tab && tab.addEventListener("click", () => selectTab(key)));
+  initMenu();
+  const resetButton = document.getElementById("btn-reset-shopping");
+  const clearButton = document.getElementById("btn-clear-bought");
+  if (resetButton) resetButton.addEventListener("click", resetWeek);
+  if (clearButton) clearButton.addEventListener("click", clearBought);
 }
