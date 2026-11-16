@@ -13,9 +13,23 @@ export const SECTIONS = {
   },
 };
 
+// Feuilles empilées sur une section (détail, formulaire) : elles gardent le contexte de leur section ;
+// `placeholder` remplace celui de la section quand la feuille porte la barre de saisie.
+export const STACKED_SHEETS = {
+  "view-sport-session": { section: "sport", placeholder: "« En fait c'était 48 minutes »" },
+  "view-sport-form": { section: "sport", placeholder: null },
+};
+
 export function sectionForSheet(sheetId) {
+  if (STACKED_SHEETS[sheetId]) return STACKED_SHEETS[sheetId].section;
   const found = Object.entries(SECTIONS).find(([, s]) => s.sheetId && s.sheetId === sheetId);
   return found ? found[0] : "accueil";
+}
+
+export function placeholderForSheet(sheetId) {
+  const stacked = STACKED_SHEETS[sheetId];
+  if (stacked && stacked.placeholder) return stacked.placeholder;
+  return SECTIONS[sectionForSheet(sheetId)].placeholder;
 }
 
 // Préférence enregistrée (« light » / « dark »), sinon celle du système.

@@ -87,3 +87,73 @@ button.activity__undo:disabled { color: var(--disabled); cursor: default; }
   margin: 2px 0 0; padding: 0; border: 0; background: none;
   font-size: var(--fs-xs); font-weight: 600; color: var(--muted);
 }
+
+/* ---------- Sport (refonte, étape 2) : vues, détail et formulaire Séance ---------- */
+.sport-view { display: flex; flex-direction: column; gap: 10px; }
+.sport-view[hidden] { display: none; }
+.action-bar .btn--primary svg { width: 22px; height: 22px; }
+.sport-card__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
+.hero-number--xl strong { font-size: 52px; letter-spacing: -2px; }
+.sport-empty { margin: var(--s-2) 0; font-size: var(--fs-md); text-align: center; }
+.sport-empty--error { color: var(--danger); }
+.sport-milestone { margin: 0; padding: 2px 4px; font-size: 14px; line-height: 1.4; color: var(--text-2); }
+
+/* Ligne de séance (bouton) */
+button.sport-row { width: 100%; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; gap: var(--s-3); }
+.sport-row__emoji { font-size: 24px; flex-shrink: 0; }
+.sport-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sport-row__title { font-size: var(--fs-md); font-weight: 800; }
+.sport-row__meta { font-size: var(--fs-sm); color: var(--muted); }
+.sport-row__pain { align-self: flex-start; }
+.sport-row__value { font-size: 20px; font-weight: 800; white-space: nowrap; }
+.sport-row__unit { font-size: var(--fs-sm); color: var(--muted); font-weight: 700; }
+.sport-row__chevron { width: 18px; height: 18px; color: var(--muted); flex-shrink: 0; }
+
+/* Histogramme : la barre se mesure dans la hauteur de sa colonne ; tuiles qui choisissent l'indicateur */
+.sport-chart { gap: var(--s-2); padding: 14px 14px 10px; }
+.sport-chart__title { font-size: var(--fs-sm); font-weight: 700; color: var(--muted); }
+.bars__col { height: 100%; justify-content: flex-end; cursor: pointer; font: inherit; }
+.bars__bar { height: calc(var(--h, 0%) * .82); }
+button.stat-tile { font: inherit; cursor: pointer; }
+.stat-tile[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Vue Séances : filtres en puces, pagination */
+.sport-filters { display: flex; gap: var(--s-2); align-items: center; }
+select.chip { -webkit-appearance: none; appearance: none; background: var(--field); font-family: inherit; font-size: var(--fs-base); cursor: pointer; }
+.sport-filters__count { margin-left: auto; font-size: var(--fs-sm); color: var(--muted); font-weight: 600; }
+.sport-pages { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); margin-top: var(--s-2); font-size: var(--fs-sm); }
+.btn:disabled { color: var(--disabled); border-color: var(--border); cursor: default; }
+
+/* Détail d'une séance */
+.sport-detail__heading { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sport-detail__title { margin: 0; font-size: 20px; font-weight: 800; }
+.sport-detail__sub { font-size: var(--fs-sm); color: var(--muted); }
+.sport-detail__edit { background: var(--card-2); border: 0; font-weight: 800; }
+.sport-detail__edit svg { width: 16px; height: 16px; }
+.sheet--stacked .icon-btn { background: var(--card-2); }
+.sport-chip { min-height: 36px; padding: 0 14px; border-radius: 18px; font-size: var(--fs-sm); }
+.stat-tile .stat__value { font-size: 20px; }
+.stat__value--empty { font-size: var(--fs-md); font-weight: 700; color: var(--text-2); }
+.sport-notes { gap: 6px; padding: 14px 16px; }
+.sport-notes__text { margin: 0; font-size: var(--fs-md); line-height: 1.45; white-space: pre-wrap; }
+
+/* Formulaire Séance */
+.sport-form__header { padding-bottom: var(--s-2); border-bottom: 1px solid var(--border); }
+.sport-form__header .btn:not(.btn--primary) { background: var(--card-2); border: 0; }
+.sport-form__title { flex: 1; margin: 0; text-align: center; font-size: var(--fs-lg); font-weight: 800; }
+.callout--accent .callout__text { flex: 1; color: var(--text-2); }
+.callout .mic-btn { width: 56px; height: 56px; }
+.callout .mic-btn svg { width: 26px; height: 26px; }
+.mic-btn:disabled { opacity: .5; }
+.sport-form__status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.seg--rail > [aria-pressed="true"] { background: var(--border-strong); color: var(--text); font-weight: 800; }
+.range.is-unset { opacity: .45; }
+.sport-form__pain { min-height: 52px; display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-md); font-weight: 700; cursor: pointer; }
+.sport-form__pain-detail { display: flex; flex-direction: column; gap: 18px; }
+.sport-form__pain-detail[hidden] { display: none; }
+.sport-form__pain-range { accent-color: var(--danger); }
+.sport-form__errors { margin: 0; padding: 10px 14px; border-radius: var(--r-md); background: var(--danger-bg); color: var(--danger); font-size: var(--fs-sm); font-weight: 700; }
+.sport-form__errors[hidden] { display: none; }
+.sport-form__footer { flex-shrink: 0; padding: 14px 0 calc(24px + var(--safe-bottom)); border-top: 1px solid var(--border); }
+/* hub.css fixe le fond du badge « warn » en sombre : en thème clair, il suit le jeton --warn-bg */
+:root[data-theme="light"] .badge--warn { background: var(--warn-bg); }
