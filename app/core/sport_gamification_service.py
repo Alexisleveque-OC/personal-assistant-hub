@@ -1,4 +1,5 @@
 """Service de gamification, détection de records personnels (PRs), badges et anecdotes sportives (Otis)."""
+import re
 from datetime import date as dt_date
 from typing import Any, Dict, List, Optional
 
@@ -14,15 +15,8 @@ from app.connectors.sheets.sport_models import (
     SportSessionType,
     format_pace,
 )
-
-
-def _fr_number(value: float) -> str:
-    """Nombre à la française pour l'affichage : « 5 940 », « 19,8 », « 5 » (pas de « ,0 »)."""
-    rounded = round(float(value), 2)
-    if rounded.is_integer():
-        return f"{int(rounded):,}".replace(",", " ")
-    whole, frac = f"{rounded:,.2f}".split(".")
-    return f"{whole.replace(',', ' ')},{frac.rstrip('0')}"
+from app.core.sport_equivalences import daily_equivalences
+from app.core.sport_fun_badges import evaluate_fun_badges
 
 
 class SportGamificationService:
@@ -69,12 +63,7 @@ class SportGamificationService:
         imminent = self._detect_imminent_milestones(badges)
 
         # 5. Anecdotes et équivalences insolites
-        fun_facts = self._generate_fun_facts(
-            total_dist=total_dist,
-            total_dplus=total_dplus,
-            total_duree=total_duree,
-            total_seances=total_seances,
-        )
+        fun_facts = daily_equivalences(total_km=total_dist, total_dplus=total_dplus, day=ref_today)
 
         # 6. Annonces marquantes ("OMG", Marathons cumulés, D+ monumental)
         announcements: List[str] = []
@@ -917,7 +906,8 @@ class SportGamificationService:
 
         # Le Spren de la Douleur
         spren_unlocked = any(
-            any(w in (s.remarques or "").lower() for w in ["spren", "mental", "dur", "au mental", "tenu bon"])
+            any(w in (s.remarques or "").lower() for w in ["spren", "mental", "tenu bon"])
+            or re.search(r"\bdur\b", (s.remarques or "").lower())  # mot entier : « durée », « durant » ne comptent pas
             for s in realised
         )
         badges.append(
@@ -1075,6 +1065,8 @@ class SportGamificationService:
             )
         )
 
+        # Trophées pop-culture et secrets ajoutés le 16/11 (module dédié)
+        badges.extend(evaluate_fun_badges(realised))
         return badges
 
     def _detect_imminent_milestones(self, badges: List[SportBadge]) -> List[ImminentMilestone]:
@@ -1186,126 +1178,6 @@ class SportGamificationService:
             return f"💡 L'anecdote du jour : {chosen.text}"
 
         return "🏃 Chaque foulée compte ! Prêt à repousser tes limites aujourd'hui ?"
-
-    def _generate_fun_facts(
-        self,
-        total_dist: float,
-        total_dplus: int,
-        total_duree: int,
-        total_seances: int,
-    ) -> List[SportFunFact]:
-        """Génère des anecdotes ludiques et des équivalences mémorables."""
-        facts: List[SportFunFact] = []
-
-        # 1. Équivalence verticale (D+)
-        eiffel_count = round(total_dplus / 300.0, 1) if total_dplus > 0 else 0
-        if eiffel_count >= 1.0:
-            facts.append(
-                SportFunFact(
-                    id="fact_vertical_eiffel",
-                    title="Ascension Verticale",
-                    text=f"Avec tes {total_dplus} m de D+ cumulés, tu as grimpé l'équivalent de {eiffel_count} fois la Tour Eiffel !",
-                    icon="🗼",
-                    category="vertical",
-                    headline=f"{_fr_number(eiffel_count)} × la tour Eiffel",
-                    detail=f"{_fr_number(total_dplus)} m de D+ cumulés",
-                )
-            )
-        else:
-            facts.append(
-                SportFunFact(
-                    id="fact_vertical_eiffel_intro",
-                    title="Ascension Verticale",
-                    text=f"Déjà {total_dplus} m de dénivelé positif gravi ! La Tour Eiffel culmine à 300 m.",
-                    icon="⛰️",
-                    category="vertical",
-                    headline=f"{_fr_number(total_dplus)} m de D+",
-                    detail="la tour Eiffel culmine à 300 m",
-                )
-            )
-
-        # 2. Équivalences géographiques
-        if total_dist >= 180:
-            facts.append(
-                SportFunFact(
-                    id="fact_geo_gr20",
-                    title="Traversée Mythique",
-                    text=f"Tes {total_dist} km dépassent la distance intégrale du mythique GR20 en Corse (180 km) !",
-                    icon="🏝️",
-                    category="geo",
-                    headline=f"{_fr_number(round(total_dist / 180, 1))} × le GR20",
-                    detail=f"{_fr_number(total_dist)} km au total, le GR20 en fait 180",
-                )
-            )
-        elif total_dist >= 90:
-            facts.append(
-                SportFunFact(
-                    id="fact_geo_chartres",
-                    title="Échappée Régionale",
-                    text=f"Tes {total_dist} km te permettraient de rallier Paris à la cathédrale de Chartres à pied !",
-                    icon="🏰",
-                    category="geo",
-                    headline=f"{_fr_number(round(total_dist / 90, 1))} × Paris–Chartres",
-                    detail=f"{_fr_number(total_dist)} km au total, Paris–Chartres en fait 90",
-                )
-            )
-        elif total_dist >= 40:
-            facts.append(
-                SportFunFact(
-                    id="fact_geo_annecy",
-                    title="Liaison Alpine",
-                    text=f"Tes {total_dist} km représentent la liaison directe d'une seule traite entre Annecy et Genève (42 km) !",
-                    icon="🏔️",
-                    category="geo",
-                    headline=f"{_fr_number(round(total_dist / 42, 1))} × Annecy–Genève",
-                    detail=f"{_fr_number(total_dist)} km au total, Annecy–Genève en fait 42",
-                )
-            )
-        else:
-            facts.append(
-                SportFunFact(
-                    id="fact_geo_start",
-                    title="Sur la Route",
-                    text=f"Déjà {total_dist} km d'asphalte et de sentiers au compteur !",
-                    icon="🗺️",
-                    category="geo",
-                    headline=f"{_fr_number(total_dist)} km au compteur",
-                    detail="d'asphalte et de sentiers",
-                )
-            )
-
-        # 3. Équivalence énergétique (croissants / pizzas)
-        # Estimation classique : 65 kcal par km de course à pied
-        approx_kcal = int(total_dist * 65)
-        croissants = round(approx_kcal / 400.0, 1)
-        facts.append(
-            SportFunFact(
-                id="fact_energy_croissants",
-                title="Carburant & Calories",
-                text=f"Tes sorties représentent environ {approx_kcal:,} kcal brûlées, soit l'équivalent énergétique de {croissants} croissants pur beurre !".replace(",", " "),
-                icon="🥐",
-                category="energy",
-                headline=f"{_fr_number(round(croissants))} croissants pur beurre",
-                detail=f"environ {_fr_number(approx_kcal)} kcal brûlées",
-            )
-        )
-
-        # 4. Équivalence cosmique / absurde
-        moon_dist = 384400.0
-        rem_moon = int(moon_dist - total_dist)
-        facts.append(
-            SportFunFact(
-                id="fact_absurd_moon",
-                title="Objectif Alunissage",
-                text=f"Plus que {rem_moon:,} km avant de poser tes baskets sur la surface de la Lune !".replace(",", " "),
-                icon="🚀",
-                category="cosmique",
-                headline=f"{_fr_number(rem_moon)} km avant la Lune",
-                detail=f"{_fr_number(total_dist)} km déjà parcourus sur {_fr_number(moon_dist)}",
-            )
-        )
-
-        return facts
 
     def get_morning_chronicle_snippet(self, summary: SportGamificationSummary) -> str:
         """Génère une phrase punchy et motivante pour la chronique matinale ou le coach.
