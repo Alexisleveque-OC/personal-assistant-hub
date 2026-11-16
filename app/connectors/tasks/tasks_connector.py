@@ -92,4 +92,5 @@ def _to_task(item: Dict[str, Any]) -> TaskItem:
         echeance=date.fromisoformat(due[:10]) if due else None,  # « 2026-11-05T00:00:00.000Z » : seul le jour compte
         notes=item.get("notes") or None,
         terminee=item.get("status") == "completed",
+        parent=item.get("parent") or None,
     )

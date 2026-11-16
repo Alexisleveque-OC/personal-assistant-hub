@@ -22,6 +22,8 @@ from app.core.database import get_database_manager
 from app.core.dependencies import (
     get_calendar_connector,
     get_calendar_connector_error,
+    get_task_events_connector,
+    get_task_events_connector_error,
     get_tasks_connector,
     get_tasks_connector_error,
 )
@@ -58,7 +60,10 @@ def build_undo_service(sport_connector: Any, meals_connector: Any = None) -> Und
 
 
 def _tasks_tools() -> TasksTools:
-    return TasksTools(get_tasks_connector(), unavailable_reason=get_tasks_connector_error())
+    return TasksTools(
+        get_tasks_connector(), unavailable_reason=get_tasks_connector_error(),
+        events=get_task_events_connector(), events_unavailable_reason=get_task_events_connector_error(),
+    )
 
 
 def build_agent_service(

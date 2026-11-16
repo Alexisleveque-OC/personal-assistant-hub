@@ -189,3 +189,12 @@ def test_write_error_names_the_operation():
     connector, _ = writable(FakeResponse({"error": "Not Found"}, status_code=404))
     with pytest.raises(TasksError, match="404.*t9"):
         connector.set_completed("t9", True)
+
+
+def test_subtasks_keep_their_parent_id():
+    connector, _ = make_connector(
+        task("Rendez-vous à prendre", "p1"),
+        task("ORL", "c1", parent="p1"),
+    )
+    parent, child = connector.list_open_tasks()
+    assert (parent.parent, child.parent) == (None, "p1")

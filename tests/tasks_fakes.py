@@ -35,3 +35,33 @@ class FakeWritableTasks:
     def delete_task(self, task_id: str) -> None:
         self.get_task(task_id)
         del self.tasks[task_id]
+
+
+class FakeTaskEvents:
+    """Doublure en mémoire de `TaskEventsConnector` (événements Agenda des tâches avec heure)."""
+
+    def __init__(self, fail_create: str = "") -> None:
+        from app.connectors.calendar.task_events import TaskEvent
+        self._event_cls = TaskEvent
+        self.events = {}
+        self.next_id = 1
+        self.fail_create = fail_create
+
+    def list_task_events(self):
+        return dict(self.events)
+
+    def create_event(self, task_id, titre, debut, rappel_minutes_avant):
+        from app.connectors.calendar.calendar_connector import CalendarError
+        if self.fail_create:
+            raise CalendarError(self.fail_create)
+        event = self._event_cls(
+            task_id=task_id, event_id=f"ev{self.next_id}", debut=debut, rappel_minutes_avant=rappel_minutes_avant,
+        )
+        self.next_id += 1
+        self.titles = getattr(self, "titles", {})
+        self.titles[event.event_id] = titre
+        self.events[task_id] = event
+        return event
+
+    def delete_event(self, event_id):
+        self.events = {k: v for k, v in self.events.items() if v.event_id != event_id}

@@ -8,6 +8,7 @@ import logging
 
 from app.config import settings
 from app.connectors.calendar.calendar_connector import CalendarConnector
+from app.connectors.calendar.task_events import TaskEventsConnector
 from app.connectors.google_oauth import GoogleOAuthNotConfiguredError
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.connectors.sheets.sport_connector import SportConnector
@@ -28,6 +29,8 @@ _calendar_connector: Any = "UNSET"
 _calendar_connector_error: str = ""
 _tasks_connector: Any = "UNSET"
 _tasks_connector_error: str = ""
+_task_events_connector: Any = "UNSET"
+_task_events_connector_error: str = ""
 _SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
@@ -97,6 +100,31 @@ def set_tasks_connector(connector: Optional[Any], error: str = "") -> None:
     global _tasks_connector, _tasks_connector_error
     _tasks_connector = connector
     _tasks_connector_error = error
+
+
+def get_task_events_connector() -> Optional[TaskEventsConnector]:
+    """Événements Agenda des tâches avec heure (OAuth utilisateur, droit calendar.events) ; cause d'échec conservée."""
+    global _task_events_connector, _task_events_connector_error
+    if _task_events_connector == "UNSET":
+        try:
+            _task_events_connector = TaskEventsConnector.from_settings(settings)
+            _task_events_connector_error = ""
+        except GoogleOAuthNotConfiguredError as exc:
+            logger.warning(f"Agenda des tâches non configuré : {exc}")
+            _task_events_connector = None
+            _task_events_connector_error = str(exc)
+    return _task_events_connector
+
+
+def get_task_events_connector_error() -> str:
+    return _task_events_connector_error
+
+
+def set_task_events_connector(connector: Optional[Any], error: str = "") -> None:
+    """Permet l'injection d'une doublure des événements de tâches ou son absence motivée, pour les tests."""
+    global _task_events_connector, _task_events_connector_error
+    _task_events_connector = connector
+    _task_events_connector_error = error
 
 
 def get_sport_connector_error() -> Optional[str]:
