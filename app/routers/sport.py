@@ -429,8 +429,8 @@ async def get_sport_gamification(
 ):
     """Calcule et retourne la liste des badges, paliers réguliers, PRs et anecdotes pour Otis."""
     all_sessions = connector.get_all_sessions()
-    service = SportGamificationService()
-    return service.compute_summary(all_sessions)
+    # Instance partagée : son cache évite de rejouer l'historique (dates de déblocage) à chaque ouverture.
+    return _gamification_service.compute_summary(all_sessions)
 
 
 @router.post(

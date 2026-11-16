@@ -28,7 +28,7 @@ def test_get_app_returns_200_html():
     assert 'id="sport-period"' in html
     assert 'id="sport-sessions-list"' in html
     assert 'id="btn-sport-trophies"' in html
-    assert 'id="sport-gamification-container"' in html
+    assert 'id="view-sport-trophies"' in html
     assert 'id="view-second-brain"' in html
     assert 'data-section="second_cerveau"' in html
     assert 'id="second-brain-notes-container"' in html

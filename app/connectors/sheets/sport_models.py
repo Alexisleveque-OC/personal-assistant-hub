@@ -506,7 +506,7 @@ class SportBadge(BaseModel):
     category: BadgeCategory
     is_unlocked: bool = False
     is_secret: bool = False
-    unlocked_at: Optional[str] = None
+    unlocked_at: Optional[str] = Field(default=None, description="Date ISO de la séance qui a débloqué le badge")
     current_value: float = 0.0
     target_value: Optional[float] = None
     unit: Optional[str] = None
@@ -521,6 +521,8 @@ class SportFunFact(BaseModel):
     text: str
     icon: str
     category: str  # geo, vertical, energy, cosmique, culture_g
+    headline: Optional[str] = Field(default=None, description="Chiffre-clé court (ex: « 19,8 × la tour Eiffel »)")
+    detail: Optional[str] = Field(default=None, description="Précision sous le chiffre-clé (ex: « 5 940 m de D+ cumulés »)")
 
 
 class PersonalRecord(BaseModel):

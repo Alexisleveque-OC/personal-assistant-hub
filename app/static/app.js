@@ -21,7 +21,7 @@ import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView } from "./js/views/sport_view.js";
-import { initSportSheet, loadSport, showSportView } from "./js/views/sport/sport_sheet.js";
+import { initSportSheet, loadSport, openTrophies } from "./js/views/sport/sport_sheet.js";
 import { initSecondBrainView, switchBrainSubview, getBrainSubview } from "./js/views/second_brain_view.js";
 import { initOfflineSync, syncOutbox } from "./js/offline_outbox.js";
 import { SECTIONS, sectionForSheet, placeholderForSheet, sectionForAction, greetingFor, formatLongDate } from "./js/ui_shell.js";
@@ -309,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const shortcut = sectionForAction(new URLSearchParams(window.location.search).get("action"));
   if (shortcut) {
     shell.openSection(shortcut.section);
-    if (shortcut.subview === "gamification") showSportView("trophies");
+    if (shortcut.subview === "gamification") openTrophies();
   }
 
   // 11. Enregistrement PWA Service Worker

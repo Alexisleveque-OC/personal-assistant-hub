@@ -27,10 +27,18 @@ Plus de barre d'onglets : menu burger (`.drawer`) + accueil à bulles + sections
 - Feuille Sport : barre d'actions seule (comme la maquette) ; la barre de saisie revient dans le détail d'une séance (« En fait c'était 48 minutes »).
 - Champ « Programme » conservé dans le formulaire et affiché dans le détail.
 
+### Trophées (décisions du 16/11)
+- Feuille empilée sur Sport (‹ = retour au Sport, ✕ = tout fermer), ouverte par l'icône 🏆 et le raccourci `?action=sport_gamification`.
+- 4 onglets : ⚡ En une séance (mono_session) ; 📈 Cumuls (distance, D+, temps, régularité) ; 🧙 Pop‑culture ; 🕵️ Secrets & absurdes. Dans chaque onglet, diamant et mythique derrière « Voir les légendaires 👑🪐 ». Tri : débloqués d'abord, puis progression décroissante.
+- Date de déblocage (`unlocked_at`) recalculée côté serveur en rejouant l'historique (jour de la séance qui a fait basculer le badge ; rien n'est stocké ; cache mémoire à une entrée). « Tout juste débloqué » (`.just-unlocked`) = débloqué il y a 7 jours au plus. Carte : « Débloqué ✓ · 4 oct. ».
+- Équivalences : champs serveur `headline` / `detail` (chiffre en gros + détail), la phrase `text` reste pour la chronique.
+- Après l'écran : ~22 nouveaux trophées pop‑culture (Astérix / Mission Cléopâtre, WoW, Seigneur des Anneaux, Sanderson sans spoiler : rien d'Elantris ni de l'ère 2 de Fils-des-Brumes), 6 secrets (1er janvier, 25 décembre, vendredi 13, 42, palindrome, 29 février), 3 équivalences animaux (sterne arctique, monarque, guépard) ; Spren de la douleur déclenché sur le mot entier « dur ». Précisions utilisateur : reset du **mercredi** (serveurs EU) ; Sprens de gloire = 5 records de plus longue sortie battus (3 déjà atteints).
+- Équivalences qui changent chaque jour (demande du 16/11) : grande réserve de références par famille (D+ : tour Eiffel, Mont Blanc… ; distance : marathons, GR20… ; énergie : croissants… ; animaux), tirage du jour sans répétition avant épuisement de la réserve. À faire avec les nouveaux trophées.
+
 ## Étapes
 - [x] **0. Socle** (déployé le 10/11, SW v31) : `hub.css`, topbar, menu burger, système de feuilles (Échap, glissé, focus rendu, empilement), barre de saisie unique déplacée dans la feuille ouverte, contexte transmis (texte + audio) et lu par l'agent, thème (préférence sinon `prefers-color-scheme`), raccourcis `?action=`, SW v31.
 - [x] **1. Accueil** (déployé le 10/11, SW v33) : « Dernières actions » (+ dernière réponse d'Otis), 4 bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche), feuille « Conversation ».
-- [x] **2. Sport** (déployé le 16/11, SW v34, test téléphone à faire) : vues Semaine, Mois · Année, Séances ; détail en feuille empilée ; formulaire Séance unique (créer/modifier) avec « Dicte ta séance » (route d'analyse sans enregistrement) ; barre d'actions. Trophées : ancien rendu derrière l'icône 🏆 jusqu'à l'étape 3.
+- [x] **2. Sport** (déployé et validé sur téléphone le 16/11, SW v35 : notes en pastilles à toucher, dictée de séance OK) : vues Semaine, Mois · Année, Séances ; détail en feuille empilée ; formulaire Séance unique (créer/modifier) avec « Dicte ta séance » (route d'analyse sans enregistrement) ; barre d'actions. Trophées : ancien rendu derrière l'icône 🏆 jusqu'à l'étape 3.
 - [ ] **3. Trophées** : icône 🏆 de l'en-tête, `.is-locked`, `.just-unlocked`.
 - [ ] **4. Courses**
 - [ ] **5. Tâches**

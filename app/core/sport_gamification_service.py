@@ -16,8 +16,20 @@ from app.connectors.sheets.sport_models import (
 )
 
 
+def _fr_number(value: float) -> str:
+    """Nombre à la française pour l'affichage : « 5 940 », « 19,8 », « 5 » (pas de « ,0 »)."""
+    rounded = round(float(value), 2)
+    if rounded.is_integer():
+        return f"{int(rounded):,}".replace(",", " ")
+    whole, frac = f"{rounded:,.2f}".split(".")
+    return f"{whole.replace(',', ' ')},{frac.rstrip('0')}"
+
+
 class SportGamificationService:
     """Moteur pur d'évaluation des accomplissements, des records et des équivalences fun."""
+
+    def __init__(self) -> None:
+        self._unlock_cache: Optional[tuple] = None
 
     def compute_summary(
         self,
@@ -49,6 +61,7 @@ class SportGamificationService:
             total_renfo=total_renfo,
         )
 
+        self._stamp_unlock_dates(realised, badges)
         unlocked_count = sum(1 for b in badges if b.is_unlocked)
         total_badges = len(badges)
 
@@ -104,6 +117,48 @@ class SportGamificationService:
             daily_spotlight=daily_spotlight,
             next_target_message=next_target_msg,
         )
+
+    def _badges_for(self, realised: List[SportSession]) -> List[SportBadge]:
+        """Évalue les badges sur un ensemble de séances réalisées (utilisé pour rejouer l'historique)."""
+        return self._evaluate_badges(
+            realised=realised,
+            total_dist=round(sum(s.distance_km or 0.0 for s in realised), 2),
+            total_dplus=sum(s.denivele_d_plus or 0 for s in realised),
+            total_duree=sum(s.duree_secondes or 0 for s in realised),
+            total_seances=len(realised),
+            total_renfo=sum(1 for s in realised if s.type_seance == SportSessionType.RENFORCEMENT),
+        )
+
+    def _stamp_unlock_dates(self, realised: List[SportSession], badges: List[SportBadge]) -> None:
+        """Date de déblocage = jour de la séance qui a fait basculer le badge (rien n'est stocké).
+
+        Les badges ne dépendent que des séances réalisées : on rejoue l'historique jour par jour.
+        Un badge qui se reverrouille (séance modifiée) puis se redébloque prend la date du dernier basculement.
+        """
+        unlocked_ids = {b.id for b in badges if b.is_unlocked}
+        if not unlocked_ids:
+            return
+        ordered = sorted(realised, key=lambda s: (s.date, s.id or 0))
+        # Cache à une entrée : la clé est le contenu des séances, toute modification l'invalide.
+        cache_key = tuple(s.model_dump_json() for s in ordered)
+        if self._unlock_cache is None or self._unlock_cache[0] != cache_key:
+            self._unlock_cache = (cache_key, self._replay_unlock_dates(ordered, unlocked_ids))
+        since = self._unlock_cache[1]
+        for badge in badges:
+            if badge.id in since:
+                badge.unlocked_at = since[badge.id].isoformat()
+
+    def _replay_unlock_dates(self, ordered: List[SportSession], unlocked_ids: set) -> Dict[str, dt_date]:
+        since: Dict[str, dt_date] = {}
+        for day in sorted({s.date for s in ordered}):
+            prefix = [s for s in ordered if s.date <= day]
+            unlocked_now = {b.id for b in self._badges_for(prefix) if b.is_unlocked}
+            for badge_id in unlocked_ids:
+                if badge_id in unlocked_now:
+                    since.setdefault(badge_id, day)
+                else:
+                    since.pop(badge_id, None)
+        return since
 
     def _compute_personal_records(self, realised: List[SportSession]) -> List[PersonalRecord]:
         """Extrait les records personnels remarquables."""
@@ -1152,6 +1207,8 @@ class SportGamificationService:
                     text=f"Avec tes {total_dplus} m de D+ cumulés, tu as grimpé l'équivalent de {eiffel_count} fois la Tour Eiffel !",
                     icon="🗼",
                     category="vertical",
+                    headline=f"{_fr_number(eiffel_count)} × la tour Eiffel",
+                    detail=f"{_fr_number(total_dplus)} m de D+ cumulés",
                 )
             )
         else:
@@ -1162,6 +1219,8 @@ class SportGamificationService:
                     text=f"Déjà {total_dplus} m de dénivelé positif gravi ! La Tour Eiffel culmine à 300 m.",
                     icon="⛰️",
                     category="vertical",
+                    headline=f"{_fr_number(total_dplus)} m de D+",
+                    detail="la tour Eiffel culmine à 300 m",
                 )
             )
 
@@ -1174,6 +1233,8 @@ class SportGamificationService:
                     text=f"Tes {total_dist} km dépassent la distance intégrale du mythique GR20 en Corse (180 km) !",
                     icon="🏝️",
                     category="geo",
+                    headline=f"{_fr_number(round(total_dist / 180, 1))} × le GR20",
+                    detail=f"{_fr_number(total_dist)} km au total, le GR20 en fait 180",
                 )
             )
         elif total_dist >= 90:
@@ -1184,6 +1245,8 @@ class SportGamificationService:
                     text=f"Tes {total_dist} km te permettraient de rallier Paris à la cathédrale de Chartres à pied !",
                     icon="🏰",
                     category="geo",
+                    headline=f"{_fr_number(round(total_dist / 90, 1))} × Paris–Chartres",
+                    detail=f"{_fr_number(total_dist)} km au total, Paris–Chartres en fait 90",
                 )
             )
         elif total_dist >= 40:
@@ -1194,6 +1257,8 @@ class SportGamificationService:
                     text=f"Tes {total_dist} km représentent la liaison directe d'une seule traite entre Annecy et Genève (42 km) !",
                     icon="🏔️",
                     category="geo",
+                    headline=f"{_fr_number(round(total_dist / 42, 1))} × Annecy–Genève",
+                    detail=f"{_fr_number(total_dist)} km au total, Annecy–Genève en fait 42",
                 )
             )
         else:
@@ -1204,6 +1269,8 @@ class SportGamificationService:
                     text=f"Déjà {total_dist} km d'asphalte et de sentiers au compteur !",
                     icon="🗺️",
                     category="geo",
+                    headline=f"{_fr_number(total_dist)} km au compteur",
+                    detail="d'asphalte et de sentiers",
                 )
             )
 
@@ -1218,6 +1285,8 @@ class SportGamificationService:
                 text=f"Tes sorties représentent environ {approx_kcal:,} kcal brûlées, soit l'équivalent énergétique de {croissants} croissants pur beurre !".replace(",", " "),
                 icon="🥐",
                 category="energy",
+                headline=f"{_fr_number(round(croissants))} croissants pur beurre",
+                detail=f"environ {_fr_number(approx_kcal)} kcal brûlées",
             )
         )
 
@@ -1231,6 +1300,8 @@ class SportGamificationService:
                 text=f"Plus que {rem_moon:,} km avant de poser tes baskets sur la surface de la Lune !".replace(",", " "),
                 icon="🚀",
                 category="cosmique",
+                headline=f"{_fr_number(rem_moon)} km avant la Lune",
+                detail=f"{_fr_number(total_dist)} km déjà parcourus sur {_fr_number(moon_dist)}",
             )
         )
 

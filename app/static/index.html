@@ -266,7 +266,7 @@
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
         <h2 class="sheet__title" id="view-sport-title">Sport</h2>
-        <button type="button" class="icon-btn icon-btn--accent" id="btn-sport-trophies" aria-label="Trophées" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6"/></svg></button>
+        <button type="button" class="icon-btn icon-btn--accent" id="btn-sport-trophies" aria-label="Trophées"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6"/></svg></button>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="seg" role="tablist" aria-label="Vue">
@@ -281,8 +281,6 @@
         <div id="sport-period" class="sport-view" role="tabpanel" aria-labelledby="tab-sport-period" hidden></div>
         <!-- Vue Séances : filtres, liste par semaine, pagination (views/sport/sessions_list_view.js) -->
         <div id="sport-sessions-list" class="sport-view" role="tabpanel" aria-labelledby="tab-sport-sessions" hidden></div>
-        <!-- Trophées (icône 🏆) : ancien rendu jusqu'à l'étape 3 de la refonte -->
-        <div id="sport-gamification-container" class="sport-view" hidden></div>
       </div>
       <div class="action-bar">
         <button type="button" class="btn btn--primary" id="btn-sport-dictate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>Dicter une séance</button>
@@ -290,6 +288,17 @@
         <input type="file" id="file-sport-screenshot-input" accept="image/png,image/jpeg,image/webp" hidden />
         <button type="button" class="icon-btn" id="btn-import-sport-screenshot" aria-label="Importer une capture de montre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
       </div>
+    </section>
+
+    <!-- Trophées (feuille empilée sur Sport, icône 🏆) : ‹ revient au Sport, ✕ ferme tout (views/sport/trophies_view.js) -->
+    <section class="sheet sheet--stacked" id="view-sport-trophies" role="dialog" aria-modal="true" aria-labelledby="sport-trophies-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header">
+        <button type="button" class="icon-btn" data-sheet-close aria-label="Retour au sport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <h2 class="sheet__title" id="sport-trophies-title">Trophées</h2>
+        <button type="button" class="icon-btn" id="btn-trophies-close" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet__body trophies" id="trophies-body"></div>
     </section>
 
     <!-- Détail d'une séance (feuille empilée) : la barre de saisie corrige la séance ouverte -->
@@ -599,6 +608,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=20.0"></script>
+  <script type="module" src="/static/app.js?v=21.0"></script>
 </body>
 </html>

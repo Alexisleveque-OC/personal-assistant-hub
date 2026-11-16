@@ -387,3 +387,82 @@ def test_weekly_consistency_badges_7_days_and_8_weeks():
     assert badge_ids["reg_4seances_8semaines"].current_value == 8.0
 
 
+
+
+# ---------- Refonte UX (ROADMAP Étape 3) : date de déblocage et équivalences courtes ----------
+
+def _badge(summary: SportGamificationSummary, badge_id: str) -> SportBadge:
+    return next(b for b in summary.badges if b.id == badge_id)
+
+
+def test_unlocked_at_is_the_date_of_the_session_that_unlocked_the_badge():
+    """La date de déblocage est celle de la séance qui a fait franchir le palier (historique rejoué)."""
+    sessions = [
+        _create_mock_session("2026-10-05", distance_km=6.0, duree_sec=1800),
+        _create_mock_session("2026-10-01", distance_km=6.0, duree_sec=1800),  # ordre d'entrée indifférent
+        _create_mock_session("2026-09-20", statut="Prévu", distance_km=30.0),  # non réalisée : ignorée
+    ]
+    summary = SportGamificationService().compute_summary(sessions)
+
+    assert _badge(summary, "dist_10k").unlocked_at == "2026-10-05"
+    assert _badge(summary, "mono_dist_10k").is_unlocked is False
+    assert _badge(summary, "mono_dist_10k").unlocked_at is None
+
+
+def test_unlocked_at_follows_the_first_crossing_session_even_when_later_sessions_exist():
+    sessions = [
+        _create_mock_session("2026-10-01", distance_km=12.0, duree_sec=4000),
+        _create_mock_session("2026-10-08", distance_km=5.0, duree_sec=1500),
+    ]
+    summary = SportGamificationService().compute_summary(sessions)
+
+    assert _badge(summary, "mono_dist_10k").unlocked_at == "2026-10-01"
+    assert _badge(summary, "mono_duree_1h").unlocked_at == "2026-10-01"
+    assert _badge(summary, "dist_10k").unlocked_at == "2026-10-01"
+    assert all(b.unlocked_at is None for b in summary.badges if not b.is_unlocked)
+
+
+def test_fun_facts_carry_a_short_headline_and_detail_for_the_trophies_screen():
+    """Équivalences de la maquette : chiffre en gros (« 19,8 × la tour Eiffel ») + détail ; la phrase reste."""
+    sessions = [_create_mock_session("2026-10-01", distance_km=904.0, d_plus=5940, duree_sec=300000)]
+    facts = {f.id: f for f in SportGamificationService().compute_summary(sessions).fun_facts}
+
+    assert (facts["fact_vertical_eiffel"].headline, facts["fact_vertical_eiffel"].detail) == (
+        "19,8 × la tour Eiffel", "5 940 m de D+ cumulés")
+    assert (facts["fact_geo_gr20"].headline, facts["fact_geo_gr20"].detail) == (
+        "5 × le GR20", "904 km au total, le GR20 en fait 180")
+    assert (facts["fact_energy_croissants"].headline, facts["fact_energy_croissants"].detail) == (
+        "147 croissants pur beurre", "environ 58 760 kcal brûlées")
+    assert facts["fact_absurd_moon"].headline == "383 496 km avant la Lune"
+    assert facts["fact_vertical_eiffel"].text.startswith("Avec tes 5940 m de D+")
+
+
+@pytest.mark.parametrize("distance, dplus, fact_id, headline, detail", [
+    (20.0, 120, "fact_vertical_eiffel_intro", "120 m de D+", "la tour Eiffel culmine à 300 m"),
+    (20.0, 120, "fact_geo_start", "20 km au compteur", "d'asphalte et de sentiers"),
+    (50.5, 0, "fact_geo_annecy", "1,2 × Annecy–Genève", "50,5 km au total, Annecy–Genève en fait 42"),
+    (100.0, 0, "fact_geo_chartres", "1,1 × Paris–Chartres", "100 km au total, Paris–Chartres en fait 90"),
+])
+def test_every_fun_fact_variant_has_a_headline(distance, dplus, fact_id, headline, detail):
+    sessions = [_create_mock_session("2026-10-01", distance_km=distance, d_plus=dplus)]
+    facts = {f.id: f for f in SportGamificationService().compute_summary(sessions).fun_facts}
+    assert (facts[fact_id].headline, facts[fact_id].detail) == (headline, detail)
+
+
+def test_unlock_dates_replay_is_cached_until_a_session_changes(monkeypatch):
+    """Le rejeu de l'historique (coût quadratique) n'est refait que si les séances changent."""
+    service = SportGamificationService()
+    sessions = [_create_mock_session("2026-10-01", distance_km=12.0), _create_mock_session("2026-10-03")]
+    service.compute_summary(sessions)
+
+    calls = []
+    original = service._badges_for
+    monkeypatch.setattr(service, "_badges_for", lambda realised: calls.append(1) or original(realised))
+    again = service.compute_summary(sessions)
+    assert calls == []
+    assert _badge(again, "mono_dist_10k").unlocked_at == "2026-10-01"
+
+    sessions[0] = _create_mock_session("2026-10-02", distance_km=12.0)
+    changed = service.compute_summary(sessions)
+    assert calls
+    assert _badge(changed, "mono_dist_10k").unlocked_at == "2026-10-02"
