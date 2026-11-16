@@ -325,3 +325,13 @@ console.log(JSON.stringify([pick("effort"), pick("allure"), pick("charge"), CHAR
     assert metrics == {
         "volume": "Volume (km)", "effort": "km‑effort", "allure": "Allure (min/km)", "charge": "Charge RPE",
     }
+
+
+def test_tapping_a_scale_pill_selects_it_and_tapping_it_again_clears_it_when_allowed():
+    out = _run("""
+console.log(JSON.stringify([
+  nextScaleValue(null, 6, true), nextScaleValue(6, 8, true), nextScaleValue(6, 6, true),
+  nextScaleValue(6, 6, false), nextScaleValue(6, 0, false),
+]));
+""")
+    assert out == [6, 8, None, 6, 0]

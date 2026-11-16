@@ -99,7 +99,25 @@ def test_session_form_is_a_stacked_sheet_with_the_dictation_callout():
                   "sport-form-remarques", "sport-form-programme", "sport-form-pain", "sport-form-pain-level",
                   "sport-form-pain-zone"):
         assert f'id="{field}"' in form, field
-    assert form.count('type="range"') == 3  # RPE, météo, douleur
+    # Notes en pastilles sur une rangée (retour téléphone du 16/11 : les curseurs bougeaient au défilement)
+    assert 'type="range"' not in form
+    assert form.count('class="scale') == 3 and form.count('role="radiogroup"') == 3
+
+
+def test_each_scale_has_its_value_label():
+    form = _section(_rendered_html(), "view-sport-form")
+
+    for scale in re.findall(r'class="scale[^"]*" id="([^"]+)"', form):
+        assert f'id="{scale}-value"' in form, f"étiquette {scale}-value absente"
+
+
+def test_scales_are_tap_only_radio_buttons():
+    js = client.get("/static/js/views/sport/session_form_view.js").text
+
+    assert 'setAttribute("role", "radio")' in js
+    assert '"aria-checked"' in js
+    assert "nextScaleValue(" in js
+    assert '"pointermove"' not in js and '"input"' not in js.split("function bindScale(")[1].split("\n}")[0]
 
 
 def test_old_sport_tabs_and_modals_are_gone():
@@ -157,7 +175,7 @@ def test_form_starts_listening_when_opened_by_dictate_and_saves_on_ok():
 def test_new_sport_modules_are_served_and_precached():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v34" in sw
+    assert "pah-pwa-cache-v35" in sw
     for path in NEW_MODULES:
         assert client.get(path).status_code == 200, path
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"
