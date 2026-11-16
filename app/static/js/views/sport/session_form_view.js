@@ -4,7 +4,9 @@
 import { createSportSession, patchSportSessionById, postSportSessionDraft } from "../../api.js";
 import { captureOnce, stopCapture } from "../../speech.js";
 import { showToastSuccess, showToastError, showToastInfo } from "../../toast.js";
-import { TYPE_CHOICES, typeLabel, emptyForm, sessionToForm, applyDraft, formToPayload, formPace } from "../../sport_model.js";
+import {
+  TYPE_CHOICES, typeLabel, emptyForm, sessionToForm, applyDraft, formToPayload, formPace, nextScaleValue,
+} from "../../sport_model.js";
 import { button } from "./dom.js";
 
 export const FORM_SHEET_ID = "view-sport-form";
@@ -55,10 +57,21 @@ function renderTypes() {
   $("sport-form-types").replaceChildren(...chips);
 }
 
-function renderRange(id, value, fallback) {
-  const input = $(id);
-  input.value = String(value ?? fallback);
-  input.classList.toggle("is-unset", value === null || value === undefined);
+// Pastilles de note sur une rangée (retour du 16/11 : un curseur bougeait quand le pouce passait dessus
+// en faisant défiler) ; un toucher qui glisse pour défiler n'est jamais un clic.
+function renderScale(id, value) {
+  const group = $(id);
+  if (!group.childElementCount) {
+    for (let n = Number(group.dataset.min); n <= Number(group.dataset.max); n += 1) {
+      const pill = button("scale__pill", String(n));
+      pill.setAttribute("role", "radio");
+      pill.dataset.value = String(n);
+      group.append(pill);
+    }
+  }
+  group.querySelectorAll(".scale__pill").forEach((pill) => {
+    pill.setAttribute("aria-checked", String(Number(pill.dataset.value) === value));
+  });
   $(`${id}-value`).textContent = value === null || value === undefined ? "— / 10" : `${value} / 10`;
 }
 
@@ -69,16 +82,15 @@ function renderStatus() {
 function renderPain() {
   $("sport-form-pain").checked = form.pain;
   $("sport-form-pain-detail").hidden = !form.pain;
-  $("sport-form-pain-level").value = String(form.painLevel);
-  $("sport-form-pain-value").textContent = `${form.painLevel} / 10`;
+  renderScale("sport-form-pain-level", form.painLevel);
 }
 
 function render() {
   Object.entries(TEXT_FIELDS).forEach(([key, id]) => { $(id).value = form[key]; });
   renderTypes();
   renderStatus();
-  renderRange("sport-form-rpe", form.rpe, 5);
-  renderRange("sport-form-meteo", form.meteo, 5);
+  renderScale("sport-form-rpe", form.rpe);
+  renderScale("sport-form-meteo", form.meteo);
   renderPain();
   $("sport-form-pace").textContent = formPace(form);
   showErrors([]);
@@ -170,10 +182,14 @@ async function save(e) {
   }
 }
 
-function bindRange(id, key) {
-  $(id).addEventListener("input", () => {
-    form[key] = Number($(id).value);
-    renderRange(id, form[key], 5);
+function bindScale(id, key) {
+  const group = $(id);
+  const allowEmpty = group.dataset.allowEmpty === "true";
+  group.addEventListener("click", (e) => {
+    const pill = e.target.closest(".scale__pill");
+    if (!pill) return;
+    form[key] = nextScaleValue(form[key], Number(pill.dataset.value), allowEmpty);
+    renderScale(id, form[key]);
   });
 }
 
@@ -181,8 +197,9 @@ export function initSessionForm(sheetManager, { saved }) {
   manager = sheetManager;
   onSaved = saved;
   $("sport-form").addEventListener("submit", save);
-  bindRange("sport-form-rpe", "rpe");
-  bindRange("sport-form-meteo", "meteo");
+  bindScale("sport-form-rpe", "rpe");
+  bindScale("sport-form-meteo", "meteo");
+  bindScale("sport-form-pain-level", "painLevel");
   $("sport-form-status").addEventListener("click", (e) => {
     const choice = e.target.closest("button[data-statut]");
     if (!choice) return;
@@ -193,10 +210,6 @@ export function initSessionForm(sheetManager, { saved }) {
     readTextFields();
     form.pain = $("sport-form-pain").checked;
     renderPain();
-  });
-  $("sport-form-pain-level").addEventListener("input", () => {
-    form.painLevel = Number($("sport-form-pain-level").value);
-    $("sport-form-pain-value").textContent = `${form.painLevel} / 10`;
   });
   ["sport-form-distance", "sport-form-h", "sport-form-m", "sport-form-s"].forEach((id) => {
     $(id).addEventListener("input", () => {

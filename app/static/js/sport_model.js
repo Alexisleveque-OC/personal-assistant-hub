@@ -303,6 +303,12 @@ export function detailTiles(s) {
 
 // ---------- Formulaire Séance (créer / modifier) ----------
 
+// Pastilles de note (RPE, météo, douleur) : un toucher choisit ; retoucher la note choisie l'efface si `allowEmpty`.
+export function nextScaleValue(current, tapped, allowEmpty) {
+  if (current === tapped) return allowEmpty ? null : current;
+  return tapped;
+}
+
 const DEFAULT_PAIN_LEVEL = 5;
 
 export function emptyForm(todayIso) {

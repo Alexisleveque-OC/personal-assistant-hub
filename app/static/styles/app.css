@@ -147,11 +147,18 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .mic-btn:disabled { opacity: .5; }
 .sport-form__status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .seg--rail > [aria-pressed="true"] { background: var(--border-strong); color: var(--text); font-weight: 800; }
-.range.is-unset { opacity: .45; }
+/* Notes en pastilles sur une rangée (1-10, douleur 0-10) : même hauteur que l'ancien curseur, toucher seulement */
+.scale { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; }
+.scale__pill {
+  min-height: 40px; padding: 0; border: 1px solid var(--border-strong); border-radius: var(--r-pill);
+  background: transparent; color: var(--text); font: 700 14px var(--font); cursor: pointer;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.scale__pill[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 800; }
+.scale--danger .scale__pill[aria-checked="true"] { background: var(--danger); border-color: var(--danger); color: #141414; }
 .sport-form__pain { min-height: 52px; display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-md); font-weight: 700; cursor: pointer; }
 .sport-form__pain-detail { display: flex; flex-direction: column; gap: 18px; }
 .sport-form__pain-detail[hidden] { display: none; }
-.sport-form__pain-range { accent-color: var(--danger); }
 .sport-form__errors { margin: 0; padding: 10px 14px; border-radius: var(--r-md); background: var(--danger-bg); color: var(--danger); font-size: var(--fs-sm); font-weight: 700; }
 .sport-form__errors[hidden] { display: none; }
 .sport-form__footer { flex-shrink: 0; padding: 14px 0 calc(24px + var(--safe-bottom)); border-top: 1px solid var(--border); }
