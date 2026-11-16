@@ -1,17 +1,16 @@
-// Feuille Sport (refonte UX) : pilules Semaine · Mois-Année · Séances, icône Trophées, barre d'actions
-// (Dicter une séance / crayon / capture), détail et formulaire Séance en feuilles empilées.
+// Feuille Sport (refonte UX) : pilules Semaine · Mois-Année · Séances, barre d'actions
+// (Dicter une séance / crayon / capture) ; détail, formulaire Séance et Trophées (icône 🏆) en feuilles empilées.
 import { state } from "../../config.js";
-import { fetchSportGamification } from "../sport_view.js";
 import { initPeriodViews, renderWeek, renderPeriod } from "./period_view.js";
 import { initSessionsList, renderSessionsList } from "./sessions_list_view.js";
 import { initSessionDetail, openSessionDetail, refreshOpenSession, showUpdatedSession } from "./session_detail_view.js";
 import { initSessionForm, openSessionForm } from "./session_form_view.js";
+import { initTrophies, openTrophies, refreshOpenTrophies } from "./trophies_view.js";
 
 const VIEWS = {
   week: { panel: "sport-week", render: renderWeek },
   period: { panel: "sport-period", render: renderPeriod },
   sessions: { panel: "sport-sessions-list", render: renderSessionsList },
-  trophies: { panel: "sport-gamification-container", render: () => fetchSportGamification() },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -23,7 +22,6 @@ export function showSportView(name) {
   document.querySelectorAll("#view-sport [data-sport-view]").forEach((tab) => {
     tab.setAttribute("aria-selected", String(tab.dataset.sportView === target));
   });
-  $("btn-sport-trophies").setAttribute("aria-pressed", String(target === "trophies"));
   return VIEWS[target].render($(VIEWS[target].panel));
 }
 
@@ -31,7 +29,10 @@ export function showSportView(name) {
 export function loadSport() {
   showSportView(state.currentSportSubview);
   refreshOpenSession();
+  refreshOpenTrophies();
 }
+
+export { openTrophies };
 
 export function initSportSheet(manager) {
   const reload = () => showSportView(state.currentSportSubview);
@@ -53,9 +54,9 @@ export function initSportSheet(manager) {
   document.querySelectorAll("#view-sport [data-sport-view]").forEach((tab) => {
     tab.addEventListener("click", () => showSportView(tab.dataset.sportView));
   });
-  $("btn-sport-trophies").addEventListener("click", () => {
-    showSportView(state.currentSportSubview === "trophies" ? "week" : "trophies");
-  });
+  initTrophies(manager);
+  const trophies = $("btn-sport-trophies");
+  trophies.addEventListener("click", () => openTrophies(trophies));
 
   const dictate = $("btn-sport-dictate");
   dictate.addEventListener("click", () => openSessionForm(null, dictate, { dictate: true }));
