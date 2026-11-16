@@ -266,111 +266,142 @@
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
         <h2 class="sheet__title" id="view-sport-title">Sport</h2>
+        <button type="button" class="icon-btn icon-btn--accent" id="btn-sport-trophies" aria-label="Trophées" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6"/></svg></button>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
+      <div class="seg" role="tablist" aria-label="Vue">
+        <button type="button" role="tab" id="tab-sport-week" data-sport-view="week" aria-selected="true">Semaine</button>
+        <button type="button" role="tab" id="tab-sport-period" data-sport-view="period" aria-selected="false">Mois · Année</button>
+        <button type="button" role="tab" id="tab-sport-sessions" data-sport-view="sessions" aria-selected="false">Séances</button>
+      </div>
       <div class="sheet__body">
-      <div class="shopping-header" style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span id="sport-today-badge-date" class="badge" style="font-size:0.8rem;">Aujourd'hui</span>
+        <!-- Vue Semaine : coach, période, totaux, jauge, séances de la semaine (views/sport/period_view.js) -->
+        <div id="sport-week" class="sport-view" role="tabpanel" aria-labelledby="tab-sport-week"></div>
+        <!-- Vue Mois · Année : totaux, tuiles, histogramme cliquable, palier imminent -->
+        <div id="sport-period" class="sport-view" role="tabpanel" aria-labelledby="tab-sport-period" hidden></div>
+        <!-- Vue Séances : filtres, liste par semaine, pagination (views/sport/sessions_list_view.js) -->
+        <div id="sport-sessions-list" class="sport-view" role="tabpanel" aria-labelledby="tab-sport-sessions" hidden></div>
+        <!-- Trophées (icône 🏆) : ancien rendu jusqu'à l'étape 3 de la refonte -->
+        <div id="sport-gamification-container" class="sport-view" hidden></div>
+      </div>
+      <div class="action-bar">
+        <button type="button" class="btn btn--primary" id="btn-sport-dictate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>Dicter une séance</button>
+        <button type="button" class="icon-btn" id="btn-sport-new" aria-label="Saisir une séance à la main"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
+        <input type="file" id="file-sport-screenshot-input" accept="image/png,image/jpeg,image/webp" hidden />
+        <button type="button" class="icon-btn" id="btn-import-sport-screenshot" aria-label="Importer une capture de montre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      </div>
+    </section>
+
+    <!-- Détail d'une séance (feuille empilée) : la barre de saisie corrige la séance ouverte -->
+    <section class="sheet sheet--stacked" id="view-sport-session" role="dialog" aria-modal="true" aria-labelledby="sport-session-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header">
+        <button type="button" class="icon-btn" data-sheet-close aria-label="Retour aux séances"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div class="sport-detail__heading">
+          <h2 class="sport-detail__title" id="sport-session-title"></h2>
+          <span class="sport-detail__sub" id="sport-session-sub"></span>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input type="file" id="file-sport-screenshot-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
-          <button id="btn-import-sport-screenshot" class="btn-action-small" title="Importer une séance par capture d'écran Strava ou Decathlon">
-            📸 Importer capture
-          </button>
-          <button id="btn-add-sport-session-inline" class="btn-action-small" title="Créer ou planifier une séance manuellement">
-            ➕ Nouvelle séance
-          </button>
-        </div>
+        <button type="button" class="btn sport-detail__edit" id="btn-sport-session-edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>Modifier</button>
+        <button type="button" class="icon-btn icon-btn--danger" id="btn-sport-session-delete" aria-label="Supprimer la séance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
       </div>
-
-      <!-- Segmented Sport Switcher -->
-      <div class="segmented-control" id="sport-segmented">
-        <button class="seg-btn active" id="tab-sport-today" data-subview="today">Aujourd'hui</button>
-        <button class="seg-btn" id="tab-sport-sessions" data-subview="sessions">Séances</button>
-        <button class="seg-btn" id="tab-sport-summaries" data-subview="summaries">Semaines</button>
-        <!-- Sous-onglet retiré du menu (retour d'usage du 03/11) : import par le bouton « 📸 Importer capture » de l'en-tête ou Ctrl+V -->
-        <!-- <button class="seg-btn" id="tab-sport-import" data-subview="import">📸 Importer</button> -->
-        <button class="seg-btn" id="tab-sport-dash" data-subview="dashboard">Dashboard</button>
-        <button class="seg-btn" id="tab-sport-gamification" data-subview="gamification">Trophées 🏆</button>
-      </div>
-
-      <!-- Bulle Conseil Coach Otis -->
-      <div id="sport-coach-bubble" class="coach-bubble" style="display:none;"></div>
-
-      <!-- Subview: Importer une séance par capture d'écran (Étape 3.1) -->
-      <div id="sport-import-container" style="display:none;">
-        <div class="sport-session-card" style="padding:22px 16px; margin-bottom:16px;">
-          <div style="text-align:center; margin-bottom:18px;">
-            <div style="font-size:2.4rem; margin-bottom:8px;">📸</div>
-            <h3 style="font-size:1.15rem; font-weight:800; margin:0 0 6px 0; color:var(--color-text);">Importer une Séance de Course</h3>
-            <p style="font-size:0.85rem; color:var(--color-text-secondary); margin:0; line-height:1.45;">
-              Prenez ou importez une capture d'écran depuis votre téléphone. Otis extrait automatiquement votre distance, allure, durée, dénivelé et fréquence cardiaque.
-            </p>
-          </div>
-
-          <!-- Zone de Drop & Sélection Tactile -->
-          <div id="sport-import-dropzone" class="sport-dropzone" style="border:2px dashed var(--color-primary); border-radius:12px; padding:28px 16px; text-align:center; background:rgba(37, 99, 235, 0.04); cursor:pointer; transition:all 0.2s ease;">
-            <input type="file" id="file-sport-import-view-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
-            <div style="font-size:2.2rem; margin-bottom:10px;">🖼️</div>
-            <div style="font-weight:700; font-size:0.95rem; color:var(--color-primary); margin-bottom:4px;">
-              Touchez ici pour choisir une capture d'écran
-            </div>
-            <div style="font-size:0.8rem; color:var(--color-text-muted); margin-bottom:14px;">
-              Glissez une image ou appuyez pour ouvrir la galerie / appareil photo
-            </div>
-            <button type="button" class="btn-primary" style="pointer-events:none; padding:8px 18px; font-size:0.85rem;">
-              📁 Parcourir mes photos
-            </button>
-          </div>
-
-          <!-- Statut d'analyse en direct -->
-          <div id="sport-import-status" style="display:none; margin-top:16px; padding:12px; border-radius:8px; font-size:0.85rem; text-align:center;"></div>
-
-          <!-- Rappel visuel des 3 formats compatibles -->
-          <div style="margin-top:22px; display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
-            <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; padding:10px; font-size:0.8rem; text-align:center;">
-              <strong style="color:#fc5200; display:block; margin-bottom:3px;">🟠 Strava</strong>
-              <span style="font-size:0.74rem; color:var(--color-text-secondary);">Distance, durée, allure, D+</span>
-            </div>
-            <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; padding:10px; font-size:0.8rem; text-align:center;">
-              <strong style="color:#0284c7; display:block; margin-bottom:3px;">🔵 Decathlon Coach</strong>
-              <span style="font-size:0.74rem; color:var(--color-text-secondary);">Kiprun, 31'23", 06'07"/km</span>
-            </div>
-            <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; padding:10px; font-size:0.8rem; text-align:center;">
-              <strong style="color:#10b981; display:block; margin-bottom:3px;">⌚ Montre CW500</strong>
-              <span style="font-size:0.74rem; color:var(--color-text-secondary);">Cardio BPM, cadence, date</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Subview: Séance du jour -->
-      <div id="sport-today-container">
-        <!-- Dynamically filled by sport_view.js -->
-      </div>
-
-      <!-- Subview: Historique des Séances avec accordéon -->
-      <div id="sport-sessions-container" style="display:none;">
-        <!-- Dynamically filled by sport_view.js -->
-      </div>
-
-      <!-- Subview: Historique des Semaines avec accordéon -->
-      <div id="sport-summaries-container" style="display:none;">
-        <!-- Dynamically filled by sport_view.js -->
-      </div>
-
-      <!-- Subview: Tableau de bord & Multi-échelles -->
-      <div id="sport-dashboard-container" style="display:none;">
-        <!-- Dynamically filled by sport_view.js -->
-      </div>
-
-      <!-- Subview: Trophées, Badges & Anecdotes Fun -->
-      <div id="sport-gamification-container" style="display:none;">
-        <!-- Dynamically filled by sport_view.js -->
-      </div>
-      </div>
+      <div class="sheet__body" id="sport-session-body"></div>
       <div class="composer-slot"></div>
+    </section>
+
+    <!-- Formulaire Séance unique (créer / modifier, feuille empilée) avec « Dicte ta séance » -->
+    <section class="sheet sheet--stacked" id="view-sport-form" role="dialog" aria-modal="true" aria-labelledby="sport-form-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header sport-form__header">
+        <button type="button" class="btn" data-sheet-close>Annuler</button>
+        <h2 class="sport-form__title" id="sport-form-title">Séance</h2>
+        <button type="submit" class="btn btn--primary" form="sport-form">OK</button>
+      </div>
+      <div class="sheet__body">
+        <form class="form" id="sport-form" novalidate>
+          <div class="callout callout--accent">
+            <span class="callout__text"><strong>Dicte ta séance 🎙️</strong><br><span id="sport-form-dictation-hint">Otis remplit les champs, tu corriges ce qui cloche.</span></span>
+            <button type="button" class="mic-btn" id="btn-sport-form-dictate" aria-label="Dicter pour remplir le formulaire"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+          </div>
+          <label class="field">
+            <span class="field__label">Date</span>
+            <input class="input" type="date" id="sport-form-date" required>
+          </label>
+          <fieldset>
+            <legend>Type de séance</legend>
+            <div class="chips" id="sport-form-types"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Statut</legend>
+            <div class="seg seg--rail sport-form__status" id="sport-form-status">
+              <button type="button" data-statut="Réalisé" aria-pressed="true">Réalisée</button>
+              <button type="button" data-statut="Prévu" aria-pressed="false">Prévue</button>
+            </div>
+          </fieldset>
+          <div class="grid-2">
+            <label class="field">
+              <span class="field__label">Distance (km)</span>
+              <input class="input" type="text" inputmode="decimal" id="sport-form-distance" autocomplete="off">
+            </label>
+            <label class="field">
+              <span class="field__label">Dénivelé D+ (m)</span>
+              <input class="input" type="text" inputmode="numeric" id="sport-form-dplus" autocomplete="off">
+            </label>
+          </div>
+          <fieldset>
+            <legend>Durée</legend>
+            <div class="grid-3">
+              <label class="input-unit"><input class="input" type="text" inputmode="numeric" id="sport-form-h" aria-label="Heures" autocomplete="off"><span>h</span></label>
+              <label class="input-unit"><input class="input" type="text" inputmode="numeric" id="sport-form-m" aria-label="Minutes" autocomplete="off"><span>min</span></label>
+              <label class="input-unit"><input class="input" type="text" inputmode="numeric" id="sport-form-s" aria-label="Secondes" autocomplete="off"><span>s</span></label>
+            </div>
+            <span class="field__hint" id="sport-form-pace"></span>
+          </fieldset>
+          <div class="field">
+            <div class="field__row"><span class="field__label">Ressenti (RPE)</span><strong id="sport-form-rpe-value">— / 10</strong></div>
+            <input class="range" type="range" min="1" max="10" id="sport-form-rpe" aria-label="Ressenti de 1 à 10">
+          </div>
+          <div class="field">
+            <div class="field__row"><span class="field__label">Difficulté météo</span><strong id="sport-form-meteo-value">— / 10</strong></div>
+            <input class="range" type="range" min="1" max="10" id="sport-form-meteo" aria-label="Difficulté météo de 1 à 10">
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span class="field__label">FC moyenne</span>
+              <input class="input" type="text" inputmode="numeric" id="sport-form-fc-moy" placeholder="ex. 150" autocomplete="off">
+            </label>
+            <label class="field">
+              <span class="field__label">FC max</span>
+              <input class="input" type="text" inputmode="numeric" id="sport-form-fc-max" placeholder="ex. 170" autocomplete="off">
+            </label>
+          </div>
+          <label class="field">
+            <span class="field__label">Remarques &amp; sensations</span>
+            <textarea class="textarea" rows="3" id="sport-form-remarques"></textarea>
+          </label>
+          <label class="field">
+            <span class="field__label">Programme</span>
+            <textarea class="textarea" rows="2" id="sport-form-programme" placeholder="ex. 6 × 400 m, récup 1 min"></textarea>
+          </label>
+          <label class="sport-form__pain">
+            <input class="check check--danger" type="checkbox" id="sport-form-pain">
+            <span>Douleur signalée</span>
+          </label>
+          <div class="sport-form__pain-detail" id="sport-form-pain-detail" hidden>
+            <div class="field">
+              <div class="field__row"><span class="field__label">Intensité de la douleur</span><strong id="sport-form-pain-value">5 / 10</strong></div>
+              <input class="range sport-form__pain-range" type="range" min="0" max="10" id="sport-form-pain-level" aria-label="Intensité de la douleur de 0 à 10">
+            </div>
+            <label class="field">
+              <span class="field__label">Zone</span>
+              <input class="input" type="text" id="sport-form-pain-zone" maxlength="60" placeholder="ex. tibia / genou" autocomplete="off">
+            </label>
+          </div>
+          <p class="sport-form__errors" id="sport-form-errors" role="alert" hidden></p>
+        </form>
+      </div>
+      <div class="sport-form__footer">
+        <button type="submit" class="btn btn--primary btn--block btn--lg" form="sport-form">Enregistrer</button>
+      </div>
     </section>
 
     <!-- VIEW 5: SECOND CERVEAU & JOURNAL D'AUDIT (Phase 6) -->
@@ -567,233 +598,7 @@
     </div>
   </div>
 
-  <!-- Modal d'Édition Manuelle de Séance Sportive (Étape 3) -->
-  <div id="modal-edit-sport-session" class="modal-overlay">
-    <div class="modal-box" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
-      <h3 class="modal-title" style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="display:flex; align-items:center; gap:8px;">
-          <span>✏️</span> Modifier la séance
-        </span>
-        <span id="edit-session-date-badge" style="font-size:0.75rem; font-weight:700; color:var(--color-accent); background:rgba(59, 130, 246, 0.1); padding:2px 8px; border-radius:6px;"></span>
-      </h3>
-      <p style="font-size:0.8rem; color:var(--color-text-secondary); margin-bottom:14px;">
-        Seuls les <strong>champs bruts</strong> sont modifiables. Les allures, vitesses, charge RPE et km-effort sont recalculés automatiquement.
-      </p>
 
-      <input type="hidden" id="edit-session-id" />
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label" for="edit-session-date">Date de la séance</label>
-        <input type="date" id="edit-session-date" class="form-input" required />
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-type">Type de séance</label>
-          <select id="edit-session-type" class="form-input">
-            <option value="EF">🏃 EF (Endurance Fondamentale)</option>
-            <option value="Sortie Longue">🏔️ Sortie Longue</option>
-            <option value="Fractionné">⚡ Fractionné</option>
-            <option value="Renforcement">🏋️ Renforcement</option>
-            <option value="Course">👟 Course</option>
-            <option value="Vitesse">🚀 Vitesse</option>
-            <option value="Tempo">🔥 Tempo</option>
-            <option value="Récup">🌱 Récup</option>
-          </select>
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-statut">Statut</label>
-          <select id="edit-session-statut" class="form-input">
-            <option value="Réalisé">✅ Réalisé</option>
-            <option value="Prévu">📅 Prévu</option>
-            <option value="Repos">🛋️ Repos</option>
-            <option value="Annulé">❌ Annulé</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-distance">Distance (km)</label>
-          <input type="number" id="edit-session-distance" class="form-input" step="0.01" min="0" placeholder="ex: 6.2" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-dplus">Dénivelé D+ (m)</label>
-          <input type="number" id="edit-session-dplus" class="form-input" step="1" min="0" placeholder="ex: 45" />
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Durée de la séance</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <div style="flex:1; display:flex; align-items:center; gap:6px;">
-            <input type="number" id="edit-session-duree-min" class="form-input" min="0" placeholder="0" />
-            <span style="font-size:0.85rem; color:var(--color-text-secondary); font-weight:600;">min</span>
-          </div>
-          <div style="flex:1; display:flex; align-items:center; gap:6px;">
-            <input type="number" id="edit-session-duree-sec" class="form-input" min="0" max="59" placeholder="0" />
-            <span style="font-size:0.85rem; color:var(--color-text-secondary); font-weight:600;">sec</span>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-rpe">Ressenti RPE (1-10)</label>
-          <input type="number" id="edit-session-rpe" class="form-input" min="1" max="10" step="1" placeholder="1 à 10" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-meteo">Difficulté Météo (1=Idéale ☀️, 10=Tempête ⛈️)</label>
-          <input type="number" id="edit-session-meteo" class="form-input" min="1" max="10" step="1" placeholder="1=☀️ à 10=⛈️" />
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-fc-moy">FC Moyenne (bpm)</label>
-          <input type="number" id="edit-session-fc-moy" class="form-input" min="30" max="250" placeholder="ex: 145" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="edit-session-fc-max">FC Max (bpm)</label>
-          <input type="number" id="edit-session-fc-max" class="form-input" min="30" max="250" placeholder="ex: 165" />
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label" for="edit-session-programme">Programme technique</label>
-        <input type="text" id="edit-session-programme" class="form-input" placeholder="ex: Footing de base, 10x 30/30..." />
-      </div>
-
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label" for="edit-session-remarques">Remarques & Sensations (Douleurs / Tibias)</label>
-        <textarea id="edit-session-remarques" class="form-input" rows="2" placeholder="Sensations, alertes périostite, météo ressentie..."></textarea>
-      </div>
-
-      <div id="edit-session-error-msg" style="display:none; color:#ef4444; font-size:0.82rem; margin-bottom:12px; padding:8px 10px; background:rgba(239, 68, 68, 0.1); border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);"></div>
-
-      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:10px;">
-        <button type="button" id="btn-cancel-edit-session" class="btn-secondary">Annuler</button>
-        <button type="button" id="btn-save-edit-session" class="btn-primary">Enregistrer les modifications</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal de Création Manuelle de Séance Sportive -->
-  <div id="modal-create-sport-session" class="modal-overlay">
-    <div class="modal-box" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
-      <h3 class="modal-title" style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="display:flex; align-items:center; gap:8px;">
-          <span>➕</span> Nouvelle séance
-        </span>
-      </h3>
-      <p style="font-size:0.8rem; color:var(--color-text-secondary); margin-bottom:14px;">
-        Enregistrez une séance terminée ou planifiez un entraînement à venir.
-      </p>
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label" for="create-session-date">Date de la séance</label>
-        <input type="date" id="create-session-date" class="form-input" required />
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-type">Type de séance</label>
-          <select id="create-session-type" class="form-input">
-            <option value="EF" selected>🏃 EF (Endurance Fondamentale)</option>
-            <option value="Sortie Longue">🏔️ Sortie Longue</option>
-            <option value="Fractionné">⚡ Fractionné</option>
-            <option value="Renforcement">🏋️ Renforcement</option>
-            <option value="Course">👟 Course</option>
-            <option value="Vitesse">🚀 Vitesse</option>
-            <option value="Tempo">🔥 Tempo</option>
-            <option value="Récup">🌱 Récup</option>
-          </select>
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-statut">Statut</label>
-          <select id="create-session-statut" class="form-input">
-            <option value="Réalisé" selected>✅ Réalisé</option>
-            <option value="Prévu">📅 Prévu</option>
-            <option value="Repos">🛋️ Repos</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-distance">Distance (km)</label>
-          <input type="number" id="create-session-distance" class="form-input" step="0.01" min="0" placeholder="ex: 6.0" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-dplus">Dénivelé D+ (m)</label>
-          <input type="number" id="create-session-dplus" class="form-input" step="1" min="0" placeholder="ex: 30" />
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Durée</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <div style="flex:1; display:flex; align-items:center; gap:6px;">
-            <input type="number" id="create-session-duree-min" class="form-input" min="0" placeholder="0" />
-            <span style="font-size:0.85rem; color:var(--color-text-secondary); font-weight:600;">min</span>
-          </div>
-          <div style="flex:1; display:flex; align-items:center; gap:6px;">
-            <input type="number" id="create-session-duree-sec" class="form-input" min="0" max="59" placeholder="0" />
-            <span style="font-size:0.85rem; color:var(--color-text-secondary); font-weight:600;">sec</span>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-rpe">Ressenti RPE (1-10)</label>
-          <input type="number" id="create-session-rpe" class="form-input" min="1" max="10" step="1" placeholder="1 à 10" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-meteo">Difficulté Météo (1-10)</label>
-          <input type="number" id="create-session-meteo" class="form-input" min="1" max="10" step="1" placeholder="1=☀️ à 10=⛈️" />
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-fc-moy">FC Moyenne (bpm)</label>
-          <input type="number" id="create-session-fc-moy" class="form-input" min="30" max="250" placeholder="ex: 150" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="create-session-fc-max">FC Max (bpm)</label>
-          <input type="number" id="create-session-fc-max" class="form-input" min="30" max="250" placeholder="ex: 170" />
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label" for="create-session-programme">Programme technique</label>
-        <input type="text" id="create-session-programme" class="form-input" placeholder="ex: Footing allure modérée..." />
-      </div>
-
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label" for="create-session-remarques">Remarques & Sensations</label>
-        <textarea id="create-session-remarques" class="form-input" rows="2" placeholder="Sensations, alertes périostite..."></textarea>
-      </div>
-
-      <div id="create-session-error-msg" style="display:none; color:#ef4444; font-size:0.82rem; margin-bottom:12px; padding:8px 10px; background:rgba(239, 68, 68, 0.1); border-radius:6px; border:1px solid rgba(239, 68, 68, 0.2);"></div>
-
-      <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:10px;">
-        <button type="button" id="btn-cancel-create-session" class="btn-secondary">Annuler</button>
-        <button type="button" id="btn-save-create-session" class="btn-primary">Créer la séance</button>
-      </div>
-    </div>
-  </div>
-
-
-  <script type="module" src="/static/app.js?v=18.0"></script>
+  <script type="module" src="/static/app.js?v=19.0"></script>
 </body>
 </html>

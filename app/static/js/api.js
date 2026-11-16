@@ -11,8 +11,9 @@ export function getAuthHeaders() {
 
 // Feuille ouverte (« courses », « sport »…) transmise à Otis pour lever les ambiguïtés (refonte UX).
 // Un message rejoué par la file hors-ligne part avec la feuille ouverte au moment du rejeu.
+// `ui_session_id` : séance ouverte dans le détail Sport, toujours envoyé (null ailleurs) car le serveur garde le contexte.
 export function currentInteractionContext() {
-  return { ui_context: state.uiContext || "accueil" };
+  return { ui_context: state.uiContext || "accueil", ui_session_id: state.uiSessionId ?? null };
 }
 
 export async function postInteract(queryText, sessionId = null) {
@@ -190,6 +191,23 @@ export async function createSportSession(payload) {
   return await res.json();
 }
 
+// « Dicte ta séance » : la dictée est analysée sans rien enregistrer ; renvoie { transcription, draft, dropped }.
+export async function postSportSessionDraft(audioBlob) {
+  const mime = (audioBlob && audioBlob.type ? audioBlob.type : "").toLowerCase();
+  const filename = mime.includes("mp4") ? "dictee.mp4" : mime.includes("ogg") ? "dictee.ogg" : "dictee.webm";
+  const formData = new FormData();
+  formData.append("audio_file", audioBlob, filename);
+  const res = await fetch("/api/v1/sport/session/draft", {
+    method: "POST",
+    headers: state.apiKey ? { "X-API-Key": state.apiKey } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    throw new Error(errJson && errJson.detail ? errJson.detail : `Dictée non analysée (erreur ${res.status})`);
+  }
+  return await res.json();
+}
 
 export async function resetShoppingList() {
   const res = await fetch("/api/v1/meals/shopping/reset", {
@@ -210,11 +228,16 @@ export async function postShoppingComplete(payload) {
   return await res.json();
 }
 
-export async function fetchSportSessionsData({ order = "desc", statut = "", type_seance = "", limit = 100, offset = 0 } = {}) {
+// date_from / date_to (AAAA-MM-JJ, inclus) : séances d'une période (ex. la semaine affichée).
+export async function fetchSportSessionsData({
+  order = "desc", statut = "", type_seance = "", limit = 100, offset = 0, date_from = "", date_to = "",
+} = {}) {
   const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
   const params = new URLSearchParams({ order, limit: String(limit), offset: String(offset) });
   if (statut) params.append("statut", statut);
   if (type_seance) params.append("type_seance", type_seance);
+  if (date_from) params.append("date_from", date_from);
+  if (date_to) params.append("date_to", date_to);
 
   const res = await fetch(`/api/v1/sport/sessions?${params.toString()}`, { headers });
   if (!res.ok) {

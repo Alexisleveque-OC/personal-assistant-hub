@@ -215,11 +215,32 @@ export function hideUndoToast() {
 
 // État « écoute » du micro : `.is-listening` sur le bouton (hub.css), `.recording` sur son conteneur.
 // Relu à chaque fois : le bouton est remplacé par setupMicButtonBehavior() et la barre de saisie change de feuille.
+// `mic-listening` : les autres boutons de dictée (ex. « Dicte ta séance ») suivent l'état de l'écoute.
 function setMicListening(listening) {
   const wrapper = document.getElementById("mic-wrapper");
   const button = document.getElementById("mic-btn");
   if (wrapper) wrapper.classList.toggle("recording", listening);
   if (button) button.classList.toggle("is-listening", listening);
+  window.dispatchEvent(new CustomEvent("mic-listening", { detail: { listening, oneShot: !!oneShotTarget } }));
+}
+
+// Capture « à usage unique » (ex. « Dicte ta séance ») : le prochain enregistrement part vers `onBlob` au lieu
+// d'Otis, avec les mêmes réglages (silence, baisse du son, pause du mot-clé). Faux si la dictée est indisponible.
+let oneShotTarget = null;
+
+export function captureOnce(onBlob) {
+  if (!activeStartAudioCapture) return false;
+  if (isRecording || isStartingCapture) {
+    showToastInfo("Une dictée est déjà en cours.", "Micro");
+    return false;
+  }
+  oneShotTarget = onBlob;
+  activeStartAudioCapture(false);
+  return true;
+}
+
+export function stopCapture() {
+  if (activeStopAudioCapture) activeStopAudioCapture("bouton");
 }
 
 export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, onAudioBlobCallback) {
@@ -285,9 +306,11 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       mediaRecorder.onstop = () => {
         cleanupAudioNodes();
         const blob = new Blob(audioChunks, { type: preferredMime });
-        if (blob.size > 1000 && onAudioBlobCallback) {
+        const target = oneShotTarget || onAudioBlobCallback; // capture à usage unique : une seule fois
+        oneShotTarget = null;
+        if (blob.size > 1000 && target) {
           voiceDiagLog.record("dictée", `Enregistrement de ${(blob.size / 1024).toFixed(1)} Ko transmis pour transcription`);
-          onAudioBlobCallback(blob);
+          target(blob);
         } else if (audioChunks.length > 0 && onResultCallback) {
           // Rien d'audible
           console.debug("[STT] Enregistrement trop court ou vide.");
@@ -329,6 +352,10 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
       isStartingCapture = false;
       pendingStopReason = null;
       stopAudioCapture("erreur");
+      if (oneShotTarget) {
+        oneShotTarget = null; // la dictée suivante repart vers Otis
+        setMicListening(false);
+      }
       if (onNotAllowedCallback) onNotAllowedCallback();
     }
   }
