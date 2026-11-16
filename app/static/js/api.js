@@ -425,9 +425,13 @@ export async function createTask(titre, echeance = null) {
   }, "Échec de l'ajout de la tâche");
 }
 
-export async function setTaskCompleted(taskId, terminee) {
+// `reopen` (« Annuler ») : heure et rappel de la tâche, pour recréer son événement Agenda supprimé à la coche.
+export async function setTaskCompleted(taskId, terminee, reopen = {}) {
+  const body = { terminee };
+  if (!terminee && reopen.heure) body.heure = reopen.heure;
+  if (!terminee && reopen.heure && reopen.rappel_minutes_avant) body.rappel_minutes_avant = reopen.rappel_minutes_avant;
   return tasksRequest(`/api/v1/tasks/${encodeURIComponent(taskId)}`, {
     method: "PATCH",
-    body: JSON.stringify({ terminee }),
+    body: JSON.stringify(body),
   }, terminee ? "Échec du cochage de la tâche" : "Échec de la réouverture de la tâche");
 }

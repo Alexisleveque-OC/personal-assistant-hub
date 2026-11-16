@@ -13,6 +13,7 @@ import { getStoredChatHistory, sendInteraction } from "./chat_view.js";
 import {
   shoppingSummary, nextTask, tonightMeal, sportOfTheDay, actionTime, lastAssistantReply,
 } from "../home_model.js";
+import { openRows } from "../tasks_model.js";
 
 let loading = null; // un seul chargement à la fois (ouverture, retour à l'accueil, réponse d'Otis)
 
@@ -122,7 +123,7 @@ async function loadSport() {
 async function loadTasksBubble() {
   try {
     const data = await fetchTasks();
-    const taches = data.taches || [];
+    const taches = openRows(data.taches); // une tâche parente de sous-tâches est un titre de groupe, pas une tâche
     const next = nextTask(taches);
     renderBubble("taches", next, taches.some((t) => t.echeance));
     setDrawerCount("taches", taches.length);
