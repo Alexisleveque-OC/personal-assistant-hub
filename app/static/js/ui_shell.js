@@ -18,6 +18,7 @@ export const SECTIONS = {
 export const STACKED_SHEETS = {
   "view-sport-session": { section: "sport", placeholder: "« En fait c'était 48 minutes »" },
   "view-sport-form": { section: "sport", placeholder: null },
+  "view-sport-trophies": { section: "sport", placeholder: null },
 };
 
 export function sectionForSheet(sheetId) {
