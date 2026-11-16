@@ -26,8 +26,10 @@ def test_missing_settings_are_all_named_with_the_action_to_take():
     assert "scripts/google_oauth_login.py" in message
 
 
-def test_scopes_are_read_only_calendar_and_tasks():
+def test_scopes_read_the_calendars_write_events_and_tasks():
+    # calendar.events : événements des tâches avec heure (création, suppression) ; le reste de l'agenda reste lu seulement.
     assert GOOGLE_USER_SCOPES == (
         "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
         "https://www.googleapis.com/auth/tasks",
     )

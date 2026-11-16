@@ -2,15 +2,22 @@
 
 Passe par `TasksTools`, comme l'agent vocal : même validation, mêmes erreurs explicites, même cache (invalidé à chaque écriture).
 """
-from typing import Callable, TypeVar
+from datetime import time as dt_time
+from typing import Callable, Optional, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import Field, model_validator
 
 from app.core.agent.tools.sport_models import StrictArgs
 from app.core.agent.tools.tasks_models import AddTaskArgs, CompleteTaskArgs, GetTasksArgs, TasksView, TaskView
 from app.core.agent.tools.tasks_tools import TasksTools, TasksToolError
-from app.core.clock import paris_today
-from app.core.dependencies import get_tasks_connector, get_tasks_connector_error
+from app.core.clock import paris_now, paris_today
+from app.core.dependencies import (
+    get_task_events_connector,
+    get_task_events_connector_error,
+    get_tasks_connector,
+    get_tasks_connector_error,
+)
 from app.core.security import verify_api_key
 
 T = TypeVar("T")
@@ -24,6 +31,15 @@ router = APIRouter(
 
 class TaskCompletionPayload(StrictArgs):
     terminee: bool
+    # Réouverture (« Annuler ») d'une tâche avec heure : de quoi recréer son événement Agenda supprimé à la coche.
+    heure: Optional[dt_time] = None
+    rappel_minutes_avant: Optional[int] = Field(None, ge=1, le=40320)
+
+    @model_validator(mode="after")
+    def _hour_only_to_reopen(self) -> "TaskCompletionPayload":
+        if self.terminee and (self.heure is not None or self.rappel_minutes_avant is not None):
+            raise ValueError("« heure » et « rappel_minutes_avant » ne servent qu'à rouvrir une tâche (terminee: false).")
+        return self
 
 
 @router.get("", response_model=TasksView)
@@ -40,7 +56,7 @@ def add_task(payload: AddTaskArgs) -> TaskView:
 def set_task_completion(task_id: str, payload: TaskCompletionPayload) -> TaskView:
     if payload.terminee:
         return _run(lambda tools: tools.complete_task(CompleteTaskArgs(task_id=task_id)).tache)
-    return _run(lambda tools: tools.reopen_task(task_id))
+    return _run(lambda tools: tools.reopen_task(task_id, payload.heure, payload.rappel_minutes_avant))
 
 
 def _run(operation: Callable[[TasksTools], T]) -> T:
@@ -52,6 +68,9 @@ def _run(operation: Callable[[TasksTools], T]) -> T:
             detail=f"Google Tasks est indisponible : {get_tasks_connector_error() or 'non configuré'}.",
         )
     try:
-        return operation(TasksTools(connector, today=paris_today))
+        return operation(TasksTools(
+            connector, today=paris_today, events=get_task_events_connector(),
+            events_unavailable_reason=get_task_events_connector_error(), now=paris_now,
+        ))
     except TasksToolError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

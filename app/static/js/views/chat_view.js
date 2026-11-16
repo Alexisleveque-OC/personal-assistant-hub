@@ -8,7 +8,9 @@ import {
   uploadSecondBrainImage,
 } from "../api.js";
 import { importSportScreenshotWithDatePrompt, DATE_CANCELLED_CODE } from "../screenshot_import.js";
-import { getActiveSessionId, resetActiveSessionId } from "../config.js";
+import { state, getActiveSessionId, resetActiveSessionId } from "../config.js";
+import { withDue } from "../tasks_model.js";
+import { clearComposerDue } from "./task_due_picker.js";
 import { showToastInfo, showToastSuccess, showToastError } from "../toast.js";
 import { enqueueTextRequest, enqueueAudioRequest, syncOutbox } from "../offline_outbox.js";
 import { voiceDiagLog } from "../voice_diag_log.js";
@@ -437,7 +439,10 @@ export function initChatView() {
       const val = queryInput.value.trim();
       if (val) {
         queryInput.value = "";
-        sendInteraction(val);
+        // Feuille Tâches : date (et heure) choisies au calendrier jointes en clair au message.
+        const due = state.uiContext === "taches" ? state.composerDue : null;
+        sendInteraction(withDue(val, due));
+        if (due) clearComposerDue();
       }
     });
   }

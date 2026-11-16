@@ -88,7 +88,7 @@ def test_undo_targets_identify_the_task():
 async def test_registry_exposes_the_write_tools_and_keeps_undos_server_side():
     registry = ToolRegistry(tasks_tool_definitions(tools(FakeWritableTasks())))
     declarations = {d["name"]: d for d in registry.declarations()}
-    assert set(declarations["add_task"]["parameters"]["properties"]) == {"titre", "echeance"}
+    assert set(declarations["add_task"]["parameters"]["properties"]) == {"titre", "echeance", "heure", "rappel_minutes_avant"}
     assert set(declarations["complete_task"]["parameters"]["properties"]) == {"task_id"}
 
     execution = await registry.execute("add_task", {"titre": "Appeler", "echeance": "2026-11-04"})

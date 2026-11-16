@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v37";
+const CACHE_NAME = "pah-pwa-cache-v38";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
@@ -24,6 +24,7 @@ const ASSETS_TO_CACHE = [
   "/static/js/views/second_brain_view.js",
   "/static/js/views/shopping_view.js",
   "/static/js/views/tasks_view.js",
+  "/static/js/views/task_due_picker.js",
   "/static/js/views/meals_view.js",
   "/static/js/views/sport_view.js",
   "/static/js/sport_model.js",
@@ -35,6 +36,7 @@ const ASSETS_TO_CACHE = [
   "/static/js/views/sport/session_form_view.js",
   "/static/js/trophies_model.js",
   "/static/js/shopping_model.js",
+  "/static/js/tasks_model.js",
   "/static/js/views/sport/trophies_view.js",
   "/static/manifest.json",
   "/static/icons/icon-192.png",

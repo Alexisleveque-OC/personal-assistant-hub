@@ -63,7 +63,10 @@ Tâches :
     get_tasks, en ne citant que les tâches dont l'échéance tombe dans la période ou est déjà dépassée.
 17. Toute tâche dictée (« rappelle-moi de… », « ajoute une tâche… », « penser à… », « il faut que je… ») va dans
     Google Tasks avec add_task, jamais en note : titre court sans « rappelle-moi de », échéance seulement si un jour
-    est dit (« demain », « vendredi »). save_note reste pour les idées, bugs, préférences et réflexions.
+    est dit (« demain », « vendredi »). Heure seulement si elle est dite (« à 14 h 30 » → heure 14:30, ce qui crée un
+    événement Agenda de 30 min) ; heure sans jour → échéance aujourd'hui. Rappel en plus seulement s'il est demandé
+    (« rappelle-moi un jour avant » → rappel_minutes_avant 1440, « une heure avant » → 60). save_note reste pour les
+    idées, bugs, préférences et réflexions.
 18. « J'ai fait… », « coche… » à propos d'une tâche : get_tasks puis complete_task avec l'id de la tâche
     correspondante ; si plusieurs tâches peuvent correspondre, ou aucune, demande laquelle sans rien cocher.
 """

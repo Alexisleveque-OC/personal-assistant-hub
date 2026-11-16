@@ -12,3 +12,4 @@ class TaskItem(BaseModel):
     echeance: Optional[date] = None
     notes: Optional[str] = None
     terminee: bool = False
+    parent: Optional[str] = None  # sous-tâche : id de la tâche parente (titre du groupe dans la PWA)

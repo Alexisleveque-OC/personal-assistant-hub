@@ -11,6 +11,7 @@ export const state = {
   // Choix enregistré (bascule du menu), sinon thème du système.
   currentTheme: resolveTheme(localStorage.getItem("pah_theme"), prefersDarkScheme()),
   uiContext: "accueil", // feuille ouverte, transmise à Otis (voir SECTIONS dans ui_shell.js)
+  composerDue: null, // feuille Tâches : { date: "AAAA-MM-JJ", time: "HH:MM" | "" } joint au message pour Otis
   uiSessionId: null, // séance affichée dans le détail Sport (« c'était 48 minutes » la corrige), sinon null
   currentShoppingSubview: "cette-semaine", // 'cette-semaine' | 'liste-attente'
   currentMealSubview: "today", // 'today' | 'week'
