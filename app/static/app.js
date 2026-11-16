@@ -19,6 +19,7 @@ import { fetchLlmStats } from "./js/api.js";
 import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse } from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
+import { initDuePicker, setDuePickerVisible } from "./js/views/task_due_picker.js";
 import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
 import { initSportView } from "./js/views/sport_view.js";
 import { initSportSheet, loadSport, openTrophies } from "./js/views/sport/sport_sheet.js";
@@ -368,6 +369,7 @@ function initShell() {
     burger: document.getElementById("btn-open-drawer"),
   });
   bindSheetInteractions(manager, document);
+  initDuePicker();
   initSportSheet(manager);
 
   const composer = document.getElementById("query-form");
@@ -391,6 +393,7 @@ function initShell() {
     if (slot && composer && composer.parentElement !== slot) slot.appendChild(composer);
     if (queryInput) queryInput.placeholder = topId ? placeholderForSheet(topId) : config.placeholder;
     state.uiContext = config.context;
+    setDuePickerVisible(section === "taches"); // calendrier de la barre : feuille Tâches seulement
     if (home) home.classList.toggle("active", !topId);
     if (!topId) loadHome(); // retour à l'accueil : les bulles reflètent ce qui a changé dans la feuille
     drawerItems.forEach((item) => {

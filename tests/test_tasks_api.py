@@ -102,3 +102,63 @@ def test_tasks_api_requires_the_api_key(fake, monkeypatch):
 
     assert client.get("/api/v1/tasks").status_code == 401
     assert client.get("/api/v1/tasks", headers={"X-API-Key": "secret"}).status_code == 200
+
+
+# --- Tâches avec heure (refonte UX, étape 5) : événement Agenda lié ---------------------------------------------
+
+from datetime import datetime  # noqa: E402
+
+from app.core.clock import APP_TIMEZONE  # noqa: E402
+from app.core.dependencies import set_task_events_connector  # noqa: E402
+from tests.tasks_fakes import FakeTaskEvents  # noqa: E402
+
+NOW = datetime(2026, 11, 3, 9, 0, tzinfo=APP_TIMEZONE)
+
+
+@pytest.fixture
+def events(fake, monkeypatch) -> FakeTaskEvents:
+    store = FakeTaskEvents()
+    set_task_events_connector(store)
+    monkeypatch.setattr(tasks_router, "paris_now", lambda: NOW)
+    return store
+
+
+def test_tests_never_reach_the_real_calendar_events():
+    from app.core.dependencies import get_task_events_connector, get_task_events_connector_error
+    assert get_task_events_connector() is None
+    assert "test" in get_task_events_connector_error()
+
+
+def test_adds_a_task_with_hour_and_reminder(events):
+    res = client.post("/api/v1/tasks", json={
+        "titre": "ORL", "echeance": "2026-11-05", "heure": "14:30", "rappel_minutes_avant": 1440,
+    })
+    assert res.status_code == 201
+    assert (res.json()["heure"], res.json()["rappel_minutes_avant"]) == ("14:30", 1440)
+    assert events.events[res.json()["id"]].debut == datetime(2026, 11, 5, 14, 30, tzinfo=APP_TIMEZONE)
+
+
+def test_hour_without_day_is_refused(events):
+    assert client.post("/api/v1/tasks", json={"titre": "ORL", "heure": "14:30"}).status_code == 422
+
+
+def test_lists_tasks_with_their_hour_and_parent(events):
+    events.create_event("t1", "ORL", datetime(2026, 11, 2, 10, 0, tzinfo=APP_TIMEZONE), None)
+    body = client.get("/api/v1/tasks").json()
+    assert body["taches"][0]["heure"] == "10:00"
+    assert body["taches"][1]["parent"] is None
+
+
+def test_checking_deletes_the_upcoming_event_and_reopen_with_hour_recreates_it(events):
+    client.post("/api/v1/tasks", json={"titre": "ORL", "echeance": "2026-11-05", "heure": "14:30"})
+    task_id = next(iter(events.events))
+    assert client.patch(f"/api/v1/tasks/{task_id}", json={"terminee": True}).status_code == 200
+    assert events.events == {}
+    res = client.patch(f"/api/v1/tasks/{task_id}", json={"terminee": False, "heure": "14:30"})
+    assert res.status_code == 200
+    assert res.json()["heure"] == "14:30"
+    assert task_id in events.events
+
+
+def test_hour_is_refused_when_checking(events):
+    assert client.patch("/api/v1/tasks/t2", json={"terminee": True, "heure": "14:30"}).status_code == 422

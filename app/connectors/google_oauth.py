@@ -9,6 +9,8 @@ from google.oauth2.credentials import Credentials
 GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 GOOGLE_USER_SCOPES = (
     "https://www.googleapis.com/auth/calendar.readonly",
+    # Événements des tâches avec heure (Google Tasks ne garde pas l'heure) : seul droit d'écriture sur l'agenda.
+    "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/tasks",
 )
 LOGIN_SCRIPT = "scripts/google_oauth_login.py"

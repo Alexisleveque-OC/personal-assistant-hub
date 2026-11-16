@@ -122,10 +122,28 @@
       <label class="composer__field">
         <span class="sr-only">Message à Otis</span>
         <input type="text" id="query-input" placeholder="Écrire à Otis…" autocomplete="off" enterkeyhint="send" />
+        <button type="button" class="composer__due" id="composer-due-label" aria-label="Changer la date de la tâche" hidden></button>
+        <button type="button" id="btn-composer-due" class="icon-btn" aria-label="Choisir une date" aria-haspopup="dialog" aria-expanded="false" aria-controls="composer-due-pop" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+        </button>
         <button type="button" id="btn-chat-upload-image" class="icon-btn" aria-label="Envoyer une photo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
         </button>
       </label>
+      <div class="due-pop" id="composer-due-pop" role="dialog" aria-label="Échéance de la tâche" hidden>
+        <label class="field">
+          <span class="field__label">Date</span>
+          <input type="date" id="composer-due-date" class="input" />
+        </label>
+        <label class="field">
+          <span class="field__label">Heure (facultative)</span>
+          <input type="time" id="composer-due-time" class="input" />
+        </label>
+        <div class="due-pop__actions">
+          <button type="button" class="btn" id="btn-composer-due-clear">Effacer</button>
+          <button type="button" class="btn btn--primary" id="btn-composer-due-ok">OK</button>
+        </div>
+      </div>
       <span id="mic-wrapper" class="mic-slot">
         <button type="button" id="mic-btn" class="mic-btn" aria-label="Maintenir pour parler à Otis">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
@@ -203,26 +221,15 @@
       <div class="composer-slot"></div>
     </section>
 
-    <!-- VIEW: TÂCHES (Google Tasks, liste « Mes tâches ») -->
+    <!-- Feuille Tâches (refonte UX, maquette E-Taches) : Google Tasks, liste « Mes tâches » ; ajout par la barre de saisie -->
     <section class="sheet" id="view-tasks" role="dialog" aria-modal="true" aria-labelledby="view-tasks-title" aria-hidden="true" tabindex="-1" inert>
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
-        <h2 class="sheet__title" id="view-tasks-title">Tâches</h2>
+        <h2 class="sheet__title" id="view-tasks-title">Tâches <small id="tasks-count"></small></h2>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="sheet__body">
-      <div class="shopping-header">
-      </div>
-
-      <form id="tasks-add-form" class="tasks-add-form" autocomplete="off">
-        <input type="text" id="tasks-add-title" class="form-input" placeholder="Nouvelle tâche…" maxlength="200" required />
-        <input type="date" id="tasks-add-due" class="form-input" title="Échéance (facultative)" />
-        <button type="submit" id="tasks-add-submit" class="btn-primary">Ajouter</button>
-      </form>
-
-      <div id="tasks-list-container">
-        <!-- Dynamically filled by tasks_view.js -->
-      </div>
+        <div id="tasks-list-container" class="tasks-list"></div>
       </div>
       <div class="composer-slot"></div>
     </section>
@@ -598,6 +605,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=22.0"></script>
+  <script type="module" src="/static/app.js?v=23.0"></script>
 </body>
 </html>
