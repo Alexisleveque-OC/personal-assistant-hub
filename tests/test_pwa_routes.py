@@ -24,10 +24,10 @@ def test_get_app_returns_200_html():
     assert 'id="btn-clear-bought"' in html
     assert 'id="view-sport"' in html
     assert 'data-section="sport"' in html
-    assert 'id="sport-today-container"' in html
-    assert 'id="sport-dashboard-container"' in html
-    assert 'id="sport-coach-bubble"' in html
-    assert 'id="tab-sport-gamification"' in html
+    assert 'id="sport-week"' in html
+    assert 'id="sport-period"' in html
+    assert 'id="sport-sessions-list"' in html
+    assert 'id="btn-sport-trophies"' in html
     assert 'id="sport-gamification-container"' in html
     assert 'id="view-second-brain"' in html
     assert 'data-section="second_cerveau"' in html

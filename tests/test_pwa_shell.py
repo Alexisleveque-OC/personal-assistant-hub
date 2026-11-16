@@ -256,7 +256,11 @@ def test_each_section_is_an_accessible_sheet_with_a_close_button_and_a_composer_
         assert f'aria-labelledby="{sheet_id}-title"' in attrs
         assert f'<h2 class="sheet__title" id="{sheet_id}-title">{title}</h2>' in body
         assert 'data-sheet-close aria-label="Fermer"' in body
-        assert '<div class="composer-slot"></div>' in body
+        # Sport : barre d'actions à la place de la barre de saisie (maquette, décision du 16/11)
+        if sheet_id == "view-sport":
+            assert 'class="action-bar"' in body and "composer-slot" not in body
+        else:
+            assert '<div class="composer-slot"></div>' in body
 
 
 def test_a_single_universal_composer_with_photo_and_hold_to_talk_mic():
@@ -280,7 +284,7 @@ def test_new_styles_and_modules_are_served_and_precached():
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"
     for css in ("hub.css", "app.css", "legacy-bridge.css"):
         assert f"/static/styles/{css}" in html
-    assert "pah-pwa-cache-v33" in sw
+    assert "pah-pwa-cache-v34" in sw
 
 
 def test_theme_is_set_before_first_paint_from_saved_choice_or_system():
@@ -304,7 +308,7 @@ def test_static_files_are_revalidated_instead_of_heuristically_cached():
 def test_service_worker_bypasses_the_http_cache_when_it_fetches_assets():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v33" in sw
+    assert "pah-pwa-cache-v34" in sw
     assert 'new Request(url, { cache: "reload" })' in sw  # précache à l'installation
     assert sw.count('fetch(event.request, { cache: "no-cache" })') == 2  # JS réseau d'abord + autres assets
 

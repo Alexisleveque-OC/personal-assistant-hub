@@ -11,11 +11,12 @@ export const state = {
   // Choix enregistré (bascule du menu), sinon thème du système.
   currentTheme: resolveTheme(localStorage.getItem("pah_theme"), prefersDarkScheme()),
   uiContext: "accueil", // feuille ouverte, transmise à Otis (voir SECTIONS dans ui_shell.js)
+  uiSessionId: null, // séance affichée dans le détail Sport (« c'était 48 minutes » la corrige), sinon null
   currentShoppingSubview: "cette-semaine", // 'cette-semaine' | 'liste-attente'
   currentMealSubview: "today", // 'today' | 'week'
-  currentSportSubview: "today", // 'today' | 'dashboard' | 'gamification'
-  currentSportScale: "week", // 'week' | 'month' | 'year'
-  currentSportMetric: "volume", // graphique du dashboard : 'volume' | 'allure' | 'charge' | 'securite'
+  currentSportSubview: "week", // vue de la feuille Sport : 'week' | 'period' | 'sessions' | 'trophies'
+  currentSportScale: "year", // vue Mois · Année : 'month' | 'year'
+  currentSportMetric: "volume", // graphique Mois · Année : 'volume' | 'effort' | 'allure' | 'charge'
   cachedShoppingData: { waiting_list: [], current_week_items: [], rayons_order: null },
   vadSilenceMs: parseInt(localStorage.getItem("pah_vad_silence_ms") || "2000", 10),
   pushToTalk: localStorage.getItem("pah_push_to_talk") === "true",
