@@ -178,37 +178,27 @@
       <div class="composer-slot"></div>
     </section>
 
-    <!-- VIEW 2: SHOPPING LIST -->
+    <!-- Feuille Courses (refonte UX, maquette E-Courses) -->
     <section class="sheet" id="view-shopping" role="dialog" aria-modal="true" aria-labelledby="view-shopping-title" aria-hidden="true" tabindex="-1" inert>
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
         <h2 class="sheet__title" id="view-shopping-title">Courses</h2>
+        <div class="menu-anchor">
+          <button type="button" class="icon-btn" id="btn-shopping-more" aria-label="Plus d'options" aria-haspopup="menu" aria-expanded="false" aria-controls="shopping-menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+          <div class="menu-pop" id="shopping-menu" role="menu" aria-labelledby="btn-shopping-more" hidden>
+            <button type="button" id="btn-reset-shopping" role="menuitem" class="menu-pop__item">Réinitialiser la semaine</button>
+            <button type="button" id="btn-clear-bought" role="menuitem" class="menu-pop__item">Vider les achetés (en attente)</button>
+          </div>
+        </div>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
+      <div class="seg" role="tablist" aria-label="Liste">
+        <button type="button" role="tab" id="tab-cette-semaine" aria-selected="true" aria-controls="shopping-list-container">Cette semaine&nbsp;·&nbsp;<span id="badge-cette-semaine">0</span></button>
+        <button type="button" role="tab" id="tab-liste-attente" aria-selected="false" aria-controls="shopping-list-container">En attente&nbsp;·&nbsp;<span id="badge-liste-attente">0</span></button>
+      </div>
       <div class="sheet__body">
-      <div class="shopping-header">
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button id="btn-reset-shopping" class="btn-action-small" title="Réinitialiser les articles cochés pour cette semaine">🔄 Réinitialiser</button>
-          <button id="btn-clear-bought" class="btn-action-small" style="display:none;">Vider les achetés</button>
-          <button id="btn-check-completion" class="btn-completion" title="Vérifier si on a tout pris">🏁 J'ai fini !</button>
-        </div>
-      </div>
-
-      <div id="shopping-completion-banner" class="completion-banner" style="display:none;"></div>
-
-      <!-- Segmented List Switcher -->
-      <div class="segmented-control" id="shopping-segmented">
-        <button class="seg-btn active" id="tab-cette-semaine" data-subview="cette-semaine">
-          Cette semaine <span class="badge" id="badge-cette-semaine">0</span>
-        </button>
-        <button class="seg-btn" id="tab-liste-attente" data-subview="liste-attente">
-          Liste d'attente <span class="badge" id="badge-liste-attente">0</span>
-        </button>
-      </div>
-
-      <div id="shopping-list-container">
-        <!-- Dynamically filled by app.js -->
-      </div>
+        <div id="shopping-completion-banner" hidden></div>
+        <div id="shopping-list-container" class="shopping-list" role="tabpanel" aria-labelledby="tab-cette-semaine"></div>
       </div>
       <div class="composer-slot"></div>
     </section>
@@ -608,6 +598,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=21.0"></script>
+  <script type="module" src="/static/app.js?v=22.0"></script>
 </body>
 </html>

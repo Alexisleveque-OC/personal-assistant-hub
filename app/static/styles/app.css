@@ -193,3 +193,28 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
   align-self: center; min-height: var(--tap); padding: 0 var(--s-3); border: 0; background: none;
   color: var(--accent); font: 800 14px var(--font); cursor: pointer;
 }
+
+/* ---------- Courses (feuille, maquette E-Courses) ---------- */
+.shopping-list { display: flex; flex-direction: column; gap: 10px; }
+.shopping-list .list-row { cursor: pointer; }
+.shopping-list .btn--block { margin-top: 6px; }
+.shopping-note { margin: 0; padding: 30px 0; text-align: center; }
+.shopping-note--error { color: var(--danger); }
+.shopping-banner__items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+#shopping-completion-banner[hidden] { display: none; }
+
+/* Menu ⋯ d'une feuille (ancré sous son bouton) */
+.menu-anchor { position: relative; }
+.menu-pop {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; min-width: 260px;
+  display: flex; flex-direction: column; padding: 6px;
+  border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  background: var(--card-2); box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+}
+.menu-pop[hidden] { display: none; }
+.menu-pop__item {
+  min-height: var(--tap); padding: 0 12px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--text); text-align: left;
+  font: 700 15px var(--font); cursor: pointer;
+}
+.menu-pop__item:hover, .menu-pop__item:focus-visible { background: var(--card); }
