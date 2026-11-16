@@ -49,7 +49,7 @@ def test_gamification_summary_empty_history():
     assert summary.total_badges > 0
     assert summary.unlocked_count == 0
     assert len(summary.personal_records) >= 3
-    assert len(summary.fun_facts) > 0
+    assert summary.fun_facts == []  # rien à comparer sans kilomètres ni dénivelé
 
 
 def test_distance_milestones_and_regular_dopamine():
@@ -144,14 +144,9 @@ def test_absurd_cosmic_badges_and_fun_facts():
     assert moon_badge.current_value == 50.0
     assert moon_badge.is_unlocked is False
 
-    # Fun facts
+    # Fun facts : une équivalence par famille (la référence change chaque jour, cf. test_sport_equivalences)
     facts = summary.fun_facts
-    geo_facts = [f for f in facts if f.category == "geo"]
-    vert_facts = [f for f in facts if f.category == "vertical"]
-    assert len(geo_facts) > 0
-    assert len(vert_facts) > 0
-    # D+ 650m -> au moins 2 fois la Tour Eiffel
-    assert any("Tour Eiffel" in f.text for f in vert_facts)
+    assert [f.category for f in facts] == ["vertical", "geo", "energy", "animal"]
 
 
 def test_personal_records_detection():
@@ -422,31 +417,13 @@ def test_unlocked_at_follows_the_first_crossing_session_even_when_later_sessions
     assert all(b.unlocked_at is None for b in summary.badges if not b.is_unlocked)
 
 
-def test_fun_facts_carry_a_short_headline_and_detail_for_the_trophies_screen():
-    """Équivalences de la maquette : chiffre en gros (« 19,8 × la tour Eiffel ») + détail ; la phrase reste."""
+def test_fun_facts_are_the_daily_equivalences_one_per_family():
+    """Équivalences du jour (module sport_equivalences) : chiffre-clé + détail, une par famille."""
     sessions = [_create_mock_session("2026-10-01", distance_km=904.0, d_plus=5940, duree_sec=300000)]
-    facts = {f.id: f for f in SportGamificationService().compute_summary(sessions).fun_facts}
+    summary = SportGamificationService().compute_summary(sessions, reference_date=date(2026, 11, 16))
 
-    assert (facts["fact_vertical_eiffel"].headline, facts["fact_vertical_eiffel"].detail) == (
-        "19,8 × la tour Eiffel", "5 940 m de D+ cumulés")
-    assert (facts["fact_geo_gr20"].headline, facts["fact_geo_gr20"].detail) == (
-        "5 × le GR20", "904 km au total, le GR20 en fait 180")
-    assert (facts["fact_energy_croissants"].headline, facts["fact_energy_croissants"].detail) == (
-        "147 croissants pur beurre", "environ 58 760 kcal brûlées")
-    assert facts["fact_absurd_moon"].headline == "383 496 km avant la Lune"
-    assert facts["fact_vertical_eiffel"].text.startswith("Avec tes 5940 m de D+")
-
-
-@pytest.mark.parametrize("distance, dplus, fact_id, headline, detail", [
-    (20.0, 120, "fact_vertical_eiffel_intro", "120 m de D+", "la tour Eiffel culmine à 300 m"),
-    (20.0, 120, "fact_geo_start", "20 km au compteur", "d'asphalte et de sentiers"),
-    (50.5, 0, "fact_geo_annecy", "1,2 × Annecy–Genève", "50,5 km au total, Annecy–Genève en fait 42"),
-    (100.0, 0, "fact_geo_chartres", "1,1 × Paris–Chartres", "100 km au total, Paris–Chartres en fait 90"),
-])
-def test_every_fun_fact_variant_has_a_headline(distance, dplus, fact_id, headline, detail):
-    sessions = [_create_mock_session("2026-10-01", distance_km=distance, d_plus=dplus)]
-    facts = {f.id: f for f in SportGamificationService().compute_summary(sessions).fun_facts}
-    assert (facts[fact_id].headline, facts[fact_id].detail) == (headline, detail)
+    assert [f.category for f in summary.fun_facts] == ["vertical", "geo", "energy", "animal"]
+    assert all(f.headline and f.detail for f in summary.fun_facts)
 
 
 def test_unlock_dates_replay_is_cached_until_a_session_changes(monkeypatch):
