@@ -21,10 +21,16 @@ Plus de barre d'onglets : menu burger (`.drawer`) + accueil à bulles + sections
 - Détail d'une séance : le contexte envoyé à Otis inclut la séance ouverte (« c'était 48 minutes » modifie celle-là).
 - Dictée de séance : route brouillon `POST /api/v1/sport/session/draft` (audio ou texte → transcription + 1 appel Gemini en sortie structurée, rien n'est écrit) ; « Dicter une séance » ouvre d'abord le formulaire et lance l'écoute, « OK » enregistre.
 
+### Sport — interface (décisions du 16/11)
+- Dictée du formulaire : capture « à usage unique » du moteur micro existant (`captureOnce` de speech.js : mêmes réglages, pause du mot-clé), l'audio part vers la route brouillon.
+- RPE et météo vides : curseur affiché « — / 10 » et rien n'est envoyé tant qu'il n'a pas été touché.
+- Feuille Sport : barre d'actions seule (comme la maquette) ; la barre de saisie revient dans le détail d'une séance (« En fait c'était 48 minutes »).
+- Champ « Programme » conservé dans le formulaire et affiché dans le détail.
+
 ## Étapes
 - [x] **0. Socle** (déployé le 10/11, SW v31) : `hub.css`, topbar, menu burger, système de feuilles (Échap, glissé, focus rendu, empilement), barre de saisie unique déplacée dans la feuille ouverte, contexte transmis (texte + audio) et lu par l'agent, thème (préférence sinon `prefers-color-scheme`), raccourcis `?action=`, SW v31.
 - [x] **1. Accueil** (déployé le 10/11, SW v33) : « Dernières actions » (+ dernière réponse d'Otis), 4 bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche), feuille « Conversation ».
-- [ ] **2. Sport** : vues Semaine, Mois · Année, Séances ; détail en feuille empilée ; formulaire Séance unique (créer/modifier) avec « Dicte ta séance » (route d'analyse sans enregistrement) ; barre d'actions.
+- [x] **2. Sport** (déployé le 16/11, SW v34, test téléphone à faire) : vues Semaine, Mois · Année, Séances ; détail en feuille empilée ; formulaire Séance unique (créer/modifier) avec « Dicte ta séance » (route d'analyse sans enregistrement) ; barre d'actions. Trophées : ancien rendu derrière l'icône 🏆 jusqu'à l'étape 3.
 - [ ] **3. Trophées** : icône 🏆 de l'en-tête, `.is-locked`, `.just-unlocked`.
 - [ ] **4. Courses**
 - [ ] **5. Tâches**
