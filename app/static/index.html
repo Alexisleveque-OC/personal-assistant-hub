@@ -358,11 +358,11 @@
           </fieldset>
           <div class="field">
             <div class="field__row"><span class="field__label">Ressenti (RPE)</span><strong id="sport-form-rpe-value">— / 10</strong></div>
-            <input class="range" type="range" min="1" max="10" id="sport-form-rpe" aria-label="Ressenti de 1 à 10">
+            <div class="scale" id="sport-form-rpe" data-min="1" data-max="10" data-allow-empty="true" role="radiogroup" aria-label="Ressenti de 1 à 10"></div>
           </div>
           <div class="field">
             <div class="field__row"><span class="field__label">Difficulté météo</span><strong id="sport-form-meteo-value">— / 10</strong></div>
-            <input class="range" type="range" min="1" max="10" id="sport-form-meteo" aria-label="Difficulté météo de 1 à 10">
+            <div class="scale" id="sport-form-meteo" data-min="1" data-max="10" data-allow-empty="true" role="radiogroup" aria-label="Difficulté météo de 1 à 10"></div>
           </div>
           <div class="grid-2">
             <label class="field">
@@ -388,8 +388,8 @@
           </label>
           <div class="sport-form__pain-detail" id="sport-form-pain-detail" hidden>
             <div class="field">
-              <div class="field__row"><span class="field__label">Intensité de la douleur</span><strong id="sport-form-pain-value">5 / 10</strong></div>
-              <input class="range sport-form__pain-range" type="range" min="0" max="10" id="sport-form-pain-level" aria-label="Intensité de la douleur de 0 à 10">
+              <div class="field__row"><span class="field__label">Intensité de la douleur</span><strong id="sport-form-pain-level-value">5 / 10</strong></div>
+              <div class="scale scale--danger" id="sport-form-pain-level" data-min="0" data-max="10" role="radiogroup" aria-label="Intensité de la douleur de 0 à 10"></div>
             </div>
             <label class="field">
               <span class="field__label">Zone</span>
@@ -599,6 +599,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=19.0"></script>
+  <script type="module" src="/static/app.js?v=20.0"></script>
 </body>
 </html>
