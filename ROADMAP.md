@@ -40,7 +40,7 @@ Plus de barre d'onglets : menu burger (`.drawer`) + accueil à bulles + sections
 - [x] **0. Socle** (déployé le 10/11, SW v31) : `hub.css`, topbar, menu burger, système de feuilles (Échap, glissé, focus rendu, empilement), barre de saisie unique déplacée dans la feuille ouverte, contexte transmis (texte + audio) et lu par l'agent, thème (préférence sinon `prefers-color-scheme`), raccourcis `?action=`, SW v31.
 - [x] **1. Accueil** (déployé le 10/11, SW v33) : « Dernières actions » (+ dernière réponse d'Otis), 4 bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche), feuille « Conversation ».
 - [x] **2. Sport** (déployé et validé sur téléphone le 16/11, SW v35 : notes en pastilles à toucher, dictée de séance OK) : vues Semaine, Mois · Année, Séances ; détail en feuille empilée ; formulaire Séance unique (créer/modifier) avec « Dicte ta séance » (route d'analyse sans enregistrement) ; barre d'actions. Trophées : ancien rendu derrière l'icône 🏆 jusqu'à l'étape 3.
-- [ ] **3. Trophées** : déployé le 16/11 (SW v36) : feuille empilée, dates de déblocage, 34 nouveaux trophées (122 au total), équivalences du jour. Test téléphone à faire.
+- [x] **3. Trophées** (déployé et validé sur téléphone le 16/11, SW v36) : feuille empilée, dates de déblocage, 34 nouveaux trophées (122 au total), équivalences du jour.
 - [ ] **4. Courses**
 - [ ] **5. Tâches**
 - [ ] **6. Repas**
