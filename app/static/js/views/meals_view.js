@@ -1,12 +1,14 @@
 // Feuille Repas (refonte UX, maquette E-Repas ; décisions et retours du 17/11).
 // Lecture directe de GET /api/v1/meals/week?offset=N (onglet annuel « repas AAAA », même source qu'Otis).
 // En-tête collant : ‹ semaine › + bande des 7 jours (toucher un jour fait défiler jusqu'à sa carte) ;
-// dessous, les 7 jours en cartes Midi / Soir (chevron = ingrédients). « Ajouter » pré-remplit la barre ;
+// dessous, les 7 jours en cartes Midi / Soir ; un plat se déplie : ingrédients, « + Ajouter un plat » (barre
+// pré-remplie, Otis complète « A + B ») et « Supprimer » (direct, avec « Annuler »). « Ajouter » pré-remplit la barre ;
 // « Demander une idée à Otis » demande des propositions sans écriture ; « Ingrédients de la semaine → courses » :
 // liste à cocher de la semaine affichée (à partir d'aujourd'hui), l'ajout passe par Otis (rayons inconnus, Annuler).
-import { fetchShoppingData, fetchWeekMeals } from "../api.js";
+import { deleteMeal, fetchShoppingData, fetchWeekMeals, restoreMeal } from "../api.js";
+import { showToast, showToastError } from "../toast.js";
 import {
-  dayCards, defaultDay, hasIngredientsButton, ideaPrompt, ingredientsMessage, slotPrefill, weekIngredients, weekNav,
+  addOnPrefill, dayCards, defaultDay, hasIngredientsButton, ideaPrompt, ingredientsMessage, slotPrefill, weekIngredients, weekNav,
   weekStrip,
 } from "../meals_model.js";
 import { sendInteraction } from "./chat_view.js";
@@ -183,24 +185,61 @@ function renderSlot(dayIndex, slot) {
     wrap.append(row);
     return wrap;
   }
-  if (!slot.ingredients.length) {
-    const row = el("div", "meal-row");
-    row.append(label, el("span", "meal-row__dish", slot.dish));
-    wrap.append(row);
-    return wrap;
-  }
+  // Plat prévu : la ligne se déplie (ingrédients + actions), qu'il y ait des ingrédients connus ou non.
   const toggle = button("meal-row meal-row--toggle");
   toggle.setAttribute("aria-expanded", "false");
   toggle.append(label, el("span", "meal-row__dish", slot.dish), chevronDown());
-  const chips = el("div", "chips meal-row__ingredients");
-  chips.hidden = true;
-  chips.append(...slot.ingredients.map((name) => el("span", "chip", name)));
+  const panel = el("div", "meal-row__panel");
+  panel.hidden = true;
+  if (slot.ingredients.length) {
+    const chips = el("div", "chips meal-row__ingredients");
+    chips.append(...slot.ingredients.map((name) => el("span", "chip", name)));
+    panel.append(chips);
+  }
+  const actions = el("div", "meal-row__actions");
+  const addOn = button("btn", "+ Ajouter un plat");
+  addOn.addEventListener("click", () => prefill(addOnPrefill(week, dayIndex, slot.key)));
+  const remove = button("btn btn--danger", "Supprimer", `Supprimer « ${slot.dish} »`);
+  remove.addEventListener("click", () => removeDish(dayIndex, slot, remove));
+  actions.append(addOn, remove);
+  panel.append(actions);
   toggle.addEventListener("click", () => {
-    chips.hidden = !chips.hidden;
-    toggle.setAttribute("aria-expanded", String(!chips.hidden));
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) panel.scrollIntoView({ block: "nearest", behavior: "smooth" }); // actions visibles en bas d'écran
   });
-  wrap.append(toggle, chips);
+  wrap.append(toggle, panel);
   return wrap;
+}
+
+// « Supprimer » : écriture immédiate dans l'onglet annuel, puis toast « Annuler » qui remet le plat retiré.
+async function removeDish(dayIndex, slot, trigger) {
+  const day = week[dayIndex];
+  trigger.disabled = true; // écriture en cours : pas de double envoi
+  let removed;
+  try {
+    removed = await deleteMeal(day.date, slot.key);
+  } catch (err) {
+    trigger.disabled = false;
+    showToastError(err.message, "Plat non supprimé");
+    return;
+  }
+  await loadMeals();
+  showToast(`« ${removed.precedent} » retiré du ${slot.label.toLowerCase()}.`, "success", {
+    title: "Plat supprimé",
+    duration: 6000,
+    action: { label: "Annuler", onClick: () => undoRemove(day.date, slot.key, removed.precedent) },
+  });
+}
+
+async function undoRemove(dateIso, moment, plat) {
+  try {
+    await restoreMeal(dateIso, moment, plat);
+  } catch (err) {
+    showToastError(err.message, "Plat non rétabli");
+    return;
+  }
+  await loadMeals();
 }
 
 // La barre de saisie reçoit « Midi mardi 17 novembre : » : on tape ou dicte le plat, Otis l'écrit (set_meal, annulable).

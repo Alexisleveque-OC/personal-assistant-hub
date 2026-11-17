@@ -82,6 +82,11 @@ export function slotPrefill(week, index, key) {
   return `${label} ${describe(week[index].date).full} : `;
 }
 
+// « + Ajouter un plat » sur un créneau rempli : Otis complète le plat prévu (« Quiche lorraine + Coleslaw »).
+export function addOnPrefill(week, index, key) {
+  return `Ajouter au ${key === "midi" ? "midi" : "soir"} de ${describe(week[index].date).full} : `;
+}
+
 // « Demander une idée à Otis » : propositions seulement, rien n'est écrit sans confirmation.
 export function ideaPrompt(week, index) {
   return `Propose-moi 2 ou 3 idées de repas pour ${describe(week[index].date).full} (midi et soir), `
