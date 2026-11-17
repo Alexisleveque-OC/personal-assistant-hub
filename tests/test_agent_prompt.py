@@ -50,3 +50,10 @@ def test_sessions_sharing_a_day_are_flagged_on_their_own_line():
     lines = {line.split(" | ")[0]: line for line in prompt.splitlines() if line.startswith("- id=")}
     assert "AMBIGU" in lines["- id=2"] and "AMBIGU" in lines["- id=1"]
     assert "AMBIGU" not in lines["- id=3"]
+
+
+def test_prompt_explains_adding_a_dish_to_a_meal_versus_replacing_it():
+    """Retours du 17/11 : « ajoute / avec / en plus » complète, « mets / remplace / change » remplace, doute → question."""
+    rules = build_system_prompt(date(2026, 11, 17), [])
+    assert 'mode="ajouter"' in rules and "remplace" in rules
+    assert "clear_meal" in rules

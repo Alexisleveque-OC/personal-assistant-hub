@@ -53,6 +53,15 @@ class SetMealArgs(StrictArgs):
     hors_carnet_confirme: bool = Field(
         False, description="true seulement si l'utilisateur a confirmé vouloir un plat absent du carnet de recettes.",
     )
+    mode: Literal["remplacer", "ajouter"] = Field(
+        "remplacer",
+        description="ajouter : complète le plat déjà prévu (« A + B ») ; remplacer : écrase le plat prévu.",
+    )
+
+
+class ClearMealArgs(StrictArgs):
+    date: dt_date
+    moment: MealMoment
 
 
 class GetRecipeArgs(StrictArgs):
@@ -147,6 +156,12 @@ class ShoppingRemoved(BaseModel):
     introuvables: List[str] = Field(default_factory=list)
     remarque: Optional[str] = None
     undos: List[ShoppingRemovedUndo]
+
+
+class MealCleared(BaseModel):
+    jour: MealDay
+    retire: str = Field(description="Plat retiré du repas.")
+    undos: List[MealUndo]
 
 
 class MealSet(BaseModel):

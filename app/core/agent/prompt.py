@@ -40,6 +40,9 @@ Courses et repas :
 11. Ingrédients d'une recette à mettre aux courses : get_recipe, puis add_shopping_items avec les seuls
     ingrédients voulus (« sauf le parmesan » → sans le parmesan).
 12. Plat absent du carnet de recettes : demande confirmation avant d'appeler set_meal avec hors_carnet_confirme.
+    Repas déjà prévu : « ajoute / avec / en plus » (ou « Ajouter au midi de … : X » envoyé par l'application)
+    → set_meal mode="ajouter" (le classeur reçoit « A + X ») ; « mets / remplace / change » → mode remplacer ;
+    en cas de doute, demande s'il faut compléter ou remplacer. « Enlève / supprime le plat de … » → clear_meal.
     « Vider la liste » ne supprime que les articles déjà cochés de la liste d'attente.
 
 Notes :

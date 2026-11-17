@@ -1,6 +1,6 @@
 """Router FastAPI pour les fonctionnalités repas et courses."""
-from datetime import timedelta
-from typing import List
+from datetime import date, timedelta
+from typing import List, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
@@ -46,6 +46,49 @@ async def get_week_meals(
         "end": (start + timedelta(days=6)).isoformat(),
         "week_plan": [day.model_dump(mode="json") for day in days],
     }
+
+
+class MealDishPayload(BaseModel):
+    plat: str = Field(min_length=1, pattern=r"\S", description="Plat à réécrire tel quel (« Annuler » de la feuille Repas)")
+
+
+def _require_meals_connector():
+    connector = get_meals_connector()
+    if connector is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Planning des repas indisponible : connecteur Google Sheets non initialisé (identifiants ou classeur).",
+        )
+    return connector
+
+
+@router.delete("/plan/{day}/{moment}")
+async def clear_meal(day: date, moment: Literal["midi", "soir"]):
+    """« Supprimer » de la feuille Repas : vide le créneau tout de suite et renvoie le plat retiré (pour « Annuler »)."""
+    connector = _require_meals_connector()
+    try:
+        plan = connector.get_meal_plan(target_date=day)
+        previous = plan.lunch if moment == "midi" else plan.dinner
+        if not previous:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Rien de prévu au repas du {day:%d/%m/%Y} {moment} : rien à supprimer.",
+            )
+        connector.set_meal_plan(meal="", target_date=day, meal_type=moment)
+    except MealsConnectorError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"date": day.isoformat(), "moment": moment, "precedent": previous}
+
+
+@router.put("/plan/{day}/{moment}")
+async def restore_meal(day: date, moment: Literal["midi", "soir"], payload: MealDishPayload):
+    """« Annuler » d'une suppression : réécrit le plat tel qu'il était (sans contrôle du carnet de recettes)."""
+    connector = _require_meals_connector()
+    try:
+        connector.set_meal_plan(meal=payload.plat.strip(), target_date=day, meal_type=moment)
+    except MealsConnectorError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {"date": day.isoformat(), "moment": moment, "plat": payload.plat.strip()}
 
 
 @router.get("/shopping")

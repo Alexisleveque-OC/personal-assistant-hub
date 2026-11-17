@@ -74,7 +74,10 @@ _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "add_task": lambda a: f"Tâche ajoutée : {a['titre']}" if a.get("titre") else "Tâche ajoutée",
     "complete_task": lambda a: "Tâche terminée",
     "save_note": lambda a: "Note ajoutée au Second cerveau",
-    "set_meal": lambda a: f"Repas prévu : {a['plat']}" if a.get("plat") else "Repas prévu",
+    "set_meal": lambda a: (
+        ("Plat ajouté au repas" if a.get("mode") == "ajouter" else "Repas prévu") + (f" : {a['plat']}" if a.get("plat") else "")
+    ),
+    "clear_meal": lambda a: "Repas retiré du planning",
     "log_sport_session": lambda a: _session_label(a.get("date"), "enregistrée", a.get("distance_km")),
     "plan_sport_session": lambda a: _session_label(a.get("date"), "planifiée"),
     "update_sport_session": lambda a: "Séance modifiée",

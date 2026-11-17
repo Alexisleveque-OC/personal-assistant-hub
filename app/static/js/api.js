@@ -418,6 +418,26 @@ export async function fetchShoppingData() {
   return await res.json();
 }
 
+// Feuille Repas : « Supprimer » vide le créneau tout de suite ; « Annuler » réécrit le plat retiré.
+async function mealPlanRequest(dateIso, moment, init, fallback) {
+  const res = await fetch(`/api/v1/meals/plan/${encodeURIComponent(dateIso)}/${encodeURIComponent(moment)}`, {
+    ...init, headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    throw new Error((errJson && typeof errJson.detail === "string" && errJson.detail) || `${fallback} (${res.status})`);
+  }
+  return await res.json();
+}
+
+export async function deleteMeal(dateIso, moment) {
+  return mealPlanRequest(dateIso, moment, { method: "DELETE" }, "Suppression du plat impossible");
+}
+
+export async function restoreMeal(dateIso, moment, plat) {
+  return mealPlanRequest(dateIso, moment, { method: "PUT", body: JSON.stringify({ plat }) }, "Plat non rétabli");
+}
+
 export async function fetchTasks() {
   return tasksRequest("/api/v1/tasks", { method: "GET" }, "Erreur de chargement des tâches");
 }
