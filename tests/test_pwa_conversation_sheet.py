@@ -74,5 +74,5 @@ def test_styles_cover_messages_undo_bar_and_notifications():
 
 
 def test_versions_bumped():
-    assert "pah-pwa-cache-v45" in client.get("/sw.js").text
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in client.get("/sw.js").text
+    assert "/static/app.js?v=31.0" in _rendered_html()

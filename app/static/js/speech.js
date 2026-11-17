@@ -748,17 +748,6 @@ export function setWakeWordEnabled(enabled) {
   updateWakeWordIndicator();
 }
 
-export function toggleWakeWord() {
-  const next = !state.wakeWordEnabled;
-  setWakeWordEnabled(next);
-
-  // Synchroniser la case à cocher des réglages si présente dans le DOM
-  const toggle = document.getElementById("wake-word-toggle");
-  if (toggle) toggle.checked = next;
-
-  return next;
-}
-
 export function pauseWakeWordDetector() {
   wakeWordPaused = true;
   updateWakeWordIndicator();
@@ -841,67 +830,6 @@ export function startWakeWordDetection(onWakeCallback = null) {
     .then(() => updateWakeWordIndicator())
     .catch(handleWakeEngineFailure)
     .finally(() => clearTimeout(slowLoadTimer));
-}
-
-// Module de Calibrage In-App Guidé
-export function startWakeWordCalibration(onProgress, onDone) {
-  if (!SpeechRecognition) {
-    if (onDone) onDone(false, "Reconnaissance vocale non disponible.");
-    return;
-  }
-
-  pauseWakeWordDetector();
-  try {
-    const calibRec = new SpeechRecognition();
-    calibRec.lang = "fr-FR";
-    calibRec.continuous = false;
-    calibRec.interimResults = false;
-
-    if (onProgress) onProgress("listening", "Dites « Otis » clairement ou essoufflé...");
-
-    calibRec.onresult = (evt) => {
-      if (evt.results.length > 0) {
-        const heard = evt.results[0][0].transcript.toLowerCase().trim();
-        addCustomWakeVariant(heard);
-        if (onDone) onDone(true, heard);
-      }
-    };
-
-    calibRec.onerror = (e) => {
-      console.warn("[Calibration] Erreur:", e);
-      let errMsg = e?.error || "Erreur de capture";
-      if (e?.error === "no-speech") errMsg = "Aucune parole détectée. Rapprochez-vous du micro et réessayez.";
-      if (e?.error === "not-allowed") errMsg = "Accès au micro refusé dans le navigateur.";
-      if (onDone) onDone(false, errMsg);
-      resumeWakeWordDetector();
-    };
-
-    calibRec.onend = () => {
-      resumeWakeWordDetector();
-    };
-
-    calibRec.start();
-  } catch (err) {
-    if (onDone) onDone(false, err.message);
-    resumeWakeWordDetector();
-  }
-}
-
-export function addCustomWakeVariant(variant) {
-  if (!variant) return;
-  const clean = variant.toLowerCase().trim();
-  if (!state.wakeWordCustomVariants) state.wakeWordCustomVariants = [];
-  if (!state.wakeWordCustomVariants.includes(clean)) {
-    state.wakeWordCustomVariants.push(clean);
-    localStorage.setItem("pah_wake_word_custom_variants", JSON.stringify(state.wakeWordCustomVariants));
-  }
-}
-
-export function removeCustomWakeVariant(variant) {
-  if (!variant || !state.wakeWordCustomVariants) return;
-  const clean = variant.toLowerCase().trim();
-  state.wakeWordCustomVariants = state.wakeWordCustomVariants.filter((v) => v !== clean);
-  localStorage.setItem("pah_wake_word_custom_variants", JSON.stringify(state.wakeWordCustomVariants));
 }
 
 // Surveillance de la visibilité de l'application

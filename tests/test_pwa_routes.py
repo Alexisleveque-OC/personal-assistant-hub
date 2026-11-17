@@ -61,10 +61,10 @@ def test_get_service_worker():
 def test_get_static_assets():
     """Vérifie que les assets statiques indispensables (CSS, JS, SVG) sont servis."""
     # CSS
-    res_css = client.get("/static/style.css")
+    res_css = client.get("/static/styles/hub.css")
     assert res_css.status_code == 200
     assert "text/css" in res_css.headers.get("content-type", "")
-    assert "--bg-main" in res_css.text
+    assert "--bg:" in res_css.text
 
     # JS Root & Modules
     res_js = client.get("/static/app.js")
@@ -112,8 +112,8 @@ def test_app_and_static_exempt_from_api_key(monkeypatch):
     res_sw = client.get("/sw.js")
     assert res_sw.status_code == 200
 
-    # /static/style.css doit rester accessible
-    res_css = client.get("/static/style.css")
+    # La feuille de style principale doit rester accessible
+    res_css = client.get("/static/styles/hub.css")
     assert res_css.status_code == 200
 
 

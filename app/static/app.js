@@ -5,11 +5,7 @@ import {
   SpeechRecognition,
   initSpeechRecognition,
   setWakeWordEnabled,
-  toggleWakeWord,
-  startWakeWordCalibration,
   updateWakeWordIndicator,
-  addCustomWakeVariant,
-  removeCustomWakeVariant,
 } from "./js/speech.js";
 import { showToastSuccess, showToastInfo } from "./js/toast.js";
 import {
@@ -87,90 +83,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // 9. Réglages & voix : feuille dédiée (ancienne modale) ; la croix ferme sans enregistrer.
   initSettingsView({ close: () => shell.manager.closeTop() });
 
-  // 9.1 Module de Calibrage Wake-Word In-App
-  const btnStartCalibration = document.getElementById("btn-start-calibration");
-  const calibrationStatus = document.getElementById("calibration-status");
-  const calibrationResults = document.getElementById("calibration-results");
-  const btnAddCustomWake = document.getElementById("btn-add-custom-wake-variant");
-  const inputCustomWake = document.getElementById("input-custom-wake-variant");
-
-  function renderCalibrationChips() {
-    if (!calibrationResults) return;
-    calibrationResults.innerHTML = "";
-    const list = state.wakeWordCustomVariants || [];
-    if (list.length === 0) {
-      calibrationResults.innerHTML = '<span style="font-size:0.75rem; color:var(--color-text-secondary);">Variantes par défaut actives. Ajoutez vos prononciations ci-dessus.</span>';
-      return;
-    }
-    list.forEach((v) => {
-      const chip = document.createElement("span");
-      chip.className = "calibration-chip";
-      chip.style.cssText = "display:inline-flex; align-items:center; gap:6px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; padding:3px 8px; font-size:0.75rem;";
-      chip.innerHTML = `<span>✓ ${v}</span>`;
-      const btnDel = document.createElement("button");
-      btnDel.type = "button";
-      btnDel.textContent = "×";
-      btnDel.title = "Supprimer cette variante";
-      btnDel.style.cssText = "background:none; border:none; color:var(--color-text-secondary); cursor:pointer; font-size:0.85rem; padding:0 2px; line-height:1;";
-      btnDel.addEventListener("click", () => {
-        removeCustomWakeVariant(v);
-        renderCalibrationChips();
-      });
-      chip.appendChild(btnDel);
-      calibrationResults.appendChild(chip);
-    });
-  }
-
-  if (btnAddCustomWake && inputCustomWake) {
-    const handleAddManual = () => {
-      const val = inputCustomWake.value.trim();
-      if (!val) return;
-      addCustomWakeVariant(val);
-      inputCustomWake.value = "";
-      renderCalibrationChips();
-      if (calibrationStatus) calibrationStatus.textContent = `Ajouté : « ${val} »`;
-    };
-    btnAddCustomWake.addEventListener("click", handleAddManual);
-    inputCustomWake.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleAddManual();
-      }
-    });
-  }
-
-  if (btnStartCalibration) {
-    btnStartCalibration.addEventListener("click", () => {
-      if (calibrationStatus) calibrationStatus.textContent = "Écoute en cours... Dites « Otis »";
-      startWakeWordCalibration(
-        (status, msg) => {
-          if (calibrationStatus) calibrationStatus.textContent = msg;
-        },
-        (success, resultText) => {
-          if (success) {
-            if (calibrationStatus) calibrationStatus.textContent = `Enregistré : « ${resultText} »`;
-            renderCalibrationChips();
-          } else {
-            if (calibrationStatus) calibrationStatus.textContent = `Échec : ${resultText}`;
-          }
-        }
-      );
-    });
-  }
-
   // Refonte UX : l'indicateur est dans l'interrupteur « Mains-libres » du menu (un <label>) ; c'est la case qui bascule,
   // un écouteur de clic sur l'indicateur basculerait une seconde fois.
-  // const wakeWordIndicator = document.getElementById("wake-word-indicator");
-  // if (wakeWordIndicator) {
-  //   wakeWordIndicator.addEventListener("click", () => {
-  //     const isNowEnabled = toggleWakeWord();
-  //     if (isNowEnabled) {
-  //       showToastInfo("Mains-libres 'Otis' activé (détection sur le téléphone, la musique n'est pas coupée).", "Otis à l'écoute");
-  //     } else {
-  //       showToastSuccess("Mode au clic activé : micro coupé, votre musique joue à 100% de volume.", "Micro au clic");
-  //     }
-  //   });
-  // }
   const wakeWordSwitch = document.getElementById("wake-word-switch");
   if (wakeWordSwitch) {
     wakeWordSwitch.addEventListener("change", (e) => {

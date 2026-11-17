@@ -49,20 +49,12 @@ def test_first_model_download_is_announced():
     assert "45 Mo" in _speech_js()
 
 
-def test_calibration_section_is_hidden_but_kept_in_index_html():
-    html = (STATIC / "index.html").read_text(encoding="utf-8")
-    start = html.index('<div class="wake-calibration-section"')
-    opening = html.rfind("<!--", 0, start)
-    assert opening != -1 and "-->" not in html[opening:start]
-    assert 'id="btn-start-calibration"' in html
-
-
 def test_wake_word_modules_are_precached_for_offline_start():
     sw = (STATIC / "sw.js").read_text(encoding="utf-8")
     assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
     assert '"/static/js/wake_word_vosk.js"' in assets
     assert '"/static/js/vosk_capture_worklet.js"' in assets
-    assert "pah-pwa-cache-v45" in sw
+    assert "pah-pwa-cache-v46" in sw
 
 
 def test_hands_free_toast_no_longer_warns_about_the_music():

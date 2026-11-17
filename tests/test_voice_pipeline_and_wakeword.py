@@ -58,7 +58,7 @@ def test_interact_audio_accepts_mp4_safari_container():
 
 
 def test_frontend_speech_js_implements_extended_wake_word_and_pointer_capture():
-    """Vérifie que speech.js intègre les variantes phonétiques complètes, le calibrage et pointer capture."""
+    """Vérifie que speech.js intègre les variantes phonétiques complètes et pointer capture."""
     res = client.get("/static/js/speech.js")
     assert res.status_code == 200
     content = res.text
@@ -69,10 +69,7 @@ def test_frontend_speech_js_implements_extended_wake_word_and_pointer_capture():
     assert "au tisse" in content
     assert "isWakeWordMatch" in content
 
-    # 2. Calibrage in-app
-    assert "startWakeWordCalibration" in content or "addCustomWakeVariant" in content
-
-    # 3. Stabilité tactile avec pointer capture
+    # 2. Stabilité tactile avec pointer capture
     assert "setPointerCapture" in content
     assert "releasePointerCapture" in content
 
@@ -96,9 +93,9 @@ def test_frontend_chat_view_updates_user_bubble_with_transcription():
     assert "transcribed_text" in content
 
 
-def test_frontend_style_css_fixes_voice_dock_and_disables_elastic_scroll():
-    """Vérifie que style.css fixe le dock vocal et neutralise le drag/scroll intempestif au toucher."""
-    res = client.get("/static/style.css")
+def test_frontend_hub_css_fixes_voice_dock_and_disables_elastic_scroll():
+    """Vérifie que hub.css fixe le dock vocal et neutralise le drag/scroll intempestif au toucher."""
+    res = client.get("/static/styles/hub.css")
     assert res.status_code == 200
     content = res.text
 
@@ -109,14 +106,13 @@ def test_frontend_style_css_fixes_voice_dock_and_disables_elastic_scroll():
     assert "user-select: none" in content or "user-select:none" in content
 
 
-def test_frontend_index_html_has_wake_indicator_and_calibration_ui():
-    """Vérifie que index.html contient le témoin visuel du mot-clé et les contrôles d'étalonnage."""
+def test_frontend_index_html_has_wake_indicator():
+    """Vérifie que index.html contient le témoin visuel du mot-clé."""
     res = client.get("/app")
     assert res.status_code == 200
     html = res.text
 
     assert 'id="wake-word-indicator"' in html
-    assert 'id="btn-start-calibration"' in html or 'btn-calibrate-wakeword' in html
 
 
 def test_frontend_speech_js_guarantees_wake_trigger_fallback_and_hands_free_vad():

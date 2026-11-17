@@ -38,8 +38,8 @@ def test_journal_view_uses_the_model_and_renders_without_html_injection():
 def test_new_modules_are_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/db_date.js"' in sw and '"/static/js/journal_model.js"' in sw
-    assert "pah-pwa-cache-v45" in sw
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in sw
+    assert "/static/app.js?v=31.0" in _rendered_html()
 
 
 def test_styles_cover_the_journal_cards():

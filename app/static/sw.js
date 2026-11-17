@@ -1,10 +1,8 @@
-const CACHE_NAME = "pah-pwa-cache-v45";
+const CACHE_NAME = "pah-pwa-cache-v46";
 const ASSETS_TO_CACHE = [
   "/app",
-  "/static/style.css",
   "/static/styles/hub.css",
   "/static/styles/app.css",
-  "/static/styles/legacy-bridge.css",
   "/static/app.js",
   "/static/js/config.js",
   "/static/js/ui_shell.js",

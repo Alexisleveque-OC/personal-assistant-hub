@@ -100,8 +100,13 @@
 
 /* ---------- 2. Base ------------------------------------------------------ */
 *, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
 body {
+  min-height: 100dvh;
+  position: relative;
+  overflow-x: hidden;
+  transition: background-color .3s ease, color .3s ease;
   font-family: var(--font);
   font-size: var(--fs-base);
   line-height: 1.4;
