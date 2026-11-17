@@ -78,5 +78,5 @@ def test_view_uses_the_hub_list_classes_and_the_model():
 def test_new_module_is_precached_and_shell_version_bumped():
     sw = _static("sw.js")
     assert '"/static/js/shopping_model.js"' in sw
-    assert "pah-pwa-cache-v39" in sw
-    assert "/static/app.js?v=24.0" in _rendered_html()
+    assert "pah-pwa-cache-v40" in sw
+    assert "/static/app.js?v=25.0" in _rendered_html()
