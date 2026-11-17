@@ -1,11 +1,11 @@
-"""Router FastAPI de l'onglet « Tâches » de la PWA : lecture, ajout, cochage et réouverture dans Google Tasks.
+"""Router FastAPI de l'onglet « Tâches » de la PWA : lecture, ajout, cochage, réouverture et suppression dans Google Tasks.
 
 Passe par `TasksTools`, comme l'agent vocal : même validation, mêmes erreurs explicites, même cache (invalidé à chaque écriture).
 """
 from datetime import time as dt_time
 from typing import Callable, Optional, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import Field, model_validator
 
 from app.core.agent.tools.sport_models import StrictArgs
@@ -57,6 +57,12 @@ def set_task_completion(task_id: str, payload: TaskCompletionPayload) -> TaskVie
     if payload.terminee:
         return _run(lambda tools: tools.complete_task(CompleteTaskArgs(task_id=task_id)).tache)
     return _run(lambda tools: tools.reopen_task(task_id, payload.heure, payload.rappel_minutes_avant))
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: str) -> Response:
+    _run(lambda tools: tools.delete_task(task_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _run(operation: Callable[[TasksTools], T]) -> T:

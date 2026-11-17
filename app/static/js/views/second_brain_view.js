@@ -1,486 +1,386 @@
-// Vue Second Cerveau & Journal d'Audit Conversationnel
-import { state } from "../config.js";
+// Feuille Second cerveau (refonte UX, maquette E-Notes ; décisions du 17/11).
+// Puces de catégorie (Tout, Idées, À dév., Bugs, autres si non vides, Faites), cartes de notes.
+// « Fait », « En faire une tâche » (tâche Google sans date + note faite) et « Supprimer » (menu ⋯) écrivent tout de suite
+// et proposent « Annuler ». La loupe ouvre la recherche ; l'ajout passe par la barre de saisie (Otis) et sa photo.
 import {
+  createSecondBrainNote,
+  createTask,
+  deleteSecondBrainNote,
+  deleteTask,
   fetchSecondBrainNotes,
   fetchSecondBrainStats,
-  createSecondBrainNote,
   patchSecondBrainNote,
-  deleteSecondBrainNote,
-  fetchConversationLogs,
-  postConversationFeedback,
   uploadSecondBrainImage,
 } from "../api.js";
+import { emptyText, noteCard, noteChips, notesQuery, restorePayload, taskTitle } from "../notes_model.js";
+import { showToast, showToastError, showToastSuccess } from "../toast.js";
+import { button, el } from "./sport/dom.js";
 
-// Sélecteurs DOM principaux
-let containerNotes = null;
-let containerAudit = null;
-let categoryPillsContainer = null;
-let currentCategoryFilter = null;
-let currentStatusFilter = "active";
-let currentSearchQuery = "";
-let currentBrainSubview = "notes"; // "notes" | "audit"
+const sheet = document.getElementById("view-second-brain");
+const listContainer = document.getElementById("second-brain-list");
+const chipsContainer = document.getElementById("brain-chips");
+const searchButton = document.getElementById("btn-brain-search");
+const searchBox = document.getElementById("brain-search");
+const searchInput = document.getElementById("brain-search-input");
+const SVG_NS = "http://www.w3.org/2000/svg";
 
-const CATEGORY_META = {
-  dev_idea: { label: "À Développer", icon: "🛠️", color: "#3b82f6" },
-  bug_report: { label: "Bugs & Fixes", icon: "🐛", color: "#ef4444" },
-  thought: { label: "Pensées & Idées", icon: "💡", color: "#f59e0b" },
-  preference: { label: "Préférences", icon: "🎯", color: "#8b5cf6" },
-  task: { label: "Tâches", icon: "📋", color: "#10b981" },
-  voyage: { label: "Voyages", icon: "🌴", color: "#06b6d4" },
-  vacances: { label: "Vacances", icon: "✈️", color: "#06b6d4" },
-  cuisine: { label: "Cuisine", icon: "🍳", color: "#f97316" },
-  sport_coach: { label: "Coach Sport", icon: "🏃", color: "#ec4899" },
+let selected = "all";
+let search = "";
+let stats = {};
+let notes = [];
+
+function isOpen() {
+  return !!sheet && sheet.getAttribute("aria-hidden") === "false";
+}
+
+function message(text, className = "muted") {
+  return el("p", `shopping-note ${className}`, text);
+}
+
+// Chaque ouverture depuis le menu repart de « Tout », sans recherche.
+export function resetSecondBrainFilters() {
+  selected = "all";
+  setSearchOpen(false);
+}
+
+export async function loadSecondBrain() {
+  if (!listContainer) return;
+  listContainer.replaceChildren(message("Chargement des notes…"));
+  await Promise.all([loadStats(), loadNotes()]);
+}
+
+async function loadStats() {
+  try {
+    stats = await fetchSecondBrainStats();
+  } catch (err) {
+    console.warn("[Second cerveau] Compteurs indisponibles :", err);
+    stats = {};
+  }
+  renderChips();
+}
+
+async function loadNotes() {
+  try {
+    const data = await fetchSecondBrainNotes({ ...notesQuery(selected), search: search || null, limit: 100 });
+    notes = data.items || [];
+    renderNotes();
+  } catch (err) {
+    notes = [];
+    listContainer.replaceChildren(message(err.message || "Impossible de charger les notes.", "shopping-note--error"));
+  }
+}
+
+// ---------- Puces de catégorie ----------
+
+function renderChips() {
+  if (!chipsContainer) return;
+  chipsContainer.replaceChildren(...noteChips(stats, selected).map((chip) => {
+    const node = button("chip", chip.text);
+    node.setAttribute("role", "tab");
+    node.setAttribute("aria-selected", String(chip.selected));
+    node.setAttribute("aria-controls", "second-brain-list");
+    node.addEventListener("click", () => selectChip(chip.key));
+    return node;
+  }));
+  const current = chipsContainer.querySelector('[aria-selected="true"]');
+  if (current && current.scrollIntoView) current.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
+function selectChip(key) {
+  if (key === selected) return;
+  selected = key;
+  renderChips();
+  listContainer.replaceChildren(message("Chargement des notes…"));
+  loadNotes();
+}
+
+// ---------- Cartes ----------
+
+function dotsIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  for (const [name, value] of Object.entries({
+    viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2.2",
+    "stroke-linecap": "round", "aria-hidden": "true",
+  })) svg.setAttribute(name, value);
+  for (const cx of ["5", "12", "19"]) {
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", cx);
+    dot.setAttribute("cy", "12");
+    dot.setAttribute("r", "1");
+    svg.append(dot);
+  }
+  return svg;
+}
+
+function closeMenus(except = null) {
+  if (!listContainer) return;
+  listContainer.querySelectorAll(".menu-pop:not([hidden])").forEach((menu) => {
+    if (menu === except) return;
+    menu.hidden = true;
+    const opener = menu.previousElementSibling;
+    if (opener) opener.setAttribute("aria-expanded", "false");
+  });
+}
+
+function cardMenu(note) {
+  const anchor = el("div", "menu-anchor");
+  const menuId = `note-menu-${note.id}`;
+  const opener = button("icon-btn note-card__more", null, "Plus d'options");
+  opener.setAttribute("aria-haspopup", "menu");
+  opener.setAttribute("aria-expanded", "false");
+  opener.setAttribute("aria-controls", menuId);
+  opener.append(dotsIcon());
+  const menu = el("div", "menu-pop");
+  menu.id = menuId;
+  menu.setAttribute("role", "menu");
+  menu.hidden = true;
+  const remove = button("menu-pop__item menu-pop__item--danger", "Supprimer");
+  remove.setAttribute("role", "menuitem");
+  remove.addEventListener("click", () => {
+    closeMenus();
+    deleteNote(note);
+  });
+  menu.append(remove);
+  opener.addEventListener("click", () => {
+    const open = menu.hidden;
+    closeMenus(menu);
+    menu.hidden = !open;
+    opener.setAttribute("aria-expanded", String(open));
+    if (open) remove.focus();
+  });
+  menu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation(); // Échap ferme le menu, pas la feuille
+    closeMenus();
+    opener.focus();
+  });
+  anchor.append(opener, menu);
+  return anchor;
+}
+
+const ACTIONS = {
+  done: { text: "Fait", className: "btn note-card__done", run: (note, card) => markDone(note, card) },
+  task: { text: "En faire une tâche", className: "btn", run: (note, card) => makeTask(note, card) },
+  reopen: { text: "Rouvrir", className: "btn note-card__done", run: (note, card) => reopenNote(note, card) },
 };
 
-export function getCategoryMeta(cat) {
-  const normalized = (cat || "").toLowerCase();
-  return CATEGORY_META[normalized] || {
-    label: cat.charAt(0).toUpperCase() + cat.slice(1),
-    icon: "📌",
-    color: "#64748b",
-  };
+function noteArticle(note) {
+  const view = noteCard(note, new Date());
+  const card = el("article", `note-card${view.done ? " note-card--done" : ""}`);
+  const head = el("div", "note-card__head");
+  const meta = el("div", "note-card__meta");
+  meta.append(el("span", "note-card__date", view.date), cardMenu(note));
+  head.append(el("span", `note-card__label note-card__label--${view.tone}`, view.label), meta);
+  const actions = el("div", "note-card__actions");
+  actions.append(...view.actions.map((key) => {
+    const action = ACTIONS[key];
+    const node = button(action.className, action.text);
+    node.addEventListener("click", () => action.run(note, card));
+    return node;
+  }));
+  card.append(head, el("p", "note-card__text", view.text), actions);
+  return card;
+}
+
+function renderNotes() {
+  if (!notes.length) {
+    listContainer.replaceChildren(message(emptyText(selected, search)));
+    return;
+  }
+  listContainer.replaceChildren(...notes.map(noteArticle));
+}
+
+// Écriture en cours : boutons de la carte désactivés (pas de double envoi).
+function setBusy(card, busy) {
+  card.querySelectorAll("button").forEach((node) => { node.disabled = busy; });
+}
+
+function dropNote(note) {
+  notes = notes.filter((n) => n.id !== note.id);
+  renderNotes();
+  loadStats();
+}
+
+async function refresh() {
+  await Promise.all([loadStats(), loadNotes()]);
+}
+
+// ---------- Actions ----------
+
+async function markDone(note, card) {
+  setBusy(card, true);
+  try {
+    await patchSecondBrainNote(note.id, { status: "done" });
+  } catch (err) {
+    setBusy(card, false);
+    showToastError(err.message, "Note non marquée faite");
+    return;
+  }
+  dropNote(note);
+  showToast("Retrouve-la dans « Faites ».", "success", {
+    title: "Note faite", duration: 6000, action: { label: "Annuler", onClick: () => undoDone(note) },
+  });
+}
+
+async function undoDone(note) {
+  try {
+    await patchSecondBrainNote(note.id, { status: "active" });
+  } catch (err) {
+    showToastError(err.message, "Note non rouverte");
+    return;
+  }
+  await refresh();
+}
+
+async function reopenNote(note, card) {
+  setBusy(card, true);
+  try {
+    await patchSecondBrainNote(note.id, { status: "active" });
+  } catch (err) {
+    setBusy(card, false);
+    showToastError(err.message, "Note non rouverte");
+    return;
+  }
+  dropNote(note);
+  showToastSuccess("La note est de nouveau active.", "Note rouverte");
+}
+
+// Tâche Google (titre = texte, sans date) puis note faite ; si la note ne peut pas passer « faite », la tâche est retirée.
+async function makeTask(note, card) {
+  setBusy(card, true);
+  let task;
+  try {
+    task = await createTask(taskTitle(note));
+  } catch (err) {
+    setBusy(card, false);
+    showToastError(err.message, "Tâche non créée");
+    return;
+  }
+  try {
+    await patchSecondBrainNote(note.id, { status: "done" });
+  } catch (err) {
+    setBusy(card, false);
+    await deleteTask(task.id).catch((rollbackErr) => {
+      showToastError(`La tâche « ${task.titre} » a été créée mais n'a pas pu être retirée : ${rollbackErr.message}`, "Tâche en double");
+    });
+    showToastError(err.message, "Note non marquée faite");
+    return;
+  }
+  dropNote(note);
+  showToast(`« ${task.titre} » est dans tes tâches.`, "success", {
+    title: "Tâche créée", duration: 6000, action: { label: "Annuler", onClick: () => undoTask(note, task) },
+  });
+}
+
+async function undoTask(note, task) {
+  try {
+    await deleteTask(task.id);
+  } catch (err) {
+    showToastError(err.message, "Tâche non supprimée");
+    return;
+  }
+  try {
+    await patchSecondBrainNote(note.id, { status: "active" });
+  } catch (err) {
+    showToastError(err.message, "Note non rouverte");
+  }
+  await refresh();
+}
+
+async function deleteNote(note) {
+  try {
+    await deleteSecondBrainNote(note.id);
+  } catch (err) {
+    showToastError(err.message, "Note non supprimée");
+    return;
+  }
+  dropNote(note);
+  showToast("La note a été supprimée.", "success", {
+    title: "Note supprimée", duration: 6000, action: { label: "Annuler", onClick: () => restoreNote(note) },
+  });
+}
+
+// Note recréée (nouvel identifiant) avec sa catégorie, ses mots-clés, sa date et son statut d'origine.
+async function restoreNote(note) {
+  try {
+    const created = await createSecondBrainNote(restorePayload(note));
+    if (note.status === "done") await patchSecondBrainNote(created.id, { status: "done" });
+  } catch (err) {
+    showToastError(err.message, "Note non rétablie");
+    return;
+  }
+  await refresh();
+}
+
+// ---------- Recherche (loupe) ----------
+
+function setSearchOpen(open) {
+  if (!searchBox || !searchButton) return;
+  searchBox.hidden = !open;
+  searchButton.setAttribute("aria-expanded", String(open));
+  if (open) {
+    searchInput.focus();
+    return;
+  }
+  if (searchInput) searchInput.value = "";
+  search = "";
+}
+
+function initSearch() {
+  if (!searchButton || !searchInput) return;
+  searchButton.addEventListener("click", () => {
+    const open = searchBox.hidden;
+    const hadSearch = !!search;
+    setSearchOpen(open);
+    if (!open && hadSearch) loadNotes();
+  });
+  let timer = null;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      search = searchInput.value.trim();
+      loadNotes();
+    }, 300);
+  });
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation(); // Échap ferme la recherche, pas la feuille
+    const hadSearch = !!search;
+    setSearchOpen(false);
+    searchButton.focus();
+    if (hadSearch) loadNotes();
+  });
+}
+
+// ---------- Capture collée (Ctrl+V sur ordinateur) ----------
+
+async function pasteImage(file) {
+  try {
+    const res = await uploadSecondBrainImage(file, { caption: "Capture collée depuis le presse-papier" });
+    showToastSuccess(res.analysis.title, "Capture enregistrée");
+  } catch (err) {
+    showToastError(err.message, "Capture non analysée");
+    return;
+  }
+  await refresh();
 }
 
 export function initSecondBrainView() {
-  containerNotes = document.getElementById("second-brain-notes-container");
-  containerAudit = document.getElementById("second-brain-audit-container");
-  categoryPillsContainer = document.getElementById("brain-category-pills");
-
-  const tabNotes = document.getElementById("tab-brain-notes");
-  const tabAudit = document.getElementById("tab-brain-audit");
-  const btnNewNote = document.getElementById("btn-add-note-inline");
-  const formNewNote = document.getElementById("form-add-note");
-  const inputSearch = document.getElementById("brain-search-input");
-  const statusFilterSelect = document.getElementById("brain-status-filter");
-  const btnUploadImage = document.getElementById("btn-upload-image-inline");
-  const fileImageInput = document.getElementById("file-brain-image-input");
-
-  // Ingestion visuelle (Bouton fichier & input masqué)
-  if (btnUploadImage && fileImageInput) {
-    btnUploadImage.addEventListener("click", () => fileImageInput.click());
-    fileImageInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (file) {
-        handleImageUpload(file);
-        fileImageInput.value = "";
-      }
-    });
-  }
-
-  // Support du Coller (Paste / Ctrl+V) d'une capture d'écran
-  window.addEventListener("paste", (e) => {
-    const activeView = document.getElementById("view-second-brain");
-    if (!activeView || !activeView.classList.contains("active")) return;
-
-    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
-    if (!items) return;
-
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
-        const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          handleImageUpload(file, "Capture collée depuis le presse-papier");
-          break;
-        }
-      }
-    }
+  initSearch();
+  document.addEventListener("click", (event) => {
+    if (listContainer && !event.target.closest(".note-card .menu-anchor")) closeMenus();
   });
-
-  // Bascule Notes / Audit
-  if (tabNotes && tabAudit) {
-    tabNotes.addEventListener("click", () => switchBrainSubview("notes"));
-    tabAudit.addEventListener("click", () => switchBrainSubview("audit"));
-  }
-
-  // Filtrage par statut (actives / archivées)
-  if (statusFilterSelect) {
-    statusFilterSelect.addEventListener("change", (e) => {
-      currentStatusFilter = e.target.value;
-      loadSecondBrainNotes();
-    });
-  }
-
-  // Recherche en direct
-  if (inputSearch) {
-    let debounceTimer = null;
-    inputSearch.addEventListener("input", (e) => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        currentSearchQuery = e.target.value.trim();
-        loadSecondBrainNotes();
-      }, 300);
-    });
-  }
-
-  // Toggle affichage formulaire d'ajout
-  if (btnNewNote && formNewNote) {
-    btnNewNote.addEventListener("click", () => {
-      const isVisible = formNewNote.style.display !== "none";
-      formNewNote.style.display = isVisible ? "none" : "block";
-      if (!isVisible) {
-        document.getElementById("note-content-input")?.focus();
-      }
-    });
-
-    formNewNote.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const contentInput = document.getElementById("note-content-input");
-      const categorySelect = document.getElementById("note-category-select");
-      const content = contentInput ? contentInput.value.trim() : "";
-      const category = categorySelect ? categorySelect.value : "thought";
-
-      if (!content) return;
-
-      try {
-        await createSecondBrainNote({ content, category });
-        if (contentInput) contentInput.value = "";
-        formNewNote.style.display = "none";
-        loadSecondBrainNotes();
-        loadSecondBrainCategories();
-      } catch (err) {
-        alert("Erreur lors de l'enregistrement de la note : " + err.message);
-      }
-    });
-  }
+  window.addEventListener("paste", (event) => {
+    if (!isOpen()) return;
+    const items = event.clipboardData ? Array.from(event.clipboardData.items) : [];
+    const image = items.find((item) => item.type.startsWith("image/"));
+    const file = image && image.getAsFile();
+    if (!file) return;
+    event.preventDefault();
+    pasteImage(file);
+  });
+  // Photo de la barre de saisie rangée dans le Second cerveau (chat_view.js) : la feuille ouverte se met à jour.
+  window.addEventListener("second-brain-updated", () => {
+    if (isOpen()) refresh();
+  });
 }
-
-// Sous-vue affichée (« notes » ou « audit ») : relue par app.js pour rafraîchir la feuille sans changer d'onglet.
-export function getBrainSubview() {
-  return currentBrainSubview;
-}
-
-export function switchBrainSubview(subview) {
-  currentBrainSubview = subview;
-  const tabNotes = document.getElementById("tab-brain-notes");
-  const tabAudit = document.getElementById("tab-brain-audit");
-
-  if (tabNotes && tabAudit) {
-    tabNotes.classList.toggle("active", subview === "notes");
-    tabAudit.classList.toggle("active", subview === "audit");
-  }
-
-  if (containerNotes && containerAudit) {
-    containerNotes.style.display = subview === "notes" ? "block" : "none";
-    containerAudit.style.display = subview === "audit" ? "block" : "none";
-  }
-
-  const controlsNotes = document.getElementById("brain-notes-controls");
-  if (controlsNotes) {
-    controlsNotes.style.display = subview === "notes" ? "block" : "none";
-  }
-
-  if (subview === "notes") {
-    loadSecondBrainNotes();
-    loadSecondBrainCategories();
-  } else {
-    loadConversationAuditLogs();
-  }
-}
-
-// ============================================================================
-// 1. Gestion des Notes du Second Cerveau
-// ============================================================================
-
-export async function loadSecondBrainCategories() {
-  if (!categoryPillsContainer) return;
-  try {
-    const stats = await fetchSecondBrainStats();
-    categoryPillsContainer.innerHTML = "";
-
-    // Pill "Toutes"
-    const allTotal = Object.values(stats).reduce((a, b) => a + b, 0);
-    const pillAll = document.createElement("button");
-    pillAll.className = `cat-pill ${currentCategoryFilter === null ? "active" : ""}`;
-    pillAll.innerHTML = `<span>Tout</span> <span class="pill-count">${allTotal}</span>`;
-    pillAll.addEventListener("click", () => {
-      currentCategoryFilter = null;
-      updateActiveCategoryPill(pillAll);
-      loadSecondBrainNotes();
-    });
-    categoryPillsContainer.appendChild(pillAll);
-
-    // Découverte dynamique de tous les segments existants
-    Object.keys(stats).forEach((cat) => {
-      const count = stats[cat];
-      const meta = getCategoryMeta(cat);
-      const pill = document.createElement("button");
-      pill.className = `cat-pill ${currentCategoryFilter === cat ? "active" : ""}`;
-      pill.innerHTML = `<span>${meta.icon} ${meta.label}</span> <span class="pill-count">${count}</span>`;
-      pill.addEventListener("click", () => {
-        currentCategoryFilter = cat;
-        updateActiveCategoryPill(pill);
-        loadSecondBrainNotes();
-      });
-      categoryPillsContainer.appendChild(pill);
-    });
-  } catch (e) {
-    console.warn("Impossible de charger les catégories du second cerveau :", e);
-  }
-}
-
-function updateActiveCategoryPill(activePill) {
-  if (!categoryPillsContainer) return;
-  categoryPillsContainer.querySelectorAll(".cat-pill").forEach((p) => p.classList.remove("active"));
-  activePill.classList.add("active");
-}
-
-export async function loadSecondBrainNotes() {
-  if (!containerNotes) return;
-  const listEl = document.getElementById("second-brain-list");
-  if (!listEl) return;
-
-  listEl.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement de vos notes...</div>';
-
-  try {
-    const data = await fetchSecondBrainNotes({
-      category: currentCategoryFilter,
-      status: currentStatusFilter || null,
-      search: currentSearchQuery || null,
-      limit: 100,
-    });
-
-    const notes = data.items || [];
-    if (notes.length === 0) {
-      listEl.innerHTML = `
-        <div class="empty-state-card">
-          <div style="font-size:2.5rem; margin-bottom:8px;">🧠</div>
-          <div style="font-weight:600; color:var(--text-primary)">Aucune note trouvée</div>
-          <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">
-            ${currentSearchQuery ? "Aucun résultat pour cette recherche." : "Dites « Otis, note que... » ou cliquez sur « + Ajouter » ci-dessus."}
-          </p>
-        </div>
-      `;
-      return;
-    }
-
-    listEl.innerHTML = "";
-    notes.forEach((note) => {
-      const meta = getCategoryMeta(note.category);
-      const isDone = note.status === "done";
-
-      const card = document.createElement("div");
-      card.className = `note-card ${isDone ? "done" : ""}`;
-      card.setAttribute("data-id", note.id);
-
-      const dateStr = note.created_at ? formatDateTime(note.created_at) : "";
-
-      card.innerHTML = `
-        <div class="note-card-header">
-          <span class="note-badge" style="background:${meta.color}20; color:${meta.color}; border:1px solid ${meta.color}40;">
-            ${meta.icon} ${meta.label}
-          </span>
-          <span class="note-date">${dateStr}</span>
-        </div>
-        <div class="note-content ${isDone ? "text-done" : ""}">${escapeHtml(note.content)}</div>
-        <div class="note-actions">
-          <button class="btn-note-toggle ${isDone ? "btn-reopen" : "btn-complete"}" title="${isDone ? "Réactiver la note" : "Marquer comme fait"}">
-            ${isDone ? "↺ Réactiver" : "✓ Fait"}
-          </button>
-          <button class="btn-note-delete" title="Supprimer la note">
-            🗑️
-          </button>
-        </div>
-      `;
-
-      // Écouteur toggle statut
-      const btnToggle = card.querySelector(".btn-note-toggle");
-      btnToggle.addEventListener("click", async () => {
-        const newStatus = isDone ? "active" : "done";
-        try {
-          await patchSecondBrainNote(note.id, { status: newStatus });
-          loadSecondBrainNotes();
-          loadSecondBrainCategories();
-        } catch (err) {
-          alert("Erreur mise à jour note : " + err.message);
-        }
-      });
-
-      // Écouteur suppression
-      const btnDelete = card.querySelector(".btn-note-delete");
-      btnDelete.addEventListener("click", async () => {
-        if (confirm("Supprimer définitivement cette note ?")) {
-          try {
-            await deleteSecondBrainNote(note.id);
-            loadSecondBrainNotes();
-            loadSecondBrainCategories();
-          } catch (err) {
-            alert("Erreur suppression note : " + err.message);
-          }
-        }
-      });
-
-      listEl.appendChild(card);
-    });
-  } catch (err) {
-    listEl.innerHTML = `<div style="text-align:center; padding:30px; color:var(--accent-rose)">Erreur de chargement : ${escapeHtml(err.message)}</div>`;
-  }
-}
-
-// ============================================================================
-// 2. Gestion du Journal Conversationnel & Audit
-// ============================================================================
-
-export async function loadConversationAuditLogs() {
-  if (!containerAudit) return;
-  const listEl = document.getElementById("audit-logs-list");
-  if (!listEl) return;
-
-  listEl.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted)">Chargement du journal d\'audit...</div>';
-
-  try {
-    const data = await fetchConversationLogs({ limit: 40 });
-    const logs = data.items || [];
-
-    if (logs.length === 0) {
-      listEl.innerHTML = `
-        <div class="empty-state-card">
-          <div style="font-size:2.5rem; margin-bottom:8px;">📜</div>
-          <div style="font-weight:600; color:var(--text-primary)">Aucun échange enregistré</div>
-          <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">
-            Les requêtes vocales et écrites apparaîtront ici avec leur latence et analyse.
-          </p>
-        </div>
-      `;
-      return;
-    }
-
-    listEl.innerHTML = "";
-    logs.forEach((log) => {
-      const isSuccess = log.status === "success";
-      const latencyStr = log.latency_ms ? `${log.latency_ms} ms` : "-";
-      const dateStr = log.created_at ? formatDateTime(log.created_at) : "";
-
-      const card = document.createElement("div");
-      card.className = "audit-card";
-      card.innerHTML = `
-        <div class="audit-card-header">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="audit-status-dot ${isSuccess ? "ok" : "err"}"></span>
-            <span class="audit-intent-badge">${escapeHtml(log.intent || "inconnu")}</span>
-            <span class="audit-matched-by">${escapeHtml(log.matched_by || "auto")}</span>
-          </div>
-          <span class="audit-date">${dateStr}</span>
-        </div>
-
-        <div class="audit-prompt">
-          <strong>Vous :</strong> ${escapeHtml(log.user_prompt || "")}
-        </div>
-
-        <div class="audit-response">
-          <strong>Otis :</strong> ${escapeHtml(log.spoken_response || log.error_message || "Aucune réponse")}
-        </div>
-
-        <div class="audit-footer">
-          <div class="audit-meta-info">
-            <span>⚡ ${latencyStr}</span>
-            <span>🤖 ${escapeHtml(log.llm_model || "Flash")}</span>
-          </div>
-          <button class="btn-feedback-action" data-id="${log.id}">
-            💬 Corriger / Signaler
-          </button>
-        </div>
-
-        <div class="feedback-form-box" id="feedback-box-${log.id}" style="display:none;">
-          <textarea class="form-input feedback-textarea" placeholder="Expliquez ce qui n'allait pas ou la bonne réponse attendue..."></textarea>
-          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
-            <button type="button" class="btn-secondary btn-cancel-feedback" style="font-size:0.75rem; padding:4px 8px;">Annuler</button>
-            <button type="button" class="btn-primary btn-submit-feedback" style="font-size:0.75rem; padding:4px 8px;">Envoyer correction</button>
-          </div>
-        </div>
-      `;
-
-      // Gestion ouverture et soumission feedback
-      const btnFeedback = card.querySelector(".btn-feedback-action");
-      const boxFeedback = card.querySelector(`#feedback-box-${log.id}`);
-      const btnCancel = card.querySelector(".btn-cancel-feedback");
-      const btnSubmit = card.querySelector(".btn-submit-feedback");
-      const textarea = card.querySelector(".feedback-textarea");
-
-      btnFeedback.addEventListener("click", () => {
-        boxFeedback.style.display = boxFeedback.style.display === "none" ? "block" : "none";
-        if (boxFeedback.style.display === "block") textarea.focus();
-      });
-
-      btnCancel.addEventListener("click", () => {
-        boxFeedback.style.display = "none";
-      });
-
-      btnSubmit.addEventListener("click", async () => {
-        const note = textarea.value.trim();
-        if (!note) return;
-        try {
-          await postConversationFeedback(log.id, {
-            feedback_type: "correction",
-            user_note: note,
-          });
-          boxFeedback.innerHTML = '<div style="color:var(--accent-teal); font-size:0.8rem; padding:6px 0;">✓ Correction enregistrée avec succès pour l\'auto-apprentissage !</div>';
-        } catch (e) {
-          alert("Erreur lors de l'enregistrement du feedback : " + e.message);
-        }
-      });
-
-      listEl.appendChild(card);
-    });
-  } catch (err) {
-    listEl.innerHTML = `<div style="text-align:center; padding:30px; color:var(--accent-rose)">Erreur de chargement : ${escapeHtml(err.message)}</div>`;
-  }
-}
-
-// Helpers
-function formatDateTime(isoString) {
-  try {
-    const d = new Date(isoString);
-    return d.toLocaleDateString("fr-FR", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch (e) {
-    return isoString;
-  }
-}
-
-function escapeHtml(text) {
-  if (!text) return "";
-  return String(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-export async function handleImageUpload(file, defaultCaption = null) {
-  const statusBanner = document.getElementById("brain-image-status-banner");
-  if (statusBanner) {
-    statusBanner.style.display = "block";
-    statusBanner.style.background = "rgba(37, 99, 235, 0.1)";
-    statusBanner.style.color = "var(--color-primary, #2563eb)";
-    statusBanner.innerHTML = "<span>✨ Analyse de l'image par Gemini Vision en cours...</span>";
-  }
-
-  try {
-    const res = await uploadSecondBrainImage(file, { caption: defaultCaption });
-    if (statusBanner) {
-      const meta = getCategoryMeta(res.analysis.category);
-      statusBanner.style.background = "rgba(34, 197, 94, 0.12)";
-      statusBanner.style.color = "#16a34a";
-      statusBanner.innerHTML = `<span>✓ Image analysée ! Enregistrée sous <strong>${meta.icon} ${meta.label}</strong> : ${escapeHtml(res.analysis.title)}</span>`;
-      setTimeout(() => {
-        statusBanner.style.display = "none";
-      }, 5000);
-    }
-
-    // Basculer sur les notes si on était ailleurs et recharger
-    switchBrainSubview("notes");
-  } catch (err) {
-    if (statusBanner) {
-      statusBanner.style.background = "rgba(239, 68, 68, 0.12)";
-      statusBanner.style.color = "#ef4444";
-      statusBanner.innerHTML = `<span>⚠️ Erreur analyse image : ${escapeHtml(err.message)}</span>`;
-    }
-  }
-}
-

@@ -311,3 +311,35 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .meal-ingredients .list-row { cursor: pointer; }
 .meal-ingredients .list-row:has(.check:checked) .list-row__text { color: inherit; text-decoration: none; }
 .btn--danger { color: var(--danger); border-color: var(--danger); }
+
+/* ---------- Second cerveau (feuille, maquette E-Notes) ---------- */
+/* Puces sur une ligne qui défile à l'horizontale, jusqu'aux bords de la feuille */
+.chips--scroll {
+  flex-wrap: nowrap; flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+  margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter);
+}
+.chips--scroll::-webkit-scrollbar { display: none; }
+.chips--scroll .chip { flex-shrink: 0; white-space: nowrap; }
+.brain-search[hidden] { display: none; }
+.brain-search .input { width: 100%; }
+.notes-list { display: flex; flex-direction: column; gap: 10px; }
+.note-card { display: flex; flex-direction: column; gap: 10px; padding: var(--s-4); border: 0; border-radius: var(--r-lg); background: var(--card); box-shadow: none; }
+.note-card__head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); }
+.note-card__meta { display: flex; align-items: center; gap: 2px; }
+.note-card__date { font-size: var(--fs-xs); color: var(--muted); }
+.note-card__more { width: 36px; height: 36px; margin: -8px -8px -8px 0; background: transparent; }
+.note-card .menu-pop { min-width: 180px; }
+.menu-pop__item--danger { color: var(--danger); }
+.note-card__label { font-size: var(--fs-xs); font-weight: 800; }
+.note-card__label--idea { color: var(--accent); }
+.note-card__label--dev { color: var(--info); }
+.note-card__label--bug { color: var(--danger); }
+.note-card__label--pref { color: var(--tier-mythic); }
+.note-card__label--task { color: var(--warn); }
+.note-card__label--other { color: var(--text-2); }
+:root[data-theme="light"] .note-card__label--pref { color: #6B4FC2; }
+.note-card__text { margin: 0; font-size: var(--fs-base); line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; white-space: pre-line; }
+.note-card--done .note-card__text { color: var(--muted); }
+.note-card__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.note-card__actions .btn { min-height: 38px; font-size: var(--fs-sm); }
+.note-card__done { color: var(--success); }
