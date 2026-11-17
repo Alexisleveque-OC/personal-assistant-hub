@@ -96,5 +96,5 @@ def test_new_modules_are_precached_and_versions_bumped():
     for path in ("/static/js/views/tasks_view.js", "/static/js/tasks_model.js", "/static/js/views/task_due_picker.js",
                  "/static/js/toast.js"):
         assert f'"{path}"' in sw, path
-    assert "pah-pwa-cache-v41" in sw
-    assert "/static/app.js?v=26.0" in _rendered_html()
+    assert "pah-pwa-cache-v42" in sw
+    assert "/static/app.js?v=27.0" in _rendered_html()

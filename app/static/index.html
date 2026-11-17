@@ -408,78 +408,35 @@
       </div>
     </section>
 
-    <!-- VIEW 5: SECOND CERVEAU & JOURNAL D'AUDIT (Phase 6) -->
+    <!-- Feuille Second cerveau (refonte UX, maquette E-Notes) : puces de catégorie, cartes ; ajout par la barre de saisie -->
     <section class="sheet" id="view-second-brain" role="dialog" aria-modal="true" aria-labelledby="view-second-brain-title" aria-hidden="true" tabindex="-1" inert>
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
         <h2 class="sheet__title" id="view-second-brain-title">Second cerveau</h2>
+        <button type="button" class="icon-btn" id="btn-brain-search" aria-label="Rechercher" aria-expanded="false" aria-controls="brain-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+        <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="brain-search" id="brain-search" hidden>
+        <label class="sr-only" for="brain-search-input">Rechercher dans les notes</label>
+        <input type="search" id="brain-search-input" class="input" placeholder="Rechercher dans les notes…" autocomplete="off" enterkeyhint="search" />
+      </div>
+      <div class="chips chips--scroll" id="brain-chips" role="tablist" aria-label="Catégorie"></div>
+      <div class="sheet__body">
+        <div id="second-brain-list" class="notes-list" role="tabpanel" aria-label="Notes"></div>
+      </div>
+      <div class="composer-slot"></div>
+    </section>
+
+    <!-- Feuille Journal & feedback (sortie du Second cerveau, refonte UX étape 7) : contenu inchangé -->
+    <section class="sheet" id="view-journal" role="dialog" aria-modal="true" aria-labelledby="view-journal-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header">
+        <h2 class="sheet__title" id="view-journal-title">Journal &amp; feedback</h2>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="sheet__body">
-      <div class="shopping-header">
-        <div style="display:flex; gap:8px;">
-          <input type="file" id="file-brain-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" />
-          <button id="btn-upload-image-inline" class="btn-action-small" title="Envoyer une capture d'écran ou photo (ou Ctrl+V)">
-            📷 Capture / Photo
-          </button>
-          <button id="btn-add-note-inline" class="btn-action-small" title="Ajouter une note manuellement">
-            ➕ Ajouter
-          </button>
-        </div>
-      </div>
-
-      <!-- Bannière de Statut Analyse Gemini Vision -->
-      <div id="brain-image-status-banner" class="completion-banner" style="display:none; margin-bottom:12px;"></div>
-
-      <!-- Segmented Brain Switcher -->
-      <div class="segmented-control" id="brain-segmented">
-        <button class="seg-btn active" id="tab-brain-notes" data-subview="notes">🧠 Notes & Idées</button>
-        <button class="seg-btn" id="tab-brain-audit" data-subview="audit">📜 Journal & Feedback</button>
-      </div>
-
-      <!-- Sous-vue: Notes du Second Cerveau -->
-      <div id="second-brain-notes-container">
-        <!-- Formulaire création rapide (dépliable) -->
-        <form id="form-add-note" class="form-add-note-card" style="display:none;">
-          <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <select id="note-category-select" class="form-input" style="width:45%; font-size:0.85rem;">
-              <option value="dev_idea">🛠️ À Développer</option>
-              <option value="bug_report">🐛 Bug / Fix</option>
-              <option value="thought" selected>💡 Pensée / Idée</option>
-              <option value="preference">🎯 Préférence</option>
-              <option value="task">📋 Tâche</option>
-              <option value="voyage">🌴 Voyage</option>
-              <option value="cuisine">🍳 Cuisine</option>
-            </select>
-            <button type="submit" class="btn-primary" style="flex:1; font-size:0.85rem; padding:6px 12px;">Enregistrer</button>
-          </div>
-          <textarea id="note-content-input" class="form-input" placeholder="Que voulez-vous mémoriser ?..." rows="2" style="font-size:0.85rem; width:100%; resize:vertical;"></textarea>
-        </form>
-
-        <!-- Filtres et Recherche -->
-        <div id="brain-notes-controls" style="margin-bottom:12px;">
-          <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <input type="text" id="brain-search-input" class="form-input" placeholder="🔍 Rechercher dans vos notes..." style="font-size:0.85rem; flex:1;" />
-            <select id="brain-status-filter" class="form-input" style="width:35%; font-size:0.85rem;">
-              <option value="active" selected>Actives</option>
-              <option value="">Toutes</option>
-              <option value="done">Archivées</option>
-            </select>
-          </div>
-          <!-- Pills de Catégories dynamiques -->
-          <div id="brain-category-pills" class="category-pills-row"></div>
-        </div>
-
-        <!-- Liste des Cartes de Notes -->
-        <div id="second-brain-list" class="notes-cards-list"></div>
-      </div>
-
-      <!-- Sous-vue: Journal d'Audit & Feedback -->
-      <div id="second-brain-audit-container" style="display:none;">
         <div id="audit-logs-list" class="audit-logs-list"></div>
       </div>
-      </div>
-      <div class="composer-slot"></div>
     </section>
 
 
@@ -496,7 +453,7 @@
     <button type="button" class="drawer__item" data-section="taches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><path d="M8 12l3 3 5-6"/></svg><span class="drawer__label">Tâches</span><span class="count" id="drawer-count-taches"></span></button>
     <button type="button" class="drawer__item" data-section="sport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="drawer__label">Sport</span></button>
     <button type="button" class="drawer__item" data-section="second_cerveau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg><span class="drawer__label">Second cerveau</span><span class="count" id="drawer-count-second_cerveau"></span></button>
-    <button type="button" class="drawer__item" id="drawer-journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6"/></svg><span class="drawer__label">Journal &amp; feedback</span></button>
+    <button type="button" class="drawer__item" id="drawer-journal" data-section="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6"/></svg><span class="drawer__label">Journal &amp; feedback</span></button>
     <div class="drawer__footer">
       <button type="button" class="drawer__item" id="btn-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="drawer__label">Réglages &amp; voix</span></button>
       <label class="drawer__item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg><span class="drawer__label">Mains-libres « Otis »<span id="wake-word-indicator" class="wake-word-indicator"><span class="wake-dot"></span><span class="wake-label">Micro au clic</span></span></span>
@@ -603,6 +560,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=26.0"></script>
+  <script type="module" src="/static/app.js?v=27.0"></script>
 </body>
 </html>

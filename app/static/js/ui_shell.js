@@ -11,6 +11,8 @@ export const SECTIONS = {
   second_cerveau: {
     sheetId: "view-second-brain", title: "Second cerveau", placeholder: "Noter une idée…", context: "second_cerveau",
   },
+  // Sans barre de saisie (lecture du journal et corrections) ; contexte inconnu de l'agent, donc neutre.
+  journal: { sheetId: "view-journal", title: "Journal & feedback", placeholder: "Écrire à Otis…", context: "journal" },
 };
 
 // Feuilles empilées sur une section (détail, formulaire) : elles gardent le contexte de leur section ;

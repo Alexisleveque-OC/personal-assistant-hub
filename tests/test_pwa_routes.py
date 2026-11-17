@@ -31,8 +31,7 @@ def test_get_app_returns_200_html():
     assert 'id="view-sport-trophies"' in html
     assert 'id="view-second-brain"' in html
     assert 'data-section="second_cerveau"' in html
-    assert 'id="second-brain-notes-container"' in html
-    assert 'id="second-brain-audit-container"' in html
+    assert 'id="view-journal"' in html
     assert 'id="second-brain-list"' in html
     assert 'id="audit-logs-list"' in html
 

@@ -419,6 +419,7 @@ export async function handleChatImageUpload(file) {
     appendAssistantMessage(noteMsg);
     speak(noteMsg);
     showToastSuccess("Capture enregistrée dans vos notes.", "Second Cerveau ✅");
+    window.dispatchEvent(new CustomEvent("second-brain-updated"));
     return;
   } catch (brainErr) {
     toastAnalyzing.dismiss();
