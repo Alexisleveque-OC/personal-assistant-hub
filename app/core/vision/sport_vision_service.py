@@ -14,7 +14,7 @@ from app.core.llm.gemini_client import (
     GeminiClient,
     get_gemini_client,
 )
-from app.core.date_resolver import parse_screenshot_date
+from app.core.screenshot_date import parse_screenshot_date
 
 logger = logging.getLogger(__name__)
 
