@@ -48,7 +48,7 @@ def test_composer_has_a_due_picker_hidden_outside_tasks():
 
 
 def test_app_wires_the_tasks_view_and_reloads_it_when_the_sheet_opens():
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     shell = _static("js/ui_shell.js")
     assert 'from "./js/views/tasks_view.js"' in js
     assert "initTasksView()" in js

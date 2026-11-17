@@ -41,7 +41,7 @@ def test_meals_sheet_has_a_day_strip_cards_and_the_ingredients_button():
 
 
 def test_app_reloads_the_meals_sheet_from_the_week_route_only():
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     assert "loadMeals()" in js
     assert "fetchMealToday" not in js and "currentMealSubview" not in js
     assert "currentMealSubview" not in _static("js/config.js")

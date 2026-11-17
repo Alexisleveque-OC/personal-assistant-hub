@@ -50,7 +50,7 @@ def test_settings_section_and_view_module():
                    "pah_api_key", "pah_voice_uri", "pah_push_to_talk", "pah_vad_silence_ms", "showToastSuccess("):
         assert needle in view, needle
     assert "innerHTML" not in view and "appendAssistantMessage" not in view
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     assert "loadSettings()" in js and "initSettingsView(" in js
     assert "settingsModal" not in js and "refreshLlmStats" not in js
 

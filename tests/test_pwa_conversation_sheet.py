@@ -45,7 +45,7 @@ def test_chat_view_renders_messages_without_html_injection():
         assert needle in view, needle
     for forbidden in ("innerHTML", "chat-bubble", "chip-btn", "Assistant Hub"):
         assert forbidden not in view, forbidden
-    assert "scrollConversationToEnd()" in _static("app.js")
+    assert "scrollConversationToEnd()" in _static("js/app_shell.js")
 
 
 def test_undo_bar_is_shown_with_the_hidden_attribute():

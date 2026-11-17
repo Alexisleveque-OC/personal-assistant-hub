@@ -47,7 +47,7 @@ def test_journal_and_feedback_has_its_own_sheet_opened_from_the_menu():
     assert 'data-sheet-close aria-label="Fermer"' in sheet
     assert 'id="audit-logs-list"' in sheet
     assert re.search(r'id="drawer-journal"[^>]*data-section="journal"', html)
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     assert "loadConversationAuditLogs()" in js
     assert "brainView" not in js and "getBrainSubview" not in js
 
