@@ -2,7 +2,9 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 from app.main import app, set_meals_connector
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
-from app.connectors.sheets.models import DayMealPlan
+from datetime import date
+
+from app.connectors.sheets.models import DayMealPlan, MealWeekDay
 
 client = TestClient(app)
 
@@ -55,19 +57,11 @@ def test_interact_shopping_list_contains_both_nested_and_top_level_keys():
 
 
 def test_get_week_meals_endpoint():
-    """Vérifie l'endpoint /api/v1/meals/week qui fournit le planning de la semaine."""
+    """Vérifie l'endpoint /api/v1/meals/week qui fournit le planning de la semaine (onglet annuel, cf. test_meals_week_route)."""
     mock_connector = MagicMock()
-    mock_connector.get_week_meal_plans.return_value = [
-        {
-            "day_label": "mar. 22",
-            "day_name": "Mardi",
-            "date_str": "22/09/2026",
-            "lunch": None,
-            "lunch_ingredients": [],
-            "dinner": "Riz cantonnais",
-            "dinner_ingredients": ["Riz", "Oeufs", "Jambon", "Petit pois"],
-            "is_today": True,
-        }
+    mock_connector.get_meal_week.return_value = [
+        MealWeekDay(date=date(2026, 9, 22), day_label="mar. 22", dinner="Riz cantonnais",
+                    dinner_ingredients=["Riz", "Oeufs", "Jambon", "Petit pois"], is_today=True)
     ]
     set_meals_connector(mock_connector)
 

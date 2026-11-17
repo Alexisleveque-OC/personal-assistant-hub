@@ -1,14 +1,18 @@
-// Feuille Repas (refonte UX, maquette E-Repas ; décisions du 17/11) : lecture directe de GET /api/v1/meals/week.
-// Bande des 7 jours (samedi → vendredi) ; sous la bande, le jour choisi + le lendemain (Midi / Soir, chevron = ingrédients).
-// « Ajouter » pré-remplit la barre ; « Demander une idée à Otis » demande des propositions sans écriture ;
-// « Ingrédients de la semaine → courses » : liste à cocher, l'ajout passe par Otis (rayons inconnus, Annuler).
+// Feuille Repas (refonte UX, maquette E-Repas ; décisions et retours du 17/11).
+// Lecture directe de GET /api/v1/meals/week?offset=N (onglet annuel « repas AAAA », même source qu'Otis).
+// En-tête collant : ‹ semaine › + bande des 7 jours (toucher un jour fait défiler jusqu'à sa carte) ;
+// dessous, les 7 jours en cartes Midi / Soir (chevron = ingrédients). « Ajouter » pré-remplit la barre ;
+// « Demander une idée à Otis » demande des propositions sans écriture ; « Ingrédients de la semaine → courses » :
+// liste à cocher de la semaine affichée (à partir d'aujourd'hui), l'ajout passe par Otis (rayons inconnus, Annuler).
 import { fetchShoppingData, fetchWeekMeals } from "../api.js";
 import {
-  dayCards, defaultDay, ideaPrompt, ingredientsMessage, slotPrefill, weekIngredients, weekStrip,
+  dayCards, defaultDay, hasIngredientsButton, ideaPrompt, ingredientsMessage, slotPrefill, weekIngredients, weekNav,
+  weekStrip,
 } from "../meals_model.js";
 import { sendInteraction } from "./chat_view.js";
-import { button, el } from "./sport/dom.js";
+import { button, el, periodNav } from "./sport/dom.js";
 
+const navSlot = document.getElementById("meal-nav");
 const daysStrip = document.getElementById("meal-days");
 const mealContainer = document.getElementById("meal-container");
 const ingredientsButton = document.getElementById("btn-meal-ingredients");
@@ -16,8 +20,18 @@ const ingredientsPanel = document.getElementById("meal-ingredients");
 const queryInput = document.getElementById("query-input");
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+let offset = 0;
 let week = [];
+let range = { start: "", end: "" };
+let loadedOffset = null; // semaine affichée : un rechargement de la même semaine garde la position de défilement
 let selected = -1;
+let scrollTarget = null; // carte à amener sous l'en-tête après le prochain chargement
+
+function todayIso() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 
 function note(text, className = "muted") {
   return el("p", `shopping-note ${className}`, text);
@@ -43,59 +57,119 @@ export function initMealsView() {
   });
 }
 
+// Ouverture de la feuille : retour sur la semaine en cours, défilement jusqu'à aujourd'hui.
+export function resetMealsWeek() {
+  offset = 0;
+  loadedOffset = null;
+  selected = -1;
+  scrollTarget = "today";
+}
+
+function goToWeek(newOffset) {
+  offset = newOffset;
+  selected = -1;
+  scrollTarget = "today"; // aujourd'hui s'il est dans la semaine, sinon le premier jour
+  loadMeals();
+}
+
 export async function loadMeals() {
   if (!mealContainer) return;
   closeIngredients();
-  mealContainer.replaceChildren(note("Chargement des repas…"));
+  const requested = offset;
+  if (loadedOffset !== requested) mealContainer.replaceChildren(note("Chargement des repas…"));
+  let data;
   try {
-    const data = await fetchWeekMeals();
-    week = data.week_plan || [];
+    data = await fetchWeekMeals(requested);
   } catch (err) {
+    if (requested !== offset) return; // une autre semaine a été demandée entre-temps
     week = [];
+    loadedOffset = null;
+    renderNav();
     if (daysStrip) daysStrip.replaceChildren();
+    if (ingredientsButton) ingredientsButton.hidden = true;
     mealContainer.replaceChildren(note(err.message || "Impossible de charger les repas.", "shopping-note--error"));
     return;
   }
-  if (selected < 0 || selected >= week.length) selected = defaultDay(week);
-  render();
+  if (requested !== offset) return;
+  week = data.week_plan || [];
+  range = { start: data.start, end: data.end };
+  loadedOffset = requested;
+  const today = todayIso();
+  if (selected < 0 || selected >= week.length) selected = defaultDay(week, today);
+  render(today);
+  if (scrollTarget !== null) {
+    scrollToCard(selected, "auto");
+    scrollTarget = null;
+  }
 }
 
-function render() {
-  renderStrip();
+function render(today) {
+  renderNav();
+  renderStrip(today);
+  if (ingredientsButton) ingredientsButton.hidden = !hasIngredientsButton(week, today);
   if (!week.length) {
-    mealContainer.replaceChildren(note("Aucun repas dans la feuille « Cette semaine »."));
+    mealContainer.replaceChildren(note("Aucun jour à afficher pour cette semaine."));
     return;
   }
-  mealContainer.replaceChildren(...dayCards(week, selected).flatMap(renderCard));
+  mealContainer.replaceChildren(...dayCards(week, today).map(renderCard));
 }
 
-function renderStrip() {
+function renderNav() {
+  if (!navSlot) return;
+  const label = range.start ? weekNav(offset, range.start, range.end) : { title: "Repas", range: "" };
+  const center = button("period-nav__label meal-nav__label");
+  center.append(el("strong", null, label.title));
+  if (label.range) center.append(el("span", null, label.range));
+  if (offset === 0) center.disabled = true;
+  else center.setAttribute("aria-label", `Revenir à cette semaine (${label.title}, ${label.range})`);
+  center.addEventListener("click", () => goToWeek(0));
+  navSlot.replaceChildren(periodNav({
+    center,
+    prevLabel: "Semaine précédente",
+    nextLabel: "Semaine suivante",
+    onPrev: () => goToWeek(offset - 1),
+    onNext: () => goToWeek(offset + 1),
+  }));
+}
+
+function renderStrip(today) {
   if (!daysStrip) return;
-  daysStrip.replaceChildren(...weekStrip(week).map((day) => {
+  daysStrip.replaceChildren(...weekStrip(week, today).map((day) => {
     const tab = button(`meal-day meal-day--${day.state}`, undefined, day.name);
     tab.setAttribute("role", "tab");
     tab.setAttribute("aria-selected", String(day.index === selected));
+    tab.setAttribute("aria-controls", `meal-card-${day.index}`);
     tab.append(el("span", "meal-day__short", day.short), el("span", "meal-day__num", day.num));
     tab.addEventListener("click", () => {
       selected = day.index;
-      render();
+      daysStrip.querySelectorAll(".meal-day").forEach((b, i) => b.setAttribute("aria-selected", String(i === selected)));
+      scrollToCard(selected, "smooth");
     });
     return tab;
   }));
 }
 
+function scrollToCard(index, behavior) {
+  const target = document.getElementById(`meal-card-${index}`);
+  if (target) target.scrollIntoView({ block: "start", behavior });
+}
+
 function renderCard(card) {
-  const title = el("span", "section-label", card.title);
+  const box = el("div", "meal-card");
+  box.id = `meal-card-${card.index}`;
+  box.append(el("span", "section-label", card.title));
   if (card.empty) {
-    const box = el("div", "meal-empty");
+    const empty = el("div", "meal-empty");
     const ask = button("btn btn--light", "Demander une idée à Otis");
     ask.addEventListener("click", () => sendInteraction(ideaPrompt(week, card.index)));
-    box.append(el("p", "meal-empty__text", "Rien de planifié pour l'instant."), ask);
-    return [title, box];
+    empty.append(el("p", "meal-empty__text", "Rien de planifié pour l'instant."), ask);
+    box.append(empty);
+    return box;
   }
   const group = el("div", "list-group");
   group.append(...card.slots.map((slot) => renderSlot(card.index, slot)));
-  return [title, group];
+  box.append(group);
+  return box;
 }
 
 function renderSlot(dayIndex, slot) {
@@ -129,7 +203,7 @@ function renderSlot(dayIndex, slot) {
   return wrap;
 }
 
-// La barre de saisie reçoit « Midi mardi 17 : » : on tape ou dicte le plat, Otis l'écrit (set_meal, annulable).
+// La barre de saisie reçoit « Midi mardi 17 novembre : » : on tape ou dicte le plat, Otis l'écrit (set_meal, annulable).
 function prefill(text) {
   if (!queryInput) return;
   queryInput.value = text;
@@ -155,9 +229,9 @@ async function openIngredients() {
     ingredientsPanel.replaceChildren(note(err.message || "Liste de courses indisponible.", "shopping-note--error"));
     return;
   }
-  const items = weekIngredients(week, shopping);
+  const items = weekIngredients(week, shopping, todayIso());
   if (!items.length) {
-    ingredientsPanel.replaceChildren(note("Aucun ingrédient connu pour les repas d'ici vendredi."));
+    ingredientsPanel.replaceChildren(note("Aucun ingrédient connu pour les repas restants de cette semaine."));
     return;
   }
   renderIngredients(items);

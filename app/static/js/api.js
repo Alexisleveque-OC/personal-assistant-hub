@@ -93,9 +93,10 @@ export async function fetchLlmStats() {
   return await res.json();
 }
 
-// Planning de la semaine (feuille « Cette semaine ») lu directement, avec les ingrédients des recettes.
-export async function fetchWeekMeals() {
-  const res = await fetch("/api/v1/meals/week", { headers: getAuthHeaders() });
+// Planning samedi → vendredi (onglet annuel « repas AAAA ») lu directement, avec les ingrédients des recettes.
+// `offset` : semaines après (+) ou avant (-) la semaine en cours.
+export async function fetchWeekMeals(offset = 0) {
+  const res = await fetch(`/api/v1/meals/week?offset=${encodeURIComponent(offset)}`, { headers: getAuthHeaders() });
   if (!res.ok) {
     const errJson = await res.json().catch(() => null);
     throw new Error((errJson && errJson.detail) || `Planning des repas indisponible (${res.status})`);

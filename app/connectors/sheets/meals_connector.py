@@ -20,6 +20,7 @@ from app.config import settings
 from app.connectors.base import BaseConnector
 from app.connectors.sheets.models import (
     DayMealPlan,
+    MealWeekDay,
     Recipe,
     ShoppingItem,
     WaitingListItem,
@@ -60,6 +61,14 @@ def resolve_meals_worksheet_name(available_worksheets: List[str], year: Optional
     return expected_name
 
 
+WEEKDAY_ABBR_FR = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+
+def meal_week_start(today: date, offset: int = 0) -> date:
+    """Samedi de la semaine de repas (samedi → vendredi) contenant `today`, décalé de `offset` semaines."""
+    return today - timedelta(days=(today.weekday() - 5) % 7) + timedelta(weeks=offset)
+
+
 class MealsShoppingConnector(BaseConnector):
     """Connecteur métier pour la gestion du planning des repas, recettes et listes de courses."""
 
@@ -94,8 +103,6 @@ class MealsShoppingConnector(BaseConnector):
         self._recipes_cache: Optional[List[Recipe]] = None
         self._shopping_cache: Optional[Dict[str, Any]] = None
         self._shopping_cache_time: float = 0.0
-        self._week_meals_cache: Optional[List[Dict[str, Any]]] = None
-        self._week_meals_cache_time: float = 0.0
         self._annual_meals_cache: Dict[int, List[List[str]]] = {}
         self._annual_meals_cache_time: Dict[int, float] = {}
         self._rayons_order: Optional[Dict[str, int]] = None
@@ -107,8 +114,6 @@ class MealsShoppingConnector(BaseConnector):
             self._shopping_cache = None
             self._shopping_cache_time = 0.0
         if domain in (None, "meals"):
-            self._week_meals_cache = None
-            self._week_meals_cache_time = 0.0
             self._annual_meals_cache.clear()
             self._annual_meals_cache_time.clear()
         if domain in (None, "recipes"):
@@ -222,20 +227,7 @@ class MealsShoppingConnector(BaseConnector):
         date_str_target = resolved_date.strftime("%d/%m/%Y")
 
         # 2. Résolution via cache mémoire ou interrogation Google Sheets
-        now = time.time()
-        if (
-            year in getattr(self, "_annual_meals_cache", {})
-            and now - getattr(self, "_annual_meals_cache_time", {}).get(year, 0.0) < getattr(self, "_cache_ttl_seconds", 180)
-        ):
-            rows = self._annual_meals_cache[year]
-            ws_name = f"repas {year}"
-        else:
-            available_worksheets = [ws.title for ws in self._spreadsheet.worksheets()]
-            ws_name = resolve_meals_worksheet_name(available_worksheets, year=year)
-            ws = self._spreadsheet.worksheet(ws_name)
-            rows = ws.get_all_values()
-            self._annual_meals_cache[year] = rows
-            self._annual_meals_cache_time[year] = now
+        ws_name, rows = self._annual_rows(year)
 
         # 3. Recherche de la ligne de date
         for row in rows[1:]:
@@ -251,6 +243,56 @@ class MealsShoppingConnector(BaseConnector):
         raise DayMealPlanNotFoundError(
             f"Aucun repas planifié pour la date {date_str_target} dans l'onglet '{ws_name}'."
         )
+
+    def _annual_rows(self, year: int) -> Tuple[str, List[List[str]]]:
+        """Lignes de l'onglet annuel « repas AAAA » (cache TTL, vidé par toute écriture de repas)."""
+        ws_name = f"repas {year}"
+        now = time.time()
+        if year in self._annual_meals_cache and now - self._annual_meals_cache_time.get(year, 0.0) < self._cache_ttl_seconds:
+            return ws_name, self._annual_meals_cache[year]
+        available_worksheets = [ws.title for ws in self._spreadsheet.worksheets()]
+        ws_name = resolve_meals_worksheet_name(available_worksheets, year=year)
+        rows = self._spreadsheet.worksheet(ws_name).get_all_values()
+        self._annual_meals_cache[year] = rows
+        self._annual_meals_cache_time[year] = now
+        return ws_name, rows
+
+    def get_meal_week(self, start: date, today: date) -> List[MealWeekDay]:
+        """Les 7 jours à partir de `start` lus dans l'onglet annuel (2 onglets si la semaine passe le Nouvel An)."""
+        days: List[MealWeekDay] = []
+        for offset in range(7):
+            day = start + timedelta(days=offset)
+            ws_name, rows = self._annual_rows(day.year)
+            target = day.strftime("%d/%m/%Y")
+            row = next((r for r in rows[1:] if r and r[0].strip() == target), None)
+            if row is None:
+                raise DayMealPlanNotFoundError(f"La date {target} est absente de l'onglet '{ws_name}' : ajoutez sa ligne.")
+            lunch = row[2].strip() if len(row) > 2 and row[2].strip() else None
+            dinner = row[3].strip() if len(row) > 3 and row[3].strip() else None
+            days.append(MealWeekDay(
+                date=day,
+                day_label=f"{WEEKDAY_ABBR_FR[day.weekday()]} {day.day}",
+                lunch=lunch,
+                lunch_ingredients=self._dish_ingredients(lunch),
+                dinner=dinner,
+                dinner_ingredients=self._dish_ingredients(dinner),
+                is_today=day == today,
+            ))
+        return days
+
+    def _dish_ingredients(self, dish: Optional[str]) -> List[str]:
+        """Ingrédients d'un plat, ou des parties connues d'un plat composé (« A + B », « A et B »), sans doublon."""
+        if not dish:
+            return []
+        recipe = self.get_recipe_ingredients(dish)
+        if recipe:
+            return list(dict.fromkeys(recipe.ingredients))
+        found: List[str] = []
+        for part in re.split(r"\+|\bet\b", dish):
+            part_recipe = self.get_recipe_ingredients(part.strip())
+            if part_recipe:
+                found.extend(part_recipe.ingredients)
+        return list(dict.fromkeys(found))
 
     def get_next_meal_plan(
         self,
@@ -350,75 +392,6 @@ class MealsShoppingConnector(BaseConnector):
             dinner=matched_row[3].strip() if matched_row[3].strip() else None,
             notes=matched_row[4].strip() if len(matched_row) > 4 and matched_row[4].strip() else None,
         )
-
-    def get_week_meal_plans(self) -> List[Dict[str, Any]]:
-        """Récupère les repas prévus pour les 7 jours de la semaine courante avec leurs ingrédients."""
-        now = time.time()
-        if getattr(self, "_week_meals_cache", None) is not None and (
-            now - getattr(self, "_week_meals_cache_time", 0.0) < getattr(self, "_cache_ttl_seconds", 180)
-        ):
-            return self._week_meals_cache
-
-        days_list: List[Dict[str, Any]] = []
-        today = date.today()
-        today_day_num = today.day
-
-        try:
-            ws_cs = self._spreadsheet.worksheet("Cette semaine")
-            rows = ws_cs.get_all_values()
-            # Lignes 2 à 8 : planning de la semaine (7 jours)
-            for r_idx in range(1, min(8, len(rows))):
-                row = rows[r_idx]
-                if not row or not row[0].strip():
-                    continue
-                day_label = row[0].strip()  # ex: 'sam. 19', 'mar. 22'
-                lunch = row[2].strip() if len(row) > 2 and row[2].strip() else None
-                dinner = row[4].strip() if len(row) > 4 and row[4].strip() else None
-
-                # Détection si c'est aujourd'hui
-                is_today = False
-                match_day = re.search(r"\b(\d{1,2})\b", day_label)
-                if match_day and int(match_day.group(1)) == today_day_num:
-                    is_today = True
-
-                # Ingrédients pour le midi
-                lunch_ing: List[str] = []
-                if lunch:
-                    rec = self.get_recipe_ingredients(lunch)
-                    if rec:
-                        lunch_ing = rec.ingredients
-                    else:
-                        for part in re.split(r"\+|\bet\b", lunch):
-                            rec_part = self.get_recipe_ingredients(part.strip())
-                            if rec_part:
-                                lunch_ing.extend(rec_part.ingredients)
-
-                # Ingrédients pour le soir
-                dinner_ing: List[str] = []
-                if dinner:
-                    rec = self.get_recipe_ingredients(dinner)
-                    if rec:
-                        dinner_ing = rec.ingredients
-                    else:
-                        for part in re.split(r"\+|\bet\b", dinner):
-                            rec_part = self.get_recipe_ingredients(part.strip())
-                            if rec_part:
-                                dinner_ing.extend(rec_part.ingredients)
-
-                days_list.append({
-                    "day_label": day_label,
-                    "lunch": lunch,
-                    "lunch_ingredients": list(dict.fromkeys(lunch_ing)),
-                    "dinner": dinner,
-                    "dinner_ingredients": list(dict.fromkeys(dinner_ing)),
-                    "is_today": is_today,
-                })
-        except Exception as e:
-            logger.warning(f"Impossible de lire le planning de 'Cette semaine': {e}")
-
-        self._week_meals_cache = days_list
-        self._week_meals_cache_time = now
-        return days_list
 
     def _get_all_recipes(self) -> List[Recipe]:
         """Charge et met en cache l'ensemble des recettes (standard et festives)."""

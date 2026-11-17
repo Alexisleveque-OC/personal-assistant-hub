@@ -1,9 +1,12 @@
 """Router FastAPI pour les fonctionnalités repas et courses."""
+from datetime import timedelta
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.core.security import verify_api_key
+from app.connectors.sheets.meals_connector import MealsConnectorError, meal_week_start
+from app.core.clock import paris_today
 from app.core.dependencies import get_meals_connector
 
 router = APIRouter(
@@ -20,15 +23,29 @@ class ShoppingCompletePayload(BaseModel):
 
 
 @router.get("/week")
-async def get_week_meals():
-    """Retourne le planning des repas pour la semaine complète avec ingrédients."""
+async def get_week_meals(
+    offset: int = Query(0, ge=-260, le=260, description="Semaines après (+) ou avant (-) la semaine en cours"),
+):
+    """Planning samedi → vendredi lu dans l'onglet annuel « repas AAAA » (même source qu'Otis), avec ingrédients."""
     connector = get_meals_connector()
     if connector is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Planning des repas indisponible : connecteur Google Sheets non initialisé (identifiants ou classeur).",
         )
-    return {"success": True, "week_plan": connector.get_week_meal_plans()}
+    today = paris_today()
+    start = meal_week_start(today, offset)
+    try:
+        days = connector.get_meal_week(start, today=today)
+    except MealsConnectorError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "offset": offset,
+        "start": start.isoformat(),
+        "end": (start + timedelta(days=6)).isoformat(),
+        "week_plan": [day.model_dump(mode="json") for day in days],
+    }
 
 
 @router.get("/shopping")

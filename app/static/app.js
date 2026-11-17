@@ -20,7 +20,7 @@ import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMes
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
 import { initDuePicker, setDuePickerVisible } from "./js/views/task_due_picker.js";
-import { initMealsView, loadMeals } from "./js/views/meals_view.js";
+import { initMealsView, loadMeals, resetMealsWeek } from "./js/views/meals_view.js";
 import { initSportView } from "./js/views/sport_view.js";
 import { initSportSheet, loadSport, openTrophies } from "./js/views/sport/sport_sheet.js";
 import { initSecondBrainView, switchBrainSubview, getBrainSubview } from "./js/views/second_brain_view.js";
@@ -411,6 +411,7 @@ function initShell() {
       return;
     }
     manager.openSection(config.sheetId, trigger);
+    if (section === "repas") resetMealsWeek(); // chaque ouverture repart de la semaine en cours
     if (section === "second_cerveau") switchBrainSubview(brainView);
     else loadSection(section);
   }

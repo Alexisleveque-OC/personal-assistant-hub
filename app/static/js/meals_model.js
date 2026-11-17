@@ -1,71 +1,91 @@
-// Feuille Repas (refonte UX, maquette E-Repas) : bande des 7 jours, cartes Midi / Soir, ingrédients de la semaine.
-// Sans import ni DOM (testé sous Node) ; le rendu est dans views/meals_view.js.
-// Entrée : `week_plan` de GET /api/v1/meals/week (feuille « Cette semaine », samedi → vendredi, `day_label` « mar. 17 »).
+// Feuille Repas (refonte UX, maquette E-Repas) : navigation de semaine, bande des 7 jours, cartes Midi / Soir,
+// ingrédients de la semaine affichée. Sans import ni DOM (testé sous Node) ; le rendu est dans views/meals_view.js.
+// Entrée : `week_plan` de GET /api/v1/meals/week?offset=N (onglet annuel « repas AAAA », samedi → vendredi),
+// chaque jour avec `date` ISO (AAAA-MM-JJ) et `day_label` (« mar. 17 »). Dates comparées en texte ISO, sans fuseau.
 
-const DAYS = {
-  "lun": ["Lu", "lundi"], "mar": ["Ma", "mardi"], "mer": ["Me", "mercredi"], "jeu": ["Je", "jeudi"],
-  "ven": ["Ve", "vendredi"], "sam": ["Sa", "samedi"], "dim": ["Di", "dimanche"],
-};
+const DAYS_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const DAYS_SHORT = ["Di", "Lu", "Ma", "Me", "Je", "Ve", "Sa"];
+const MONTHS_LONG = [
+  "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+];
+const MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
-// « mar. 17 » → { short: "Ma", num: "17", name: "mardi 17" } ; un libellé inconnu est gardé tel quel.
-function parseLabel(label) {
-  const text = String(label || "").trim();
-  const match = /^([a-zéû]+)\.?\s+(\d{1,2})\b/i.exec(text);
-  const day = match && DAYS[match[1].toLowerCase().slice(0, 3)];
-  if (!day) return { short: text, num: "", name: text };
-  return { short: day[0], num: match[2].padStart(2, "0"), name: `${day[1]} ${Number(match[2])}` };
+function utcDate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
 }
 
-function todayIndex(week) {
-  return (week || []).findIndex((d) => d.is_today);
+function dayDiff(fromIso, toIso) {
+  return Math.round((utcDate(toIso) - utcDate(fromIso)) / 86400000);
 }
 
-export function weekStrip(week) {
-  const today = todayIndex(week);
+// « 2026-11-17 » → { short: "Ma", num: "17", name: "mardi 17", full: "mardi 17 novembre" }
+function describe(iso) {
+  const d = utcDate(iso);
+  const name = `${DAYS_LONG[d.getUTCDay()]} ${d.getUTCDate()}`;
+  return {
+    short: DAYS_SHORT[d.getUTCDay()],
+    num: String(d.getUTCDate()).padStart(2, "0"),
+    name,
+    full: `${name} ${MONTHS_LONG[d.getUTCMonth()]}`,
+  };
+}
+
+function stateOf(iso, todayIso) {
+  if (iso < todayIso) return "past";
+  return iso === todayIso ? "today" : "future";
+}
+
+export function weekStrip(week, todayIso) {
   return (week || []).map((d, index) => {
-    const state = today < 0 || index > today ? "future" : index === today ? "today" : "past";
-    return { index, ...parseLabel(d.day_label), state };
+    const { short, num, name } = describe(d.date);
+    return { index, short, num, name, state: stateOf(d.date, todayIso) };
   });
 }
 
-// Jour sélectionné à l'ouverture : aujourd'hui, sinon le premier jour (-1 si la semaine est vide).
-export function defaultDay(week) {
+// Jour mis en avant à l'ouverture : aujourd'hui s'il est dans la semaine, sinon le premier jour (-1 si vide).
+export function defaultDay(week, todayIso) {
   const list = week || [];
   if (!list.length) return -1;
-  return Math.max(todayIndex(list), 0);
+  return Math.max(list.findIndex((d) => d.date === todayIso), 0);
 }
 
 const RELATIVE = { "-1": "Hier", "0": "Aujourd'hui", "1": "Demain" };
 
-function card(week, index, today) {
-  const d = week[index];
-  const name = parseLabel(d.day_label).name;
-  const relative = today >= 0 ? RELATIVE[String(index - today)] : undefined;
-  const slots = [
-    { key: "midi", label: "Midi", dish: d.lunch || null, ingredients: d.lunch_ingredients || [] },
-    { key: "soir", label: "Soir", dish: d.dinner || null, ingredients: d.dinner_ingredients || [] },
-  ];
-  return { index, title: relative ? `${relative} · ${name}` : name, empty: slots.every((s) => !s.dish), slots };
+// Les 7 jours de la semaine affichée, en cartes Midi / Soir (retour du 17/11 : la semaine entière d'un coup).
+export function dayCards(week, todayIso) {
+  return (week || []).map((d, index) => {
+    const name = describe(d.date).name;
+    const relative = RELATIVE[String(dayDiff(todayIso, d.date))];
+    const slots = [
+      { key: "midi", label: "Midi", dish: d.lunch || null, ingredients: d.lunch_ingredients || [] },
+      { key: "soir", label: "Soir", dish: d.dinner || null, ingredients: d.dinner_ingredients || [] },
+    ];
+    return { index, title: relative ? `${relative} · ${name}` : name, empty: slots.every((s) => !s.dish), slots };
+  });
 }
 
-// Le jour choisi puis le lendemain (décision du 17/11), dans la limite de la semaine.
-export function dayCards(week, selected) {
-  const list = week || [];
-  const today = todayIndex(list);
-  return [selected, selected + 1].filter((i) => i >= 0 && i < list.length).map((i) => card(list, i, today));
+// En-tête ‹ › : « Cette semaine » / « Semaine prochaine »… et la plage « 14 – 20 nov. ».
+export function weekNav(offset, startIso, endIso) {
+  const titles = { "0": "Cette semaine", "1": "Semaine prochaine", "-1": "Semaine dernière" };
+  const title = titles[String(offset)] || (offset > 0 ? `Dans ${offset} semaines` : `Il y a ${-offset} semaines`);
+  const start = utcDate(startIso);
+  const end = utcDate(endIso);
+  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+  const from = sameMonth ? `${start.getUTCDate()}` : `${start.getUTCDate()} ${MONTHS_SHORT[start.getUTCMonth()]}`;
+  return { title, range: `${from} – ${end.getUTCDate()} ${MONTHS_SHORT[end.getUTCMonth()]}` };
 }
 
-// « Ajouter » sur un créneau vide : texte pré-rempli dans la barre (Otis écrit le plat avec set_meal).
+// « Ajouter » sur un créneau vide : texte pré-rempli dans la barre (date complète : Otis l'écrit avec set_meal).
 export function slotPrefill(week, index, key) {
   const label = key === "midi" ? "Midi" : "Soir";
-  return `${label} ${parseLabel(week[index].day_label).name} : `;
+  return `${label} ${describe(week[index].date).full} : `;
 }
 
 // « Demander une idée à Otis » : propositions seulement, rien n'est écrit sans confirmation.
 export function ideaPrompt(week, index) {
-  const name = parseLabel(week[index].day_label).name;
-  return `Propose-moi 2 ou 3 idées de repas pour ${name} (midi et soir), de préférence parmi mes recettes. `
-    + "N'écris rien dans le planning.";
+  return `Propose-moi 2 ou 3 idées de repas pour ${describe(week[index].date).full} (midi et soir), `
+    + "de préférence parmi mes recettes. N'écris rien dans le planning.";
 }
 
 // Comparaison tolérante : casse, accents, suffixe de quantité « x2 », pluriel simple en s / x.
@@ -86,13 +106,18 @@ function shoppingKeys(shopping) {
   return new Set(names.map(itemKey));
 }
 
-// Ingrédients des repas d'aujourd'hui à vendredi, sans doublon ; `listed` : déjà dans la liste de courses.
-export function weekIngredients(week, shopping) {
+// Bouton « Ingrédients de la semaine → courses » : masqué pour une semaine entièrement passée.
+export function hasIngredientsButton(week, todayIso) {
   const list = week || [];
+  return list.length > 0 && list[list.length - 1].date >= todayIso;
+}
+
+// Ingrédients des repas de la semaine affichée à partir d'aujourd'hui, sans doublon ; `listed` : déjà aux courses.
+export function weekIngredients(week, shopping, todayIso) {
   const listed = shoppingKeys(shopping);
   const seen = new Set();
   const out = [];
-  for (const d of list.slice(Math.max(todayIndex(list), 0))) {
+  for (const d of (week || []).filter((day) => day.date >= todayIso)) {
     for (const name of [...(d.lunch_ingredients || []), ...(d.dinner_ingredients || [])]) {
       const key = itemKey(name);
       if (!key || seen.has(key)) continue;
