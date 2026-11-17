@@ -343,3 +343,27 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .note-card__actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .note-card__actions .btn { min-height: 38px; font-size: var(--fs-sm); }
 .note-card__done { color: var(--success); }
+
+/* ---------- Journal & feedback (feuille, contenu inchangé) ---------- */
+.journal-list { display: flex; flex-direction: column; gap: 10px; }
+.journal-card { display: flex; flex-direction: column; gap: 8px; padding: var(--s-4); border-radius: var(--r-lg); background: var(--card); }
+.journal-card__head { display: flex; align-items: center; gap: var(--s-2); }
+.journal-card__dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; }
+.journal-card__dot--ok { background: var(--accent); }
+.journal-card__dot--ko { background: var(--danger); }
+.journal-card__intent {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-xs); font-weight: 800; color: var(--text-2);
+}
+.journal-card__date { flex-shrink: 0; font-size: var(--fs-xs); color: var(--muted); }
+.journal-card__line { margin: 0; font-size: var(--fs-md); line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
+.journal-card__line strong { font-weight: 800; }
+.journal-card__line + .journal-card__line { color: var(--text-2); }
+.journal-card__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.journal-card__meta { font-size: var(--fs-xs); color: var(--muted); }
+.journal-card__fix { min-height: 38px; font-size: var(--fs-sm); }
+.journal-card__form { display: flex; flex-direction: column; gap: var(--s-2); }
+.journal-card__form[hidden] { display: none; }
+.journal-card__form .textarea { width: 100%; resize: vertical; }
+.journal-card__form-actions { display: flex; justify-content: flex-end; gap: var(--s-2); }
+.journal-card__sent { margin: 0; font-size: var(--fs-sm); font-weight: 700; color: var(--success); }
