@@ -29,11 +29,11 @@ def test_chat_shows_thinking_bubble_while_waiting_for_text_and_voice_replies():
 
 
 def test_thinking_bubble_is_styled_and_animated():
-    css = client.get("/static/style.css").text
+    css = client.get("/static/styles/app.css").text  # refonte : plus de dépendance à l'ancien style.css
 
-    assert ".chat-bubble.thinking" in css
-    assert "@keyframes thinking-dot" in css
+    assert ".msg--thinking" in css
+    assert "@keyframes msg-dot" in css
 
 
 def test_service_worker_cache_version_bumped_for_the_new_chat_script():
-    assert "pah-pwa-cache-v44" in client.get("/sw.js").text
+    assert "pah-pwa-cache-v45" in client.get("/sw.js").text
