@@ -57,11 +57,9 @@ def test_interact_audio_accepts_mp4_safari_container():
         assert data["transcribed_text"] == "Bonjour Otis"
 
 
-def test_frontend_speech_js_implements_extended_wake_word_and_pointer_capture():
-    """Vérifie que speech.js intègre les variantes phonétiques complètes et pointer capture."""
-    res = client.get("/static/js/speech.js")
-    assert res.status_code == 200
-    content = res.text
+def test_frontend_voice_modules_implement_extended_wake_word_and_pointer_capture():
+    """Vérifie que les modules voix intègrent les variantes phonétiques complètes et pointer capture."""
+    content = client.get("/static/js/wake_word.js").text + client.get("/static/js/mic_capture.js").text
 
     # 1. Variantes phonétiques par défaut
     assert "DEFAULT_WAKE_VARIANTS" in content
@@ -115,11 +113,9 @@ def test_frontend_index_html_has_wake_indicator():
     assert 'id="wake-word-indicator"' in html
 
 
-def test_frontend_speech_js_guarantees_wake_trigger_fallback_and_hands_free_vad():
-    """Vérifie que speech.js intègre le fallback de déclenchement, l'extraction de commande continue, le chime et le VAD forcé."""
-    res = client.get("/static/js/speech.js")
-    assert res.status_code == 200
-    content = res.text
+def test_frontend_voice_modules_guarantee_wake_trigger_and_hands_free_vad():
+    """Vérifie l'extraction de commande continue, le chime, le déclencheur au réveil et le VAD forcé."""
+    content = client.get("/static/js/wake_word.js").text + client.get("/static/js/mic_capture.js").text
 
     # 1. Extraction de commande enchaînée après mot-clé
     assert "extractCommandAfterWakeWord" in content

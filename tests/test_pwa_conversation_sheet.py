@@ -49,7 +49,7 @@ def test_chat_view_renders_messages_without_html_injection():
 
 
 def test_undo_bar_is_shown_with_the_hidden_attribute():
-    speech = _static("js/speech.js")
+    speech = _static("js/undo_bar.js")
     start = speech.index("export function showUndoToast(")
     body = speech[start:speech.index("export function hideUndoToast(")]
     assert "toast.hidden = false" in body and "style.display" not in body

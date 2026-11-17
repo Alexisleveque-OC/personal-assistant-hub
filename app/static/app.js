@@ -1,12 +1,8 @@
 // Personal Assistant Hub - PWA Entrypoint & Modular Orchestrator
 import { state, initTheme } from "./js/config.js";
 import { audioFocusManager } from "./js/audio_focus.js";
-import {
-  SpeechRecognition,
-  initSpeechRecognition,
-  setWakeWordEnabled,
-  updateWakeWordIndicator,
-} from "./js/speech.js";
+import { SpeechRecognition, initSpeechRecognition } from "./js/mic_capture.js";
+import { setWakeWordEnabled, updateWakeWordIndicator } from "./js/wake_word.js";
 import { showToastSuccess, showToastInfo } from "./js/toast.js";
 import {
   initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse, scrollConversationToEnd,

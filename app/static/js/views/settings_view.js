@@ -4,7 +4,9 @@
 // (sauf « Mains-libres », appliqué dès qu'on le touche, comme l'interrupteur du menu).
 import { state } from "../config.js";
 import { fetchLlmStats } from "../api.js";
-import { populateVoiceList, setupMicButtonBehavior, setWakeWordEnabled, speak } from "../speech.js";
+import { populateVoiceList, speak } from "../tts.js";
+import { setupMicButtonBehavior } from "../mic_capture.js";
+import { setWakeWordEnabled } from "../wake_word.js";
 import { llmStatsView } from "../settings_model.js";
 import { showToastInfo, showToastSuccess } from "../toast.js";
 

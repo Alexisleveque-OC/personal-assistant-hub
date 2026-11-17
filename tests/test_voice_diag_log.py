@@ -114,7 +114,7 @@ def _source(relative: str) -> str:
 
 
 def test_wake_word_detector_logs_into_the_journal():
-    speech = _source("js/speech.js")
+    speech = _source("js/wake_word.js")
     assert 'from "./voice_diag_log.js"' in speech
     assert re.search(r'voiceDiagLog\.record\("otis"', speech)
 
@@ -128,7 +128,7 @@ def test_vosk_loading_reports_progress_worker_crash_and_a_stuck_audio_context():
 
 
 def test_dictation_logs_trigger_microphone_delay_and_stop_reason():
-    speech = _source("js/speech.js")
+    speech = _source("js/mic_capture.js")
     for reason in ('"silence"', '"inactivité"', '"bouton"', '"relâché"'):
         assert reason in speech, reason
     assert "ignoré (trop court)" in speech

@@ -2,7 +2,7 @@
 // « Dicte ta séance » : la dictée part vers la route brouillon (rien n'est enregistré), pré-remplit les champs,
 // puis « OK » / « Enregistrer » enregistre (décision du 10/11).
 import { createSportSession, patchSportSessionById, postSportSessionDraft } from "../../api.js";
-import { captureOnce, stopCapture } from "../../speech.js";
+import { captureOnce, stopCapture } from "../../mic_capture.js";
 import { showToastSuccess, showToastError, showToastInfo } from "../../toast.js";
 import {
   TYPE_CHOICES, typeLabel, emptyForm, sessionToForm, applyDraft, formToPayload, formPace, nextScaleValue,

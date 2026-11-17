@@ -154,7 +154,7 @@ def test_draft_route_client_posts_the_recording():
 
 
 def test_speech_engine_offers_a_one_shot_capture_for_the_form():
-    speech = client.get("/static/js/speech.js").text
+    speech = client.get("/static/js/mic_capture.js").text
 
     assert "export function captureOnce(" in speech
     assert "export function stopCapture(" in speech

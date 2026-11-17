@@ -11,25 +11,25 @@ client = TestClient(app)
 STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
 
 
-def _speech_js() -> str:
-    return client.get("/static/js/speech.js").text
+def _voice_js() -> str:
+    return client.get("/static/js/wake_word.js").text + client.get("/static/js/mic_capture.js").text
 
 
 def test_wake_word_listening_uses_the_local_vosk_detector():
-    content = _speech_js()
+    content = _voice_js()
     assert 'import { VoskWakeWordDetector } from "./wake_word_vosk.js"' in content
     assert "new VoskWakeWordDetector(" in content
 
 
 def test_continuous_web_speech_no_longer_listens_for_the_wake_word():
     """Chrome Android relance la Web Speech API toutes les ~5 s et coupe la musique à chaque relance."""
-    content = _speech_js()
+    content = _voice_js()
     assert "continuous = true" not in content
     assert "wakeRecInstance" not in content
 
 
 def test_local_wake_triggers_the_chime_then_the_dictation():
-    content = _speech_js()
+    content = _voice_js()
     handler = content[content.index("function handleLocalWake"):]
     handler = handler[: handler.index("\n}\n")]
     assert "playWakeChime()" in handler
@@ -37,7 +37,7 @@ def test_local_wake_triggers_the_chime_then_the_dictation():
 
 
 def test_engine_failure_shows_an_explicit_toast_and_disables_hands_free():
-    content = _speech_js()
+    content = _voice_js()
     failure = content[content.index("function handleWakeEngineFailure"):]
     failure = failure[: failure.index("\n}\n")]
     assert "showToastError(" in failure
@@ -46,7 +46,7 @@ def test_engine_failure_shows_an_explicit_toast_and_disables_hands_free():
 
 
 def test_first_model_download_is_announced():
-    assert "45 Mo" in _speech_js()
+    assert "45 Mo" in _voice_js()
 
 
 def test_wake_word_modules_are_precached_for_offline_start():

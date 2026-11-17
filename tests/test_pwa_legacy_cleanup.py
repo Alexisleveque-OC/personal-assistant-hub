@@ -31,7 +31,7 @@ def test_index_html_has_no_commented_out_markup():
 
 
 def test_wake_word_calibration_is_removed_but_saved_variants_still_match():
-    html, app_js, speech = _read("index.html"), _read("app.js"), _read("js/speech.js")
+    html, app_js, speech = _read("index.html"), _read("app.js"), _read("js/wake_word.js") + _read("js/mic_capture.js")
     assert "wake-calibration-section" not in html and "btn-start-calibration" not in html
     for name in ("startWakeWordCalibration", "addCustomWakeVariant", "removeCustomWakeVariant"):
         assert name not in app_js and name not in speech, name
