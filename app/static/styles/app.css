@@ -367,3 +367,17 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .journal-card__form .textarea { width: 100%; resize: vertical; }
 .journal-card__form-actions { display: flex; justify-content: flex-end; gap: var(--s-2); }
 .journal-card__sent { margin: 0; font-size: var(--fs-sm); font-weight: 700; color: var(--success); }
+
+/* ---------- Réglages & voix (feuille, ancienne modale ; contenu inchangé) ---------- */
+.settings-form { display: flex; flex-direction: column; gap: 10px; }
+.settings-group { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-4); border-radius: var(--r-lg); background: var(--card); }
+.settings-group .select, .settings-group .input { width: 100%; }
+.settings-group .select { font-size: var(--fs-md); text-overflow: ellipsis; }
+.settings-row { display: flex; align-items: center; gap: var(--s-3); cursor: pointer; }
+.settings-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-base); font-weight: 700; }
+.settings-row__text small { font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
+.settings-stats { display: flex; flex-direction: column; gap: var(--s-2); margin: 0; }
+.settings-stats > div { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); }
+.settings-stats dt { font-size: var(--fs-sm); color: var(--muted); }
+.settings-stats dd { margin: 0; font-size: var(--fs-sm); font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.settings__footer { flex-shrink: 0; padding: 14px 0 calc(24px + var(--safe-bottom)); border-top: 1px solid var(--border); }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v43";
+const CACHE_NAME = "pah-pwa-cache-v44";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/style.css",
@@ -41,6 +41,8 @@ const ASSETS_TO_CACHE = [
   "/static/js/db_date.js",
   "/static/js/notes_model.js",
   "/static/js/journal_model.js",
+  "/static/js/settings_model.js",
+  "/static/js/views/settings_view.js",
   "/static/js/views/journal_view.js",
   "/static/js/views/sport/trophies_view.js",
   "/static/manifest.json",

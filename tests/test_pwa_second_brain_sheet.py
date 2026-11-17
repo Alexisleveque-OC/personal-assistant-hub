@@ -94,8 +94,8 @@ def test_new_modules_are_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/notes_model.js"' in sw
     assert '"/static/js/views/journal_view.js"' in sw
-    assert "pah-pwa-cache-v43" in sw
-    assert "/static/app.js?v=28.0" in _rendered_html()
+    assert "pah-pwa-cache-v44" in sw
+    assert "/static/app.js?v=29.0" in _rendered_html()
 
 
 def test_styles_cover_chips_cards_and_search():
