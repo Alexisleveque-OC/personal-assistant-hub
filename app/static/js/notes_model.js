@@ -1,4 +1,5 @@
-// Feuille Second cerveau (refonte UX, maquette E-Notes) : données pures, sans import ni DOM (testées sous Node).
+// Feuille Second cerveau (refonte UX, maquette E-Notes) : données pures, sans DOM (testées sous Node).
+import { formatDbDate } from "./db_date.js";
 // Puces : Tout, Idées, À dév., Bugs toujours ; autres catégories seulement si elles ont des notes ; « Faites » à la fin.
 
 // Catégories connues : libellé de puce, libellé de carte et teinte (classe CSS note-card__label--<tone>).
@@ -14,7 +15,6 @@ const SHOWN_IF_NOTES = ["preference", "task"];
 // Catégories libres déjà rencontrées (créées par Otis) : libellé de puce au pluriel.
 const FREE_CHIPS = { voyage: "Voyages", vacances: "Vacances", cuisine: "Cuisine", sport_coach: "Coach sport" };
 
-const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 function humanize(category) {
   const text = String(category || "").replace(/_/g, " ").trim();
@@ -50,26 +50,6 @@ export function notesQuery(key) {
   return { category: key === "all" ? null : key, status: "active" };
 }
 
-// Date de la base : UTC « AAAA-MM-JJ HH:MM:SS » (CURRENT_TIMESTAMP de SQLite) → « 5 nov. · 18:36 » à Paris.
-function parisParts(date) {
-  const parts = new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris", year: "numeric", month: "numeric", day: "numeric",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(date);
-  const get = (type) => Number(parts.find((p) => p.type === type).value);
-  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
-}
-
-export function formatNoteDate(createdAt, now) {
-  if (!createdAt) return "";
-  const date = new Date(`${String(createdAt).replace(" ", "T")}Z`);
-  if (Number.isNaN(date.getTime())) return "";
-  const p = parisParts(date);
-  const year = p.year !== parisParts(now).year ? ` ${p.year}` : "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${p.day} ${MONTHS[p.month - 1]}${year} · ${pad(p.hour)}:${pad(p.minute)}`;
-}
-
 export function noteCard(note, now) {
   const known = KNOWN[note.category];
   const done = note.status === "done";
@@ -77,7 +57,7 @@ export function noteCard(note, now) {
     id: note.id,
     label: known ? known.label : humanize(note.category),
     tone: known ? known.tone : "other",
-    date: formatNoteDate(note.created_at, now),
+    date: formatDbDate(note.created_at, now),
     text: note.content,
     done,
     actions: done ? ["reopen"] : ["done", "task"],
