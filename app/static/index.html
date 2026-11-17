@@ -163,35 +163,25 @@
         </button>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="sheet__body">
-      <!-- Suggestion chips -->
-      <div class="chips-container" id="chips-container">
-        <button class="chip-btn chip-action" id="chip-new-chat" title="Démarrer un nouveau fil de discussion">✨ Nouveau fil</button>
-        <button class="chip-btn" data-query="Qu'est-ce qu'on mange ce soir ?">🍽️ Repas ce soir</button>
-        <button class="chip-btn" data-query="Donne-moi la liste de courses">🛒 Liste de courses</button>
-        <button class="chip-btn" data-query="Ajoute du pain et du beurre">🥖 Pain et beurre</button>
-        <button class="chip-btn" data-query="Qu'est-ce qu'on mange demain midi ?">☀️ Demain midi</button>
+      <div class="chips chips--scroll" id="chips-container" aria-label="Suggestions">
+        <button type="button" class="chip" id="chip-new-chat">Nouveau fil</button>
+        <button type="button" class="chip" data-query="Qu'est-ce qu'on mange ce soir ?">Repas ce soir</button>
+        <button type="button" class="chip" data-query="Donne-moi la liste de courses">Liste de courses</button>
+        <button type="button" class="chip" data-query="Ajoute du pain et du beurre">Pain et beurre</button>
+        <button type="button" class="chip" data-query="Qu'est-ce qu'on mange demain midi ?">Demain midi</button>
       </div>
-
-      <!-- Messages Stream -->
-      <div id="chat-stream" class="chat-stream">
-        <div class="chat-bubble assistant">
-          <div class="bubble-header">
-            <span>Assistant Hub</span>
-          </div>
-          <div class="bubble-content">
-            Bonjour ! Je suis votre assistant personnel. Appuyez sur le micro ou tapez un message pour gérer vos repas ou votre liste de courses.
+      <div class="sheet__body">
+        <div id="chat-stream" class="chat-stream" role="log" aria-live="polite" aria-label="Messages">
+          <div class="msg msg--otis">
+            <div class="msg__head"><span class="avatar-otis" aria-hidden="true">O</span><span class="msg__who">Otis</span></div>
+            <p class="msg__text">Bonjour ! Je suis votre assistant personnel. Appuyez sur le micro ou tapez un message pour gérer vos repas ou votre liste de courses.</p>
           </div>
         </div>
-      </div>
-
-      <!-- Quick Undo Floating Toast -->
-      <div id="undo-toast" class="undo-toast" style="display:none;">
-        <span id="undo-toast-text">Action enregistrée</span>
-        <button id="btn-undo-action" class="btn-undo-action" title="Annuler l'action précédente">
-          ↩ Annuler
-        </button>
-      </div>
+        <!-- « Annuler » de la dernière action réversible d'Otis -->
+        <div id="undo-toast" class="undo-bar" hidden>
+          <span id="undo-toast-text" class="undo-bar__text">Action enregistrée</span>
+          <button type="button" id="btn-undo-action" class="btn undo-bar__btn">Annuler</button>
+        </div>
       </div>
       <div class="composer-slot"></div>
     </section>
@@ -551,6 +541,6 @@
   </nav>
   <div class="sheet-backdrop" aria-hidden="true"></div>
 
-  <script type="module" src="/static/app.js?v=29.0"></script>
+  <script type="module" src="/static/app.js?v=30.0"></script>
 </body>
 </html>

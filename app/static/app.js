@@ -12,7 +12,9 @@ import {
   removeCustomWakeVariant,
 } from "./js/speech.js";
 import { showToastSuccess, showToastInfo } from "./js/toast.js";
-import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse } from "./js/views/chat_view.js";
+import {
+  initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse, scrollConversationToEnd,
+} from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
 import { initDuePicker, setDuePickerVisible } from "./js/views/task_due_picker.js";
@@ -314,7 +316,9 @@ function initShell() {
   // Feuille Conversation : depuis « Dernières actions » (en-tête ou dernière réponse d'Otis).
   document.addEventListener("click", (e) => {
     const opener = e.target.closest("[data-open-conversation]");
-    if (opener) manager.openSection("view-conversation", opener);
+    if (!opener) return;
+    manager.openSection("view-conversation", opener);
+    scrollConversationToEnd(); // le fil s'ouvre sur le dernier message
   });
   initHomeView();
 
