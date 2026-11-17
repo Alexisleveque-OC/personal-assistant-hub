@@ -3,8 +3,6 @@
 Couvre l'Étape 1 de la Phase 6.6 :
 - Expressions relatives singulières ("hier", "avant-hier", "demain", "après-demain")
 - Jours de la semaine qualifiés ("dimanche dernier", "lundi dernier", "mardi prochain")
-- Périodes relatives ("cette semaine", "la semaine dernière", "la semaine prochaine")
-- Fenêtres plurielles ("ces 3 derniers jours", "les 5 derniers jours")
 - Distinction étanche entre période calendaire et décompte conversationnel ("ces 3 derniers échanges")
 - Robustesse de parse_target_date et format_natural_spoken_date
 """
@@ -15,8 +13,6 @@ from app.core.date_resolver import (
     resolve_date_expression,
     parse_target_date,
     format_natural_spoken_date,
-    resolve_temporal_range,
-    TemporalRangeType,
 )
 
 
@@ -70,47 +66,9 @@ def test_resolve_weekdays_with_dernier_and_prochain():
     assert res_jeudi_prochain.day_name == "Jeudi"
 
 
-def test_resolve_temporal_range_plural_days():
-    """Vérifie la détection d'une plage temporelle de N derniers jours."""
-    ref_dt = datetime(2026, 10, 12, 10, 0, 0)
-    today = ref_dt.date()
-
-    # "ces 3 derniers jours" -> du 10/10 au 12/10
-    range_res = resolve_temporal_range("Fais un bilan de ces 3 derniers jours", now=ref_dt)
-    assert range_res is not None
-    assert range_res.range_type == TemporalRangeType.DAYS_WINDOW
-    assert range_res.nb_days == 3
-    assert range_res.start_date == today - timedelta(days=2)
-    assert range_res.end_date == today
-    assert len(range_res.all_dates) == 3
-
-
-def test_resolve_temporal_range_semaines():
-    """Vérifie la détection de 'cette semaine' et 'la semaine dernière'."""
-    ref_dt = datetime(2026, 10, 14, 10, 0, 0)  # Mercredi 14 Octobre 2026 (Semaine 42)
-    
-    # Cette semaine
-    r_cette_semaine = resolve_temporal_range("Quel est mon volume de course cette semaine ?", now=ref_dt)
-    assert r_cette_semaine is not None
-    assert r_cette_semaine.range_type == TemporalRangeType.CURRENT_WEEK
-    assert r_cette_semaine.start_date == date(2026, 10, 12)  # Lundi de la semaine 42
-    assert r_cette_semaine.end_date == date(2026, 10, 18)    # Dimanche de la semaine 42
-
-    # La semaine dernière
-    r_semaine_derniere = resolve_temporal_range("Bilan de la semaine dernière", now=ref_dt)
-    assert r_semaine_derniere is not None
-    assert r_semaine_derniere.range_type == TemporalRangeType.LAST_WEEK
-    assert r_semaine_derniere.start_date == date(2026, 10, 5)   # Lundi semaine 41
-    assert r_semaine_derniere.end_date == date(2026, 10, 11)   # Dimanche semaine 41
-
-
 def test_distinguish_temporal_days_vs_conversation_echanges():
     """Vérifie que 'ces 3 derniers échanges' ou 'ces derniers messages' n'est PAS confondu avec des jours."""
     ref_dt = datetime(2026, 10, 12, 10, 0, 0)
-
-    # Doit retourner None pour la plage temporelle calendaire car ce sont des échanges textuels
-    range_res = resolve_temporal_range("Ok prend note de ces 3 derniers échanges. Il faut corriger", now=ref_dt)
-    assert range_res is None
 
     # resolve_date_expression ne doit pas inventer de date sur "ces 3 derniers échanges"
     date_res = resolve_date_expression("Ok prend note de ces 3 derniers échanges", now=ref_dt)

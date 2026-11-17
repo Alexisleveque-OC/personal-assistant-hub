@@ -94,7 +94,7 @@ def test_new_modules_are_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/notes_model.js"' in sw
     assert '"/static/js/views/journal_view.js"' in sw
-    assert "pah-pwa-cache-v46" in sw
+    assert "pah-pwa-cache-v47" in sw
     assert "/static/app.js?v=31.0" in _rendered_html()
 
 

@@ -23,7 +23,8 @@ from app.connectors.sheets.sport_models import (
     SportWeeklySummaryWithSessions,
 )
 from app.core.vision.sport_vision_service import get_sport_vision_service, VisionServiceUnavailableError
-from app.core.date_resolver import parse_screenshot_date, format_natural_spoken_date
+from app.core.date_resolver import format_natural_spoken_date
+from app.core.screenshot_date import parse_screenshot_date
 from app.core.audio.stt_service import STTUnavailableError, get_stt_service
 from app.core.sport_session_draft import SessionDraftUnavailableError, get_session_draft_service
 from app.core.sport_dashboard_service import (

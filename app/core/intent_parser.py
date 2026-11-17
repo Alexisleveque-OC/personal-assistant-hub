@@ -1069,37 +1069,6 @@ class IntentParser:
                 raw_query=text,
             )
 
-
-
-        # 10. Second Cerveau & Notes compartimentées (Phase 6)
-        # 10.1 Consultation de notes ("quelles sont mes idées de dev", "liste mes notes", "mes bugs")
-        if re.search(r"\b(?:quelles?\s+sont\s+mes\s+idées\s+de\s+dev|idées\s+à\s+dev|mes\s+idées\s+de\s+code)\b", cleaned):
-            return ParsedIntent(
-                intent=IntentType.LIST_NOTES,
-                confidence=0.92,
-                parameters={"category": NoteCategory.DEV_IDEA.value},
-                raw_query=text,
-            )
-        if re.search(r"\b(?:liste\s+mes\s+bugs|quelles?\s+sont\s+mes\s+bugs|mes\s+corrections)\b", cleaned):
-            return ParsedIntent(
-                intent=IntentType.LIST_NOTES,
-                confidence=0.92,
-                parameters={"category": NoteCategory.BUG_REPORT.value},
-                raw_query=text,
-            )
-        if re.search(r"\b(?:liste\s+mes\s+notes|montre\s+mes\s+notes|quelles?\s+sont\s+mes\s+notes|affiche\s+mes\s+notes)\b", cleaned):
-            return ParsedIntent(
-                intent=IntentType.LIST_NOTES,
-                confidence=0.90,
-                parameters={},
-                raw_query=text,
-            )
-
-        # 10. Second Cerveau & Notes compartimentées (Fallback si non intercepté plus tôt)
-        note_intent = self._parse_second_brain(text, cleaned, context)
-        if note_intent:
-            return note_intent
-
         # Inconnu
         return ParsedIntent(
             intent=IntentType.UNKNOWN,

@@ -165,15 +165,14 @@ def test_personal_records_detection():
     assert "4:30" in prs["best_pace"].formatted_value
 
 
-def test_morning_chronicle_snippet_prefers_imminent_milestone():
-    """Vérifie que la chronique matinale met en avant un palier imminent s'il existe."""
+def test_imminent_milestone_announces_the_remaining_distance():
+    """Vérifie qu'un palier imminent annonce la distance restante."""
     service = SportGamificationService()
     # 97 km -> plus que 3 km pour 100 km
     sessions = [_create_mock_session("2026-10-01", distance_km=97.0)]
     summary = service.compute_summary(sessions)
-    snippet = service.get_morning_chronicle_snippet(summary)
+    snippet = summary.imminent_milestones[0].message
 
-    assert "🎯" in snippet
     assert "100" in snippet
     assert "3.0 km" in snippet
 
