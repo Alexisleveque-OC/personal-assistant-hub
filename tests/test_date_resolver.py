@@ -92,7 +92,7 @@ def test_resolve_no_date_expression():
 
 def test_parse_screenshot_date_past_weekdays():
     """Garantit que les noms de jours extraits d'une capture sportive résolvent dans le passé."""
-    from app.core.date_resolver import parse_screenshot_date
+    from app.core.screenshot_date import parse_screenshot_date
     ref = date(2026, 10, 15)  # Jeudi 15 Octobre 2026
 
     # 'mercredi' depuis un jeudi doit donner hier (14/10), JAMAIS mercredi prochain (21/10)
@@ -104,7 +104,7 @@ def test_parse_screenshot_date_past_weekdays():
 
 def test_parse_screenshot_date_decathlon_formats():
     """Vérifie la robustesse face aux formats textuels de Decathlon Coach & Connect."""
-    from app.core.date_resolver import parse_screenshot_date
+    from app.core.screenshot_date import parse_screenshot_date
     ref = date(2026, 10, 15)
 
     assert parse_screenshot_date("Mercredi 14", reference_date=ref) == date(2026, 10, 14)
