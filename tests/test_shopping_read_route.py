@@ -34,3 +34,13 @@ def test_shopping_list_without_connector_fails_with_an_explicit_message():
 
     assert res.status_code == 503
     assert "courses" in res.json()["detail"].lower()
+
+
+def test_week_meals_without_connector_fail_with_an_explicit_message():
+    """Refonte UX (Étape 6) : la feuille Repas lit /meals/week ; plus de `success: false` silencieux."""
+    set_meals_connector(None)  # remis par la fixture autouse en fin de test
+
+    res = client.get("/api/v1/meals/week")
+
+    assert res.status_code == 503
+    assert "repas" in res.json()["detail"].lower()

@@ -23,10 +23,12 @@ class ShoppingCompletePayload(BaseModel):
 async def get_week_meals():
     """Retourne le planning des repas pour la semaine complète avec ingrédients."""
     connector = get_meals_connector()
-    if connector and hasattr(connector, "get_week_meal_plans"):
-        week_plan = connector.get_week_meal_plans()
-        return {"success": True, "week_plan": week_plan}
-    return {"success": False, "week_plan": [], "message": "Connecteur non disponible"}
+    if connector is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Planning des repas indisponible : connecteur Google Sheets non initialisé (identifiants ou classeur).",
+        )
+    return {"success": True, "week_plan": connector.get_week_meal_plans()}
 
 
 @router.get("/shopping")
