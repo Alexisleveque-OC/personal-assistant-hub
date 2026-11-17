@@ -96,3 +96,17 @@ class SheetSchemaSnapshot(BaseModel):
         ],
         description="Onglets obligatoires permanents (hors feuille annuelle dynamique)",
     )
+
+
+CalendarDate = date  # alias : le champ `date` de MealWeekDay masquerait le type
+
+
+class MealWeekDay(BaseModel):
+    """Un jour de la feuille Repas (onglet annuel « repas AAAA »), avec les ingrédients des recettes connues."""
+    date: CalendarDate = Field(description="Date du jour")
+    day_label: str = Field(description="Libellé court, ex. « mar. 17 »")
+    lunch: Optional[str] = Field(default=None, description="Plat du midi")
+    lunch_ingredients: List[str] = Field(default_factory=list, description="Ingrédients du midi (recettes connues)")
+    dinner: Optional[str] = Field(default=None, description="Plat du soir")
+    dinner_ingredients: List[str] = Field(default_factory=list, description="Ingrédients du soir (recettes connues)")
+    is_today: bool = Field(default=False, description="Vrai pour le jour courant (heure de Paris)")
