@@ -18,10 +18,16 @@ NOW = "2026-11-17T12:00:00Z"
 STATS = {"dev_idea": 1, "bug_report": 0, "thought": 2, "preference": 0, "task": 0}
 
 
+def _module_source(name: str) -> str:
+    """Module + ses dépendances (db_date.js), lignes `import` retirées : Node lit le tout sur l'entrée standard."""
+    parts = [(STATIC / "js" / f).read_text(encoding="utf-8") for f in ("db_date.js", name)]
+    return "\n".join(line for line in "\n".join(parts).splitlines() if not line.startswith("import "))
+
+
 def _run(snippet: str):
     if not NODE:
         pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = (STATIC / "js" / "notes_model.js").read_text(encoding="utf-8") + "\n" + snippet
+    source = _module_source("notes_model.js") + "\n" + snippet
     result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
