@@ -3,19 +3,15 @@ import { state, initTheme } from "./js/config.js";
 import { audioFocusManager } from "./js/audio_focus.js";
 import {
   SpeechRecognition,
-  populateVoiceList,
-  speak,
   initSpeechRecognition,
   setWakeWordEnabled,
   toggleWakeWord,
   startWakeWordCalibration,
   updateWakeWordIndicator,
-  setupMicButtonBehavior,
   addCustomWakeVariant,
   removeCustomWakeVariant,
 } from "./js/speech.js";
 import { showToastSuccess, showToastInfo } from "./js/toast.js";
-import { fetchLlmStats } from "./js/api.js";
 import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMessage, handleOfflineSyncedResponse } from "./js/views/chat_view.js";
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
@@ -25,6 +21,7 @@ import { initSportView } from "./js/views/sport_view.js";
 import { initSportSheet, loadSport, openTrophies } from "./js/views/sport/sport_sheet.js";
 import { initSecondBrainView, loadSecondBrain, resetSecondBrainFilters } from "./js/views/second_brain_view.js";
 import { loadConversationAuditLogs } from "./js/views/journal_view.js";
+import { initSettingsView, loadSettings } from "./js/views/settings_view.js";
 import { initOfflineSync, syncOutbox } from "./js/offline_outbox.js";
 import { SECTIONS, sectionForSheet, placeholderForSheet, sectionForAction, greetingFor, formatLongDate } from "./js/ui_shell.js";
 import { createSheetManager, bindSheetInteractions } from "./js/sheets.js";
@@ -40,19 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 2. Éléments globaux
   const btnTtsToggle = document.getElementById("btn-tts-toggle");
-  const btnSettings = document.getElementById("btn-settings");
-  const settingsModal = document.getElementById("settings-modal");
-  const btnCloseSettings = document.getElementById("btn-close-settings");
-  const btnSaveSettings = document.getElementById("btn-save-settings");
-  const apiKeyInput = document.getElementById("api-key-input");
-  const voiceSelect = document.getElementById("voice-select");
-  const btnTestVoice = document.getElementById("btn-test-voice");
-  const pushToTalkToggle = document.getElementById("push-to-talk-toggle");
-  const wakeWordToggle = document.getElementById("wake-word-toggle");
-  const vadSilenceSelect = document.getElementById("vad-silence-select");
-
-  // 3. Initialisation de la clé API
-  if (apiKeyInput) apiKeyInput.value = state.apiKey;
+  // (Réglages & voix : feuille dédiée, voir js/views/settings_view.js.)
 
   // 4. Initialisation TTS (Bouton switch)
   function updateTtsButtonState() {
@@ -79,19 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 5. Catalogue des voix & Test
-  populateVoiceList(voiceSelect);
-  if ("speechSynthesis" in window && window.speechSynthesis.onvoiceschanged !== undefined) {
-    window.speechSynthesis.onvoiceschanged = () => populateVoiceList(voiceSelect);
-  }
-
-  if (btnTestVoice) {
-    btnTestVoice.addEventListener("click", () => {
-      const chosenUri = voiceSelect ? voiceSelect.value : "";
-      speak("Bonjour ! Voici un exemple avec la voix sélectionnée pour votre assistant personnel.", chosenUri);
-    });
-  }
-
   // 6. Reconnaissance Vocale Haute-Fidélité (VAD & MediaRecorder Audio)
   initSpeechRecognition(
     (transcript) => sendInteraction(transcript),
@@ -110,53 +82,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // 8. Navigation : menu burger + feuilles (refonte UX, remplace la barre d'onglets du bas)
   const shell = initShell();
 
-  // 9. Gestion Modal Paramètres & Stats LLM
-  async function refreshLlmStats() {
-    const statModel = document.getElementById("llm-stat-model");
-    const statRequests = document.getElementById("llm-stat-requests");
-    const statRemaining = document.getElementById("llm-stat-remaining");
-    const statLatency = document.getElementById("llm-stat-latency");
-    const quotaBadge = document.getElementById("llm-quota-badge");
-    if (!statModel) return;
-
-    try {
-      const data = await fetchLlmStats();
-      if (!data) return;
-      statModel.textContent = data.model || "Indisponible";
-      statRequests.textContent = `${data.daily_requests} / ${data.max_daily_requests}`;
-      statRemaining.textContent = `${data.remaining_daily_requests} restantes`;
-      statLatency.textContent = data.last_latency_ms ? `${data.last_latency_ms} ms` : "Aucune requête";
-
-      if (quotaBadge) {
-        if (data.quota_exceeded) {
-          quotaBadge.textContent = "Quota atteint";
-          quotaBadge.style.background = "#ef4444";
-        } else if (data.remaining_daily_requests < 100) {
-          quotaBadge.textContent = "Attention";
-          quotaBadge.style.background = "#f59e0b";
-        } else {
-          quotaBadge.textContent = "Actif";
-          quotaBadge.style.background = "#22c55e";
-        }
-      }
-    } catch (e) {
-      console.warn("Impossible de charger les statistiques LLM", e);
-    }
-  }
-
-  if (btnSettings) {
-    btnSettings.addEventListener("click", () => {
-      shell.manager.closeDrawer({ restoreFocus: false });
-      if (apiKeyInput) apiKeyInput.value = state.apiKey;
-      if (pushToTalkToggle) pushToTalkToggle.checked = !!state.pushToTalk;
-      if (wakeWordToggle) wakeWordToggle.checked = !!state.wakeWordEnabled;
-      if (vadSilenceSelect) vadSilenceSelect.value = String(state.vadSilenceMs || 2000);
-      populateVoiceList(voiceSelect);
-      refreshLlmStats();
-      renderCalibrationChips();
-      if (settingsModal) settingsModal.classList.add("active");
-    });
-  }
+  // 9. Réglages & voix : feuille dédiée (ancienne modale) ; la croix ferme sans enregistrer.
+  initSettingsView({ close: () => shell.manager.closeTop() });
 
   // 9.1 Module de Calibrage Wake-Word In-App
   const btnStartCalibration = document.getElementById("btn-start-calibration");
@@ -254,58 +181,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Écouteur direct du switch dans la modale de réglages
-  if (wakeWordToggle) {
-    wakeWordToggle.addEventListener("change", (e) => {
-      setWakeWordEnabled(e.target.checked);
-      if (e.target.checked) {
-        showToastInfo("Mains-libres 'Otis' activé.", "Otis à l'écoute");
-      } else {
-        showToastSuccess("Mode au clic activé : micro coupé, musique à 100%.", "Micro au clic");
-      }
-    });
-  }
+  // (Interrupteur « Mains-libres » de la feuille Réglages : voir settings_view.js.)
 
   // Initialisation du statut visuel du Wake-Word
   updateWakeWordIndicator();
-
-  if (btnCloseSettings) {
-    btnCloseSettings.addEventListener("click", () => {
-      if (settingsModal) settingsModal.classList.remove("active");
-    });
-  }
-
-  if (btnSaveSettings) {
-    btnSaveSettings.addEventListener("click", () => {
-      state.apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
-      localStorage.setItem("pah_api_key", state.apiKey);
-
-      if (voiceSelect && voiceSelect.value) {
-        state.selectedVoiceUri = voiceSelect.value;
-        localStorage.setItem("pah_voice_uri", state.selectedVoiceUri);
-      }
-
-      if (pushToTalkToggle) {
-        state.pushToTalk = pushToTalkToggle.checked;
-        localStorage.setItem("pah_push_to_talk", state.pushToTalk ? "true" : "false");
-        setupMicButtonBehavior();
-      }
-
-      if (wakeWordToggle) {
-        state.wakeWordEnabled = wakeWordToggle.checked;
-        localStorage.setItem("pah_wake_word_enabled", state.wakeWordEnabled ? "true" : "false");
-        setWakeWordEnabled(state.wakeWordEnabled);
-      }
-
-      if (vadSilenceSelect) {
-        state.vadSilenceMs = parseInt(vadSilenceSelect.value, 10) || 2000;
-        localStorage.setItem("pah_vad_silence_ms", String(state.vadSilenceMs));
-      }
-
-      if (settingsModal) settingsModal.classList.remove("active");
-      appendAssistantMessage("Paramètres vocaux et ergonomie enregistrés avec succès !");
-    });
-  }
 
   // 10. Gestion des raccourcis d'URL (?action=...) : ouvrent la feuille correspondante
   const shortcut = sectionForAction(new URLSearchParams(window.location.search).get("action"));
@@ -358,6 +237,8 @@ function loadSection(section) {
     loadSecondBrain();
   } else if (section === "journal") {
     loadConversationAuditLogs();
+  } else if (section === "reglages") {
+    loadSettings();
   }
 }
 
