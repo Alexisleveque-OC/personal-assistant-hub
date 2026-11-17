@@ -73,8 +73,8 @@ def test_new_module_is_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/meals_model.js"' in sw
     assert '"/static/js/views/meals_view.js"' in sw
-    assert "pah-pwa-cache-v41" in sw
-    assert "/static/app.js?v=26.0" in _rendered_html()
+    assert "pah-pwa-cache-v42" in sw
+    assert "/static/app.js?v=27.0" in _rendered_html()
 
 
 def test_styles_cover_the_day_strip_and_meal_rows():

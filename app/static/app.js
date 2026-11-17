@@ -23,7 +23,8 @@ import { initDuePicker, setDuePickerVisible } from "./js/views/task_due_picker.j
 import { initMealsView, loadMeals, resetMealsWeek } from "./js/views/meals_view.js";
 import { initSportView } from "./js/views/sport_view.js";
 import { initSportSheet, loadSport, openTrophies } from "./js/views/sport/sport_sheet.js";
-import { initSecondBrainView, switchBrainSubview, getBrainSubview } from "./js/views/second_brain_view.js";
+import { initSecondBrainView, loadSecondBrain, resetSecondBrainFilters } from "./js/views/second_brain_view.js";
+import { loadConversationAuditLogs } from "./js/views/journal_view.js";
 import { initOfflineSync, syncOutbox } from "./js/offline_outbox.js";
 import { SECTIONS, sectionForSheet, placeholderForSheet, sectionForAction, greetingFor, formatLongDate } from "./js/ui_shell.js";
 import { createSheetManager, bindSheetInteractions } from "./js/sheets.js";
@@ -354,7 +355,9 @@ function loadSection(section) {
   } else if (section === "sport") {
     loadSport();
   } else if (section === "second_cerveau") {
-    switchBrainSubview(getBrainSubview()); // recharge la sous-vue affichée (notes ou journal)
+    loadSecondBrain();
+  } else if (section === "journal") {
+    loadConversationAuditLogs();
   }
 }
 
@@ -401,8 +404,7 @@ function initShell() {
     });
   });
 
-  // `brainView` : sous-vue de Second cerveau choisie par le menu (« notes », ou « audit » pour Journal & feedback).
-  function openSection(section, trigger = null, { brainView = "notes" } = {}) {
+  function openSection(section, trigger = null) {
     const config = SECTIONS[section];
     if (!config) throw new Error(`Section inconnue : « ${section} » (attendu : ${Object.keys(SECTIONS).join(", ")}).`);
     if (!config.sheetId) {
@@ -412,8 +414,8 @@ function initShell() {
     }
     manager.openSection(config.sheetId, trigger);
     if (section === "repas") resetMealsWeek(); // chaque ouverture repart de la semaine en cours
-    if (section === "second_cerveau") switchBrainSubview(brainView);
-    else loadSection(section);
+    if (section === "second_cerveau") resetSecondBrainFilters(); // chaque ouverture repart de « Tout »
+    loadSection(section);
   }
 
   const burger = document.getElementById("btn-open-drawer");
@@ -427,11 +429,6 @@ function initShell() {
     const fromDrawer = !!opener.closest(".drawer");
     openSection(opener.dataset.section, fromDrawer ? burger : opener);
   });
-
-  const journalItem = document.getElementById("drawer-journal");
-  if (journalItem) {
-    journalItem.addEventListener("click", () => openSection("second_cerveau", burger, { brainView: "audit" }));
-  }
 
   // Feuille Conversation : depuis « Dernières actions » (en-tête ou dernière réponse d'Otis).
   document.addEventListener("click", (e) => {

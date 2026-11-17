@@ -64,6 +64,7 @@ async def create_note_endpoint(payload: NoteCreate):
         category=cat,
         content=payload.content,
         tags=payload.tags or [],
+        created_at=payload.created_at_sql(),
     )
     created = db.get_note(note_id)
     if not created:

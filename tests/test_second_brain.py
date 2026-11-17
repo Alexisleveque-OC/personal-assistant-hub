@@ -225,3 +225,53 @@ def test_dynamic_custom_category_detection_and_stats(temp_db):
     assert notes_data["total"] == 1
     assert notes_data["items"][0]["category"] == "voyage"
 
+
+
+# --- Restauration d'une note supprimée (refonte UX, étape 7 : « Annuler » de « Supprimer ») ---------------------
+
+def test_create_note_keeps_the_given_creation_date(temp_db):
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/second-brain/notes", json={
+        "category": "voyage", "content": "Lisbonne en mai", "tags": ["voyage"], "created_at": "2026-11-05 17:36:12",
+    })
+
+    assert resp.status_code == 201
+    assert (resp.json()["category"], resp.json()["created_at"]) == ("voyage", "2026-11-05 17:36:12")
+
+
+def test_create_note_without_date_is_dated_now(temp_db):
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/second-brain/notes", json={"content": "Sans date"})
+
+    assert resp.status_code == 201
+    assert resp.json()["created_at"]
+
+
+def test_create_note_refuses_a_future_creation_date(temp_db):
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/second-brain/notes", json={"content": "Futur", "created_at": "2999-01-01 10:00:00"})
+
+    assert resp.status_code == 422
+    assert "futur" in resp.text
+
+
+def test_create_note_stores_an_aware_date_in_utc(temp_db):
+    client = TestClient(app)
+
+    resp = client.post("/api/v1/second-brain/notes", json={"content": "Paris", "created_at": "2026-11-05T18:36:12+01:00"})
+
+    assert resp.json()["created_at"] == "2026-11-05 17:36:12"
+
+
+def test_restored_note_takes_back_its_place_in_the_list(temp_db):
+    client = TestClient(app)
+    for content, created in [("Ancienne", "2026-11-01 08:00:00"), ("Récente", "2026-11-10 08:00:00")]:
+        client.post("/api/v1/second-brain/notes", json={"content": content, "created_at": created})
+    client.post("/api/v1/second-brain/notes", json={"content": "Restaurée", "created_at": "2026-11-05 08:00:00"})
+
+    items = client.get("/api/v1/second-brain/notes").json()["items"]
+
+    assert [n["content"] for n in items] == ["Récente", "Restaurée", "Ancienne"]

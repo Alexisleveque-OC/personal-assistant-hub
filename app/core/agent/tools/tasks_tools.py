@@ -128,6 +128,13 @@ class TasksTools:
             event = self._restore_event(task, task_start(task.echeance, heure), rappel_minutes_avant)
         return _to_view(task, self._today(), event)
 
+    def delete_task(self, task_id: str) -> None:
+        """Supprime une tâche et son événement Agenda lié (« Annuler » de « En faire une tâche » du Second cerveau)."""
+        event = self._linked_events().get(task_id)
+        if event is not None:
+            self._calendar(lambda: self.events.delete_event(event.event_id))  # pas d'événement orphelin
+        self._call(lambda: self.connector.delete_task(task_id))
+
     @staticmethod
     def undo_targets(undo: TaskUndo) -> List[tuple]:
         return [("task", undo.task_id)]

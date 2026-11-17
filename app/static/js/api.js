@@ -285,33 +285,28 @@ export async function fetchSecondBrainStats() {
   return await res.json();
 }
 
-export async function createSecondBrainNote(payload) {
-  const res = await fetch("/api/v1/second-brain/notes", {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error("Erreur création note : " + res.status);
+// Notes du Second cerveau : le message d'erreur du serveur (detail) est remonté tel quel.
+async function brainRequest(url, init, fallback) {
+  const res = await fetch(url, { ...init, headers: getAuthHeaders() });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    throw new Error((errJson && typeof errJson.detail === "string" && errJson.detail) || `${fallback} (${res.status})`);
+  }
   return await res.json();
+}
+
+export async function createSecondBrainNote(payload) {
+  return brainRequest("/api/v1/second-brain/notes", { method: "POST", body: JSON.stringify(payload) }, "Note non enregistrée");
 }
 
 export async function patchSecondBrainNote(noteId, payload) {
-  const res = await fetch(`/api/v1/second-brain/notes/${noteId}`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error("Erreur mise à jour note : " + res.status);
-  return await res.json();
+  return brainRequest(`/api/v1/second-brain/notes/${noteId}`, {
+    method: "PATCH", body: JSON.stringify(payload),
+  }, "Note non mise à jour");
 }
 
 export async function deleteSecondBrainNote(noteId) {
-  const res = await fetch(`/api/v1/second-brain/notes/${noteId}`, {
-    method: "DELETE",
-    headers: getAuthHeaders()
-  });
-  if (!res.ok) throw new Error("Erreur suppression note : " + res.status);
-  return await res.json();
+  return brainRequest(`/api/v1/second-brain/notes/${noteId}`, { method: "DELETE" }, "Note non supprimée");
 }
 
 export async function fetchConversationLogs({ limit = 50, offset = 0, success = null } = {}) {
@@ -397,7 +392,7 @@ async function tasksRequest(url, options, fallbackMessage) {
     const detail = errJson && errJson.detail;
     throw new Error(typeof detail === "string" ? detail : `${fallbackMessage} (${res.status})`);
   }
-  return await res.json();
+  return res.status === 204 ? null : await res.json(); // 204 : suppression, sans corps
 }
 
 // Accueil (refonte UX) : 3 dernières actions d'Otis ; seule la plus récente de cette session est annulable.
@@ -447,6 +442,11 @@ export async function createTask(titre, echeance = null) {
     method: "POST",
     body: JSON.stringify({ titre, echeance: echeance || null }),
   }, "Échec de l'ajout de la tâche");
+}
+
+// « Annuler » de « En faire une tâche » (Second cerveau) : la tâche créée est supprimée (et son événement Agenda).
+export async function deleteTask(taskId) {
+  return tasksRequest(`/api/v1/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" }, "Échec de la suppression de la tâche");
 }
 
 // `reopen` (« Annuler ») : heure et rappel de la tâche, pour recréer son événement Agenda supprimé à la coche.
