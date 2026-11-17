@@ -250,7 +250,17 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .due-pop__actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ---------- Repas (feuille, maquette E-Repas) ---------- */
-.meal-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 12px; }
+/* En-tête collant : ‹ semaine › + bande des jours restent visibles pendant le défilement des 7 cartes */
+.meal-head {
+  position: sticky; top: 0; z-index: 2; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px;
+  background: var(--surface);
+}
+.meal-nav__label { border: 0; background: transparent; color: var(--text); font-family: inherit; cursor: pointer; }
+.meal-nav__label:disabled { cursor: default; }
+.meal-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.meal-card { display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 150px; }
+.meal-ingredients-btn[hidden] { display: none; }
 .meal-day {
   height: 60px; padding: 0; border: 1px solid transparent; border-radius: 18px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -262,9 +272,7 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .meal-day--future { border: 1px dashed var(--border-strong); }
 .meal-day--today { color: var(--accent); }
 .meal-day[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.meals { display: flex; flex-direction: column; gap: 12px; }
-.meals .section-label { margin-top: 4px; }
-.meals .section-label:first-child { margin-top: 0; }
+.meals { display: flex; flex-direction: column; gap: 16px; }
 .meal-slot + .meal-slot { border-top: 1px solid var(--border); }
 .meal-row {
   width: 100%; min-height: 64px; padding: 0 16px; border: 0;
@@ -288,7 +296,7 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 }
 .meal-empty__text { margin: 0; font-size: var(--fs-base); font-weight: 600; color: var(--text-2); }
 .meal-ingredients-btn {
-  width: 100%; min-height: 52px; margin-top: 14px; padding: 0 16px;
+  width: 100%; min-height: 52px; margin-top: 14px; padding: 0 16px; scroll-margin-top: 150px;
   display: flex; align-items: center; gap: 12px;
   border: 1px solid var(--border-strong); border-radius: 18px;
   background: transparent; color: var(--text); font: 700 var(--fs-md) var(--font); text-align: left; cursor: pointer;

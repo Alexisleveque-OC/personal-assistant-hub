@@ -242,7 +242,10 @@
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="sheet__body">
-        <div class="meal-days" id="meal-days" role="tablist" aria-label="Jour"></div>
+        <div class="meal-head">
+          <div id="meal-nav" class="meal-nav"></div>
+          <div class="meal-days" id="meal-days" role="tablist" aria-label="Jour"></div>
+        </div>
         <div id="meal-container" class="meals"></div>
         <button type="button" class="meal-ingredients-btn" id="btn-meal-ingredients" aria-expanded="false" aria-controls="meal-ingredients">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.5 11h-11z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
@@ -600,6 +603,6 @@
   </div>
 
 
-  <script type="module" src="/static/app.js?v=24.0"></script>
+  <script type="module" src="/static/app.js?v=25.0"></script>
 </body>
 </html>

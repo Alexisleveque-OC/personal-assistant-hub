@@ -175,7 +175,7 @@ def test_form_starts_listening_when_opened_by_dictate_and_saves_on_ok():
 def test_new_sport_modules_are_served_and_precached():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v39" in sw
+    assert "pah-pwa-cache-v40" in sw
     for path in NEW_MODULES:
         assert client.get(path).status_code == 200, path
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"
