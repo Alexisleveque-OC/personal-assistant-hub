@@ -134,3 +134,9 @@ def test_a_future_week_gives_all_its_ingredients_and_a_past_week_none():
 def test_ingredients_message_for_otis():
     out = _run("console.log(JSON.stringify(ingredientsMessage(['Carottes', 'Semoule'])));")
     assert out == "Ajoute aux courses : Carottes, Semoule."
+
+
+def test_add_on_button_prefills_a_request_to_complete_the_dish():
+    """Retours du 17/11 : « + Ajouter un plat » sur un créneau rempli → Otis complète (« Quiche lorraine + Coleslaw »)."""
+    out = _run(f"console.log(JSON.stringify([addOnPrefill({WEEK}, 3, 'soir'), addOnPrefill({WEEK}, 5, 'midi')]));")
+    assert out == ["Ajouter au soir de mardi 17 novembre : ", "Ajouter au midi de jeudi 19 novembre : "]

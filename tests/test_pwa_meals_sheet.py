@@ -54,7 +54,9 @@ def test_meals_view_reads_directly_and_renders_without_html_injection():
                    "aria-selected", "aria-expanded", "Rien de prévu", "Rien de planifié pour l'instant.",
                    "Demander une idée à Otis", "Ajouter", "déjà dans la liste", "Ajouter aux courses",
                    "periodNav(", "weekNav(", "hasIngredientsButton(", "scrollIntoView", "Semaine précédente",
-                   "Semaine suivante", "Revenir à cette semaine"):
+                   "Semaine suivante", "Revenir à cette semaine",
+                   "addOnPrefill(", "Ajouter un plat", "Supprimer", "deleteMeal(", "restoreMeal(", "Annuler",
+                   "action:"):
         assert needle in view, needle
     assert "innerHTML" not in view and "postInteract" not in view and "alert(" not in view
 
@@ -71,12 +73,21 @@ def test_new_module_is_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/meals_model.js"' in sw
     assert '"/static/js/views/meals_view.js"' in sw
-    assert "pah-pwa-cache-v40" in sw
-    assert "/static/app.js?v=25.0" in _rendered_html()
+    assert "pah-pwa-cache-v41" in sw
+    assert "/static/app.js?v=26.0" in _rendered_html()
 
 
 def test_styles_cover_the_day_strip_and_meal_rows():
     css = _static("styles/app.css")
     for selector in (".meal-head", ".meal-card", ".meal-days", ".meal-day", ".meal-day--today", ".meal-day--future", ".meal-row", ".meal-empty",
-                     ".meal-ingredients"):
+                     ".meal-ingredients", ".meal-row__panel", ".meal-row__actions"):
         assert selector in css, selector
+
+
+def test_api_client_deletes_and_restores_a_meal_directly():
+    """Retours du 17/11 : « Supprimer » écrit tout de suite (sans Otis), « Annuler » remet le plat."""
+    js = _static("js/api.js")
+    for function_name in ("deleteMeal", "restoreMeal"):
+        assert f"export async function {function_name}(" in js
+    assert "/api/v1/meals/plan/" in js
+    assert 'method: "DELETE"' in js and 'method: "PUT"' in js

@@ -287,8 +287,10 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .meal-row__add { min-height: 40px; flex-shrink: 0; }
 .meal-row__chevron { width: 18px; height: 18px; flex-shrink: 0; color: var(--muted); transition: transform .15s var(--ease); }
 .meal-row--toggle[aria-expanded="true"] .meal-row__chevron { transform: rotate(180deg); }
-.meal-row__ingredients { padding: 0 16px 14px 82px; }
-.meal-row__ingredients[hidden] { display: none; }
+.meal-row__panel { padding: 0 16px 14px 82px; display: flex; flex-direction: column; gap: 10px; }
+.meal-row__panel[hidden] { display: none; }
+.meal-row__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.meal-row__actions .btn { min-height: 40px; }
 .meal-row__ingredients .chip { min-height: 32px; font-size: var(--fs-sm); }
 .meal-empty {
   border-radius: 22px; background: var(--card); padding: 18px;
@@ -308,3 +310,4 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 /* Ici, coché = « à ajouter » : pas de texte barré comme dans les courses */
 .meal-ingredients .list-row { cursor: pointer; }
 .meal-ingredients .list-row:has(.check:checked) .list-row__text { color: inherit; text-decoration: none; }
+.btn--danger { color: var(--danger); border-color: var(--danger); }
