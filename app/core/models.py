@@ -1,7 +1,8 @@
 """Modèles de données Pydantic pour les intentions et interactions."""
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field, model_validator, computed_field
+from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
 
 
 class IntentType(str, Enum):
@@ -189,10 +190,33 @@ class SecondBrainNotesListResponse(BaseModel):
 
 
 class NoteCreate(BaseModel):
-    """Payload pour la création directe d'une note."""
+    """Payload pour la création directe d'une note.
+
+    `created_at` (facultatif) : date d'origine d'une note supprimée puis restaurée (« Annuler » de la PWA).
+    Sans fuseau, elle est en UTC, comme `CURRENT_TIMESTAMP` de SQLite ; avec fuseau, elle est convertie en UTC.
+    """
     category: Optional[str] = NoteCategory.THOUGHT.value
     content: str
     tags: Optional[list[str]] = Field(default_factory=list)
+    created_at: Optional[datetime] = None
+
+    @field_validator("created_at")
+    @classmethod
+    def _utc_and_not_in_future(cls, value: Optional[datetime]) -> Optional[datetime]:
+        if value is None:
+            return None
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if value > now:
+            raise ValueError(
+                f"Date de création dans le futur : {value:%Y-%m-%d %H:%M:%S} UTC (maintenant : {now:%Y-%m-%d %H:%M:%S} UTC)."
+            )
+        return value
+
+    def created_at_sql(self) -> Optional[str]:
+        """Format de `CURRENT_TIMESTAMP` de SQLite (« AAAA-MM-JJ HH:MM:SS », UTC)."""
+        return self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None
 
 
 class NoteUpdate(BaseModel):

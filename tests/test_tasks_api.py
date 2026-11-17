@@ -162,3 +162,28 @@ def test_checking_deletes_the_upcoming_event_and_reopen_with_hour_recreates_it(e
 
 def test_hour_is_refused_when_checking(events):
     assert client.patch("/api/v1/tasks/t2", json={"terminee": True, "heure": "14:30"}).status_code == 422
+
+
+# --- Suppression (refonte UX, étape 7 : « Annuler » de « En faire une tâche » du Second cerveau) ---------------
+
+def test_deletes_a_task(fake):
+    res = client.delete("/api/v1/tasks/t2")
+
+    assert res.status_code == 204
+    assert [t.id for t in fake.list_open_tasks()] == ["t1"]
+
+
+def test_deleting_an_unknown_task_answers_502_with_the_google_message(fake):
+    res = client.delete("/api/v1/tasks/t9")
+
+    assert res.status_code == 502
+    assert "404" in res.json()["detail"] and "t9" in res.json()["detail"]
+
+
+def test_deleting_a_task_also_deletes_its_calendar_event(fake, events):
+    client.post("/api/v1/tasks", json={"titre": "ORL", "echeance": "2026-11-05", "heure": "14:30"})
+    task_id = next(iter(events.events))
+
+    assert client.delete(f"/api/v1/tasks/{task_id}").status_code == 204
+    assert events.events == {}
+    assert task_id not in fake.tasks

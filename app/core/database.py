@@ -405,17 +405,18 @@ class DatabaseManager:
         content: str,
         tags: Optional[List[str]] = None,
         status: str = "active",
+        created_at: Optional[str] = None,
     ) -> int:
-        """Ajoute une note dans le second cerveau."""
+        """Ajoute une note dans le second cerveau ; `created_at` (UTC, « AAAA-MM-JJ HH:MM:SS ») : restauration d'une note."""
         tags_json = json.dumps(tags or [], ensure_ascii=False)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO second_brain_notes (category, content, tags, status)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO second_brain_notes (category, content, tags, status, created_at)
+                VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
                 """,
-                (category, content, tags_json, status),
+                (category, content, tags_json, status, created_at),
             )
             return cursor.lastrowid
 
@@ -462,7 +463,7 @@ class DatabaseManager:
             query = f"""
                 SELECT * FROM second_brain_notes
                 {where_clause}
-                ORDER BY id DESC
+                ORDER BY created_at DESC, id DESC
                 LIMIT ? OFFSET ?
             """
             cursor.execute(query, tuple(params + [limit, offset]))
