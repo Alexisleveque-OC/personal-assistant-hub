@@ -50,7 +50,7 @@ def test_settings_section_and_view_module():
                    "pah_api_key", "pah_voice_uri", "pah_push_to_talk", "pah_vad_silence_ms", "showToastSuccess("):
         assert needle in view, needle
     assert "innerHTML" not in view and "appendAssistantMessage" not in view
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     assert "loadSettings()" in js and "initSettingsView(" in js
     assert "settingsModal" not in js and "refreshLlmStats" not in js
 
@@ -58,8 +58,8 @@ def test_settings_section_and_view_module():
 def test_new_modules_are_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/settings_model.js"' in sw and '"/static/js/views/settings_view.js"' in sw
-    assert "pah-pwa-cache-v45" in sw
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in sw
+    assert "/static/app.js?v=31.0" in _rendered_html()
 
 
 def test_styles_cover_the_settings_sheet():

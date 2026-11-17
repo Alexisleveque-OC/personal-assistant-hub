@@ -1,11 +1,12 @@
-const CACHE_NAME = "pah-pwa-cache-v45";
+const CACHE_NAME = "pah-pwa-cache-v46";
 const ASSETS_TO_CACHE = [
   "/app",
-  "/static/style.css",
   "/static/styles/hub.css",
   "/static/styles/app.css",
-  "/static/styles/legacy-bridge.css",
   "/static/app.js",
+  "/static/js/app_shell.js",
+  "/static/js/hands_free.js",
+  "/static/js/sw_register.js",
   "/static/js/config.js",
   "/static/js/ui_shell.js",
   "/static/js/sheets.js",
@@ -14,7 +15,10 @@ const ASSETS_TO_CACHE = [
   "/static/js/offline_outbox.js",
   "/static/js/api.js",
   "/static/js/toast.js",
-  "/static/js/speech.js",
+  "/static/js/tts.js",
+  "/static/js/mic_capture.js",
+  "/static/js/wake_word.js",
+  "/static/js/undo_bar.js",
   "/static/js/voice_diag_log.js",
   "/static/js/wake_word_vosk.js",
   "/static/js/vosk_capture_worklet.js",

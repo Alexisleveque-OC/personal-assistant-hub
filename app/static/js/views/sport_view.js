@@ -2,7 +2,7 @@
 // Les vues Semaine, Mois · Année, Séances, le détail, le formulaire Séance et les Trophées sont dans views/sport/ (refonte UX).
 import { state } from "../config.js";
 import { showToastSuccess, showToastError, showToastInfo, showToastWarning } from "../toast.js";
-import { speak } from "../speech.js";
+import { speak } from "../tts.js";
 import { importSportScreenshotWithDatePrompt, DATE_CANCELLED_CODE } from "../screenshot_import.js";
 
 // Capture de montre (Strava, Decathlon, CW500) : Otis extrait la séance et l'enregistre ; la feuille se rafraîchit.

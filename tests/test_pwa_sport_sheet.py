@@ -154,7 +154,7 @@ def test_draft_route_client_posts_the_recording():
 
 
 def test_speech_engine_offers_a_one_shot_capture_for_the_form():
-    speech = client.get("/static/js/speech.js").text
+    speech = client.get("/static/js/mic_capture.js").text
 
     assert "export function captureOnce(" in speech
     assert "export function stopCapture(" in speech
@@ -175,7 +175,7 @@ def test_form_starts_listening_when_opened_by_dictate_and_saves_on_ok():
 def test_new_sport_modules_are_served_and_precached():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v45" in sw
+    assert "pah-pwa-cache-v46" in sw
     for path in NEW_MODULES:
         assert client.get(path).status_code == 200, path
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"

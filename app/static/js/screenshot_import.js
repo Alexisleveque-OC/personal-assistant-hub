@@ -47,16 +47,16 @@ export function promptScreenshotDate(reason) {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay active";
     overlay.innerHTML = `
-      <div class="modal-box" style="max-width: 420px;">
+      <div class="modal-box">
         <h3 class="modal-title"><span>📅</span> Date de la séance</h3>
-        <p class="screenshot-date-reason" style="font-size:0.82rem; color:var(--color-text-secondary); margin-bottom:14px;"></p>
-        <div class="form-group" style="margin-bottom:16px;">
-          <label class="form-label" for="screenshot-date-input">Quel jour as-tu fait cette séance ?</label>
-          <input type="date" id="screenshot-date-input" class="form-input" max="${today}" value="${today}" required />
-        </div>
-        <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:10px;">
-          <button type="button" class="btn-secondary" data-action="cancel">Annuler</button>
-          <button type="button" class="btn-primary" data-action="confirm">Importer à cette date</button>
+        <p class="screenshot-date-reason modal-text muted"></p>
+        <label class="field">
+          <span class="field__label">Quel jour as-tu fait cette séance ?</span>
+          <input type="date" id="screenshot-date-input" class="input" max="${today}" value="${today}" required />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-action="cancel">Annuler</button>
+          <button type="button" class="btn btn--primary" data-action="confirm">Importer à cette date</button>
         </div>
       </div>`;
     // textContent : le message API n'est jamais interprété comme du HTML

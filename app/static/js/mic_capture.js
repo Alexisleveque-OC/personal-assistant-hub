@@ -1,13 +1,15 @@
-// Module de Synthèse Vocale (TTS), Moteur VAD Anti-Coupure (MediaRecorder) et Ergonomie Vocale
+// Capture micro de la dictée : bouton hybride (maintenir / toucher), MediaRecorder, détection de silence (VAD),
+// capture à usage unique (« Dicte ta séance ») et repli Web Speech API. Réveil « Otis » → defaultWakeTrigger.
 import { state } from "./config.js";
 import { audioFocusManager } from "./audio_focus.js";
-import { VoskWakeWordDetector } from "./wake_word_vosk.js";
-import { showToastError, showToastInfo } from "./toast.js";
+import { showToastInfo } from "./toast.js";
 import { voiceDiagLog } from "./voice_diag_log.js";
+import {
+  extractCommandAfterWakeWord, pauseWakeWordDetector, registerWakeCapture, resumeWakeWordDetector, startWakeWordDetection,
+} from "./wake_word.js";
 
 export const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-let frenchVoices = [];
 let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
@@ -18,12 +20,9 @@ let silenceTimer = null;
 let isSpeakingDetected = false;
 let isRecording = false;
 let legacyRecognition = null;
-let undoTimeoutId = null;
 
-// Callbacks globaux et états Audio/Wake-Word
+// Callbacks et état de la capture
 let savedOnResultCallback = null;
-let savedOnNotAllowedCallback = null;
-let savedOnAudioBlobCallback = null;
 let activeStartAudioCapture = null;
 let activeStopAudioCapture = null;
 let initialInactivityTimer = null;
@@ -43,171 +42,6 @@ let windowReleaseHandler = null;
 export function isHoldRelease(heldMs) {
   return heldMs >= HOLD_THRESHOLD_MS;
 }
-
-// Gestion Audio Focus & Ducking
-let activeUtterance = null;
-let ttsWatchdogTimer = null;
-let voskDetector = null;
-let wakeWordPaused = false;
-let onWakeWordCallback = null;
-
-
-// ============================================================================
-// 1. Synthèse Vocale (TTS)
-// ============================================================================
-
-export function populateVoiceList(voiceSelect) {
-  if (!("speechSynthesis" in window) || !voiceSelect) return;
-  const allVoices = window.speechSynthesis.getVoices();
-  frenchVoices = allVoices.filter((v) => v.lang.startsWith("fr"));
-
-  voiceSelect.innerHTML = "";
-  if (frenchVoices.length === 0) {
-    const opt = document.createElement("option");
-    opt.textContent = "Voix française par défaut du système";
-    opt.value = "";
-    voiceSelect.appendChild(opt);
-    return;
-  }
-
-  frenchVoices.sort((a, b) => {
-    const aScore = (a.name.includes("Google") || a.name.includes("Natural")) ? 1 : 0;
-    const bScore = (b.name.includes("Google") || b.name.includes("Natural")) ? 1 : 0;
-    return bScore - aScore;
-  });
-
-  let matched = false;
-  frenchVoices.forEach((voice) => {
-    const option = document.createElement("option");
-    option.value = voice.voiceURI;
-    option.textContent = `${voice.name} (${voice.lang})`;
-    if (voice.voiceURI === state.selectedVoiceUri) {
-      option.selected = true;
-      matched = true;
-    }
-    voiceSelect.appendChild(option);
-  });
-
-  if (!matched && frenchVoices.length > 0) {
-    voiceSelect.selectedIndex = 0;
-    state.selectedVoiceUri = frenchVoices[0].voiceURI;
-  }
-}
-
-export function cancelSpeaking() {
-  if (typeof window !== "undefined" && "speechSynthesis" in window) {
-    try {
-      window.speechSynthesis.cancel();
-    } catch (e) {}
-  }
-  if (ttsWatchdogTimer) {
-    clearTimeout(ttsWatchdogTimer);
-    ttsWatchdogTimer = null;
-  }
-  activeUtterance = null;
-  audioFocusManager.releaseDucking("tts");
-  resumeWakeWordDetector();
-}
-
-export function speak(text, overrideVoiceUri = null) {
-  if (!state.ttsEnabled || !("speechSynthesis" in window) || !text) return;
-  cancelSpeaking();
-
-  const cleanText = text.replace(/[*_#]/g, "");
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = "fr-FR";
-  utterance.rate = 1.02;
-  utterance.pitch = 1.0;
-
-  const uriToUse = overrideVoiceUri || state.selectedVoiceUri;
-  if (uriToUse && frenchVoices.length > 0) {
-    const foundVoice = frenchVoices.find((v) => v.voiceURI === uriToUse);
-    if (foundVoice) utterance.voice = foundVoice;
-  }
-
-  function handleTtsDone() {
-    if (ttsWatchdogTimer) {
-      clearTimeout(ttsWatchdogTimer);
-      ttsWatchdogTimer = null;
-    }
-    activeUtterance = null;
-    audioFocusManager.releaseDucking("tts");
-    resumeWakeWordDetector();
-  }
-
-  utterance.onstart = () => {
-    pauseWakeWordDetector();
-    audioFocusManager.requestDucking("tts");
-  };
-
-  utterance.onend = () => {
-    handleTtsDone();
-  };
-
-  utterance.onerror = (e) => {
-    console.debug("[TTS] Fin ou interruption de lecture vocale:", e);
-    handleTtsDone();
-  };
-
-  // Référence globale activeUtterance pour éviter le garbage collection prématuré dans Chrome Mobile
-  activeUtterance = utterance;
-
-  // Watchdog de sécurité (durée estimée + marge)
-  const watchdogMs = Math.max(3000, cleanText.length * 150 + 3000);
-  ttsWatchdogTimer = setTimeout(() => {
-    console.debug("[TTS] Watchdog audio focus déclenché");
-    handleTtsDone();
-  }, watchdogMs);
-
-  audioFocusManager.requestDucking("tts");
-  window.speechSynthesis.speak(utterance);
-}
-
-
-// ============================================================================
-// 2. Toast d'Annulation Tactile Immédiate (« Undo »)
-// ============================================================================
-
-export function showUndoToast(actionDescription, onUndoCallback) {
-  const toast = document.getElementById("undo-toast");
-  const textEl = document.getElementById("undo-toast-text");
-  const btnUndo = document.getElementById("btn-undo-action");
-  if (!toast || !btnUndo) return;
-
-  if (undoTimeoutId) {
-    clearTimeout(undoTimeoutId);
-  }
-
-  if (textEl) {
-    textEl.textContent = actionDescription || "Dernière action réversible";
-  }
-
-  btnUndo.onclick = () => {
-    hideUndoToast();
-    if (onUndoCallback) onUndoCallback();
-  };
-
-  toast.hidden = false;
-
-  // Masquage automatique après 8 secondes
-  undoTimeoutId = setTimeout(() => {
-    hideUndoToast();
-  }, 8000);
-}
-
-export function hideUndoToast() {
-  const toast = document.getElementById("undo-toast");
-  if (!toast) return;
-  if (undoTimeoutId) {
-    clearTimeout(undoTimeoutId);
-    undoTimeoutId = null;
-  }
-  toast.hidden = true;
-}
-
-// ============================================================================
-// 3. Moteur VAD Anti-Coupure (MediaRecorder & Analyse Audio Fréquentielle)
-// ============================================================================
 
 // État « écoute » du micro : `.is-listening` sur le bouton (hub.css), `.recording` sur son conteneur.
 // Relu à chaque fois : le bouton est remplacé par setupMicButtonBehavior() et la barre de saisie change de feuille.
@@ -240,7 +74,6 @@ export function stopCapture() {
 }
 
 export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, onAudioBlobCallback) {
-  const micBtn = document.getElementById("mic-btn");
   const voiceBarArea = document.getElementById("voice-bar-area");
   const interimTranscript = document.getElementById("interim-transcript");
   const visualBars = document.querySelectorAll(".visual-bar");
@@ -503,19 +336,17 @@ export function initSpeechRecognition(onResultCallback, onNotAllowedCallback, on
   }
 
   savedOnResultCallback = onResultCallback;
-  savedOnNotAllowedCallback = onNotAllowedCallback;
-  savedOnAudioBlobCallback = onAudioBlobCallback;
 
   activeStartAudioCapture = startAudioCapture;
   activeStopAudioCapture = stopAudioCapture;
   setupMicButtonBehavior();
 
-  // Enregistrement permanent du handler de réveil par défaut
-  onWakeWordCallback = (transcript) => defaultWakeTrigger(transcript);
+  // Réveil « Otis » : enchaîne sur la dictée (ou envoie la commande dite après le mot-clé)
+  registerWakeCapture({ onWake: defaultWakeTrigger, isBusy: () => isRecording });
 
   // Wake Word discret in-app ("Otis") si activé
   if (state.wakeWordEnabled) {
-    startWakeWordDetection(onWakeWordCallback);
+    startWakeWordDetection();
   }
 }
 
@@ -589,89 +420,6 @@ export function setupMicButtonBehavior() {
   }
 }
 
-// ============================================================================
-// 4. Détecteur de Réveil In-App (« Otis ») Non-Intrusif & Calibrage Guidé
-// ============================================================================
-
-export const DEFAULT_WAKE_VARIANTS = [
-  "otis",
-  "dis otis",
-  "dit otis",
-  "hey otis",
-  "salut otis",
-  "ok otis",
-  "autiste",
-  "dis autiste",
-  "dit autiste",
-  "notice",
-  "la notice",
-  "au tisse",
-  "oh tisse",
-  "aux tisse",
-  "hautisse",
-  "hotis",
-  "hostis",
-  "hosties",
-  "nautis",
-  "rotis",
-  "rôti"
-];
-
-export function isWakeWordMatch(transcript) {
-  if (!transcript) return false;
-  const clean = transcript.toLowerCase().trim();
-  const allVariants = [
-    ...DEFAULT_WAKE_VARIANTS,
-    ...(state.wakeWordCustomVariants || [])
-  ];
-  return allVariants.some((variant) => clean.includes(variant));
-}
-
-export function extractCommandAfterWakeWord(transcript) {
-  if (!transcript) return "";
-  const clean = transcript.trim();
-  const allVariants = [
-    ...DEFAULT_WAKE_VARIANTS,
-    ...(state.wakeWordCustomVariants || [])
-  ];
-  for (const variant of allVariants) {
-    const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(`^.*?\\b${escaped}\\b[\\s,.:;!-]*`, "i");
-    if (regex.test(clean)) {
-      return clean.replace(regex, "").trim();
-    }
-  }
-  return "";
-}
-
-export function playWakeChime() {
-  try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    // Bi-ton élégant : 587.33Hz (Ré5) montant à 880Hz (La5) en 80ms
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.22);
-    setTimeout(() => {
-      try { ctx.close(); } catch (e) {}
-    }, 350);
-  } catch (e) {
-    console.debug("[Audio] Chime non joué:", e);
-  }
-}
-
 export function defaultWakeTrigger(detectedTranscript = "") {
   if (isRecording) return;
   const trailingCommand = extractCommandAfterWakeWord(detectedTranscript);
@@ -684,237 +432,6 @@ export function defaultWakeTrigger(detectedTranscript = "") {
     activeStartAudioCapture(true);
   }
 }
-
-export function triggerWakeCapture(detectedTranscript = "") {
-  if (onWakeWordCallback) {
-    onWakeWordCallback(detectedTranscript);
-  } else {
-    defaultWakeTrigger(detectedTranscript);
-  }
-}
-
-export function updateWakeWordIndicator(statusOverride = null) {
-  // Interrupteur « Mains-libres » du menu (refonte UX) : suit l'état réel (réglages, coupure auto sur échec).
-  const wakeSwitch = document.getElementById("wake-word-switch");
-  if (wakeSwitch) wakeSwitch.checked = !!state.wakeWordEnabled;
-  const indicator = document.getElementById("wake-word-indicator");
-  if (!indicator) return;
-
-  indicator.style.display = "inline-flex";
-  const label = indicator.querySelector(".wake-label");
-
-  if (!state.wakeWordEnabled) {
-    indicator.className = "wake-word-indicator disabled";
-    indicator.title = "Mode Micro au clic (musique protégée). Cliquez pour activer le mot-clé mains-libres 'Otis'.";
-    if (label) label.textContent = "Micro au clic";
-    return;
-  }
-
-  if (statusOverride === "triggered") {
-    indicator.className = "wake-word-indicator triggered";
-    if (label) label.textContent = "Otis détecté !";
-    setTimeout(() => updateWakeWordIndicator(), 1500);
-    return;
-  }
-
-  if (
-    wakeWordPaused ||
-    isRecording ||
-    audioFocusManager.isDucking() ||
-    (typeof document !== "undefined" && document.hidden)
-  ) {
-    indicator.className = "wake-word-indicator paused";
-    indicator.title = "Mains-libres en pause. Cliquez pour désactiver.";
-    if (label) label.textContent = "Otis en pause";
-  } else {
-    indicator.className = "wake-word-indicator listening";
-    indicator.title = "Mains-libres actif. Cliquez pour désactiver et protéger votre musique.";
-    if (label) label.textContent = "Otis à l'écoute";
-  }
-}
-
-export function setWakeWordEnabled(enabled) {
-  state.wakeWordEnabled = !!enabled;
-  try {
-    localStorage.setItem("pah_wake_word_enabled", state.wakeWordEnabled ? "true" : "false");
-  } catch (e) {}
-
-  if (state.wakeWordEnabled) {
-    startWakeWordDetection(onWakeWordCallback || defaultWakeTrigger);
-  } else {
-    stopWakeWordDetection();
-    audioFocusManager.releaseAllDucking();
-  }
-  updateWakeWordIndicator();
-}
-
-export function toggleWakeWord() {
-  const next = !state.wakeWordEnabled;
-  setWakeWordEnabled(next);
-
-  // Synchroniser la case à cocher des réglages si présente dans le DOM
-  const toggle = document.getElementById("wake-word-toggle");
-  if (toggle) toggle.checked = next;
-
-  return next;
-}
-
-export function pauseWakeWordDetector() {
-  wakeWordPaused = true;
-  updateWakeWordIndicator();
-  if (voskDetector) voskDetector.stop();
-}
-
-export function resumeWakeWordDetector() {
-  wakeWordPaused = false;
-  updateWakeWordIndicator();
-  if (state.wakeWordEnabled && !isRecording && !audioFocusManager.isDucking()) {
-    startWakeWordDetection(onWakeWordCallback || defaultWakeTrigger);
-  }
-}
-
-export function stopWakeWordDetection() {
-  wakeWordPaused = false;
-  updateWakeWordIndicator();
-  if (voskDetector) voskDetector.stop();
-}
-
-// Détection locale (Vosk, micro brut) : la Web Speech API continue était relancée toutes les ~5 s par
-// Chrome Android et coupait la musique à chaque relance.
-function getVoskDetector() {
-  if (!voskDetector) {
-    voskDetector = new VoskWakeWordDetector({
-      onWake: handleLocalWake,
-      log: (message) => voiceDiagLog.record("otis", message),
-    });
-  }
-  return voskDetector;
-}
-
-// « Otis » → bip → dictée : la commande est dite après le bip (pas de commande enchaînée).
-function handleLocalWake() {
-  voiceDiagLog.record("otis", "Réveil : bip puis dictée");
-  updateWakeWordIndicator("triggered");
-  playWakeChime();
-  triggerWakeCapture("");
-}
-
-function handleWakeEngineFailure(err) {
-  console.error("[WakeWord] Détection locale indisponible :", err);
-  voiceDiagLog.record("otis", `Échec, mains-libres désactivé : ${err.message}`);
-  showToastError(
-    `Détection locale du mot-clé indisponible : ${err.message}. Mains-libres désactivé, le bouton micro reste utilisable.`,
-    "Mot-clé « Otis »"
-  );
-  setWakeWordEnabled(false);
-  const toggle = document.getElementById("wake-word-toggle");
-  if (toggle) toggle.checked = false;
-}
-
-export function startWakeWordDetection(onWakeCallback = null) {
-  if (onWakeCallback) {
-    onWakeWordCallback = onWakeCallback;
-  } else if (!onWakeWordCallback) {
-    onWakeWordCallback = defaultWakeTrigger;
-  }
-
-  if (!state.wakeWordEnabled) {
-    updateWakeWordIndicator();
-    return;
-  }
-  if (wakeWordPaused || isRecording || (typeof document !== "undefined" && document.hidden)) {
-    updateWakeWordIndicator();
-    return;
-  }
-
-  const detector = getVoskDetector();
-  if (detector.isRunning) return;
-  voiceDiagLog.record("otis", "Démarrage de l'écoute du mot-clé");
-
-  // Premier chargement du modèle (≈ 45 Mo, une seule fois) : prévenir seulement s'il ne vient pas du cache.
-  const slowLoadTimer = setTimeout(() => {
-    showToastInfo("Préparation du mot-clé « Otis » : téléchargement du modèle (≈ 45 Mo, une seule fois)…", "Otis");
-  }, 2000);
-
-  detector
-    .start()
-    .then(() => updateWakeWordIndicator())
-    .catch(handleWakeEngineFailure)
-    .finally(() => clearTimeout(slowLoadTimer));
-}
-
-// Module de Calibrage In-App Guidé
-export function startWakeWordCalibration(onProgress, onDone) {
-  if (!SpeechRecognition) {
-    if (onDone) onDone(false, "Reconnaissance vocale non disponible.");
-    return;
-  }
-
-  pauseWakeWordDetector();
-  try {
-    const calibRec = new SpeechRecognition();
-    calibRec.lang = "fr-FR";
-    calibRec.continuous = false;
-    calibRec.interimResults = false;
-
-    if (onProgress) onProgress("listening", "Dites « Otis » clairement ou essoufflé...");
-
-    calibRec.onresult = (evt) => {
-      if (evt.results.length > 0) {
-        const heard = evt.results[0][0].transcript.toLowerCase().trim();
-        addCustomWakeVariant(heard);
-        if (onDone) onDone(true, heard);
-      }
-    };
-
-    calibRec.onerror = (e) => {
-      console.warn("[Calibration] Erreur:", e);
-      let errMsg = e?.error || "Erreur de capture";
-      if (e?.error === "no-speech") errMsg = "Aucune parole détectée. Rapprochez-vous du micro et réessayez.";
-      if (e?.error === "not-allowed") errMsg = "Accès au micro refusé dans le navigateur.";
-      if (onDone) onDone(false, errMsg);
-      resumeWakeWordDetector();
-    };
-
-    calibRec.onend = () => {
-      resumeWakeWordDetector();
-    };
-
-    calibRec.start();
-  } catch (err) {
-    if (onDone) onDone(false, err.message);
-    resumeWakeWordDetector();
-  }
-}
-
-export function addCustomWakeVariant(variant) {
-  if (!variant) return;
-  const clean = variant.toLowerCase().trim();
-  if (!state.wakeWordCustomVariants) state.wakeWordCustomVariants = [];
-  if (!state.wakeWordCustomVariants.includes(clean)) {
-    state.wakeWordCustomVariants.push(clean);
-    localStorage.setItem("pah_wake_word_custom_variants", JSON.stringify(state.wakeWordCustomVariants));
-  }
-}
-
-export function removeCustomWakeVariant(variant) {
-  if (!variant || !state.wakeWordCustomVariants) return;
-  const clean = variant.toLowerCase().trim();
-  state.wakeWordCustomVariants = state.wakeWordCustomVariants.filter((v) => v !== clean);
-  localStorage.setItem("pah_wake_word_custom_variants", JSON.stringify(state.wakeWordCustomVariants));
-}
-
-// Surveillance de la visibilité de l'application
-if (typeof document !== "undefined") {
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      pauseWakeWordDetector();
-    } else {
-      resumeWakeWordDetector();
-    }
-  });
-}
-
 
 // Fallback legacy Web Speech API si MediaRecorder indisponible
 function initLegacyWebSpeech(onResultCallback, onNotAllowedCallback) {

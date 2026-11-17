@@ -86,7 +86,7 @@ def test_e2e_application_serves_the_whole_wake_word_chain(tmp_path, monkeypatch)
     assert 'url.pathname.startsWith("/vosk/")' in sw
 
     # 4. Branchement PWA : « Otis » → bip → dictée, échec explicite → mains-libres coupé
-    speech = client.get("/static/js/speech.js").text
+    speech = client.get("/static/js/wake_word.js").text
     assert "new VoskWakeWordDetector(" in speech
     assert "continuous = true" not in speech
     assert "triggerWakeCapture(" in speech

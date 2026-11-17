@@ -48,7 +48,7 @@ def test_composer_has_a_due_picker_hidden_outside_tasks():
 
 
 def test_app_wires_the_tasks_view_and_reloads_it_when_the_sheet_opens():
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     shell = _static("js/ui_shell.js")
     assert 'from "./js/views/tasks_view.js"' in js
     assert "initTasksView()" in js
@@ -96,5 +96,5 @@ def test_new_modules_are_precached_and_versions_bumped():
     for path in ("/static/js/views/tasks_view.js", "/static/js/tasks_model.js", "/static/js/views/task_due_picker.js",
                  "/static/js/toast.js"):
         assert f'"{path}"' in sw, path
-    assert "pah-pwa-cache-v45" in sw
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in sw
+    assert "/static/app.js?v=31.0" in _rendered_html()
