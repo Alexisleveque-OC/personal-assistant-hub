@@ -61,49 +61,73 @@ export function updateLastUserMessage(newText) {
   } catch (e) {}
 }
 
+// Messages du fil (refonte UX) : les tiens à droite, ceux d'Otis en carte avec son avatar et « Réécouter ».
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function speakerIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  for (const [name, value] of Object.entries({
+    viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2",
+    "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true",
+  })) svg.setAttribute(name, value);
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", "M4 10v4h4l5 4V6L8 10H4zM16.5 9a4 4 0 0 1 0 6");
+  svg.append(path);
+  return svg;
+}
+
+function otisHead() {
+  const head = document.createElement("div");
+  head.className = "msg__head";
+  const avatar = document.createElement("span");
+  avatar.className = "avatar-otis";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = "O";
+  const who = document.createElement("span");
+  who.className = "msg__who";
+  who.textContent = "Otis";
+  head.append(avatar, who);
+  return head;
+}
+
+function scrollToMessage(node, shouldScroll) {
+  if (shouldScroll && isHomeVisible()) node.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
 function renderUserBubble(text, shouldScroll = true) {
   if (!chatStream) return null;
   const bubble = document.createElement("div");
-  bubble.className = "chat-bubble user";
+  bubble.className = "msg msg--user";
   bubble.textContent = text;
   chatStream.appendChild(bubble);
-  if (shouldScroll && isHomeVisible()) {
-    bubble.scrollIntoView({ behavior: "smooth" });
-  }
+  scrollToMessage(bubble, shouldScroll);
   return bubble;
 }
 
 function renderAssistantBubble(text, shouldScroll = true) {
   if (!chatStream) return null;
   const bubble = document.createElement("div");
-  bubble.className = "chat-bubble assistant";
-
-  const header = document.createElement("div");
-  header.className = "bubble-header";
-  header.innerHTML = `<span>Assistant Hub</span>
-    <button class="btn-tts" title="Réécouter">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-      </svg>
-    </button>`;
-
-  const content = document.createElement("div");
-  content.className = "bubble-content";
+  bubble.className = "msg msg--otis";
+  const head = otisHead();
+  const replay = document.createElement("button");
+  replay.type = "button";
+  replay.className = "icon-btn msg__replay";
+  replay.setAttribute("aria-label", "Réécouter");
+  replay.append(speakerIcon());
+  replay.addEventListener("click", () => speak(text));
+  head.append(replay);
+  const content = document.createElement("p");
+  content.className = "msg__text";
   content.textContent = text;
-
-  bubble.appendChild(header);
-  bubble.appendChild(content);
+  bubble.append(head, content);
   chatStream.appendChild(bubble);
-
-  const btnReplay = header.querySelector(".btn-tts");
-  if (btnReplay) {
-    btnReplay.addEventListener("click", () => speak(text));
-  }
-
-  if (shouldScroll && isHomeVisible()) {
-    bubble.scrollIntoView({ behavior: "smooth" });
-  }
+  scrollToMessage(bubble, shouldScroll);
   return bubble;
+}
+
+// Ouverture de la feuille « Conversation » : le dernier message est visible.
+export function scrollConversationToEnd() {
+  if (chatStream && chatStream.lastElementChild) chatStream.lastElementChild.scrollIntoView({ block: "end" });
 }
 
 export function appendUserMessage(text) {
@@ -118,12 +142,19 @@ let thinkingBubble = null;
 function showThinkingIndicator() {
   if (!chatStream || thinkingBubble) return;
   thinkingBubble = document.createElement("div");
-  thinkingBubble.className = "chat-bubble assistant thinking";
+  thinkingBubble.className = "msg msg--otis msg--thinking";
   thinkingBubble.setAttribute("role", "status");
-  thinkingBubble.setAttribute("aria-live", "polite");
-  thinkingBubble.innerHTML = `Otis réfléchit<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>`;
+  const text = document.createElement("p");
+  text.className = "msg__text";
+  text.textContent = "Otis réfléchit";
+  const dots = document.createElement("span");
+  dots.className = "msg__dots";
+  dots.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 3; i++) dots.append(document.createElement("span"));
+  text.append(dots);
+  thinkingBubble.append(otisHead(), text);
   chatStream.appendChild(thinkingBubble);
-  if (isHomeVisible()) thinkingBubble.scrollIntoView({ behavior: "smooth" });
+  scrollToMessage(thinkingBubble, true);
 }
 
 function hideThinkingIndicator() {
@@ -143,7 +174,7 @@ export async function restoreChatHistory() {
   const localHistory = getStoredChatHistory();
 
   if (localHistory.length > 0) {
-    chatStream.innerHTML = "";
+    chatStream.replaceChildren();
     localHistory.forEach((msg) => {
       if (msg.role === "user") {
         renderUserBubble(msg.text, false);
@@ -159,7 +190,7 @@ export async function restoreChatHistory() {
   try {
     const res = await fetchSessionHistory();
     if (res && Array.isArray(res.history) && res.history.length > 0) {
-      chatStream.innerHTML = "";
+      chatStream.replaceChildren();
       const serverHistory = res.history.slice(-MAX_SAVED_MESSAGES);
       serverHistory.forEach((msg) => {
         if (msg.role === "user") {
@@ -188,16 +219,8 @@ export function startNewThread() {
   postResetSession(oldSessionId).catch(() => {});
 
   if (chatStream) {
-    chatStream.innerHTML = `
-      <div class="chat-bubble assistant">
-        <div class="bubble-header">
-          <span>Assistant Hub</span>
-        </div>
-        <div class="bubble-content">
-          ✨ Nouveau fil de discussion ouvert. Que puis-je faire pour toi ?
-        </div>
-      </div>
-    `;
+    chatStream.replaceChildren();
+    renderAssistantBubble("Nouveau fil de discussion ouvert. Que puis-je faire pour toi ?", false);
   }
 }
 
@@ -243,7 +266,7 @@ export async function sendInteraction(text) {
     hideThinkingIndicator();
 
     if (res.status === 401) {
-      appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Cliquez sur l'engrenage pour la renseigner.");
+      appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Renseignez-la dans « Réglages & voix » (menu).");
       return;
     }
 
@@ -295,7 +318,7 @@ export async function sendAudioInteraction(audioBlob) {
     voiceDiagLog.record("envoi", `Réponse HTTP ${res.status} en ${elapsed()}`);
 
     if (res.status === 401) {
-      appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Cliquez sur l'engrenage pour la renseigner.");
+      appendAssistantMessage("Erreur 401 : Clé API manquante ou invalide. Renseignez-la dans « Réglages & voix » (menu).");
       return;
     }
 
@@ -309,7 +332,8 @@ export async function sendAudioInteraction(audioBlob) {
     const data = await res.json();
 
     // Remplacer le texte temporaire par la transcription exacte (transcribed_text ou user_transcription)
-    const lastUserBubble = chatStream.querySelector(".chat-bubble.user:last-of-type");
+    const userBubbles = chatStream.querySelectorAll(".msg--user");
+    const lastUserBubble = userBubbles[userBubbles.length - 1];
     const transcription = data.transcribed_text || data.user_transcription;
     voiceDiagLog.record("envoi", `Transcription : « ${transcription || ""} »`);
     if (lastUserBubble && transcription) {
@@ -498,8 +522,7 @@ export function initChatView() {
     });
   }
 
-  document.querySelectorAll(".chip-btn").forEach((chip) => {
-    if (chip.id === "chip-new-chat") return;
+  document.querySelectorAll("#chips-container [data-query]").forEach((chip) => {
     chip.addEventListener("click", () => {
       const text = chip.getAttribute("data-query") || chip.textContent.trim();
       sendInteraction(text);

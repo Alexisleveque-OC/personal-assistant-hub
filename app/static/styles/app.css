@@ -381,3 +381,78 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .settings-stats dt { font-size: var(--fs-sm); color: var(--muted); }
 .settings-stats dd { margin: 0; font-size: var(--fs-sm); font-weight: 700; text-align: right; overflow-wrap: anywhere; }
 .settings__footer { flex-shrink: 0; padding: 14px 0 calc(24px + var(--safe-bottom)); border-top: 1px solid var(--border); }
+
+/* ---------- Conversation (fil avec Otis, demande du 17/11 ; pas de maquette dédiée) ---------- */
+.chat-stream { display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 88%; font-size: var(--fs-md); line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
+.msg--user {
+  align-self: flex-end; padding: 10px 14px; border-radius: var(--r-lg) var(--r-lg) 6px var(--r-lg);
+  background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--text); font-weight: 600;
+}
+.msg--otis {
+  align-self: flex-start; display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 14px; border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 6px; background: var(--card);
+}
+.msg__head { display: flex; align-items: center; gap: var(--s-2); }
+.msg__head .avatar-otis { width: 24px; height: 24px; font-size: var(--fs-xs); }
+.msg__who { flex: 1; font-size: var(--fs-sm); font-weight: 800; color: var(--muted); }
+.msg__replay { width: 32px; height: 32px; margin: -6px -6px -6px 0; background: transparent; color: var(--muted); }
+.msg__replay svg { width: 18px; height: 18px; }
+.msg__text { margin: 0; }
+.msg--thinking .msg__text { color: var(--muted); }
+.msg__dots { display: inline-flex; gap: 3px; margin-left: 4px; }
+.msg__dots span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: msg-dot 1.2s infinite ease-in-out; }
+.msg__dots span:nth-child(2) { animation-delay: .2s; }
+.msg__dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes msg-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+/* « Annuler » de la dernière action réversible : barre collée en bas du fil */
+.undo-bar {
+  position: sticky; bottom: 0; display: flex; align-items: center; gap: var(--s-3);
+  padding: 10px 10px 10px 16px; border-radius: var(--r-lg);
+  background: var(--card-2); border: 1px solid var(--border-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.undo-bar[hidden] { display: none; }
+.undo-bar__text { flex: 1; font-size: var(--fs-sm); font-weight: 700; }
+.undo-bar__btn { min-height: 38px; color: var(--accent); font-size: var(--fs-sm); }
+
+/* ---------- Notifications (toasts) ---------- */
+.toast-stack {
+  position: fixed; z-index: 80; top: calc(12px + env(safe-area-inset-top, 0px)); left: 0; right: 0;
+  max-width: 520px; margin: 0 auto; padding: 0 var(--gutter);
+  display: flex; flex-direction: column; gap: var(--s-2); pointer-events: none;
+}
+.notice {
+  pointer-events: auto; display: flex; align-items: flex-start; gap: var(--s-3);
+  padding: 12px 8px 12px 14px; border-radius: var(--r-lg);
+  background: var(--card-2); border: 1px solid var(--border-strong); color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  animation: notice-in .25s var(--ease); transition: opacity .2s, transform .2s var(--ease);
+}
+:root[data-theme="light"] .notice { background: var(--surface); box-shadow: 0 10px 30px rgba(0, 0, 0, .12); }
+.notice--leaving { opacity: 0; transform: translateY(-8px); }
+@keyframes notice-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.notice__icon {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.notice__icon svg { width: 16px; height: 16px; }
+.notice--success .notice__icon { background: var(--success-bg); color: var(--success); }
+.notice--error .notice__icon { background: var(--danger-chip); color: var(--danger); }
+.notice--warning .notice__icon { background: var(--warn-bg); color: var(--warn); }
+.notice--info .notice__icon { background: var(--accent-soft); color: var(--accent); }
+.notice__content { flex: 1; min-width: 0; padding-top: 3px; }
+.notice__title { font-size: var(--fs-sm); font-weight: 800; }
+.notice__text { font-size: var(--fs-sm); line-height: 1.4; color: var(--text-2); overflow-wrap: anywhere; }
+.notice__action {
+  flex-shrink: 0; align-self: center; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--r-pill);
+  background: var(--accent); color: var(--on-accent); font: 800 var(--fs-sm) var(--font); cursor: pointer;
+}
+.notice__close {
+  flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg__dots span { animation: none; opacity: 1; }
+  .notice { animation: none; transition: none; }
+}

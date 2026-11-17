@@ -187,8 +187,7 @@ export function showUndoToast(actionDescription, onUndoCallback) {
     if (onUndoCallback) onUndoCallback();
   };
 
-  toast.style.display = "flex";
-  toast.classList.add("visible");
+  toast.hidden = false;
 
   // Masquage automatique après 8 secondes
   undoTimeoutId = setTimeout(() => {
@@ -203,10 +202,7 @@ export function hideUndoToast() {
     clearTimeout(undoTimeoutId);
     undoTimeoutId = null;
   }
-  toast.classList.remove("visible");
-  setTimeout(() => {
-    toast.style.display = "none";
-  }, 300);
+  toast.hidden = true;
 }
 
 // ============================================================================
