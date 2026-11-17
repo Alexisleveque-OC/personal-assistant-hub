@@ -85,7 +85,7 @@ def test_trophy_icon_and_shortcut_open_the_stacked_sheet():
 def test_trophy_modules_are_served_and_precached():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v43" in sw
+    assert "pah-pwa-cache-v44" in sw
     for path in NEW_MODULES:
         assert client.get(path).status_code == 200, path
         assert f'"{path}"' in sw, f"{path} absent du cache du service worker"

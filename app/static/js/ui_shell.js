@@ -13,6 +13,8 @@ export const SECTIONS = {
   },
   // Sans barre de saisie (lecture du journal et corrections) ; contexte inconnu de l'agent, donc neutre.
   journal: { sheetId: "view-journal", title: "Journal & feedback", placeholder: "Écrire à Otis…", context: "journal" },
+  // Ancienne modale des réglages, sans barre de saisie non plus.
+  reglages: { sheetId: "view-settings", title: "Réglages & voix", placeholder: "Écrire à Otis…", context: "reglages" },
 };
 
 // Feuilles empilées sur une section (détail, formulaire) : elles gardent le contexte de leur section ;
