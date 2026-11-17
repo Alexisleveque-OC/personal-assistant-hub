@@ -14,7 +14,6 @@ export const state = {
   composerDue: null, // feuille Tâches : { date: "AAAA-MM-JJ", time: "HH:MM" | "" } joint au message pour Otis
   uiSessionId: null, // séance affichée dans le détail Sport (« c'était 48 minutes » la corrige), sinon null
   currentShoppingSubview: "cette-semaine", // 'cette-semaine' | 'liste-attente'
-  currentMealSubview: "today", // 'today' | 'week'
   currentSportSubview: "week", // vue de la feuille Sport : 'week' | 'period' | 'sessions' (Trophées : feuille empilée)
   currentSportScale: "year", // vue Mois · Année : 'month' | 'year'
   currentSportMetric: "volume", // graphique Mois · Année : 'volume' | 'effort' | 'allure' | 'charge'

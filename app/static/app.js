@@ -20,7 +20,7 @@ import { initChatView, sendInteraction, sendAudioInteraction, appendAssistantMes
 import { initShoppingView, fetchShoppingList } from "./js/views/shopping_view.js";
 import { initTasksView, loadTasks } from "./js/views/tasks_view.js";
 import { initDuePicker, setDuePickerVisible } from "./js/views/task_due_picker.js";
-import { initMealsView, fetchMealToday, fetchMealWeek } from "./js/views/meals_view.js";
+import { initMealsView, loadMeals } from "./js/views/meals_view.js";
 import { initSportView } from "./js/views/sport_view.js";
 import { initSportSheet, loadSport, openTrophies } from "./js/views/sport/sport_sheet.js";
 import { initSecondBrainView, switchBrainSubview, getBrainSubview } from "./js/views/second_brain_view.js";
@@ -350,8 +350,7 @@ function loadSection(section) {
   } else if (section === "taches") {
     loadTasks();
   } else if (section === "repas") {
-    if (state.currentMealSubview === "today") fetchMealToday();
-    else fetchMealWeek();
+    loadMeals();
   } else if (section === "sport") {
     loadSport();
   } else if (section === "second_cerveau") {

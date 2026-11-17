@@ -93,10 +93,13 @@ export async function fetchLlmStats() {
   return await res.json();
 }
 
+// Planning de la semaine (feuille « Cette semaine ») lu directement, avec les ingrédients des recettes.
 export async function fetchWeekMeals() {
-  const headers = state.apiKey ? { "x-api-key": state.apiKey } : {};
-  const res = await fetch("/api/v1/meals/week", { headers });
-  if (!res.ok) throw new Error("Erreur serveur " + res.status);
+  const res = await fetch("/api/v1/meals/week", { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    throw new Error((errJson && errJson.detail) || `Planning des repas indisponible (${res.status})`);
+  }
   return await res.json();
 }
 
