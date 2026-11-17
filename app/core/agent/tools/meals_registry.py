@@ -6,6 +6,7 @@ from app.core.agent.tools.meals_models import (
     AddShoppingItemsArgs,
     CheckShoppingItemsArgs,
     ClearBoughtArgs,
+    ClearMealArgs,
     GetMealPlanArgs,
     GetRecipeArgs,
     GetShoppingListArgs,
@@ -64,11 +65,18 @@ def meals_tool_definitions(tools: MealsTools) -> List[AgentTool]:
         AgentTool(
             name="set_meal",
             description=(
-                "Planifie ou remplace le plat d'un repas (midi ou soir) à une date. Le nom est aligné sur le carnet "
+                "Planifie le plat d'un repas (midi ou soir) à une date : mode remplacer (défaut) écrase le plat prévu, "
+                "mode ajouter le complète (« Quiche lorraine + Coleslaw »). Le nom est aligné sur le carnet "
                 "de recettes ; un plat absent du carnet exige la confirmation de l'utilisateur."
             ),
             args_model=SetMealArgs,
             handler=tools.set_meal,
+        ),
+        AgentTool(
+            name="clear_meal",
+            description="Retire le plat prévu d'un repas (midi ou soir) à une date ; le repas redevient vide.",
+            args_model=ClearMealArgs,
+            handler=tools.clear_meal,
         ),
         AgentTool(
             name="get_recipe",

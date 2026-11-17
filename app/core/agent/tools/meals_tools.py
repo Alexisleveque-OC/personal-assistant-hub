@@ -16,12 +16,14 @@ from app.connectors.sheets.models import WaitingListItem
 from app.core.agent.tools.meals_models import (
     AddShoppingItemsArgs,
     CheckShoppingItemsArgs,
+    ClearMealArgs,
     ClearBoughtArgs,
     GetMealPlanArgs,
     GetRecipeArgs,
     GetShoppingListArgs,
     MealDay,
     MealPlanView,
+    MealCleared,
     MealSet,
     MealUndo,
     RayonLearnedUndo,
@@ -237,6 +239,11 @@ class MealsTools:
         if current is None:
             raise MealsToolError(f"Le {args.date:%d/%m/%Y} est absent du planning des repas : impossible d'y planifier un plat.")
         before = current.midi if args.moment == "midi" else current.soir
+        if args.mode == "ajouter" and before:
+            # Même séparateur que le classeur : la liste de courses est générée plat par plat.
+            if any(self.connector.matches_item_name(dish, part.strip()) for part in before.split("+")):
+                raise MealsToolError(f"« {dish} » est déjà prévu au repas du {args.date:%d/%m} {args.moment} ({before}).")
+            dish = f"{before} + {dish}"
 
         updated = self.connector.set_meal_plan(meal=dish, target_date=args.date, meal_type=args.moment)
         return MealSet(
@@ -244,6 +251,20 @@ class MealsTools:
             precedent=before,
             recette_connue=recipe is not None,
             undos=[MealUndo(date=args.date, moment=args.moment, before=before, after=dish)],
+        )
+
+    def clear_meal(self, args: ClearMealArgs) -> MealCleared:
+        current = self._day_plan(args.date)
+        if current is None:
+            raise MealsToolError(f"Le {args.date:%d/%m/%Y} est absent du planning des repas.")
+        before = current.midi if args.moment == "midi" else current.soir
+        if not before:
+            raise MealsToolError(f"Rien de prévu au repas du {args.date:%d/%m} {args.moment} : rien à retirer.")
+        updated = self.connector.set_meal_plan(meal="", target_date=args.date, meal_type=args.moment)
+        return MealCleared(
+            jour=MealDay(date=args.date, jour=WEEKDAYS_FR[args.date.weekday()], midi=updated.lunch, soir=updated.dinner),
+            retire=before,
+            undos=[MealUndo(date=args.date, moment=args.moment, before=before, after="")],
         )
 
     def get_recipe(self, args: GetRecipeArgs) -> RecipeView:
