@@ -2,7 +2,7 @@
 // Lecture directe (GET /api/v1/meals/shopping, sans question à Otis) ; les coches restent sur le téléphone
 // jusqu'à « J'ai fini mes courses », qui les synchronise dans le classeur.
 import { state, getStoredCheckedItems, setStoredCheckedItems, clearStoredCheckedItems } from "../config.js";
-import { speak } from "../speech.js";
+import { speak } from "../tts.js";
 import { fetchShoppingData, postInteract, resetShoppingList, postShoppingComplete } from "../api.js";
 import { showToast } from "../toast.js";
 import { shoppingLists, groupByRayon, remainingCount, remainingNames, toggleStoredCheck, completionMessage } from "../shopping_model.js";

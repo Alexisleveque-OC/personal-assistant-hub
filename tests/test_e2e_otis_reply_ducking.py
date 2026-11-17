@@ -12,7 +12,7 @@ from app.main import app
 
 client = TestClient(app)
 
-SPEECH_PATH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "speech.js"
+SPEECH_PATH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "tts.js"
 WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
 NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
@@ -115,12 +115,12 @@ def test_e2e_application_serves_the_reply_ducking_chain():
     assert 'removeAttribute("src")' in focus
 
     # 2. La synthèse vocale passe par le gestionnaire de focus
-    speech = client.get("/static/js/speech.js").text
+    speech = client.get("/static/js/tts.js").text
     assert 'audioFocusManager.requestDucking("tts")' in speech
     assert 'audioFocusManager.releaseDucking("tts")' in speech
 
     # 3. Service worker : nouvelle version pour livrer le module modifié aux PWA installées
     sw = client.get("/sw.js").text
-    assert "pah-pwa-cache-v45" in sw
+    assert "pah-pwa-cache-v46" in sw
     assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
     assert '"/static/js/audio_focus.js"' in assets

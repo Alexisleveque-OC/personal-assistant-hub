@@ -41,7 +41,7 @@ def test_meals_sheet_has_a_day_strip_cards_and_the_ingredients_button():
 
 
 def test_app_reloads_the_meals_sheet_from_the_week_route_only():
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     assert "loadMeals()" in js
     assert "fetchMealToday" not in js and "currentMealSubview" not in js
     assert "currentMealSubview" not in _static("js/config.js")
@@ -73,8 +73,8 @@ def test_new_module_is_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/meals_model.js"' in sw
     assert '"/static/js/views/meals_view.js"' in sw
-    assert "pah-pwa-cache-v45" in sw
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in sw
+    assert "/static/app.js?v=31.0" in _rendered_html()
 
 
 def test_styles_cover_the_day_strip_and_meal_rows():

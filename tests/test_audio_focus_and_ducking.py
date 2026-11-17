@@ -24,11 +24,13 @@ def test_audio_focus_module_is_served_and_valid():
     assert '"transient"' in content
 
 
-def test_audio_focus_lifecycle_wiring_in_speech_js():
-    """Vérifie que speech.js intègre audioFocusManager pour câbler le cycle vocal complet."""
-    res = client.get("/static/js/speech.js")
-    assert res.status_code == 200
-    content = res.text
+def test_audio_focus_lifecycle_wiring_in_voice_modules():
+    """Vérifie que la voix (TTS, capture, mot-clé) intègre audioFocusManager pour câbler le cycle vocal complet."""
+    content = ""
+    for module in ("tts", "mic_capture", "wake_word"):
+        res = client.get(f"/static/js/{module}.js")
+        assert res.status_code == 200
+        content += res.text
 
     # 1. Import du module audio_focus
     assert "audio_focus.js" in content

@@ -9,7 +9,7 @@ from tests.test_wake_word_vosk import NODE  # même Node que les autres tests JS
 import pytest
 import subprocess
 
-SPEECH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "speech.js"
+SPEECH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "mic_capture.js"
 
 
 def _speech() -> str:

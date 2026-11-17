@@ -45,11 +45,11 @@ def test_chat_view_renders_messages_without_html_injection():
         assert needle in view, needle
     for forbidden in ("innerHTML", "chat-bubble", "chip-btn", "Assistant Hub"):
         assert forbidden not in view, forbidden
-    assert "scrollConversationToEnd()" in _static("app.js")
+    assert "scrollConversationToEnd()" in _static("js/app_shell.js")
 
 
 def test_undo_bar_is_shown_with_the_hidden_attribute():
-    speech = _static("js/speech.js")
+    speech = _static("js/undo_bar.js")
     start = speech.index("export function showUndoToast(")
     body = speech[start:speech.index("export function hideUndoToast(")]
     assert "toast.hidden = false" in body and "style.display" not in body
@@ -74,5 +74,5 @@ def test_styles_cover_messages_undo_bar_and_notifications():
 
 
 def test_versions_bumped():
-    assert "pah-pwa-cache-v45" in client.get("/sw.js").text
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in client.get("/sw.js").text
+    assert "/static/app.js?v=31.0" in _rendered_html()

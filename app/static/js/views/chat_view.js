@@ -1,5 +1,6 @@
 // Vue Assistant Conversationnel / Chat & Vocal avec Persistance 20 Messages
-import { speak, showUndoToast, hideUndoToast } from "../speech.js";
+import { speak } from "../tts.js";
+import { showUndoToast, hideUndoToast } from "../undo_bar.js";
 import {
   postInteract,
   postInteractAudio,

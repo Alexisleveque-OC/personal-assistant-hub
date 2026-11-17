@@ -47,7 +47,7 @@ def test_journal_and_feedback_has_its_own_sheet_opened_from_the_menu():
     assert 'data-sheet-close aria-label="Fermer"' in sheet
     assert 'id="audit-logs-list"' in sheet
     assert re.search(r'id="drawer-journal"[^>]*data-section="journal"', html)
-    js = _static("app.js")
+    js = (_static("app.js") + _static("js/app_shell.js"))
     assert "loadConversationAuditLogs()" in js
     assert "brainView" not in js and "getBrainSubview" not in js
 
@@ -94,8 +94,8 @@ def test_new_modules_are_precached_and_versions_bumped():
     sw = client.get("/sw.js").text
     assert '"/static/js/notes_model.js"' in sw
     assert '"/static/js/views/journal_view.js"' in sw
-    assert "pah-pwa-cache-v45" in sw
-    assert "/static/app.js?v=30.0" in _rendered_html()
+    assert "pah-pwa-cache-v46" in sw
+    assert "/static/app.js?v=31.0" in _rendered_html()
 
 
 def test_styles_cover_chips_cards_and_search():
