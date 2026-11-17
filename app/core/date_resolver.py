@@ -1,8 +1,7 @@
 """Module de résolution des expressions temporelles et dates en français."""
 from datetime import date, datetime, timedelta
 import re
-from enum import Enum
-from typing import List, Optional, Union, Any
+from typing import Optional, Union, Any
 from pydantic import BaseModel, Field
 
 
@@ -12,24 +11,6 @@ class ResolvedDate(BaseModel):
     date_str: Optional[str] = None  # JJ/MM/AAAA
     day_name: Optional[str] = None  # Lundi, Mardi...
     period: Optional[str] = None    # "midi", "soir", "jour", "prochain", "hier", "demain"...
-    cleaned_query: str = Field(default="")
-
-
-class TemporalRangeType(str, Enum):
-    """Types de plages temporelles relatives."""
-    DAYS_WINDOW = "days_window"
-    CURRENT_WEEK = "current_week"
-    LAST_WEEK = "last_week"
-    NEXT_WEEK = "next_week"
-
-
-class TemporalRangeResult(BaseModel):
-    """Résultat d'une plage temporelle relative."""
-    range_type: TemporalRangeType
-    start_date: date
-    end_date: date
-    all_dates: List[date]
-    nb_days: int
     cleaned_query: str = Field(default="")
 
 
@@ -56,85 +37,6 @@ MONTH_NAMES_FR = {
     5: "mai", 6: "juin", 7: "juillet", 8: "août",
     9: "septembre", 10: "octobre", 11: "novembre", 12: "décembre",
 }
-
-
-def resolve_temporal_range(text: str, now: Optional[datetime] = None) -> Optional[TemporalRangeResult]:
-    """Extrait une plage temporelle relative ('ces 3 derniers jours', 'cette semaine', 'la semaine dernière')."""
-    ref_dt = now or datetime.now()
-    today = ref_dt.date()
-    cleaned = text.strip()
-    lowered = cleaned.lower()
-
-    # Protection étanche : exclure les décomptes conversationnels ("ces 3 derniers échanges/messages")
-    if re.search(r"\b(?:échanges?|echanges?|messages?|phrases?|discussions?|tours?)\b", lowered):
-        return None
-
-    # 1. Fenêtre de N derniers jours ("ces 3 derniers jours", "les 5 derniers jours")
-    days_window_match = re.search(r"\b(?:ces|les|sur\s+les|depuis)\s+(\d+)\s+derniers?\s+jours?\b", lowered)
-    if days_window_match:
-        nb_days = int(days_window_match.group(1))
-        if nb_days > 0:
-            start_d = today - timedelta(days=nb_days - 1)
-            end_d = today
-            all_dates = [start_d + timedelta(days=i) for i in range(nb_days)]
-            query_clean = re.sub(re.escape(days_window_match.group(0)), "", cleaned, flags=re.IGNORECASE).strip()
-            return TemporalRangeResult(
-                range_type=TemporalRangeType.DAYS_WINDOW,
-                start_date=start_d,
-                end_date=end_d,
-                all_dates=all_dates,
-                nb_days=nb_days,
-                cleaned_query=query_clean,
-            )
-
-    # 2. "cette semaine"
-    if re.search(r"\b(?:cette\s+semaine|semaine\s+en\s+cours)\b", lowered):
-        start_d = today - timedelta(days=today.weekday())
-        end_d = start_d + timedelta(days=6)
-        all_dates = [start_d + timedelta(days=i) for i in range(7)]
-        query_clean = re.sub(r"\b(?:cette\s+semaine|semaine\s+en\s+cours)\b", "", cleaned, flags=re.IGNORECASE).strip()
-        return TemporalRangeResult(
-            range_type=TemporalRangeType.CURRENT_WEEK,
-            start_date=start_d,
-            end_date=end_d,
-            all_dates=all_dates,
-            nb_days=7,
-            cleaned_query=query_clean,
-        )
-
-    # 3. "la semaine dernière" / "semaine passée"
-    if re.search(r"\b(?:la\s+)?semaine\s+(?:dernière|derniere|passée|passee)\b", lowered):
-        current_monday = today - timedelta(days=today.weekday())
-        start_d = current_monday - timedelta(days=7)
-        end_d = start_d + timedelta(days=6)
-        all_dates = [start_d + timedelta(days=i) for i in range(7)]
-        query_clean = re.sub(r"\b(?:la\s+)?semaine\s+(?:dernière|derniere|passée|passee)\b", "", cleaned, flags=re.IGNORECASE).strip()
-        return TemporalRangeResult(
-            range_type=TemporalRangeType.LAST_WEEK,
-            start_date=start_d,
-            end_date=end_d,
-            all_dates=all_dates,
-            nb_days=7,
-            cleaned_query=query_clean,
-        )
-
-    # 4. "la semaine prochaine"
-    if re.search(r"\b(?:la\s+)?semaine\s+prochaine\b", lowered):
-        current_monday = today - timedelta(days=today.weekday())
-        start_d = current_monday + timedelta(days=7)
-        end_d = start_d + timedelta(days=6)
-        all_dates = [start_d + timedelta(days=i) for i in range(7)]
-        query_clean = re.sub(r"\b(?:la\s+)?semaine\s+prochaine\b", "", cleaned, flags=re.IGNORECASE).strip()
-        return TemporalRangeResult(
-            range_type=TemporalRangeType.NEXT_WEEK,
-            start_date=start_d,
-            end_date=end_d,
-            all_dates=all_dates,
-            nb_days=7,
-            cleaned_query=query_clean,
-        )
-
-    return None
 
 
 def resolve_date_expression(text: str, now: Optional[datetime] = None) -> ResolvedDate:

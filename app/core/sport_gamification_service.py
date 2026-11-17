@@ -1178,22 +1178,3 @@ class SportGamificationService:
             return f"💡 L'anecdote du jour : {chosen.text}"
 
         return "🏃 Chaque foulée compte ! Prêt à repousser tes limites aujourd'hui ?"
-
-    def get_morning_chronicle_snippet(self, summary: SportGamificationSummary) -> str:
-        """Génère une phrase punchy et motivante pour la chronique matinale ou le coach.
-        
-        Priorités :
-        1. Palier imminent si disponible (dopamine immédiate : 'Allez, plus que X km...').
-        2. Anecdote insolite ou équivalence fun.
-        """
-        if summary.imminent_milestones:
-            imm = summary.imminent_milestones[0]
-            return f"🎯 Défi du jour : {imm.message}"
-
-        if summary.fun_facts:
-            # Choisir une anecdote marquante (verticale, géo ou croissants)
-            top_facts = [f for f in summary.fun_facts if f.category in ("vertical", "geo", "energy")]
-            chosen = top_facts[0] if top_facts else summary.fun_facts[0]
-            return f"{chosen.icon} Le savais-tu ? {chosen.text}"
-
-        return "🏃 Belle journée sportive à toi !"
