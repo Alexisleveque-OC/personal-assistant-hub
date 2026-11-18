@@ -22,7 +22,7 @@ def js_source(*modules: str, strip_imports: bool = False) -> str:
     """Concatène des modules de app/static/js ; `strip_imports` retire leurs lignes `import`."""
     source = "\n".join(static_source(f"js/{name}") for name in modules)
     if strip_imports:
-        source = "\n".join(line for line in source.splitlines() if not line.startswith("import "))
+        source = re.sub(r"^import\b[^;]*;[ \t]*$", "", source, flags=re.M)  # y compris sur plusieurs lignes
     return source
 
 
