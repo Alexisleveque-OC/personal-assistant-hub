@@ -120,8 +120,8 @@ class SportTools:
         )
 
     def _refresh_week(self, day: date) -> None:
-        # Même convention que le connecteur : semaine ISO + année civile.
-        self.connector.get_weekly_summary(week_num=day.isocalendar()[1], year=day.year)
+        # Semaine ISO et année ISO (le 01/01/2027 est en semaine 53 de 2026).
+        self.connector.get_weekly_summary(week_num=day.isocalendar()[1], year=day.isocalendar()[0])
 
     def _check_unambiguous(self, target: SessionRow) -> None:
         """Un jour à plusieurs séances : l'utilisateur doit avoir nommé le type de la cible, sinon on demande."""

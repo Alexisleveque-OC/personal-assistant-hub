@@ -263,7 +263,7 @@ class SqlSportConnector(BaseConnector):
             saved_id = self.db.add_sport_session(insert_data)
 
         # Mettre à jour la synthèse hebdomadaire correspondante
-        self.get_weekly_summary(week_num=semaine, year=target_date.year)
+        self.get_weekly_summary(week_num=semaine, year=target_date.isocalendar()[0])
 
         saved_row = self.db.get_sport_session_by_id(saved_id)
         if not saved_row:
@@ -375,7 +375,7 @@ class SqlSportConnector(BaseConnector):
         if deleted and row.get("date"):
             t_date = _parse_date(row["date"])
             if t_date:
-                self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.year)
+                self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.isocalendar()[0])
         return deleted
 
     def update_session_by_id(
@@ -435,9 +435,9 @@ class SqlSportConnector(BaseConnector):
         # Mettre à jour la synthèse de l'ancienne et de la nouvelle semaine
         old_date = _parse_date(existing["date"])
         if old_date:
-            self.get_weekly_summary(week_num=old_date.isocalendar()[1], year=old_date.year)
-        if new_date and (old_date is None or (new_date.isocalendar()[1] != old_date.isocalendar()[1] or new_date.year != old_date.year)):
-            self.get_weekly_summary(week_num=new_date.isocalendar()[1], year=new_date.year)
+            self.get_weekly_summary(week_num=old_date.isocalendar()[1], year=old_date.isocalendar()[0])
+        if new_date and (old_date is None or new_date.isocalendar()[:2] != old_date.isocalendar()[:2]):
+            self.get_weekly_summary(week_num=new_date.isocalendar()[1], year=new_date.isocalendar()[0])
 
         saved_row = self.db.get_sport_session_by_id(session_id)
         if not saved_row:
@@ -515,7 +515,7 @@ class SqlSportConnector(BaseConnector):
         self.db.update_sport_session(existing["id"], update_dict)
 
         # Mettre à jour la synthèse
-        self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.year)
+        self.get_weekly_summary(week_num=t_date.isocalendar()[1], year=t_date.isocalendar()[0])
 
         saved_row = self.db.get_sport_session_by_id(existing["id"])
         if not saved_row:
@@ -531,7 +531,7 @@ class SqlSportConnector(BaseConnector):
     ) -> SportWeeklySummary:
         """Calcule la synthèse hebdomadaire multicritère et persiste les métriques dans SQLite."""
         target_week = week_num or semaine or datetime.now().isocalendar()[1]
-        target_year = year or annee or datetime.now().year
+        target_year = year or annee or datetime.now().isocalendar()[0]  # année ISO de la semaine
 
         # Récupération des séances réelles de la semaine
         all_week_sessions = self.get_week_sessions(target_week, target_year)
@@ -620,9 +620,10 @@ class SqlSportConnector(BaseConnector):
         rows = self.db.get_all_sport_weekly_summaries(annee=year)
         # Si la table est vide mais qu'il y a des séances, on auto-calcule les semaines distinctes
         if not rows:
-            sessions = self.db.get_sport_sessions(year=year)
-            distinct_weeks = sorted({(s["semaine"], int(s["date"][:4])) for s in sessions})
-            for w, y in distinct_weeks:
+            iso_weeks = {date.fromisoformat(s["date"]).isocalendar()[:2] for s in self.db.get_sport_sessions()}
+            for y, w in sorted(iso_weeks):
+                if year is not None and y != year:
+                    continue
                 self.get_weekly_summary(week_num=w, year=y)
             rows = self.db.get_all_sport_weekly_summaries(annee=year)
 
