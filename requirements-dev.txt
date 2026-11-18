@@ -1,0 +1,3 @@
+-r requirements.txt
+# Outils de test seulement (hors image de prod) : test E2E de navigation dans un vrai Chromium.
+playwright==1.65.2

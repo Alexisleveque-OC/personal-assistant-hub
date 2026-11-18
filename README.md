@@ -45,6 +45,10 @@ personal-assistant-hub/
 │   │   │   └── tools/           # Outils typés : sport (par identifiant), repas & courses, agenda, tâches, notes, annulation
 │   │   ├── shopping/            # Question « dans quel rayon ? » partagée voie rapide / agent
 │   │   ├── date_resolver.py     # Résolveur temporel intelligent (relatif, absolu, midi/soir)
+│   │   ├── screenshot_date.py   # Date d'une capture sportive (jamais dans le futur)
+│   │   ├── database/            # SQLite WAL : un module par domaine (conversation, notes, apprentissages, sport)
+│   │   ├── sport_gamification_service.py # Records, paliers imminents, annonces du jour
+│   │   ├── sport_*_badges.py    # Catalogue des trophées (paliers, pop-culture, secrets, fun)
 │   │   ├── models.py            # Contrats de données stricts (Pydantic v2)
 │   │   ├── session_manager.py   # Mémoire de dialogue multi-tours
 │   │   ├── audio/               # Pipeline audio direct & normalisation phonétique
@@ -79,17 +83,20 @@ personal-assistant-hub/
 │   │   ├── calendar/            # Google Agenda en lecture (agendas cochés, fuseau Paris, cache 3 min)
 │   │   ├── tasks/               # Google Tasks « Mes tâches » (lecture, ajout, cochage, cache 3 min)
 │   │   └── sport/               # Suivi running, calculs de charge & Coach Otis
-│   └── static/                  # Interface utilisateur Web PWA (ES6 Modules)
-│       ├── js/views/            # Vues modulaires (vocal, sport, meals, second_brain_view.js)
-│       ├── css/                 # Styles graphiques & thème sombre Monstera
-│       └── sw.js                # Service Worker v15 (mise en cache & offline)
+│   └── static/                  # Interface utilisateur Web PWA (ES6 Modules, sans framework)
+│       ├── app.js               # Orchestration du démarrage
+│       ├── js/                  # Coquille (menu, feuilles), voix (tts, mic_capture, wake_word), API, hors-ligne
+│       │   └── views/           # Une vue par feuille (accueil, courses, repas, tâches, sport, second cerveau…)
+│       ├── styles/              # Design system : hub.css (jetons, composants), app.css (écrans)
+│       └── sw.js                # Service Worker versionné (précache & offline)
 ├── hub_data.db                  # Base de données SQLite locale unifiée (mode WAL haute performance)
-├── tests/                       # Suite de 1000 tests automatisés (Unitaires, Mocks & E2E)
+├── tests/                       # Suite de plus de 1 450 tests automatisés (unitaires, mocks, E2E, navigateur)
 │   └── nlu_golden/              # Jeu de référence de conversations (legacy hors-ligne, agent contre le vrai Gemini)
 ├── docs/                        # Guides de déploiement Cloud & documentation technique
 ├── AGENTS.md                    # Directives d'ingénierie agentique, TDD strict & Git
 ├── SPEC.md                      # Cahier des charges et backlog d'implémentation
-└── requirements.txt             # Dépendances Python verrouillées
+├── requirements.txt             # Dépendances Python verrouillées (image de prod)
+└── requirements-dev.txt         # + outils de test (Playwright pour l'E2E navigateur)
 ```
 
 ### Les piliers techniques :
@@ -121,7 +128,8 @@ personal-assistant-hub/
 * **Import de captures d'écran fiabilisé (Gemini Vision) :** Strava, Decathlon Coach et montre Decathlon Connect CW500 M. Date jamais inventée (sélecteur de date si illisible), confirmation datée, fusion sans doublon (CW500 : FC seule sur une séance réalisée, durée + FC sur une séance prévue), erreurs Gemini explicites (503) au lieu de faux rejets.
 
 ### 📱 3. Interface Mobile Vocale PWA & Conteneurisation — [🟢 Opérationnel]
-* **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker v20 avec mise en cache.
+* **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker versionné avec mise en cache.
+* **Interface refondue (menu burger & feuilles) :** accueil à bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche) et « Dernières actions » avec Annuler ; chaque section (Courses, Repas, Tâches, Sport, Trophées, Second cerveau, Journal, Réglages) s'ouvre en feuille qui monte du bas, empilable (détail de séance, formulaire, trophées) ; une seule barre de saisie suit la feuille ouverte et transmet son contexte à Otis ; thème clair/sombre mémorisé ; raccourcis `?action=` du manifeste.
 * **File d'Attente Hors-Ligne & Auto-Retry :** Persistance locale robuste (IndexedDB) pour sauvegarder les messages texte et vocaux en zone blanche ou forêt, avec rejeu automatique et fluide dès le retour de la 4G/WiFi.
 * **Audio Focus & Ducking Casque (Mode Running) :** Atténuation du volume casque (musique/podcast) uniquement pendant la prise de parole d'Otis ou lors d'un enregistrement, sans bloquer le son en arrière-plan.
 * **Mot-clé « Otis » détecté sur le téléphone (Vosk) :** écoute sur micro brut sans traitements audio, la musique n'est plus coupée pendant l'attente du mot-clé (validé sur Android). « Otis » → bip → dictée.
@@ -140,7 +148,7 @@ personal-assistant-hub/
 * **OAuth utilisateur unique :** un jeton de rafraîchissement (`scripts/google_oauth_login.py`, à lancer en local) donne accès à Google Agenda (lecture seule) et Google Tasks ; appels REST directs, sans `google-api-python-client`. Jeton révoqué ou expiré → erreur indiquant de relancer le consentement.
 * **Agenda à la voix :** *« qu'est-ce que j'ai demain ? »*, *« cette semaine ? »* : tous les agendas cochés dans Google Agenda (partagés compris), événements « journée entière » d'abord, 14 jours maximum par question.
 * **Tâches à la voix :** lecture de « Mes tâches » (échéances, retards), ajout (*« rappelle-moi de… »*, *« il faut que je… »*, avec échéance si elle est dite), cochage et *« annule ça »*. Toute tâche dictée va dans Google Tasks ; les notes du Second Cerveau ne gardent que idées, bugs et réflexions.
-* **Onglet « Tâches » de la PWA :** liste des tâches non terminées (retards en rouge), ajout avec échéance facultative, cochage immédiat avec bouton « Annuler ».
+* **Feuille « Tâches » de la PWA :** tâches par échéance (en retard, cette semaine, plus tard, sans date), sous-tâches groupées, ajout avec date et heure (heure = événement Agenda de 30 min), cochage immédiat avec « Annuler ».
 * **Cache 3 min** partagé par la voix et l'onglet, invalidé à chaque écriture (quotas Google, réponses rapides).
 
 ---
@@ -196,6 +204,12 @@ personal-assistant-hub/
   - Échec de chargement → message explicite et mains-libres désactivé ; calibrage des variantes masqué (code conservé)
   - Test E2E du flux (`tests/test_e2e_wake_word_audio_focus.py`)
   - Suite : musique baissée pendant les réponses d'Otis (`speechSynthesis` ne demande pas le focus audio sur Chrome Android) grâce à un clip `<audio>` quasi silencieux de 1 s joué en boucle puis vidé à la fin de la réponse (une simple pause garde la musique baissée) — branche `feat/otis-reply-ducking`, test E2E `tests/test_e2e_otis_reply_ducking.py`
+- [x] **Refonte UX/UI de la PWA** — *branche `feat/ux-redesign` (détail : `ROADMAP.md`)*
+  - Menu burger + accueil à bulles + sections en feuilles empilables, barre de saisie universelle dont seul le placeholder change ; logique métier inchangée
+  - Écrans rhabillés un à un et validés sur téléphone : Sport (dictée de séance pré-remplissant le formulaire), Trophées (dates de déblocage rejouées, 122 trophées), Courses, Tâches, Repas, Second cerveau, Journal, Réglages, fil de conversation et notifications
+  - Refacto « anti-tokens » sans changement de comportement : ancien `style.css` supprimé, `speech.js`, `database.py`, `app.js` et le catalogue des trophées découpés en modules, code mort retiré
+  - Test E2E de la navigation dans un vrai Chromium (Playwright), lancé par la CI (`tests/test_e2e_navigation.py`)
+  - Reste : nouveau logo « Sceau du scribe » (kit `icons/`)
 - [ ] **Phase 7 : Otis Live Runner (Entraînement Running en Direct, Tracking GPS Local, Guidage Vocal & Périostite)**
   - Tracking GPS temps réel via Foreground Service Capacitor temporaire (préservation batterie au repos, contournement de Strava & Decathlon)
   - Guidage vocal d'intervalles & fractionné avec bips 3-2-1 dans les écouteurs et gestion Spotify Connect (audio ducking)
@@ -259,9 +273,11 @@ GOOGLE_OAUTH_REFRESH_TOKEN=...   # obtenu en local avec scripts/google_oauth_log
 ### 4. Lancer la suite de tests (Boucle de rétroaction TDD)
 
 ```bash
+pip install -r requirements-dev.txt                 # une fois : Playwright pour l'E2E navigateur
+python -m playwright install --with-deps chromium   # une fois (dépendances système : sudo)
 .venv/bin/pytest -v
 ```
-> **1000 tests au vert** (sans appel réel à Gemini ; les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
+> **Plus de 1 450 tests au vert** (le test de navigation `tests/test_e2e_navigation.py` est ignoré si Chromium manque en local ; la CI l'exige avec `E2E_BROWSER_REQUIRED=1` ; aucun appel réel à Gemini : les tests réels sont ignorés sans `RUN_LIVE_GEMINI=1` et les échecs connus du mode legacy sont marqués `xfail`).
 
 Évaluation du jeu de référence contre le vrai Gemini (hors CI, consomme environ 70 requêtes du quota gratuit) :
 ```bash
