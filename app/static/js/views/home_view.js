@@ -7,12 +7,14 @@ import {
   fetchSportTodayData,
   fetchTasks,
   fetchSecondBrainStats,
+  undoRecentAction,
 } from "../api.js";
 import { getActiveSessionId, getStoredCheckedItems } from "../config.js";
-import { getStoredChatHistory, sendInteraction } from "./chat_view.js";
+import { getStoredChatHistory } from "./chat_view.js";
 import {
-  shoppingSummary, nextTask, tonightMeal, sportOfTheDay, actionTime, lastAssistantReply,
+  shoppingSummary, nextTask, tonightMeal, sportOfTheDay, activityStatus, lastAssistantReply,
 } from "../home_model.js";
+import { showToastError, showToastSuccess } from "../toast.js";
 import { openRows } from "../tasks_model.js";
 
 let loading = null; // un seul chargement à la fois (ouverture, retour à l'accueil, réponse d'Otis)
@@ -63,22 +65,33 @@ function renderActivity(actions) {
     return;
   }
   actions.forEach((action) => {
-    const row = el("div", "activity__item");
+    const status = activityStatus(action);
+    const row = el("div", status.kind === "undone" ? "activity__item activity__item--undone" : "activity__item");
     row.append(el("span", "activity__text", action.label));
-    if (action.undoable) {
-      const undo = el("button", "activity__undo", "Annuler");
+    if (status.kind === "undo") {
+      const undo = el("button", "activity__undo", status.text);
       undo.type = "button";
       undo.setAttribute("aria-label", `Annuler : ${action.label}`);
-      undo.addEventListener("click", () => {
-        undo.disabled = true;
-        sendInteraction("annule ça"); // même chemin que le toast d'annulation de la conversation
-      });
+      undo.addEventListener("click", () => undoAction(action, undo));
       row.append(undo);
     } else {
-      row.append(el("span", "activity__meta", actionTime(action.created_at)));
+      row.append(el("span", "activity__meta", status.text));
     }
     list.append(row);
   });
+}
+
+// Annulation directe (sans Otis) : le résultat s'affiche en notification, puis l'accueil est rechargé.
+async function undoAction(action, button) {
+  button.disabled = true;
+  try {
+    const result = await undoRecentAction(action.id, getActiveSessionId());
+    showToastSuccess(result.spoken_response, "Annulé");
+    loadHome();
+  } catch (err) {
+    showToastError(err.message, "Annulation impossible");
+    button.disabled = false;
+  }
 }
 
 async function loadActivity() {
