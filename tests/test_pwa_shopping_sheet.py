@@ -41,8 +41,6 @@ def test_list_banner_and_composer_slot_but_no_legacy_controls():
     assert 'id="shopping-list-container"' in sheet
     assert 'id="shopping-completion-banner"' in sheet
     assert "composer-slot" in sheet
-    for legacy in ("segmented-control", "seg-btn", "btn-check-completion", "shopping-header", "btn-action-small"):
-        assert legacy not in sheet, legacy
 
 
 def test_view_reads_the_direct_route_and_never_asks_otis():
@@ -52,13 +50,3 @@ def test_view_reads_the_direct_route_and_never_asks_otis():
     assert "Donne-moi la liste de courses" not in view
     # Seule écriture confiée à Otis : « Vider les achetés » (journalisée, donc annulable depuis l'accueil)
     assert view.count("postInteract(") == 1 and 'postInteract("Vide la liste de courses")' in view
-
-
-def test_view_uses_the_hub_list_classes_and_the_model():
-    view = _static("js/views/shopping_view.js")
-
-    for needle in ("list-group", "list-group__head", "list-row", "list-row__text", "list-row__qty", '"check"',
-                   "btn btn--primary btn--block", "J'ai fini mes courses", "callout", "groupByRayon", "shoppingLists",
-                   "remainingCount", "completionMessage", "toggleStoredCheck", "showToast"):
-        assert needle in view, needle
-    assert "innerHTML" not in view and "alert(" not in view

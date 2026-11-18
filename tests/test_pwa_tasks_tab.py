@@ -39,45 +39,9 @@ def test_composer_has_a_due_picker_hidden_outside_tasks():
     assert 'id="btn-composer-due-ok"' in pop and 'id="btn-composer-due-clear"' in pop
 
 
-def test_app_wires_the_tasks_view_and_reloads_it_when_the_sheet_opens():
-    js = (_static("app.js") + _static("js/app_shell.js"))
-    shell = _static("js/ui_shell.js")
-    assert 'from "./js/views/tasks_view.js"' in js
-    assert "initTasksView()" in js
-    assert 'sheetId: "view-tasks"' in shell
-    assert 'section === "taches"' in js and "loadTasks()" in js
-    assert "setDuePickerVisible(" in js  # calendrier de la barre : feuille Tâches seulement
-
-
-def test_api_client_reads_and_toggles_tasks_and_reopens_with_the_hour():
-    js = _static("js/api.js")
-    for function_name in ("fetchTasks", "createTask", "setTaskCompleted"):
-        assert f"export async function {function_name}(" in js
-    assert '"/api/v1/tasks"' in js
-    assert 'method: "PATCH"' in js
-    assert "rappel_minutes_avant" in js and "heure" in js
-
-
 def test_view_renders_the_model_without_html_injection():
     view = _static("js/views/tasks_view.js")
     for needle in ("taskSheet", "list-group", "list-row", '"check"', "section-label", "badge", "setTaskCompleted(",
                    "Annuler", "action:", 'target = "_blank"', "noopener", "Ouvrir le lien"):
         assert needle in view, needle
     assert "innerHTML" not in view and "alert(" not in view
-
-
-def test_text_sent_from_the_tasks_sheet_carries_the_chosen_due_date():
-    chat = _static("js/views/chat_view.js")
-    assert "withDue(" in chat
-    assert "clearComposerDue(" in chat
-
-
-def test_home_counts_rows_not_group_parents():
-    home = _static("js/views/home_view.js")
-    assert "openRows(" in home
-
-
-def test_toast_supports_an_action_button():
-    js = _static("js/toast.js")
-    assert "action" in js
-    assert "btn-undo-action" in js

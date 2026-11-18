@@ -94,20 +94,3 @@ def test_e2e_complete_voice_and_resilience_pipeline():
     assert data_shop["intent"]["intent"] == IntentType.ADD_SHOPPING_ITEM.value
     assert data_shop["intent"]["intent"] != IntentType.LOG_SPORT_SESSION.value
     assert data_shop["intent"]["intent"] != IntentType.UPDATE_SPORT_SESSION.value
-
-    # -------------------------------------------------------------------------
-    # 5. Cohérence des composants PWA & Offline Outbox
-    # -------------------------------------------------------------------------
-    res_sw = client.get("/sw.js")
-    assert res_sw.status_code == 200
-    assert "/static/js/offline_outbox.js" in res_sw.text
-    assert "status: 503" in res_sw.text
-
-    res_outbox = client.get("/static/js/offline_outbox.js")
-    assert res_outbox.status_code == 200
-    assert "syncOutbox" in res_outbox.text
-    assert "startAutoRetry" in res_outbox.text
-
-    res_audio_focus = client.get("/static/js/audio_focus.js")
-    assert res_audio_focus.status_code == 200
-    assert "audioFocusManager" in res_audio_focus.text

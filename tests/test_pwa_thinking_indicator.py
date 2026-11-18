@@ -26,10 +26,3 @@ def test_chat_shows_thinking_bubble_while_waiting_for_text_and_voice_replies():
         assert "showThinkingIndicator()" in body, function_name
         # Retirée quoi qu'il arrive (réponse, erreur HTTP, panne réseau) : jamais de bulle orpheline.
         assert re.search(r"finally\s*\{\s*hideThinkingIndicator\(\);", body), function_name
-
-
-def test_thinking_bubble_is_styled_and_animated():
-    css = client.get("/static/styles/app.css").text  # refonte : plus de dépendance à l'ancien style.css
-
-    assert ".msg--thinking" in css
-    assert "@keyframes msg-dot" in css

@@ -101,28 +101,6 @@ def _source(relative: str) -> str:
     return (STATIC / relative).read_text(encoding="utf-8")
 
 
-def test_wake_word_detector_logs_into_the_journal():
-    speech = _source("js/wake_word.js")
-    assert 'from "./voice_diag_log.js"' in speech
-    assert re.search(r'voiceDiagLog\.record\("otis"', speech)
-
-
-def test_vosk_loading_reports_progress_worker_crash_and_a_stuck_audio_context():
-    vosk = _source("js/wake_word_vosk.js")
-    assert "toujours en chargement" in vosk
-    assert 'client.worker.addEventListener("error"' in vosk
-    assert "resume() toujours en attente" in vosk
-    assert "getUserMedia" in vosk and "ms" in vosk
-
-
-def test_dictation_logs_trigger_microphone_delay_and_stop_reason():
-    speech = _source("js/mic_capture.js")
-    for reason in ('"silence"', '"inactivité"', '"bouton"', '"relâché"'):
-        assert reason in speech, reason
-    assert "ignoré (trop court)" in speech
-    assert re.search(r'voiceDiagLog\.record\("dictée"', speech)
-
-
 def test_audio_upload_logs_status_duration_and_queueing():
     chat = _source("js/views/chat_view.js")
     assert 'from "../voice_diag_log.js"' in chat

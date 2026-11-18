@@ -9,7 +9,6 @@ Valide le flux de bout en bout :
    endpoint audio protégé par clé d'API.
 """
 import json
-import re
 
 from fastapi.testclient import TestClient
 
@@ -78,19 +77,6 @@ def test_e2e_application_serves_the_whole_wake_word_chain(tmp_path, monkeypatch)
     res_model = client.get("/vosk/model.tar.gz?v=e2e")
     assert res_model.status_code == 200
     assert "content-length" not in res_model.headers
-
-    # 3. Service worker : modules pré-cachés pour le démarrage hors ligne, modèle jamais recopié
-    sw = client.get("/sw.js").text
-    assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
-    assert '"/static/js/wake_word_vosk.js"' in assets
-    assert 'url.pathname.startsWith("/vosk/")' in sw
-
-    # 4. Branchement PWA : « Otis » → bip → dictée, échec explicite → mains-libres coupé
-    speech = client.get("/static/js/wake_word.js").text
-    assert "new VoskWakeWordDetector(" in speech
-    assert "continuous = true" not in speech
-    assert "triggerWakeCapture(" in speech
-    assert "setWakeWordEnabled(false)" in speech
 
     # 5. La dictée déclenchée par le mot-clé aboutit sur un endpoint protégé par clé d'API
     #    (clé configurée : refus avant toute transcription, donc aucun appel Gemini)

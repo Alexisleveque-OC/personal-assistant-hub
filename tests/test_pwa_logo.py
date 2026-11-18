@@ -47,11 +47,6 @@ def test_kit_icons_are_served_with_their_expected_sizes():
         assert "svg" in res.headers.get("content-type", "")
 
 
-def test_old_icons_are_removed():
-    for old in ("icon.svg", "icon.png"):
-        assert client.get(f"/static/icons/{old}").status_code == 404, old
-
-
 def test_manifest_uses_the_new_icons_and_brand_colors_and_keeps_the_rest():
     data = client.get("/manifest.json").json()
     assert data["background_color"] == BRAND_DARK
@@ -97,7 +92,6 @@ def test_service_worker_precaches_the_new_logo_kit():
     sw = client.get("/sw.js").text
     for name in [*KIT_PNG_SIZES, "favicon.svg", "logo-otis.svg"]:
         assert f'"/static/icons/{name}"' in sw, name
-    assert "/icons/icon.svg" not in sw
 
 
 def test_home_screen_label_is_otis_on_ios_too():

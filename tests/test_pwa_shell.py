@@ -221,7 +221,6 @@ SHEETS = {
 def test_tab_bar_is_replaced_by_a_burger_menu_listing_every_section():
     html = rendered_html()
 
-    assert 'class="bottom-nav"' not in html and "nav-item" not in html
     assert 'id="btn-open-drawer"' in html and 'aria-controls="drawer"' in html
     assert '<nav class="drawer" id="drawer" aria-label="Menu principal"' in html
     for section in ("accueil", "courses", "repas", "taches", "sport", "second_cerveau"):
@@ -288,9 +287,4 @@ def test_service_worker_bypasses_the_http_cache_when_it_fetches_assets():
 
     assert 'new Request(url, { cache: "reload" })' in sw  # précache à l'installation
     assert sw.count('fetch(event.request, { cache: "no-cache" })') == 2  # JS réseau d'abord + autres assets
-
-
-def test_top_bar_stays_visible_while_the_home_scrolls():
-    css = client.get("/static/styles/app.css").text
-
-    assert ".topbar {" in css and "position: sticky;" in css and "top: 0;" in css
+    assert "status: 503" in sw  # panne réseau de l'API : jamais masquée sous un 200

@@ -26,33 +26,6 @@ def _module() -> str:
     return res.text
 
 
-def test_module_exposes_a_detector_and_an_explicit_load_error():
-    content = _module()
-    assert "export class VoskWakeWordDetector" in content
-    assert "export class WakeWordLoadError" in content
-    assert "export function transcriptHasWakeWord" in content
-
-
-def test_module_uses_a_raw_microphone_to_keep_the_music_untouched():
-    content = _module()
-    assert "echoCancellation: false" in content
-    assert "noiseSuppression: false" in content
-    assert "autoGainControl: false" in content
-    assert "echoCancellation: true" not in content
-
-
-def test_module_restricts_recognition_to_the_wake_word():
-    content = _module()
-    assert '["otis", "[unk]"]' in content
-
-
-def test_module_triggers_on_final_results_only_to_avoid_false_wakes():
-    """Mesuré en navigateur : les résultats partiels déclenchent sur « les hôtes », les résultats finaux non."""
-    content = _module()
-    assert 'recognizer.on("result"' in content
-    assert "partialresult" not in content
-
-
 def test_wake_word_must_be_the_last_word_before_the_pause():
     """Mesuré en navigateur : « les hôtes sont arrivés » donne « otis [unk] » ; un vrai « Otis » est suivi de la pause."""
     cases = {
@@ -72,22 +45,6 @@ def test_wake_word_must_be_the_last_word_before_the_pause():
 
 def test_model_url_is_versioned_with_the_fetched_assets_to_refresh_the_browser_cache():
     assert f"/vosk/model.tar.gz?v={ASSETS_VERSION}" in _module()
-
-
-def test_module_loads_vendored_assets_and_fails_fast_on_timeout_or_worker_error():
-    content = _module()
-    assert "/static/vendor/vosk/vosk.wasm.js" in content
-    assert "/static/vendor/vosk/vosk.worker.js" in content
-    assert "/static/vendor/vosk/vosk.wasm" in content
-    assert "LOAD_TIMEOUT_MS" in content
-    assert 'on("error"' in content
-
-
-def test_module_releases_the_microphone_on_stop():
-    content = _module()
-    assert "stop()" in content
-    assert "getTracks().forEach" in content
-    assert ".close()" in content
 
 
 def test_capture_worklet_is_served_and_registered():

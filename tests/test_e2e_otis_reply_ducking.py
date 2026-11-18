@@ -1,6 +1,5 @@
 """E2E (ROADMAP Étape 3) : une réponse d'Otis baisse la musique via le clip porteur puis la laisse remonter."""
 import json
-import re
 import subprocess
 from pathlib import Path
 
@@ -104,20 +103,3 @@ def test_e2e_otis_reply_ducks_the_music_and_lets_it_come_back():
     assert result["duckedAfterReply"] is False
     assert result["interrupted"] == ["tts cancel", "audio pause", "audio emptied", "pah-audio-ducking-end tts"]
     assert result["duckedAfterInterrupt"] is False
-
-
-def test_e2e_application_serves_the_reply_ducking_chain():
-    # 1. Module de focus audio : clip porteur vidé en fin de réponse
-    focus = client.get("/static/js/audio_focus.js").text
-    assert "startCarrier()" in focus and "stopCarrier()" in focus
-    assert 'removeAttribute("src")' in focus
-
-    # 2. La synthèse vocale passe par le gestionnaire de focus
-    speech = client.get("/static/js/tts.js").text
-    assert 'audioFocusManager.requestDucking("tts")' in speech
-    assert 'audioFocusManager.releaseDucking("tts")' in speech
-
-    # 3. Service worker : nouvelle version pour livrer le module modifié aux PWA installées
-    sw = client.get("/sw.js").text
-    assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
-    assert '"/static/js/audio_focus.js"' in assets

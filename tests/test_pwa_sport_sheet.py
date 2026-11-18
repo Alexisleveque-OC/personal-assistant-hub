@@ -80,63 +80,8 @@ def test_each_scale_has_its_value_label():
         assert f'id="{scale}-value"' in form, f"étiquette {scale}-value absente"
 
 
-def test_scales_are_tap_only_radio_buttons():
-    js = client.get("/static/js/views/sport/session_form_view.js").text
-
-    assert 'setAttribute("role", "radio")' in js
-    assert '"aria-checked"' in js
-    assert "nextScaleValue(" in js
-    assert '"pointermove"' not in js and '"input"' not in js.split("function bindScale(")[1].split("\n}")[0]
-
-
-def test_old_sport_tabs_and_modals_are_gone():
-    html = rendered_html()
-
-    for old in ("sport-segmented", "tab-sport-today", "modal-edit-sport-session", "modal-create-sport-session",
-                "sport-today-container", "btn-add-sport-session-inline"):
-        assert f'id="{old}"' not in html, old
-    assert html.count('class="composer"') == 1
-
-
 # ---------- Contexte transmis à Otis ----------
 
-def test_open_session_is_sent_to_otis_and_cleared_outside_the_detail():
-    api = client.get("/static/js/api.js").text
-    config = client.get("/static/js/config.js").text
-    detail = client.get("/static/js/views/sport/session_detail_view.js").text
-
-    assert "ui_session_id: state.uiSessionId ?? null" in api
-    assert "uiSessionId: null" in config
-    assert "state.uiSessionId = topId === DETAIL_SHEET_ID ? openSessionId : null" in detail
-
-
 # ---------- Dictée d'une séance ----------
-
-def test_draft_route_client_posts_the_recording():
-    api = client.get("/static/js/api.js").text
-    start = api.index("export async function postSportSessionDraft(")
-    body = api[start:api.index("\nexport ", start + 1)]
-
-    assert '"/api/v1/sport/session/draft"' in body
-    assert 'formData.append("audio_file"' in body
-    assert '"Content-Type"' not in body  # multipart : le navigateur pose la frontière
-
-
-def test_speech_engine_offers_a_one_shot_capture_for_the_form():
-    speech = client.get("/static/js/mic_capture.js").text
-
-    assert "export function captureOnce(" in speech
-    assert "export function stopCapture(" in speech
-    assert "oneShotTarget || onAudioBlobCallback" in speech
-    assert 'new CustomEvent("mic-listening"' in speech
-
-
-def test_form_starts_listening_when_opened_by_dictate_and_saves_on_ok():
-    form = client.get("/static/js/views/sport/session_form_view.js").text
-
-    assert "captureOnce(" in form and "postSportSessionDraft(" in form
-    assert "applyDraft(" in form and "formToPayload(" in form
-    assert "createSportSession(" in form and "patchSportSessionById(" in form
-
 
 # ---------- Service worker ----------

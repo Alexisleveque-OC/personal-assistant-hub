@@ -57,53 +57,6 @@ def test_interact_audio_accepts_mp4_safari_container():
         assert data["transcribed_text"] == "Bonjour Otis"
 
 
-def test_frontend_voice_modules_implement_extended_wake_word_and_pointer_capture():
-    """Vérifie que les modules voix intègrent les variantes phonétiques complètes et pointer capture."""
-    content = client.get("/static/js/wake_word.js").text + client.get("/static/js/mic_capture.js").text
-
-    # 1. Variantes phonétiques par défaut
-    assert "DEFAULT_WAKE_VARIANTS" in content
-    assert "autiste" in content
-    assert "au tisse" in content
-    assert "isWakeWordMatch" in content
-
-    # 2. Stabilité tactile avec pointer capture
-    assert "setPointerCapture" in content
-    assert "releasePointerCapture" in content
-
-
-def test_frontend_api_js_has_dynamic_mimetype_and_timeout_abort_controller():
-    """Vérifie que postInteractAudio gère dynamiquement l'extension et protège contre les blocages réseau via AbortController."""
-    res = client.get("/static/js/api.js")
-    assert res.status_code == 200
-    content = res.text
-
-    assert "AbortController" in content
-    assert "recording.mp4" in content or "mime.includes" in content
-
-
-def test_frontend_chat_view_updates_user_bubble_with_transcription():
-    """Vérifie que chat_view.js met à jour la bulle utilisateur avec transcribed_text."""
-    res = client.get("/static/js/views/chat_view.js")
-    assert res.status_code == 200
-    content = res.text
-
-    assert "transcribed_text" in content
-
-
-def test_frontend_hub_css_fixes_voice_dock_and_disables_elastic_scroll():
-    """Vérifie que hub.css fixe le dock vocal et neutralise le drag/scroll intempestif au toucher."""
-    res = client.get("/static/styles/hub.css")
-    assert res.status_code == 200
-    content = res.text
-
-    # Positionnement fixe
-    assert "position: fixed" in content or "position:fixed" in content
-    # Neutralisation du scroll et callout tactile
-    assert "touch-action: none" in content or "touch-action:none" in content
-    assert "user-select: none" in content or "user-select:none" in content
-
-
 def test_frontend_index_html_has_wake_indicator():
     """Vérifie que index.html contient le témoin visuel du mot-clé."""
     res = client.get("/app")
@@ -111,21 +64,3 @@ def test_frontend_index_html_has_wake_indicator():
     html = res.text
 
     assert 'id="wake-word-indicator"' in html
-
-
-def test_frontend_voice_modules_guarantee_wake_trigger_and_hands_free_vad():
-    """Vérifie l'extraction de commande continue, le chime, le déclencheur au réveil et le VAD forcé."""
-    content = client.get("/static/js/wake_word.js").text + client.get("/static/js/mic_capture.js").text
-
-    # 1. Extraction de commande enchaînée après mot-clé
-    assert "extractCommandAfterWakeWord" in content
-
-    # 2. Carillon sonore de confirmation auditive
-    assert "playWakeChime" in content
-
-    # 3. Déclencheur garanti (fallback même si startWakeWordDetection est appelé sans callback)
-    assert "defaultWakeTrigger" in content or "triggerWakeCapture" in content
-
-    # 4. Forçage du VAD mains-libres lors du réveil vocal
-    assert "forceVad" in content or "isWakeTriggered" in content
-

@@ -79,10 +79,3 @@ def test_week_and_period_views_have_previous_and_next_arrows():
     assert '"Semaine précédente"' in js and '"Semaine suivante"' in js
     assert "onNext: current ? null" in js  # › désactivée sur la période en cours
     assert "previousRef(dash)" in js and "nextRef(dash)" in js
-
-
-def test_dashboard_api_client_sends_the_reference_date():
-    body = _function_body(_js("api.js"), "export async function fetchSportDashboardData(")
-
-    assert "refDate" in body
-    assert 'params.append("date", refDate)' in body

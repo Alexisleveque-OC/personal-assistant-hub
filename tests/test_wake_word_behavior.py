@@ -110,3 +110,16 @@ print({ whileBusy, whilePaused, whileHidden, resumed: detectors.length });
 """)
 
     assert out == {"whileBusy": 0, "whilePaused": 0, "whileHidden": 0, "resumed": 1}
+
+
+def test_phonetic_and_saved_variants_wake_otis_and_the_trailing_command_is_extracted():
+    out = _run("""
+state.wakeWordCustomVariants = ["oti"];
+print({
+  matches: ["Dis Otis", "autiste", "la notice", "oti", "bonjour"].map(isWakeWordMatch),
+  command: extractCommandAfterWakeWord("Dis Otis, ajoute du lait"),
+  none: extractCommandAfterWakeWord("ajoute du lait"),
+});
+""")
+
+    assert out == {"matches": [True, True, True, True, False], "command": "ajoute du lait", "none": ""}

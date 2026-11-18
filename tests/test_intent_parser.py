@@ -1,5 +1,6 @@
 """Tests unitaires du moteur de classification d'intentions (NLU)."""
 import pytest
+from pathlib import Path
 from app.core.intent_parser import IntentParser
 from app.core.models import IntentType
 
@@ -199,3 +200,11 @@ def test_add_shopping_strips_short_courses_suffix(query, items):
 
     assert parsed.intent == IntentType.ADD_SHOPPING_ITEM
     assert parsed.parameters["items"] == items
+
+
+def test_second_brain_is_parsed_once_and_notes_listing_still_works():
+    source = (Path(__file__).resolve().parent.parent / "app" / "core" / "intent_parser.py").read_text(encoding="utf-8")
+    assert source.count("self._parse_second_brain(") == 1
+    parser = IntentParser()
+    for query in ("liste mes notes", "quelles sont mes idées de dev", "liste mes bugs"):
+        assert parser.parse(query).intent == IntentType.LIST_NOTES, query

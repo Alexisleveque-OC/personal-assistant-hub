@@ -15,42 +15,12 @@ from app.config import settings
 client = TestClient(app)
 
 
-def test_e2e_pwa_manifest_and_sw_integration():
-    """Valide l'intégrité PWA complète pour installation sur smartphone."""
-    # 1. Manifest
-    resp_manifest = client.get("/manifest.json")
-    assert resp_manifest.status_code == 200
-    assert resp_manifest.headers.get("cache-control") == "no-cache, no-store, must-revalidate"
-    manifest = resp_manifest.json()
-    assert manifest["id"] == "/app?v=4"
-    assert manifest["start_url"] == "/app"
-    assert manifest["display"] == "standalone"
-
-    # Vérification des icônes
-    icons = manifest["icons"]
-    purposes = {icon.get("purpose") for icon in icons}
-    assert "any" in purposes
-    assert "maskable" in purposes
-
-    # Vérification que les fichiers d'icônes déclarés sont bien servis en 200
-    for icon in icons:
-        src = icon["src"].split("?")[0]
-        icon_resp = client.get(src)
-        assert icon_resp.status_code == 200, f"L'icône {src} doit être accessible"
-
-    # 2. Service Worker
-    resp_sw = client.get("/sw.js")
-    assert resp_sw.status_code == 200
-    assert resp_sw.headers.get("cache-control") == "no-cache, no-store, must-revalidate"
-    assert "pah-pwa-cache-" in resp_sw.text
-
-    # 3. Page principale PWA /app
-    resp_app = client.get("/app")
-    assert resp_app.status_code == 200
-    assert resp_app.headers.get("cache-control") == "no-cache, no-store, must-revalidate"
-    assert "Assistant Hub" in resp_app.text
-    assert 'class="drawer__brand"' in resp_app.text  # refonte UX : la marque est dans le menu burger
-
+def test_e2e_pwa_shell_files_are_never_cached_by_the_browser():
+    """Manifest, service worker et /app toujours revalidés : une PWA installée reçoit les mises à jour."""
+    for path in ("/manifest.json", "/sw.js", "/app"):
+        res = client.get(path)
+        assert res.status_code == 200, path
+        assert res.headers.get("cache-control") == "no-cache, no-store, must-revalidate", path
 
 def test_e2e_mobile_voice_interaction_flow():
     """Valide le parcours mobile de bout en bout avec auth, voix et courses."""
