@@ -311,10 +311,13 @@ class MealsTools:
                     f"(« {current if current is not None else 'ligne supprimée'} » au lieu de « {undo.rayon or 'à trier'} »)."
                 )
         elif isinstance(undo, ShoppingAddedUndo):
-            present = [row.item for row in self.connector.get_waiting_list_rows()]
+            present = {row.item: row.is_bought for row in self.connector.get_waiting_list_rows()}
             gone = [name for name in undo.items if concerned(name) and name not in present]
             if gone:
                 raise MealsToolError(f"Annulation impossible : {', '.join(gone)} n'est plus sur la liste de courses.")
+            bought = [name for name in undo.items if concerned(name) and present[name]]
+            if bought:
+                raise MealsToolError(f"Annulation impossible : {', '.join(bought)} a été coché depuis.")
         elif isinstance(undo, ShoppingCheckedUndo):
             waiting = {row.item: row.is_bought for row in self.connector.get_waiting_list_rows()}
             week = {it.name: it.checked for it in self.connector.get_shopping_list().get("current_week_items", [])}
