@@ -254,7 +254,7 @@
 
     const OTIS_REPLY = "J'ai ajouté du lait à la liste de courses. Il reste aussi des tomates, des pâtes et du fromage. Bonne séance ce soir !";
 
-    // Répète la réponse d'Otis (mêmes réglages que speech.js) ; beforeSpeak / afterSpeak encadrent chaque phrase.
+    // Répète la réponse d'Otis (mêmes réglages que tts.js) ; beforeSpeak / afterSpeak encadrent chaque phrase.
     function startTtsLoop({ beforeSpeak = () => {}, afterSpeak = () => {} } = {}) {
       if (!("speechSynthesis" in window)) throw new Error("speechSynthesis indisponible dans ce navigateur");
       const frenchVoices = window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("fr"));
@@ -355,7 +355,7 @@
       };
     }
 
-    // Reproduit la capture de speech.js (contraintes et format) et garde l'audio pour réécoute.
+    // Reproduit la capture de mic_capture.js (contraintes et format) et garde l'audio pour réécoute.
     async function startDictationReplay(card) {
       const replay = card.querySelector(".replay");
       replay.hidden = true;

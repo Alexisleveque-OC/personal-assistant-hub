@@ -458,7 +458,7 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 }
 
 /* ---------- Composants repris de l'ancien style.css (supprimé, refacto du 17/11) ---------- */
-/* Barre d'écoute de l'accueil (speech.js ajoute .active pendant la dictée) */
+/* Barre d'écoute de l'accueil (mic_capture.js ajoute .active pendant la dictée) */
 .voice-bar-area {
   display: none; flex-direction: column; align-items: center; justify-content: center;
   padding: 20px; margin: 12px 0; background: var(--card); border: 1px solid var(--accent);
@@ -475,7 +475,7 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 @keyframes equalize { 0% { transform: scaleY(.4); } 100% { transform: scaleY(1.3); } }
 .interim-transcript { min-height: 24px; font-size: var(--fs-md); font-style: italic; text-align: center; color: var(--accent); }
 
-/* Témoin mains-libres du menu : pastille colorée selon l'état (speech.js pose la classe) */
+/* Témoin mains-libres du menu : pastille colorée selon l'état (wake_word.js pose la classe) */
 .wake-word-indicator { user-select: none; }
 .wake-word-indicator .wake-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--disabled); transition: background .3s ease; }
 .wake-word-indicator.listening .wake-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulseGreen 1.6s infinite; }
