@@ -43,8 +43,6 @@ def test_interact_understands_natural_phrasing_needs_to_buy():
         assert "mandarines" in data["spoken_response"].lower()
         mock_nlu.parse.assert_called_once()
 
-    set_meals_connector(None)
-
 
 def test_interact_unknown_intent_uses_smart_conversational_reply():
     """Quand une requête est floue ou réflexive ('j'ai faim'), l'assistant réfléchit et utilise la conversational_reply."""
@@ -108,8 +106,6 @@ def test_interact_unknown_item_from_gemini_nlu_asks_the_rayon_instead_of_trustin
     )
     assert data["data"]["rayon_question"]["article"] == "Papier cuisson"
     assert waiting_rows(sheet) == []
-
-    set_meals_connector(None)
 
 
 @pytest.mark.asyncio

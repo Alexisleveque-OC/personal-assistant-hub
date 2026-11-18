@@ -32,8 +32,6 @@ def test_interact_concise_spoken_response_for_tomorrow():
     assert "D'après le planning des repas pour" not in spoken
     assert "demain soir" in spoken.lower() or "demain" in spoken.lower()
 
-    set_meals_connector(None)
-
 
 def test_interact_shopping_list_contains_both_nested_and_top_level_keys():
     """Vérifie que la réponse data contient 'waiting_list' et 'current_week_items'
@@ -53,8 +51,6 @@ def test_interact_shopping_list_contains_both_nested_and_top_level_keys():
     assert "waiting_list" in data
     assert "current_week_items" in data
 
-    set_meals_connector(None)
-
 
 def test_get_week_meals_endpoint():
     """Vérifie l'endpoint /api/v1/meals/week qui fournit le planning de la semaine (onglet annuel, cf. test_meals_week_route)."""
@@ -71,5 +67,3 @@ def test_get_week_meals_endpoint():
     assert "week_plan" in data
     assert len(data["week_plan"]) >= 1
     assert data["week_plan"][0]["dinner"] == "Riz cantonnais"
-
-    set_meals_connector(None)

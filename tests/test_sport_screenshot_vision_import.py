@@ -21,27 +21,29 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.database import DatabaseManager
-from app.core.dependencies import set_database_manager, set_sport_connector
+from app.core.dependencies import set_sport_connector
 from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.connectors.sheets.sport_models import SportSessionType, SportSessionStatus, SportSessionCreate
 
 client = TestClient(app)
 API_HEADERS = {"X-API-Key": "test_api_key"}
+VISION_ANALYZE = "app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot"
 
 
 @pytest.fixture
-def temp_sport_env(tmp_path):
-    """Initialise une base SQLite temporaire et un connecteur sport actif."""
-    db_file = tmp_path / "test_sport_vision.db"
-    db_mgr = DatabaseManager(db_path=str(db_file))
-    db_mgr.init_db()
-    set_database_manager(db_mgr)
-    connector = SqlSportConnector(db_mgr)
+def temp_sport_env(isolate_sqlite_database):
+    """Base SQLite isolée (conftest) et connecteur sport actif."""
+    connector = SqlSportConnector(isolate_sqlite_database)
     set_sport_connector(connector)
-    yield db_mgr, connector
-    set_database_manager(None)
+    yield isolate_sqlite_database, connector
     set_sport_connector(None)
+
+
+def _import(vision_result=None, query="", side_effect=None):
+    """Envoie une capture factice dont l'analyse Gemini Vision est simulée (résultat ou exception)."""
+    with patch(VISION_ANALYZE, return_value=vision_result, side_effect=side_effect):
+        return client.post(f"/api/v1/sport/import-screenshot{query}", headers=API_HEADERS,
+                           files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")})
 
 
 def test_import_screenshot_decathlon_coach_format(temp_sport_env):
@@ -74,38 +76,30 @@ def test_import_screenshot_decathlon_coach_format(temp_sport_env):
         "titre": "Course à pied",
     }
 
-    fake_image_file = BytesIO(b"fake_decathlon_coach_image_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result)
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_decathlon.jpg", fake_image_file, "image/jpeg")},
-        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["app_source"] == "Decathlon Coach"
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-        assert data["app_source"] == "Decathlon Coach"
+    # Vérification des métriques enregistrées
+    saved_session = data["session"]
+    assert saved_session["distance_km"] == 5.12
+    assert saved_session["duree_secondes"] == 1883
+    assert saved_session["denivele_d_plus"] == 31
+    assert saved_session["statut"] == "Réalisé"
+    # Le programme technique initial doit être préservé
+    assert "Fractionné 10x 30/30" in saved_session["programme"]
+    # Vérification du recalcul automatique
+    assert saved_session["allure_formatted"] in ("06:07", "06:08")
+    assert saved_session["vitesse_kmh"] == 9.79
 
-        # Vérification des métriques enregistrées
-        saved_session = data["session"]
-        assert saved_session["distance_km"] == 5.12
-        assert saved_session["duree_secondes"] == 1883
-        assert saved_session["denivele_d_plus"] == 31
-        assert saved_session["statut"] == "Réalisé"
-        # Le programme technique initial doit être préservé
-        assert "Fractionné 10x 30/30" in saved_session["programme"]
-        # Vérification du recalcul automatique
-        assert saved_session["allure_formatted"] in ("06:07", "06:08")
-        assert saved_session["vitesse_kmh"] == 9.79
-
-        # Confirmation vocale conviviale d'Otis
-        spoken = data["spoken_response"]
-        assert "5,12" in spoken or "5.12" in spoken
-        assert "31" in spoken
+    # Confirmation vocale conviviale d'Otis
+    spoken = data["spoken_response"]
+    assert "5,12" in spoken or "5.12" in spoken
+    assert "31" in spoken
 
 
 def test_import_screenshot_decathlon_connect_cw500_heart_rate(temp_sport_env):
@@ -130,25 +124,17 @@ def test_import_screenshot_decathlon_connect_cw500_heart_rate(temp_sport_env):
         "titre": "Course à pied",
     }
 
-    fake_image_file = BytesIO(b"fake_cw500_image_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result)
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_cw500.jpg", fake_image_file, "image/jpeg")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        saved = data["session"]
-        assert saved["distance_km"] == 4.9
-        assert saved["duree_secondes"] == 1987
-        assert saved["fc_moyenne"] == 163
-        assert saved["statut"] == "Réalisé"
-        assert "163" in data["spoken_response"]
+    assert response.status_code == 200
+    data = response.json()
+    saved = data["session"]
+    assert saved["distance_km"] == 4.9
+    assert saved["duree_secondes"] == 1987
+    assert saved["fc_moyenne"] == 163
+    assert saved["statut"] == "Réalisé"
+    assert "163" in data["spoken_response"]
 
 
 def test_import_screenshot_strava_relative_date(temp_sport_env):
@@ -173,23 +159,15 @@ def test_import_screenshot_strava_relative_date(temp_sport_env):
         "titre": "Course à pied du midi",
     }
 
-    fake_image_file = BytesIO(b"fake_strava_image_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result)
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_strava.jpg", fake_image_file, "image/jpeg")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        saved = data["session"]
-        assert saved["distance_km"] == 5.09
-        assert saved["duree_secondes"] == 1840
-        assert saved["denivele_d_plus"] == 20
+    assert response.status_code == 200
+    data = response.json()
+    saved = data["session"]
+    assert saved["distance_km"] == 5.09
+    assert saved["duree_secondes"] == 1840
+    assert saved["denivele_d_plus"] == 20
 
 
 def test_import_screenshot_rejects_non_sport_image(temp_sport_env):
@@ -201,20 +179,12 @@ def test_import_screenshot_rejects_non_sport_image(temp_sport_env):
         "message": "Cette image ne contient aucun récapitulatif de séance sportive.",
     }
 
-    fake_image_file = BytesIO(b"fake_cat_photo_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result)
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("cat.jpg", fake_image_file, "image/jpeg")},
-        )
-
-        assert response.status_code == 400
-        data = response.json()
-        assert "sportive" in data["detail"].lower() or "sport" in data["detail"].lower()
+    assert response.status_code == 400
+    data = response.json()
+    assert "sportive" in data["detail"].lower() or "sport" in data["detail"].lower()
 
 
 @pytest.mark.parametrize(
@@ -253,21 +223,13 @@ def test_import_screenshot_date_formats_resilience(temp_sport_env, raw_date_inpu
         "titre": "Course à pied",
     }
 
-    fake_image_file = BytesIO(b"fake_decathlon_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result, query="?reference_date=2026-10-15")
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot?reference_date=2026-10-15",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", fake_image_file, "image/jpeg")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        saved = data["session"]
-        assert saved["date"] == expected_date_str
+    assert response.status_code == 200
+    data = response.json()
+    saved = data["session"]
+    assert saved["date"] == expected_date_str
 
 
 def test_sport_vision_service_prompt_decathlon_date_guidance():
@@ -307,20 +269,12 @@ def test_import_screenshot_without_date_protects_existing_realised_session(temp_
         "duree_secondes": 1883,
         "titre": "COURSE À PIED",
     }
-    fake_image_file = BytesIO(b"fake_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result)
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", fake_image_file, "image/jpeg")},
-        )
-
-        # Doit être rejeté pour protéger les données
-        assert response.status_code == 400
-        assert "protéger vos données" in response.json()["detail"].lower() or "séance réalisée existe déjà" in response.json()["detail"].lower()
+    # Doit être rejeté pour protéger les données
+    assert response.status_code == 400
+    assert "protéger vos données" in response.json()["detail"].lower() or "séance réalisée existe déjà" in response.json()["detail"].lower()
 
     # 3. Vérifier que la séance originale d'aujourd'hui est restée STRICTEMENT intacte
     fresh_session = connector.get_session(today)
@@ -355,20 +309,12 @@ def test_import_screenshot_with_different_realised_creates_distinct_session(temp
         "duree_secondes": 1883,
         "titre": "COURSE À PIED",
     }
-    fake_image_file = BytesIO(b"fake_bytes")
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
+    response = _import(fake_vision_result)
 
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", fake_image_file, "image/jpeg")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["session"]["distance_km"] == 5.12
+    assert response.status_code == 200
+    data = response.json()
+    assert data["session"]["distance_km"] == 5.12
 
     # Vérifier que les deux séances coexistent dans la base pour le 12/10
     sessions_12 = [s for s in connector.get_all_sessions() if s.date == date(2026, 10, 12)]
@@ -378,27 +324,13 @@ def test_import_screenshot_with_different_realised_creates_distinct_session(temp
     assert 5.12 in distances
 
 
-def test_gemini_sport_vision_schema_requires_essential_metrics():
-    """Vérifie que le schéma JSON pour Gemini Vision force la présence de date, distance_km et duree_secondes."""
+def test_gemini_sport_vision_schema_requires_the_essentials_but_never_forces_a_value():
+    """Champs essentiels requis mais nullables : Gemini ne doit jamais inventer une valeur ni renvoyer 0 (FC absentes)."""
     from app.core.vision.sport_vision_service import GEMINI_SPORT_VISION_SCHEMA
 
-    required = GEMINI_SPORT_VISION_SCHEMA.get("required", [])
-    assert "is_sport_session" in required
-    assert "app_source" in required
-    assert "date" in required, "Le champ 'date' doit être impérativement dans required pour forcer Gemini à l'extraire"
-    assert "distance_km" in required, "Le champ 'distance_km' doit être requis"
-    assert "duree_secondes" in required, "Le champ 'duree_secondes' doit être requis"
-
-
-
-
-
-def test_gemini_sport_vision_schema_allows_null_for_unreadable_metrics():
-    """Vérifie que date, distance_km et duree_secondes acceptent null pour ne jamais forcer Gemini à inventer une valeur."""
-    from app.core.vision.sport_vision_service import GEMINI_SPORT_VISION_SCHEMA
-
+    assert {"is_sport_session", "app_source", "date", "distance_km", "duree_secondes"} <= set(GEMINI_SPORT_VISION_SCHEMA["required"])
     props = GEMINI_SPORT_VISION_SCHEMA["properties"]
-    for field in ("date", "distance_km", "duree_secondes"):
+    for field in ("date", "distance_km", "duree_secondes", "fc_moyenne", "fc_max"):
         assert props[field].get("nullable") is True, f"Le champ '{field}' doit être nullable"
 
 
@@ -461,14 +393,7 @@ def test_import_screenshot_returns_503_when_vision_unavailable(temp_sport_env):
     """Vérifie qu'une panne Gemini Vision remonte en 503 explicite (et non en rejet 400 'image non sportive')."""
     from app.core.vision.sport_vision_service import VisionServiceUnavailableError
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.side_effect = VisionServiceUnavailableError("Tous les modèles Gemini Vision ont échoué : gemini-test-flash (429)")
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(side_effect=VisionServiceUnavailableError("Tous les modèles Gemini Vision ont échoué : gemini-test-flash (429)"))
 
     assert response.status_code == 503
     assert "gemini-test-flash" in response.json()["detail"]
@@ -488,16 +413,10 @@ def test_import_screenshot_without_date_never_defaults_to_today(temp_sport_env):
         "titre": "COURSE À PIED",
     }
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(fake_vision_result)
 
     assert response.status_code == 400
+    assert response.headers.get("X-Error-Code") == "screenshot_date_missing"  # code stable lu par le frontend
     detail = response.json()["detail"].lower()
     assert "date" in detail
     assert "ne semble pas être une capture" not in detail
@@ -516,14 +435,7 @@ def test_import_screenshot_without_date_uses_explicit_reference_date(temp_sport_
         "titre": "COURSE À PIED",
     }
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot?reference_date=2026-10-12",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(fake_vision_result, query="?reference_date=2026-10-12")
 
     assert response.status_code == 200
     assert response.json()["session"]["date"] == "2026-10-12"
@@ -559,14 +471,7 @@ def test_import_cw500_on_existing_realised_session_only_merges_heart_rate(temp_s
         )
     )
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = _cw500_vision_result()
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(_cw500_vision_result())
 
     assert response.status_code == 200
     saved = response.json()["session"]
@@ -595,14 +500,7 @@ def test_import_cw500_without_heart_rate_on_existing_session_is_rejected(temp_sp
         )
     )
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = _cw500_vision_result(fc_moyenne=None)
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(_cw500_vision_result(fc_moyenne=None))
 
     assert response.status_code == 400
     assert "fréquence cardiaque" in response.json()["detail"].lower()
@@ -621,14 +519,7 @@ def test_import_cw500_on_planned_session_marks_realised_with_duration_and_heart_
         programme="Fractionné 10x 30/30",
     )
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = _cw500_vision_result()
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(_cw500_vision_result())
 
     assert response.status_code == 200
     saved = response.json()["session"]
@@ -670,14 +561,7 @@ def test_import_screenshot_zero_heart_rate_never_overwrites_existing_value(temp_
         "titre": "Course à pied",
     }
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_coach.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(fake_vision_result)
 
     assert response.status_code == 200
     saved = response.json()["session"]
@@ -700,52 +584,13 @@ def test_import_cw500_zero_max_heart_rate_is_ignored(temp_sport_env):
     cw500 = _cw500_vision_result()
     cw500["fc_max"] = 0
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = cw500
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot_cw500.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(cw500)
 
     assert response.status_code == 200
     saved = response.json()["session"]
     assert saved["fc_moyenne"] == 163
     assert saved["fc_max"] is None
     assert "max" not in response.json()["spoken_response"]
-
-
-def test_gemini_sport_vision_schema_allows_null_heart_rate():
-    """Vérifie que les FC acceptent null pour que Gemini ne renvoie pas 0 quand elles sont absentes."""
-    from app.core.vision.sport_vision_service import GEMINI_SPORT_VISION_SCHEMA
-
-    props = GEMINI_SPORT_VISION_SCHEMA["properties"]
-    for field in ("fc_moyenne", "fc_max"):
-        assert props[field].get("nullable") is True, f"Le champ '{field}' doit être nullable"
-
-
-def test_import_screenshot_without_date_exposes_machine_readable_error_code(temp_sport_env):
-    """Vérifie que le refus pour date manquante expose un code d'erreur stable (X-Error-Code) exploitable par le frontend."""
-    fake_vision_result = {
-        "is_sport_session": True,
-        "app_source": "Decathlon Coach",
-        "date": None,
-        "distance_km": 5.12,
-        "duree_secondes": 1883,
-    }
-
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
-
-    assert response.status_code == 400
-    assert response.headers.get("X-Error-Code") == "screenshot_date_missing"
 
 
 def test_import_screenshot_without_date_and_realised_today_exposes_same_error_code(temp_sport_env):
@@ -768,14 +613,7 @@ def test_import_screenshot_without_date_and_realised_today_exposes_same_error_co
         "duree_secondes": 1883,
     }
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = fake_vision_result
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(fake_vision_result)
 
     assert response.status_code == 400
     assert response.headers.get("X-Error-Code") == "screenshot_date_missing"
@@ -807,14 +645,7 @@ def test_import_screenshot_confirmation_states_retained_date(temp_sport_env, vis
 
     payload = {"is_sport_session": True, "date": "2026-10-12", "type_seance": "EF", **vision_result}
 
-    with patch("app.core.vision.sport_vision_service.SportVisionService.analyze_screenshot") as mock_vision:
-        mock_vision.return_value = payload
-
-        response = client.post(
-            "/api/v1/sport/import-screenshot",
-            headers=API_HEADERS,
-            files={"file": ("screenshot.jpg", BytesIO(b"fake_bytes"), "image/jpeg")},
-        )
+    response = _import(payload)
 
     assert response.status_code == 200
     assert "lundi 12 octobre" in response.json()["spoken_response"]

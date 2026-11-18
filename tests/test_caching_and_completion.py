@@ -45,8 +45,6 @@ def test_interact_check_shopping_completion_with_remaining():
     assert "Avocat" in data["data"]["remaining_items"]
     assert "reste encore 2 article" in data["spoken_response"]
 
-    set_meals_connector(None)
-
 
 def test_interact_check_shopping_completion_all_done():
     """Vérifie le retour vocal enthousiaste quand tous les articles sont cochés."""
@@ -66,8 +64,6 @@ def test_interact_check_shopping_completion_all_done():
     assert data["data"]["completed"] is True
     assert len(data["data"]["remaining_items"]) == 0
     assert "tout pris" in data["spoken_response"].lower()
-
-    set_meals_connector(None)
 
 
 def test_meals_connector_caching_and_invalidation():
