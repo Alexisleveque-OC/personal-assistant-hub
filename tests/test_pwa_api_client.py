@@ -178,3 +178,19 @@ print({ detail, fallback, patchCall, noBody, deleteCall: last() });
     assert out["patchCall"]["url"] == "/api/v1/second-brain/notes/3" and out["patchCall"]["method"] == "PATCH"
     assert out["noBody"]["message"] == "Note non supprimée (500)"
     assert out["deleteCall"]["method"] == "DELETE"
+
+
+def test_a_recent_action_is_undone_by_its_direct_route_with_the_device_session():
+    out = _run("""
+respond(200, { spoken_response: "C'est annulé : note supprimée." });
+const ok = await undoRecentAction(12, "pwa 1");
+const call = last();
+respond(409, { detail: "Annulation impossible : Lait a été coché depuis." });
+const refused = await errorOf(undoRecentAction(13, "pwa 1"));
+print({ ok, call, refused });
+""")
+
+    assert out["ok"] == {"spoken_response": "C'est annulé : note supprimée."}
+    assert out["call"]["url"] == "/api/v1/home/recent-actions/12/undo?session_id=pwa+1"
+    assert out["call"]["method"] == "POST" and out["call"]["headers"]["X-API-Key"] == "k"
+    assert out["refused"]["message"] == "Annulation impossible : Lait a été coché depuis."

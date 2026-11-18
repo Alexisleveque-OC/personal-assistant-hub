@@ -43,6 +43,8 @@ class UndoError(SportToolError):
 class UndoBatch(BaseModel):
     id: int
     undos: List[AgentUndo]
+    session_id: str = ""
+    undone: bool = False
 
 
 class UndoOutcome(BaseModel):
@@ -64,7 +66,18 @@ class UndoJournal:
         row = self.db.get_last_agent_undo_batch(session_id)
         if row is None:
             return None
-        return UndoBatch(id=row["id"], undos=_UNDOS_ADAPTER.validate_json(row["undos_json"]))
+        return self._batch(row)
+
+    def get(self, batch_id: int) -> Optional[UndoBatch]:
+        row = self.db.get_agent_undo_batches([batch_id]).get(batch_id)
+        return self._batch(row) if row else None
+
+    @staticmethod
+    def _batch(row: dict) -> UndoBatch:
+        return UndoBatch(
+            id=row["id"], undos=_UNDOS_ADAPTER.validate_json(row["undos_json"]), session_id=row["session_id"],
+            undone=row.get("undone_at") is not None,
+        )
 
     def mark_undone(self, batch_id: int) -> None:
         if not self.db.mark_agent_undo_batch_undone(batch_id):
@@ -86,7 +99,20 @@ class UndoService:
         batch = self.journal.last(session_id)
         if batch is None:
             raise UndoError("Aucune action récente de l'assistant à annuler dans cette conversation.")
+        return self._undo(batch)
 
+    def undo_batch(self, session_id: str, batch_id: int) -> UndoOutcome:
+        """Annule une action précise de « Dernières actions », seulement depuis l'appareil qui l'a faite."""
+        batch = self.journal.get(batch_id)
+        if batch is None:
+            raise UndoError(f"Action à annuler introuvable (lot {batch_id}).")
+        if batch.session_id != session_id:
+            raise UndoError("Cette action a été faite depuis un autre appareil : elle ne peut être annulée que depuis celui-ci.")
+        if batch.undone:
+            raise UndoError("Cette action est déjà annulée.")
+        return self._undo(batch)
+
+    def _undo(self, batch: UndoBatch) -> UndoOutcome:
         steps = list(reversed(batch.undos))
         # Tout ou rien : chaque cible est vérifiée avant la moindre restauration. Seule sa dernière mutation
         # doit correspondre à l'état actuel ; les précédentes s'enchaînent et sont revérifiées pas à pas.

@@ -107,3 +107,17 @@ export async function fetchRecentActions(sessionId) {
   if (!res.ok) throw new Error(`Dernières actions indisponibles (${res.status})`);
   return await res.json();
 }
+
+// Annule une des dernières actions (route directe, sans Otis) ; refus expliqué par le serveur (409).
+export async function undoRecentAction(logId, sessionId) {
+  const params = new URLSearchParams({ session_id: sessionId });
+  const res = await fetch(`/api/v1/home/recent-actions/${encodeURIComponent(logId)}/undo?${params.toString()}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    throw new Error((errJson && typeof errJson.detail === "string" && errJson.detail) || `Annulation impossible (${res.status})`);
+  }
+  return await res.json();
+}

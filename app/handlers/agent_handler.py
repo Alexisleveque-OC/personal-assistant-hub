@@ -114,8 +114,8 @@ async def handle_agent_turn(
         )
     except AgentError as exc:
         logger.error(f"Agent en échec ({type(exc).__name__}) : {exc}")
-        _journalize(session_id, session_ctx, exc.executions)
-        data = _response_data(exc.executions)
+        batch_id = _journalize(session_id, session_ctx, exc.executions)
+        data = _response_data(exc.executions, batch_id)
         data["error"] = str(exc)
         _add_latency_details(data, exc.llm_calls, fast_reply=False)
         return AgentTurnOutcome(
@@ -125,12 +125,12 @@ async def handle_agent_turn(
             llm_model=getattr(service.llm, "last_model", None) if service else None,
         )
 
-    _journalize(session_id, session_ctx, reply.executions)
+    batch_id = _journalize(session_id, session_ctx, reply.executions)
     if "?" in reply.text:
         session_ctx["agent_awaiting_reply"] = True
     if meals_tools.refused_dishes:
         session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
-    spoken, data = reply.text, _response_data(reply.executions)
+    spoken, data = reply.text, _response_data(reply.executions, batch_id)
     _add_latency_details(data, reply.llm_calls, reply.fast_reply)
     if meals_tools.unknown_articles:
         # Article au rayon inconnu : la question est posée par l'application, la réponse traitée sans LLM.
@@ -149,11 +149,16 @@ async def handle_agent_turn(
     )
 
 
-def _journalize(session_id: str, session_ctx: Dict[str, Any], executions: List[ToolExecution]) -> None:
-    """Persiste les instantanés du tour : l'action de l'agent devient la dernière action annulable."""
+def _journalize(session_id: str, session_ctx: Dict[str, Any], executions: List[ToolExecution]) -> Optional[int]:
+    """Persiste les instantanés du tour : l'action de l'agent devient la dernière action annulable.
+
+    Renvoie l'identifiant du lot (None si le tour n'a rien modifié), écrit dans le journal des conversations
+    pour annuler cette action depuis « Dernières actions »."""
     undos = [undo for e in executions for undo in e.undos]
-    if UndoJournal(get_database_manager()).record(session_id, undos) is not None:
+    batch_id = UndoJournal(get_database_manager()).record(session_id, undos)
+    if batch_id is not None:
         session_ctx.pop("last_undoable_action", None)
+    return batch_id
 
 
 def _add_latency_details(data: Dict[str, Any], llm_calls: List[Any], fast_reply: bool) -> None:
@@ -162,11 +167,13 @@ def _add_latency_details(data: Dict[str, Any], llm_calls: List[Any], fast_reply:
     data["fast_reply"] = fast_reply
 
 
-def _response_data(executions: List[ToolExecution]) -> Dict[str, Any]:
+def _response_data(executions: List[ToolExecution], batch_id: Optional[int] = None) -> Dict[str, Any]:
     """Expose la trace des outils et les clés attendues par la PWA (rafraîchissement sport, toast d'annulation)."""
     data: Dict[str, Any] = {
         "tool_calls": [{"name": e.name, "args": e.args, "error": e.error} for e in executions],
     }
+    if batch_id is not None:
+        data["undo_batch_id"] = batch_id
     for execution in executions:
         if execution.error:
             continue

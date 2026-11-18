@@ -1,8 +1,8 @@
 """« Dernières actions » de l'accueil : les modifications faites par Otis, lues dans le journal des conversations.
 
 Les simples lectures (« donne-moi la liste ») et les échecs sont ignorés ; chaque action reçoit un libellé court.
-Seule la plus récente peut être annulée, et seulement depuis la session qui l'a faite : le serveur n'annule
-que la dernière action d'une session (« annule ça »)."""
+Une action est annulable si elle a un lot d'annulation (`undo_batch_id` dans le journal), fait depuis cet appareil
+(même session) et pas encore annulé ; une action annulée reste affichée, marquée `undone`."""
 import json
 import logging
 from datetime import date
@@ -21,6 +21,7 @@ class RecentAction(BaseModel):
     label: str
     created_at: Optional[str] = None  # ISO 8601 en UTC (« …Z »)
     undoable: bool = False
+    undone: bool = False
 
 
 class RecentActionsResponse(BaseModel):
@@ -155,8 +156,18 @@ def _iso_utc(raw: Optional[str]) -> Optional[str]:
     return text if text.endswith("Z") or "+" in text[10:] else f"{text}Z"
 
 
-def recent_actions(logs: Iterable[Dict[str, Any]], session_id: Optional[str], limit: int = 3) -> List[RecentAction]:
-    """`logs` : journal du plus récent au plus ancien."""
+def undo_batch_id(log: Dict[str, Any]) -> Optional[int]:
+    """Lot d'annulation de l'action journalisée (None si elle n'en a pas)."""
+    raw = _parameters(log).get("undo_batch_id")
+    return raw if isinstance(raw, int) else None
+
+
+def recent_actions(
+    logs: Iterable[Dict[str, Any]], session_id: Optional[str], limit: int = 3,
+    batches: Optional[Dict[int, Dict[str, Any]]] = None,
+) -> List[RecentAction]:
+    """`logs` : journal du plus récent au plus ancien ; `batches` : lots d'annulation par identifiant."""
+    batches = batches or {}
     items: List[RecentAction] = []
     for log in logs:
         if not log.get("success"):
@@ -169,8 +180,13 @@ def recent_actions(logs: Iterable[Dict[str, Any]], session_id: Optional[str], li
             continue
         if not label:
             continue
-        undoable = not items and bool(session_id) and log.get("session_id") == session_id and not _is_undo(log)
-        items.append(RecentAction(id=log["id"], label=label, created_at=_iso_utc(log.get("created_at")), undoable=undoable))
+        batch = batches.get(undo_batch_id(log)) if not _is_undo(log) else None
+        mine = batch is not None and bool(session_id) and batch.get("session_id") == session_id
+        undone = mine and batch.get("undone_at") is not None
+        items.append(RecentAction(
+            id=log["id"], label=label, created_at=_iso_utc(log.get("created_at")), undoable=mine and not undone,
+            undone=undone,
+        ))
         if len(items) >= limit:
             break
     return items

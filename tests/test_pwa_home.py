@@ -140,3 +140,18 @@ def test_hands_free_otis_is_a_switch_in_the_menu_with_its_live_status():
 
     assert 'id="wake-word-switch"' in drawer
     assert 'id="wake-word-indicator"' in drawer
+
+
+def test_activity_row_offers_undo_shows_undone_or_the_time():
+    out = _run("""
+const at = "2026-11-18T08:05:00Z";
+const now = new Date("2026-11-18T10:00:00Z");
+console.log(JSON.stringify([
+  activityStatus({ undoable: true, undone: false, created_at: at }, now),
+  activityStatus({ undoable: false, undone: true, created_at: at }, now),
+  activityStatus({ undoable: false, undone: false, created_at: at }, now),
+]));
+""")
+    assert out[0] == {"kind": "undo", "text": "Annuler"}
+    assert out[1] == {"kind": "undone", "text": "Annulée"}
+    assert out[2]["kind"] == "time" and out[2]["text"]
