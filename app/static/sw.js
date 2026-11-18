@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v49";
+const CACHE_NAME = "pah-pwa-cache-v50";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/styles/hub.css",
@@ -14,6 +14,12 @@ const ASSETS_TO_CACHE = [
   "/static/js/audio_focus.js",
   "/static/js/offline_outbox.js",
   "/static/js/api.js",
+  "/static/js/api/http.js",
+  "/static/js/api/interact.js",
+  "/static/js/api/sport.js",
+  "/static/js/api/meals.js",
+  "/static/js/api/second_brain.js",
+  "/static/js/api/tasks.js",
   "/static/js/toast.js",
   "/static/js/tts.js",
   "/static/js/mic_capture.js",

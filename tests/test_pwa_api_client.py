@@ -2,7 +2,9 @@
 
 Chaque appel est enregistré (url, méthode, en-têtes, corps) ; `respond(status, body, headers)` fixe la réponse suivante.
 """
-from tests.js_helpers import js_source, run_node
+import re
+
+from tests.js_helpers import STATIC, js_source, run_node, static_source
 
 PRELUDE = """
 const state = { apiKey: "k", uiContext: "sport", uiSessionId: 7 };
@@ -35,8 +37,25 @@ const print = (value) => console.log(JSON.stringify(value));
 """
 
 
+API_MODULES = ("http", "interact", "sport", "meals", "second_brain", "tasks")
+
+
 def _run(snippet: str):
-    return run_node(PRELUDE + js_source("api.js", strip_imports=True) + "\n" + snippet)
+    modules = js_source(*(f"api/{name}.js" for name in API_MODULES), strip_imports=True)
+    return run_node(PRELUDE + modules + "\n" + snippet)
+
+
+def test_api_js_only_reexports_the_domain_modules_and_covers_every_import():
+    assert static_source("js/api.js").split() == [
+        token for name in API_MODULES for token in ("export", "*", "from", f'"./api/{name}.js";')
+    ]
+    exported = set(re.findall(r"^export (?:async )?(?:function|const) (\w+)", js_source(
+        *(f"api/{name}.js" for name in API_MODULES)), re.M))
+    imported = set()
+    for path in [STATIC / "app.js", *(STATIC / "js").rglob("*.js")]:
+        for names in re.findall(r'import\s*\{([^}]*)\}\s*from\s*"[./]*/api\.js"', path.read_text(encoding="utf-8")):
+            imported |= {name.split(" as ")[0].strip() for name in names.split(",") if name.strip()}
+    assert imported and imported - exported == set()
 
 
 def test_interact_sends_the_open_sheet_and_the_open_session():
