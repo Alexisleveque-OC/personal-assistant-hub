@@ -10,9 +10,8 @@ Valide le flux complet :
 5. Audit conversationnel et consultation REST
 """
 import io
-import json
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app

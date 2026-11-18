@@ -1,6 +1,5 @@
 """Tests unitaires pour l'auto-migration des données sportives au démarrage (lifespan)."""
 from unittest.mock import MagicMock, patch
-import pytest
 
 from app.core.database import DatabaseManager
 from app.main import _auto_migrate_sport_sheets

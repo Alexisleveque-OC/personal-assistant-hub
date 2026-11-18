@@ -1,5 +1,5 @@
 """Tests unitaires et d'API pour le module Sport Running, Otis interact et Strava."""
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient

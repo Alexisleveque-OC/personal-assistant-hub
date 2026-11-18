@@ -1,7 +1,6 @@
 """Tests unitaires pour le résolveur de dates relatives en français."""
 from datetime import date, datetime
-import pytest
-from app.core.date_resolver import resolve_date_expression, ResolvedDate
+from app.core.date_resolver import resolve_date_expression
 
 
 def test_resolve_today():

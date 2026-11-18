@@ -1,6 +1,5 @@
 """Tests unitaires (TDD) pour l'explication pédagogique d'exercices de renforcement et la vulgarisation des termes kiné."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.core.models import IntentType

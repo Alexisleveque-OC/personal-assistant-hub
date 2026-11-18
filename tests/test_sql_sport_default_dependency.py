@@ -1,5 +1,4 @@
 """Tests unitaires pour l'Étape 6 : Bascule Globale vers SqlSportConnector par défaut."""
-import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 

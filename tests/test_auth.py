@@ -1,5 +1,4 @@
 """Tests unitaires pour l'authentification et la sécurisation par clé API (X-API-Key)."""
-import pytest
 from fastapi.testclient import TestClient
 
 from app.config import settings

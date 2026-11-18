@@ -13,7 +13,6 @@ Valide l'ensemble du cycle fonctionnel de bout en bout :
 """
 from datetime import date, timedelta
 import os
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app

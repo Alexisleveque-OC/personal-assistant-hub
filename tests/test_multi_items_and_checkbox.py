@@ -1,9 +1,8 @@
 """Tests unitaires pour l'ajout multi-articles et la préservation des cases à cocher dans Liste_Attente."""
 from unittest.mock import MagicMock
-import pytest
 
 from app.core.intent_parser import IntentParser
-from app.core.models import IntentType, InteractionRequest
+from app.core.models import IntentType
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.main import app, set_meals_connector
 from fastapi.testclient import TestClient

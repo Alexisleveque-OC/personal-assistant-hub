@@ -9,7 +9,6 @@ Valide le flux complet en conditions réelles (Étape 6) :
 6. Résilience et repli transparent en cas d'indisponibilité du LLM
 """
 
-import pytest
 from datetime import date, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi.testclient import TestClient
@@ -19,7 +18,6 @@ from app.core.llm.rayon_suggester import set_rayon_suggester
 from app.main import app, set_meals_connector
 from app.connectors.sheets.models import Recipe, DayMealPlan, WaitingListItem
 from app.core.models import IntentType, ParsedIntent
-from app.config import settings
 
 client = TestClient(app)
 
