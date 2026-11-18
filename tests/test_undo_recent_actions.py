@@ -134,3 +134,58 @@ def test_undo_is_refused_for_another_device_an_unknown_batch_or_twice(env):
     _undo(batch_id)
     with pytest.raises(UndoError, match="déjà annulée"):
         _undo(batch_id)
+
+
+# --- Étape 4 : API ---------------------------------------------------------------------------------------------------
+
+def _undo_route(log_id: int, session_id: str = SESSION):
+    return TestClient(app).post(f"/api/v1/home/recent-actions/{log_id}/undo", params={"session_id": session_id})
+
+
+def _recent(session_id: str = SESSION) -> list:
+    res = TestClient(app).get("/api/v1/home/recent-actions", params={"session_id": session_id})
+    assert res.status_code == 200, res.text
+    return [(i["label"], i["undoable"], i["undone"]) for i in res.json()["items"]]
+
+
+def test_route_undoes_an_older_action_and_the_list_shows_it_undone(env):
+    db, sheet = env
+    set_agent_llm(ScriptedLLM([
+        call_turn({"name": "save_note", "args": {"content": "Penser aux piles", "category": "thought"}}),
+        text_turn("C'est noté."),
+    ]))
+    note = _ask("Note que je dois penser aux piles")
+    _ask("ajoute du lait")
+
+    res = _undo_route(note["data"]["log_id"])
+
+    assert res.status_code == 200, res.text
+    assert res.json()["spoken_response"] == "C'est annulé : note « Penser aux piles » supprimée."
+    assert db.get_notes(limit=5)["items"] == []
+    assert _recent() == [("Lait ajouté aux courses", True, False), ("Note ajoutée au Second cerveau", False, True)]
+    journal = db.get_conversation_logs(limit=1)["items"][0]
+    assert journal["intent"] == "undo_recent_action" and journal["session_id"] == SESSION
+
+
+def test_route_explains_why_an_action_cannot_be_undone(env):
+    _, sheet = env
+    added = _ask("ajoute du lait")
+    set_agent_llm(ScriptedLLM([call_turn({"name": "check_shopping_items", "args": {"noms": ["lait"]}}), text_turn("Coché.")]))
+    _ask("j'ai pris le lait")
+
+    conflict = _undo_route(added["data"]["log_id"])
+    other_device = _undo_route(added["data"]["log_id"], session_id="phone-2")
+
+    assert conflict.status_code == 409 and conflict.json()["detail"] == "Annulation impossible : Lait a été coché depuis."
+    assert other_device.status_code == 409 and "autre appareil" in other_device.json()["detail"]
+    assert waiting_rows(sheet)[-1] == ("Lait", True)
+
+
+def test_route_refuses_an_action_without_undo_batch_or_an_unknown_one(env, isolate_sqlite_database):
+    log_id = isolate_sqlite_database.log_conversation("retiens ça", "teach_assistant", "Ok", session_id=SESSION)
+
+    no_batch = _undo_route(log_id)
+    unknown = _undo_route(log_id + 100)
+
+    assert no_batch.status_code == 409 and "ne peut pas être annulée" in no_batch.json()["detail"]
+    assert unknown.status_code == 404

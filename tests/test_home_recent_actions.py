@@ -81,24 +81,41 @@ def test_reads_and_small_talk_are_not_actions(intent):
 
 # ---------- Sélection ----------
 
-def test_keeps_the_three_latest_successful_actions_and_only_the_latest_of_my_session_is_undoable():
+def test_keeps_the_three_latest_successful_actions():
     logs = [  # du plus récent au plus ancien, comme le journal
         _log("get_shopping_list", log_id=9),
         _log("save_note", log_id=8, created_at="2026-11-10 17:36:00"),
         _log("add_task", {"titre": "X"}, log_id=7, success=False),
         _log("add_shopping_item", {"items": [{"item": "Lardon"}]}, log_id=6),
-        _log("undo_last_action", log_id=5),
-        _log("save_note", log_id=4),
+        _log("undo_recent_action", log_id=5),  # annulation depuis la liste : tracée, jamais affichée
+        _log("undo_last_action", log_id=4),
+        _log("save_note", log_id=3),
     ]
 
     items = recent_actions(logs, session_id="s1")
 
-    assert [(i.id, i.undoable) for i in items] == [(8, True), (6, False), (5, False)]
+    assert [i.id for i in items] == [8, 6, 4]
     assert items[0].created_at == "2026-11-10T17:36:00Z"  # SQLite stocke en UTC
 
 
-def test_latest_action_from_another_session_or_an_undo_cannot_be_undone_from_here():
-    assert recent_actions([_log("save_note", session_id="autre")], session_id="s1")[0].undoable is False
+def test_every_action_of_my_device_with_a_pending_undo_batch_is_undoable():
+    logs = [
+        _log("agent", _agent(("save_note", {"category": "thought"}, None)) | {"undo_batch_id": 3}, log_id=9),
+        _log("add_shopping_item", {"items": [{"item": "Lait"}], "undo_batch_id": 2}, log_id=8),
+        _log("agent", _agent(("save_note", {"category": "thought"}, None)) | {"undo_batch_id": 1}, log_id=7),
+    ]
+    batches = {3: {"session_id": "s1", "undone_at": None}, 2: {"session_id": "s1", "undone_at": "2026-11-18 10:00:00"},
+               1: {"session_id": "s1", "undone_at": None}}
+
+    items = recent_actions(logs, session_id="s1", batches=batches)
+
+    assert [(i.id, i.undoable, i.undone) for i in items] == [(9, True, False), (8, False, True), (7, True, False)]
+
+
+def test_actions_without_batch_from_another_device_or_undos_cannot_be_undone_from_here():
+    batches = {1: {"session_id": "autre", "undone_at": None}}
+    assert recent_actions([_log("save_note")], session_id="s1")[0].undoable is False  # pas de lot
+    assert recent_actions([_log("save_note", {"undo_batch_id": 1})], session_id="s1", batches=batches)[0].undoable is False
     assert recent_actions([_log("undo_last_action")], session_id="s1")[0].undoable is False
 
 
@@ -106,8 +123,9 @@ def test_latest_action_from_another_session_or_an_undo_cannot_be_undone_from_her
 
 def test_route_reads_the_conversation_journal(isolate_sqlite_database):
     db = isolate_sqlite_database
+    batch_id = db.add_agent_undo_batch("pwa_1", '[{"kind": "shopping_added", "items": ["Lait"]}]')
     db.log_conversation("ajoute du lait", "add_shopping_item", "Ok", session_id="pwa_1",
-                        parameters={"items": [{"item": "Lait"}]})
+                        parameters={"items": [{"item": "Lait"}], "undo_batch_id": batch_id})
     db.log_conversation("donne-moi la liste", "get_shopping_list", "Voici…", session_id="pwa_1")
 
     res = TestClient(app).get("/api/v1/home/recent-actions", params={"session_id": "pwa_1"})
