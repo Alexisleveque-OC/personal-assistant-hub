@@ -7,13 +7,8 @@ Couvre l'Étape 1 de la Phase 6.6 :
 - Robustesse de parse_target_date et format_natural_spoken_date
 """
 from datetime import date, datetime, timedelta
-import pytest
 
-from app.core.date_resolver import (
-    resolve_date_expression,
-    parse_target_date,
-    format_natural_spoken_date,
-)
+from app.core.date_resolver import resolve_date_expression, parse_target_date
 
 
 def test_resolve_relative_days_hier_and_avanthier():

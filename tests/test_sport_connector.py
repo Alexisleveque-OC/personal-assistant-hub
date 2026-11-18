@@ -4,13 +4,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.connectors.sheets.sport_models import (
-    SportSession,
     SportSessionCreate,
     SportSessionPlan,
     SportSessionUpdate,
     SportSessionStatus,
     SportSessionType,
-    SportWeeklySummary,
 )
 from app.config import settings
 from app.connectors.sheets.sport_connector import SportConnector

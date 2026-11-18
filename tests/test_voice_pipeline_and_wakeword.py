@@ -1,6 +1,4 @@
 """Tests unitaires et fonctionnels TDD pour le Pipeline Vocal PWA, la stabilité tactile du Push-to-Talk et le Wake-Word Otis (Étape 2)."""
-import os
-import re
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, AsyncMock, patch
 from app.main import app

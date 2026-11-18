@@ -3,7 +3,7 @@ import time
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from app.main import app, set_meals_connector
-from app.connectors.sheets.models import WaitingListItem, Recipe, DayMealPlan
+from app.connectors.sheets.models import WaitingListItem, DayMealPlan
 
 client = TestClient(app)
 

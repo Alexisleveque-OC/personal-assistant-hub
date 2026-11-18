@@ -2,7 +2,7 @@
 import pytest
 from app.core.models import IntentType, ParsedIntent
 from app.core.intent_parser import IntentParser
-from app.core.llm.nlu_service import GeminiNLUService, LLMNLUResponse
+from app.core.llm.nlu_service import LLMNLUResponse
 
 
 def test_intent_type_contains_sport_intents():

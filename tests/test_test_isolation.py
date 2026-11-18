@@ -1,11 +1,9 @@
 """Test vérifiant l'isolation absolue de la suite de tests (Zéro Effet de Bord)."""
 
-import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app, get_meals_connector
-from app.config import settings
 
 client = TestClient(app)
 

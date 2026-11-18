@@ -1,13 +1,9 @@
 """Tests unitaires pour le moteur de gamification, badges de dopamine et anecdotes sportives."""
 from datetime import date
-from typing import List
-
-import pytest
 
 from app.connectors.sheets.sport_models import (
     BadgeCategory,
     SportBadge,
-    SportFunFact,
     SportGamificationSummary,
     SportSession,
     SportSessionStatus,

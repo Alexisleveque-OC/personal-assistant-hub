@@ -1,7 +1,6 @@
 """Tests unitaires pour les modèles Pydantic et calculs du module Sport (Running)."""
 from datetime import date
 import pytest
-from pydantic import ValidationError
 
 from app.connectors.sheets.sport_models import (
     SportPlannedSessionProposal,

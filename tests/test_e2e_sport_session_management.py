@@ -7,10 +7,8 @@ Valide de bout en bout :
 4. Le traitement vocal de "J'ai fait une séance de fractionné" confirmant une séance de Fractionné (et JAMAIS de renfo).
 5. La cohérence des données sur le dashboard et les synthèses hebdomadaires.
 """
-from datetime import date
 from io import BytesIO
 from unittest.mock import patch
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app

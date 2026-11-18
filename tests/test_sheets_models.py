@@ -1,13 +1,6 @@
 """Tests unitaires des modèles Pydantic pour Google Sheets."""
 from datetime import date
-from app.connectors.sheets.models import (
-    DayMealPlan,
-    Recipe,
-    ShoppingItem,
-    RayonSetting,
-    WaitingListItem,
-    SheetSchemaSnapshot,
-)
+from app.connectors.sheets.models import DayMealPlan, Recipe, ShoppingItem, WaitingListItem, SheetSchemaSnapshot
 
 
 def test_waiting_list_item_model():

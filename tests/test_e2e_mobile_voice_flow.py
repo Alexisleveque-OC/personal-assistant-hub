@@ -7,7 +7,6 @@ Valide le flux complet en conditions réelles :
 4. Cycle complet : interrogation repas -> ajout courses -> consultation liste -> fin de courses
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.config import settings

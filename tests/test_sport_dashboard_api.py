@@ -1,5 +1,5 @@
 """Tests d'intégration API (TDD) pour les endpoints du Dashboard Sport Running (Étape 7.1)."""
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
@@ -7,14 +7,7 @@ from fastapi.testclient import TestClient
 from app.main import app, set_sport_connector
 from app.config import settings
 from app.connectors.sheets.sport_connector import SportConnector
-from app.connectors.sheets.sport_models import (
-    CoachTipLevel,
-    DashboardScale,
-    SportSession,
-    SportSessionStatus,
-    SportSessionType,
-    SportSessionUpdate,
-)
+from app.connectors.sheets.sport_models import SportSession, SportSessionStatus, SportSessionType, SportSessionUpdate
 
 client = TestClient(app)
 

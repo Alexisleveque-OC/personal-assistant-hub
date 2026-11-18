@@ -6,9 +6,7 @@ Valide le flux complet applicatif de bout en bout :
 3. Sport : Consultation des synthèses hebdomadaires avec séances imbriquées et alertes de progression.
 """
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -20,7 +18,6 @@ from app.connectors.sheets.sport_models import (
     SportSessionType,
     SportWeeklySummary,
 )
-from app.connectors.sheets.sport_connector import SportConnector
 
 client = TestClient(app)
 
