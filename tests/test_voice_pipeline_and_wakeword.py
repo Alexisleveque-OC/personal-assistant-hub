@@ -41,10 +41,7 @@ def test_interact_audio_accepts_mp4_safari_container():
     """Vérifie que l'endpoint /api/v1/interact/audio accepte les conteneurs Safari (video/mp4 ou audio/mp4)."""
     with patch("app.routers.interact.get_stt_service") as mock_get_stt:
         mock_stt_inst = MagicMock()
-        mock_parsed = MagicMock()
-        mock_parsed.intent.value = "unknown"
-        mock_parsed.parameters = {}
-        mock_stt_inst.process_audio = AsyncMock(return_value=("Bonjour Otis", mock_parsed))
+        mock_stt_inst.transcribe = AsyncMock(return_value="Bonjour Otis")
         mock_get_stt.return_value = mock_stt_inst
 
         # Fichier audio MP4 issu d'iOS Safari
