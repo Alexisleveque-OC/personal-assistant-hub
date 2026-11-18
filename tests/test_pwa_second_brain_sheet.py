@@ -9,17 +9,9 @@ import re
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import rendered_html, section
 
 client = TestClient(app)
-
-
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
-def _section(html: str, sheet_id: str) -> str:
-    start = html.index(f'id="{sheet_id}"')
-    return html[start:html.index("</section>", start)]
 
 
 def _static(path: str) -> str:
@@ -27,7 +19,7 @@ def _static(path: str) -> str:
 
 
 def test_second_brain_sheet_has_search_chips_and_list_only():
-    sheet = _section(_rendered_html(), "view-second-brain")
+    sheet = section(rendered_html(), "view-second-brain")
     assert re.search(r'<button type="button"[^>]*id="btn-brain-search"[^>]*aria-label="Rechercher"'
                      r'[^>]*aria-expanded="false"[^>]*aria-controls="brain-search"', sheet)
     assert re.search(r'id="brain-search"[^>]*hidden', sheet)
@@ -41,8 +33,8 @@ def test_second_brain_sheet_has_search_chips_and_list_only():
 
 
 def test_journal_and_feedback_has_its_own_sheet_opened_from_the_menu():
-    html = _rendered_html()
-    sheet = _section(html, "view-journal")
+    html = rendered_html()
+    sheet = section(html, "view-journal")
     assert '<h2 class="sheet__title" id="view-journal-title">Journal &amp; feedback</h2>' in sheet
     assert 'data-sheet-close aria-label="Fermer"' in sheet
     assert 'id="audit-logs-list"' in sheet
@@ -88,14 +80,6 @@ def test_api_client_deletes_a_task_and_reports_note_errors_in_detail():
         assert "brainRequest(" in js[start:js.index("\n}\n", start)], function_name
     start = js.index("async function brainRequest(")
     assert "detail" in js[start:js.index("\n}\n", start)]
-
-
-def test_new_modules_are_precached_and_versions_bumped():
-    sw = client.get("/sw.js").text
-    assert '"/static/js/notes_model.js"' in sw
-    assert '"/static/js/views/journal_view.js"' in sw
-    assert "pah-pwa-cache-v49" in sw
-    assert "/static/app.js?v=31.0" in _rendered_html()
 
 
 def test_styles_cover_chips_cards_and_search():

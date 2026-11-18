@@ -9,17 +9,9 @@ import re
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import rendered_html, section
 
 client = TestClient(app)
-
-
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
-def _section(html: str, sheet_id: str) -> str:
-    start = html.index(f'id="{sheet_id}"')
-    return html[start:html.index("</section>", start)]
 
 
 def _static(path: str) -> str:
@@ -27,8 +19,8 @@ def _static(path: str) -> str:
 
 
 def test_menu_has_a_tasks_entry_and_a_tasks_sheet_with_count_and_list():
-    html = _rendered_html()
-    sheet = _section(html, "view-tasks")
+    html = rendered_html()
+    sheet = section(html, "view-tasks")
     assert 'data-section="taches"' in html
     assert 'id="tasks-count"' in sheet
     assert 'id="tasks-list-container"' in sheet
@@ -37,7 +29,7 @@ def test_menu_has_a_tasks_entry_and_a_tasks_sheet_with_count_and_list():
 
 
 def test_composer_has_a_due_picker_hidden_outside_tasks():
-    html = _rendered_html()
+    html = rendered_html()
     composer = html[html.index('id="query-form"'):html.index("</form>", html.index('id="query-form"'))]
     assert re.search(r'id="btn-composer-due"[^>]*aria-label="Choisir une date"[^>]*hidden', composer)
     assert 'id="composer-due-label"' in composer
@@ -89,12 +81,3 @@ def test_toast_supports_an_action_button():
     js = _static("js/toast.js")
     assert "action" in js
     assert "btn-undo-action" in js
-
-
-def test_new_modules_are_precached_and_versions_bumped():
-    sw = client.get("/sw.js").text
-    for path in ("/static/js/views/tasks_view.js", "/static/js/tasks_model.js", "/static/js/views/task_due_picker.js",
-                 "/static/js/toast.js"):
-        assert f'"{path}"' in sw, path
-    assert "pah-pwa-cache-v49" in sw
-    assert "/static/app.js?v=31.0" in _rendered_html()

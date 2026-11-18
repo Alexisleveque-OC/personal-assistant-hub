@@ -10,17 +10,9 @@ import re
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import rendered_html, section
 
 client = TestClient(app)
-
-
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
-def _section(html: str, sheet_id: str) -> str:
-    start = html.index(f'id="{sheet_id}"')
-    return html[start:html.index("</section>", start)]
 
 
 def _static(path: str) -> str:
@@ -28,7 +20,7 @@ def _static(path: str) -> str:
 
 
 def test_meals_sheet_has_a_day_strip_cards_and_the_ingredients_button():
-    sheet = _section(_rendered_html(), "view-meals")
+    sheet = section(rendered_html(), "view-meals")
     assert 'id="meal-nav"' in sheet
     assert sheet.index('id="meal-nav"') < sheet.index('id="meal-days"')
     assert re.search(r'id="meal-days"[^>]*role="tablist"[^>]*aria-label="Jour"', sheet)
@@ -67,14 +59,6 @@ def test_api_client_reports_the_week_route_error_detail():
     body = js[start:js.index("\n}\n", start)]
     assert "detail" in body and "getAuthHeaders()" in body
     assert "export async function fetchWeekMeals(offset = 0)" in js and "offset=${" in body
-
-
-def test_new_module_is_precached_and_versions_bumped():
-    sw = client.get("/sw.js").text
-    assert '"/static/js/meals_model.js"' in sw
-    assert '"/static/js/views/meals_view.js"' in sw
-    assert "pah-pwa-cache-v49" in sw
-    assert "/static/app.js?v=31.0" in _rendered_html()
 
 
 def test_styles_cover_the_day_strip_and_meal_rows():

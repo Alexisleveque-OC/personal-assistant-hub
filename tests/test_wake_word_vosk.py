@@ -1,31 +1,22 @@
 """Moteur local du mot-clé « Otis » via Vosk (Étape 3) : micro brut, grammaire restreinte, échecs explicites."""
 import json
 import mimetypes
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from scripts.fetch_vosk_assets import ASSETS_VERSION
+from tests.js_helpers import run_node
 
 client = TestClient(app)
 
 MODULE_PATH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "wake_word_vosk.js"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 
 def _run_module_with(snippet: str) -> str:
     """Exécute le module ES réel sous Node (code envoyé sur stdin) suivi d'un extrait de test."""
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = MODULE_PATH.read_text(encoding="utf-8") + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return result.stdout
+    return run_node(MODULE_PATH.read_text(encoding="utf-8") + "\n" + snippet, parse_json=False)
 
 
 def _module() -> str:

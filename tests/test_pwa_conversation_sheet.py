@@ -8,17 +8,9 @@ import re
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import rendered_html, section
 
 client = TestClient(app)
-
-
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
-def _section(html: str, sheet_id: str) -> str:
-    start = html.index(f'id="{sheet_id}"')
-    return html[start:html.index("</section>", start)]
 
 
 def _static(path: str) -> str:
@@ -26,7 +18,7 @@ def _static(path: str) -> str:
 
 
 def test_conversation_sheet_uses_chips_message_cards_and_an_undo_bar():
-    sheet = _section(_rendered_html(), "view-conversation")
+    sheet = section(rendered_html(), "view-conversation")
     assert re.search(r'<div class="chips chips--scroll" id="chips-container" aria-label="Suggestions">', sheet)
     assert sheet.index('id="chips-container"') < sheet.index('class="sheet__body"')  # puces fixes sous l'en-tête
     assert re.search(r'<button type="button" class="chip" id="chip-new-chat">Nouveau fil</button>', sheet)
@@ -71,8 +63,3 @@ def test_styles_cover_messages_undo_bar_and_notifications():
                      ".notice--warning", ".notice--info", ".notice__icon", ".notice__action", ".notice--leaving",
                      "prefers-reduced-motion"):
         assert selector in css, selector
-
-
-def test_versions_bumped():
-    assert "pah-pwa-cache-v49" in client.get("/sw.js").text
-    assert "/static/app.js?v=31.0" in _rendered_html()

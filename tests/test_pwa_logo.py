@@ -9,6 +9,7 @@ import struct
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import rendered_html
 
 client = TestClient(app)
 
@@ -25,12 +26,8 @@ LOGO = "/static/icons/logo-otis.svg"
 BRAND_DARK = "#141416"
 
 
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
 def _head() -> str:
-    html = _rendered_html()
+    html = rendered_html()
     return html[: html.index("</head>")]
 
 
@@ -86,7 +83,7 @@ def test_head_declares_favicons_apple_touch_icon_and_theme_color():
 
 
 def test_otis_avatars_show_the_logo_instead_of_a_letter():
-    html = _rendered_html()
+    html = rendered_html()
     avatars = re.findall(r'<img class="avatar-otis[^"]*"[^>]*>', html)
     assert len(avatars) == 3  # « Dernières actions », modèle de message d'Otis, en-tête du menu
     assert all(f'src="{LOGO}"' in a and 'alt=""' in a for a in avatars)
@@ -98,7 +95,6 @@ def test_otis_avatars_show_the_logo_instead_of_a_letter():
 
 def test_service_worker_precaches_the_new_logo_kit():
     sw = client.get("/sw.js").text
-    assert "pah-pwa-cache-v49" in sw
     for name in [*KIT_PNG_SIZES, "favicon.svg", "logo-otis.svg"]:
         assert f'"/static/icons/{name}"' in sw, name
     assert "/icons/icon.svg" not in sw

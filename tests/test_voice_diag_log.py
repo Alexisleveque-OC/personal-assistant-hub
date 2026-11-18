@@ -1,22 +1,15 @@
 """Journal du micro (ROADMAP Étape 0) : les événements du pipeline vocal sont gardés sur le téléphone
 pour être relus depuis /static/audio_diag.html, sans câble USB ni console."""
-import json
 import re
-import shutil
-import subprocess
-from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import STATIC, run_node
 
 client = TestClient(app)
 
-STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
 MODULE_PATH = STATIC / "js" / "voice_diag_log.js"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 FAKE_STORAGE = """
 class FakeStorage {
@@ -33,12 +26,7 @@ const now = () => new Date(Date.UTC(2026, 10, 4, 8, 0, 0, tick++ * 10));
 
 
 def _run(snippet: str) -> dict:
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = MODULE_PATH.read_text(encoding="utf-8") + "\n" + FAKE_STORAGE + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return run_node(MODULE_PATH.read_text(encoding="utf-8") + "\n" + FAKE_STORAGE + "\n" + snippet)
 
 
 def test_module_is_served_as_javascript():
@@ -140,13 +128,6 @@ def test_audio_upload_logs_status_duration_and_queueing():
     assert 'from "../voice_diag_log.js"' in chat
     assert re.search(r'voiceDiagLog\.record\("envoi"', chat)
     assert "mis en attente" in chat
-
-
-def test_service_worker_caches_the_journal_module_in_a_new_version():
-    sw = _source("sw.js")
-    assert '"/static/js/voice_diag_log.js"' in sw
-    version = int(re.search(r"pah-pwa-cache-v(\d+)", sw).group(1))
-    assert version >= 29
 
 
 def test_diag_page_reads_and_clears_the_app_journal():

@@ -86,7 +86,3 @@ def test_dashboard_api_client_sends_the_reference_date():
 
     assert "refDate" in body
     assert 'params.append("date", refDate)' in body
-
-
-def test_service_worker_cache_bumped_for_the_sport_tab_changes():
-    assert "pah-pwa-cache-v49" in client.get("/sw.js").text

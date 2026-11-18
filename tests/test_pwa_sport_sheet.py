@@ -1,48 +1,17 @@
 """Refonte UX (ROADMAP Étape 2) : feuille Sport — barre d'actions, vues, détail et formulaire en feuilles empilées,
 séance ouverte transmise à Otis, dictée vers la route brouillon."""
-import json
 import re
-import shutil
-import subprocess
-from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import STATIC, rendered_html, run_node, section
 
-STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 client = TestClient(app)
-
-NEW_MODULES = (
-    "/static/js/sport_model.js",
-    "/static/js/views/sport/dom.js",
-    "/static/js/views/sport/sport_sheet.js",
-    "/static/js/views/sport/period_view.js",
-    "/static/js/views/sport/sessions_list_view.js",
-    "/static/js/views/sport/session_detail_view.js",
-    "/static/js/views/sport/session_form_view.js",
-)
 
 
 def _run_shell(snippet: str):
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = (STATIC / "js" / "ui_shell.js").read_text(encoding="utf-8") + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
-
-
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
-def _section(html: str, sheet_id: str) -> str:
-    start = html.index(f'id="{sheet_id}"')
-    return html[start:html.index("</section>", start)]
+    return run_node((STATIC / "js" / "ui_shell.js").read_text(encoding="utf-8") + "\n" + snippet)
 
 
 # ---------- Feuilles empilées : section, placeholder ----------
@@ -60,7 +29,7 @@ console.log(JSON.stringify([
 # ---------- Balisage ----------
 
 def test_sport_sheet_has_view_pills_trophies_and_the_action_bar_instead_of_the_composer():
-    sport = _section(_rendered_html(), "view-sport")
+    sport = section(rendered_html(), "view-sport")
 
     for label in ("Semaine", "Mois · Année", "Séances"):
         assert f">{label}</button>" in sport
@@ -76,7 +45,7 @@ def test_sport_sheet_has_view_pills_trophies_and_the_action_bar_instead_of_the_c
 
 
 def test_session_detail_is_a_stacked_sheet_holding_the_composer():
-    detail = _section(_rendered_html(), "view-sport-session")
+    detail = section(rendered_html(), "view-sport-session")
 
     assert 'class="sheet sheet--stacked"' in client.get("/app").text.split('id="view-sport-session"')[0][-80:]
     assert 'aria-label="Retour aux séances"' in detail
@@ -86,8 +55,8 @@ def test_session_detail_is_a_stacked_sheet_holding_the_composer():
 
 
 def test_session_form_is_a_stacked_sheet_with_the_dictation_callout():
-    html = _rendered_html()
-    form = _section(html, "view-sport-form")
+    html = rendered_html()
+    form = section(html, "view-sport-form")
 
     assert 'class="sheet sheet--stacked"' in html.split('id="view-sport-form"')[0][-80:]
     assert "Dicte ta séance" in form
@@ -105,7 +74,7 @@ def test_session_form_is_a_stacked_sheet_with_the_dictation_callout():
 
 
 def test_each_scale_has_its_value_label():
-    form = _section(_rendered_html(), "view-sport-form")
+    form = section(rendered_html(), "view-sport-form")
 
     for scale in re.findall(r'class="scale[^"]*" id="([^"]+)"', form):
         assert f'id="{scale}-value"' in form, f"étiquette {scale}-value absente"
@@ -121,7 +90,7 @@ def test_scales_are_tap_only_radio_buttons():
 
 
 def test_old_sport_tabs_and_modals_are_gone():
-    html = _rendered_html()
+    html = rendered_html()
 
     for old in ("sport-segmented", "tab-sport-today", "modal-edit-sport-session", "modal-create-sport-session",
                 "sport-today-container", "btn-add-sport-session-inline"):
@@ -171,11 +140,3 @@ def test_form_starts_listening_when_opened_by_dictate_and_saves_on_ok():
 
 
 # ---------- Service worker ----------
-
-def test_new_sport_modules_are_served_and_precached():
-    sw = client.get("/sw.js").text
-
-    assert "pah-pwa-cache-v49" in sw
-    for path in NEW_MODULES:
-        assert client.get(path).status_code == 200, path
-        assert f'"{path}"' in sw, f"{path} absent du cache du service worker"

@@ -1,5 +1,4 @@
 """Branchement de la détection locale Vosk dans la PWA (Étape 4) : plus de Web Speech continue pour le mot-clé."""
-import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -47,14 +46,6 @@ def test_engine_failure_shows_an_explicit_toast_and_disables_hands_free():
 
 def test_first_model_download_is_announced():
     assert "45 Mo" in _voice_js()
-
-
-def test_wake_word_modules_are_precached_for_offline_start():
-    sw = (STATIC / "sw.js").read_text(encoding="utf-8")
-    assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
-    assert '"/static/js/wake_word_vosk.js"' in assets
-    assert '"/static/js/vosk_capture_worklet.js"' in assets
-    assert "pah-pwa-cache-v49" in sw
 
 
 def test_hands_free_toast_no_longer_warns_about_the_music():

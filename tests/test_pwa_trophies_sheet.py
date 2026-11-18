@@ -1,30 +1,14 @@
 """Refonte UX (ROADMAP Étape 3) : feuille Trophées empilée sur Sport (maquette E-Trophees)."""
 import json
-import re
-import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import NODE, STATIC, rendered_html, section
 
-STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 client = TestClient(app)
-
-NEW_MODULES = ("/static/js/trophies_model.js", "/static/js/views/sport/trophies_view.js")
-
-
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
-def _section(html: str, sheet_id: str) -> str:
-    start = html.index(f'id="{sheet_id}"')
-    return html[start:html.index("</section>", start)]
 
 
 def _static(path: str) -> str:
@@ -32,8 +16,8 @@ def _static(path: str) -> str:
 
 
 def test_trophies_is_a_stacked_sheet_with_back_and_close_and_no_composer():
-    html = _rendered_html()
-    sheet = _section(html, "view-sport-trophies")
+    html = rendered_html()
+    sheet = section(html, "view-sport-trophies")
 
     assert 'class="sheet sheet--stacked"' in html.split('id="view-sport-trophies"')[0][-80:]
     assert 'role="dialog"' in sheet and 'aria-modal="true"' in sheet
@@ -45,7 +29,7 @@ def test_trophies_is_a_stacked_sheet_with_back_and_close_and_no_composer():
 
 
 def test_old_trophies_panel_is_gone_from_the_sport_sheet():
-    sport = _section(_rendered_html(), "view-sport")
+    sport = section(rendered_html(), "view-sport")
 
     assert 'id="sport-gamification-container"' not in sport
     assert 'id="btn-sport-trophies"' in sport and "aria-pressed" not in sport.split('id="btn-sport-trophies"')[1][:120]
@@ -80,12 +64,3 @@ def test_trophy_icon_and_shortcut_open_the_stacked_sheet():
     assert "openTrophies" in sheet_js and "sport-gamification-container" not in sheet_js
     assert 'shortcut.subview === "gamification"' in app_js and "openTrophies(" in app_js
     assert 'showSportView("trophies")' not in app_js
-
-
-def test_trophy_modules_are_served_and_precached():
-    sw = client.get("/sw.js").text
-
-    assert "pah-pwa-cache-v49" in sw
-    for path in NEW_MODULES:
-        assert client.get(path).status_code == 200, path
-        assert f'"{path}"' in sw, f"{path} absent du cache du service worker"

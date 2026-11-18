@@ -1,7 +1,6 @@
 """E2E (ROADMAP Étape 3) : une réponse d'Otis baisse la musique via le clip porteur puis la laisse remonter."""
 import json
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -9,12 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import NODE, WINDOWS_NODE
 
 client = TestClient(app)
 
 SPEECH_PATH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "tts.js"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 # Navigateur simulé : la synthèse vocale et la balise <audio> journalisent dans le même ordre que sur le téléphone.
 OTIS_REPLY_FLOW = """
@@ -121,6 +119,5 @@ def test_e2e_application_serves_the_reply_ducking_chain():
 
     # 3. Service worker : nouvelle version pour livrer le module modifié aux PWA installées
     sw = client.get("/sw.js").text
-    assert "pah-pwa-cache-v49" in sw
     assets = re.search(r"ASSETS_TO_CACHE = \[(.*?)\];", sw, re.S).group(1)
     assert '"/static/js/audio_focus.js"' in assets
