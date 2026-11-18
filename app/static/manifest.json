@@ -1,6 +1,6 @@
 {
   "name": "Assistant Personnel Hub",
-  "short_name": "Assistant",
+  "short_name": "Otis",
   "description": "Assistant vocal mobile pour la planification des repas et la liste de courses",
   "id": "/app?v=4",
   "start_url": "/app",
