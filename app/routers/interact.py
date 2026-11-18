@@ -24,6 +24,8 @@ from app.core.dependencies import (
     get_database_manager,
 )
 from app.core.session_manager import get_session_manager
+from app.core.agent.tools.meals_models import ShoppingAddedUndo
+from app.core.agent.undo import UndoJournal
 from app.handlers.meals_handler import handle_meals_intent
 from app.handlers.sport_handler import handle_sport_intent
 from app.handlers.second_brain_handler import handle_second_brain_intent
@@ -211,6 +213,12 @@ async def interact(
             "type": "add_shopping_item",
             "items": items_list,
         }
+        # Lot d'annulation exact (articles réellement ajoutés) : annulable depuis « Dernières actions ».
+        added_names = [it["item"] for it in (data.get("items") or []) if isinstance(it, dict) and it.get("item")]
+        if added_names:
+            data["undo_batch_id"] = UndoJournal(get_database_manager()).record(
+                session_id, [ShoppingAddedUndo(items=added_names)],
+            )
 
     spoken, data = handled
     if rayon_reply is not None:
