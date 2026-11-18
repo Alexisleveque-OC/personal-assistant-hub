@@ -70,7 +70,7 @@ def test_manifest_uses_the_new_icons_and_brand_colors_and_keeps_the_rest():
     # Seules icons / background_color / theme_color changent : l'identité de l'installation reste la même.
     assert data["id"] == "/app?v=4"
     assert data["name"] == "Assistant Personnel Hub"
-    assert data["short_name"] == "Assistant"
+    assert data["short_name"] == "Otis"  # libellé sous l'icône (demande du 18/11)
     assert [s["url"] for s in data["shortcuts"]] == ["/app?action=meal_today", "/app?action=shopping_list"]
 
 
@@ -98,7 +98,11 @@ def test_otis_avatars_show_the_logo_instead_of_a_letter():
 
 def test_service_worker_precaches_the_new_logo_kit():
     sw = client.get("/sw.js").text
-    assert "pah-pwa-cache-v48" in sw
+    assert "pah-pwa-cache-v49" in sw
     for name in [*KIT_PNG_SIZES, "favicon.svg", "logo-otis.svg"]:
         assert f'"/static/icons/{name}"' in sw, name
     assert "/icons/icon.svg" not in sw
+
+
+def test_home_screen_label_is_otis_on_ios_too():
+    assert '<meta name="apple-mobile-web-app-title" content="Otis" />' in _head()
