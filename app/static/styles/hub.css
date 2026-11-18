@@ -247,11 +247,8 @@ a.bubble:hover { color: inherit; border-color: var(--border-strong); }
 .activity__meta { font-size: var(--fs-sm); color: var(--muted); }
 .activity__undo { font-size: var(--fs-sm); font-weight: 700; text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
 
-.avatar-otis {
-  width: 30px; height: 30px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: var(--on-accent); font-size: var(--fs-sm); font-weight: 800;
-}
+/* Logo « Sceau du scribe » (tuile déjà arrondie dans le SVG). */
+.avatar-otis { width: 30px; height: 30px; flex-shrink: 0; display: inline-block; vertical-align: middle; }
 
 /* ---------- 7. Feuilles (sections qui montent du bas) ------------------- */
 .sheet-backdrop {

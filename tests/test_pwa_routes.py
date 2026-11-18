@@ -91,7 +91,7 @@ def test_get_static_assets():
         assert "javascript" in res_mod.headers.get("content-type", "")
 
     # SVG Icon
-    res_svg = client.get("/static/icons/icon.svg")
+    res_svg = client.get("/static/icons/logo-otis.svg")
     assert res_svg.status_code == 200
     assert "svg" in res_svg.headers.get("content-type", "")
 

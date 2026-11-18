@@ -43,7 +43,7 @@ label.drawer__item { cursor: pointer; }
 .drawer__label { flex: 1; }
 .drawer__item .count:empty { display: none; }
 .drawer__brand-text { flex: 1; }
-.avatar-otis--lg { width: 44px; height: 44px; font-size: 18px; }
+.avatar-otis--lg { width: 44px; height: 44px; }
 
 /* ---------- Accueil : dernières actions + bulles ---------- */
 .home { display: flex; flex-direction: column; gap: var(--s-3); }
@@ -394,7 +394,7 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
   padding: 12px 14px; border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 6px; background: var(--card);
 }
 .msg__head { display: flex; align-items: center; gap: var(--s-2); }
-.msg__head .avatar-otis { width: 24px; height: 24px; font-size: var(--fs-xs); }
+.msg__head .avatar-otis { width: 24px; height: 24px; }
 .msg__who { flex: 1; font-size: var(--fs-sm); font-weight: 800; color: var(--muted); }
 .msg__replay { width: 32px; height: 32px; margin: -6px -6px -6px 0; background: transparent; color: var(--muted); }
 .msg__replay svg { width: 18px; height: 18px; }
