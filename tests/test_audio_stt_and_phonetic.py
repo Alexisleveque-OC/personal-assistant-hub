@@ -6,9 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.models import IntentType
 from app.core.audio.phonetic_normalizer import normalize_phonetics
-from app.core.audio.stt_service import AudioSTTService, set_stt_service
+from app.core.audio.stt_service import AudioSTTService, STTUnavailableError, set_stt_service
 
 
 def test_phonetic_normalizer_replaces_common_speech_errors():
@@ -46,48 +45,53 @@ def test_audio_stt_service_builds_gemini_multimodal_payload():
     assert parts[0]["inlineData"]["data"] == base64.b64encode(audio_bytes).decode("utf-8")
 
 
-@pytest.mark.asyncio
-async def test_audio_stt_service_process_audio_success():
-    """Vérifie le parsing et la transcription d'un audio reçu via Gemini."""
+def test_audio_payload_asks_for_a_plain_verbatim_transcription_only():
+    """Transcription seule : ni intention ni schéma JSON (l'agent comprend ensuite le texte), jamais de « correction »."""
+    service = AudioSTTService(gemini_client=MagicMock())
+
+    payload = service.build_multimodal_gemini_payload(b"AUDIO", mime_type="audio/webm")
+
+    config = payload["generationConfig"]
+    assert "response_schema" not in config and config["response_mime_type"] == "text/plain"
+    prompt = payload["contents"][0]["parts"][1]["text"]
+    assert "mot pour mot" in prompt and "ne corrige pas" in prompt.lower()
+    assert "Otis" not in prompt and "intention" not in prompt.lower()
+
+
+def _gemini_text(text: str):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": text}]}}]}
+    return mock_resp
+
+
+def _service():
     mock_client = MagicMock()
     mock_client.is_configured = True
     mock_client.is_daily_quota_exceeded.return_value = False
     mock_client.resolve_model = AsyncMock(return_value="gemini-3.5-flash-lite")
-    mock_client.get_candidate_models.return_value = ["gemini-3.5-flash-lite"]
+    mock_client.get_candidate_models.return_value = ["gemini-3.5-flash-lite", "gemini-3.5-flash"]
     mock_client.timeout = 5.0
+    return AudioSTTService(gemini_client=mock_client)
 
-    service = AudioSTTService(gemini_client=mock_client)
 
-    # Simulation de la réponse JSON de Gemini
-    simulated_gemini_response = {
-        "transcribed_text": "Ajoute du beurre au rayon Frais",
-        "intent": "add_shopping_item",
-        "confidence": 0.98,
-        "parameters": {"item": "beurre", "rayon": "Frais"},
-        "conversational_reply": None,
-    }
+@pytest.mark.asyncio
+async def test_transcribe_returns_the_plain_text_normalized():
+    with patch("httpx.AsyncClient.post", return_value=_gemini_text("  Footing de 8 km avec RPE à Troyes\n")):
+        text = await _service().transcribe(b"FAKEDATA", mime_type="audio/webm")
 
-    import json
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [{"text": json.dumps(simulated_gemini_response)}]
-                    }
-                }
-            ]
-        }
-        mock_post.return_value = mock_resp
+    assert text == "Footing de 8 km avec RPE à 3"
 
-        transcribed, parsed = await service.process_audio(
-            b"FAKEDATA", mime_type="audio/webm"
-        )
-        assert transcribed == "Ajoute du beurre au rayon Frais"
-        assert parsed.intent == IntentType.ADD_SHOPPING_ITEM
-        assert parsed.parameters["item"] == "beurre"
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reply", ["  ", "[rien]", "0:00", "00:01.", "…"])
+async def test_nothing_audible_is_reported_without_trying_another_model(reply):
+    with patch("httpx.AsyncClient.post", return_value=_gemini_text(reply)) as post:
+        with pytest.raises(STTUnavailableError) as err:
+            await _service().transcribe(b"FAKEDATA", mime_type="audio/webm")
+
+    assert post.call_count == 1  # une réponse vide est une réponse : pas de repli sur un autre modèle
+    assert err.value.user_message == "Je n'ai rien entendu de clair : rien n'a été envoyé. Réessaie ou tape ton message."
 
 
 def test_interact_audio_endpoint_with_mock_stt():
@@ -96,14 +100,7 @@ def test_interact_audio_endpoint_with_mock_stt():
 
     # Mock du service STT
     mock_stt = MagicMock()
-    mock_parsed = MagicMock()
-    mock_parsed.intent = IntentType.ADD_SHOPPING_ITEM
-    mock_parsed.parameters = {"item": "pommes", "rayon": "Fruits & Légumes"}
-    mock_parsed.confidence = 0.95
-    mock_parsed.conversational_reply = None
-    mock_parsed.raw_query = "Ajoute des pommes"
-
-    mock_stt.process_audio = AsyncMock(return_value=("Ajoute des pommes", mock_parsed))
+    mock_stt.transcribe = AsyncMock(return_value="Ajoute des pommes")
     set_stt_service(mock_stt)
 
     try:
@@ -128,3 +125,14 @@ def test_interact_audio_endpoint_rejects_unsupported_format():
 
     resp = client.post("/api/v1/interact/audio", files=files)
     assert resp.status_code in (400, 415)
+
+
+@pytest.mark.asyncio
+async def test_a_reply_without_any_text_part_also_means_nothing_was_heard():
+    empty = MagicMock(status_code=200)
+    empty.json.return_value = {"candidates": [{"content": {"role": "model"}, "finishReason": "STOP"}]}
+    with patch("httpx.AsyncClient.post", return_value=empty) as post:
+        with pytest.raises(STTUnavailableError) as err:
+            await _service().transcribe(b"FAKEDATA", mime_type="audio/webm")
+
+    assert post.call_count == 1 and err.value.user_message.startswith("Je n'ai rien entendu de clair")

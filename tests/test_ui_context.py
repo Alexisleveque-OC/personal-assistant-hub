@@ -13,7 +13,6 @@ from app.core.agent.agent_service import AgentReply, AgentService
 from app.core.agent.prompt import build_system_prompt
 from app.core.agent.tools.sport_registry import build_sport_registry
 from app.core.agent.tools.sport_tools import SportTools
-from app.core.models import IntentType
 from app.core.session_manager import get_session_manager
 from app.core.audio.stt_service import set_stt_service
 from app.handlers import agent_handler
@@ -72,14 +71,8 @@ async def test_agent_turn_forwards_the_session_screen_to_the_agent(monkeypatch):
 
 
 def _mock_stt(text: str):
-    parsed = MagicMock()
-    parsed.intent = IntentType.UNKNOWN
-    parsed.parameters = {}
-    parsed.confidence = 0.0
-    parsed.conversational_reply = None
-    parsed.raw_query = text
     stt = MagicMock()
-    stt.process_audio = AsyncMock(return_value=(text, parsed))
+    stt.transcribe = AsyncMock(return_value=text)
     return stt
 
 

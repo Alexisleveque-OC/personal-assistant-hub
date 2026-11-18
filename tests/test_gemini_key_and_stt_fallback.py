@@ -47,7 +47,7 @@ def _client(candidates):
     return client
 
 
-def _response(status: int, text: str = '{"transcribed_text": "ajoute du lait", "intent": "unknown", "parameters": {}}'):
+def _response(status: int, text: str = "ajoute du lait"):
     request = httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/models/m:generateContent")
     if status != 200:
         return httpx.Response(status, json={"error": {"message": "boom"}}, request=request)
@@ -64,7 +64,7 @@ async def test_stt_sends_the_key_in_a_header_and_falls_back_to_the_next_model():
         return _response(429) if "lite" in url else _response(200)
 
     with patch("httpx.AsyncClient.post", fake_post):
-        text, _ = await service.process_audio(b"AUDIO", mime_type="audio/webm")
+        text = await service.transcribe(b"AUDIO", mime_type="audio/webm")
 
     assert text == "ajoute du lait"
     assert [url.rsplit("/", 1)[-1] for url, _ in calls] == ["lite:generateContent", "flash:generateContent"]
@@ -82,7 +82,7 @@ async def test_stt_failure_lists_every_model_without_leaking_the_key():
 
     with patch("httpx.AsyncClient.post", fake_post):
         with pytest.raises(STTUnavailableError) as err:
-            await service.process_audio(b"AUDIO", mime_type="audio/webm")
+            await service.transcribe(b"AUDIO", mime_type="audio/webm")
 
     message = str(err.value)
     assert "lite : quota atteint (429)" in message
@@ -94,7 +94,7 @@ async def test_stt_failure_lists_every_model_without_leaking_the_key():
 
 def test_audio_endpoint_returns_the_clear_message_only():
     failing = MagicMock()
-    failing.process_audio = AsyncMock(side_effect=STTUnavailableError(
+    failing.transcribe = AsyncMock(side_effect=STTUnavailableError(
         "lite : quota atteint (429)",
         user_message="Je n'ai pas pu transcrire ton message : quota Gemini atteint ou service surchargé. Réessaie dans un instant ou tape-le.",
     ))
