@@ -1,5 +1,5 @@
 """Séances de sport et synthèses hebdomadaires (sport_sessions, sport_weekly_summaries)."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import sqlite3
 from typing import Any, Dict, List, Optional, Union
 
@@ -184,11 +184,15 @@ class SportStore(SQLiteBase):
             conditions.append("date <= ?")
             params.append(e_str)
 
-        if week is not None:
+        if week is not None and year is not None:
+            # Semaine ISO d'une année ISO : du lundi au dimanche, même à cheval sur deux années civiles.
+            monday = date.fromisocalendar(year, week, 1)
+            conditions.append("date BETWEEN ? AND ?")
+            params.extend([monday.isoformat(), (monday + timedelta(days=6)).isoformat()])
+        elif week is not None:
             conditions.append("semaine = ?")
             params.append(week)
-
-        if year is not None:
+        elif year is not None:
             conditions.append("substr(date, 1, 4) = ?")
             params.append(str(year))
 
