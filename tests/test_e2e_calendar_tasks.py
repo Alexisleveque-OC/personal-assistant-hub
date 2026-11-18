@@ -4,7 +4,7 @@ Phrase → /interact → agent (LLM scripté) → outils → VRAIS `CalendarConn
 Google (seul le réseau est simulé, par une API en mémoire) → réponse ; puis l'onglet Tâches lit et coche la même
 liste via `/api/v1/tasks`. Vérifie au passage le cache partagé et son invalidation à chaque écriture.
 """
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 

@@ -1,7 +1,6 @@
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 from app.main import app, set_meals_connector
-from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from datetime import date
 
 from app.connectors.sheets.models import DayMealPlan, MealWeekDay

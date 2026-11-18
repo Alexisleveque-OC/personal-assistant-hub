@@ -5,11 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.database import (
-    DatabaseManager,
-    get_database_manager,
-    set_database_manager,
-)
+from app.core.database import DatabaseManager, set_database_manager
 
 
 @pytest.fixture

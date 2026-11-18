@@ -2,7 +2,7 @@
 import os
 import tempfile
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -10,7 +10,7 @@ from app.core.database import (
     DatabaseManager,
     set_database_manager,
 )
-from app.core.models import IntentType, ParsedIntent
+from app.core.models import IntentType
 from app.core.intent_parser import IntentParser
 from app.core.llm.nlu_service import GeminiNLUService
 

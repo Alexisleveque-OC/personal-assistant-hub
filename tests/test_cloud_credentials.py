@@ -3,7 +3,6 @@
 import base64
 import json
 from unittest.mock import patch, MagicMock
-import pytest
 from app.config import Settings
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 

@@ -1,19 +1,12 @@
 """Tests d'intégration API pour le module de gamification et badges sportifs."""
 from datetime import date
-from typing import List
 from unittest.mock import MagicMock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.connectors.sheets.sport_connector import SportConnector
-from app.connectors.sheets.sport_models import (
-    SportGamificationSummary,
-    SportSession,
-    SportSessionStatus,
-    SportSessionType,
-)
+from app.connectors.sheets.sport_models import SportSession, SportSessionStatus, SportSessionType
 from app.main import app, set_sport_connector
 
 client = TestClient(app)

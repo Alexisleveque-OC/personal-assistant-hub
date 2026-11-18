@@ -1,7 +1,6 @@
 """Tests unitaires pour les endpoints d'historique des séances et des semaines (Étape 2)."""
 from datetime import date, timedelta
 from unittest.mock import MagicMock
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app

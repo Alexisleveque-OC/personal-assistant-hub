@@ -2,7 +2,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import sqlite3
-import pytest
 
 from scripts.pull_prod_db import pull_production_database, get_database_summary
 

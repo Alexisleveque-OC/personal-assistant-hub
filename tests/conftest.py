@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock
 from app.config import settings
 from app.main import set_meals_connector
-from app.connectors.sheets.models import DayMealPlan, ShoppingItem, WaitingListItem
+from app.connectors.sheets.models import DayMealPlan, WaitingListItem
 from app.core.database import DatabaseManager, set_database_manager
 from app.core.dependencies import set_calendar_connector, set_task_events_connector, set_tasks_connector
 from app.core.llm.rayon_suggester import set_rayon_suggester

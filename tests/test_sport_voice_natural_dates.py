@@ -5,12 +5,7 @@ import pytest
 
 from app.core.date_resolver import format_natural_spoken_date
 from app.core.models import IntentType, ParsedIntent
-from app.connectors.sheets.sport_models import (
-    SportSession,
-    SportSessionPlan,
-    SportSessionStatus,
-    SportSessionType,
-)
+from app.connectors.sheets.sport_models import SportSession, SportSessionStatus, SportSessionType
 from app.handlers.sport_handler import handle_sport_intent
 from app.core.intent_parser import IntentParser
 

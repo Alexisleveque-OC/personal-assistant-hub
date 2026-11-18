@@ -3,17 +3,8 @@ from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock
 import pytest
 
-from app.connectors.sheets.models import (
-    DayMealPlan,
-    Recipe,
-    WaitingListItem,
-    ShoppingItem,
-)
-from app.connectors.sheets.meals_connector import (
-    MealsShoppingConnector,
-    RecipeNotFoundError,
-    DayMealPlanNotFoundError,
-)
+from app.connectors.sheets.models import DayMealPlan, WaitingListItem
+from app.connectors.sheets.meals_connector import MealsShoppingConnector, DayMealPlanNotFoundError
 
 
 def create_mock_worksheet(title: str, records: list[list]) -> MagicMock:

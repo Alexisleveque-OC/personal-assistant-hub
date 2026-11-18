@@ -1,6 +1,5 @@
 """Tests unitaires pour la réinitialisation de la liste de courses et le cycle hebdomadaire."""
 from unittest.mock import MagicMock
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app

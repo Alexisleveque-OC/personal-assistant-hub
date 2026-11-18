@@ -8,11 +8,10 @@ Valide le flux complet utilisateur de bout en bout :
 4. Ajout d'article de courses contenant du vocabulaire de running sans fausse mutation sport.
 5. Intégrité des assets PWA (Audio Focus, Offline Outbox, Service Worker v20).
 """
-import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.database import get_database_manager
-from app.core.models import IntentType, NoteCategory
+from app.core.models import IntentType
 
 client = TestClient(app)
 

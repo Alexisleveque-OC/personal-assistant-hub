@@ -9,16 +9,10 @@ Couvre :
 """
 import pytest
 from datetime import date
-from unittest.mock import patch
 
 from app.core.models import IntentType, ParsedIntent
 from app.connectors.sqlite.sport_connector import SqlSportConnector
-from app.connectors.sheets.sport_models import (
-    SportSessionCreate,
-    SportSessionStatus,
-    SportSessionType,
-    SportSessionUpdate,
-)
+from app.connectors.sheets.sport_models import SportSessionCreate, SportSessionType
 from app.core.database import DatabaseManager
 from app.core.intent_parser import IntentParser
 from app.handlers.sport_handler import handle_sport_intent

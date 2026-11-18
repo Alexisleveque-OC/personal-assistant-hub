@@ -12,18 +12,15 @@ Valide le cycle de vie complet en conditions applicatives :
 9. Dashboard multi-échelles (Semaine, Mois, Année) et calcul du plafond de sécurité.
 """
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import settings
 from app.connectors.sheets.sport_connector import SportConnector
 from app.connectors.sheets.sport_models import (
     CoachTipLevel,
-    DashboardScale,
-    SportBadge,
     SportCoachTip,
     SportSession,
     SportSessionCreate,

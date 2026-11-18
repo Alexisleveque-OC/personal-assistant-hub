@@ -7,20 +7,15 @@ Vérifie l'éradication du mode stateless :
 - Résolution contextuelle des anaphores et références croisées (« C'est l'application », « Prends note de ces 3 derniers échanges »)
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.core.database import DatabaseManager, set_database_manager
 from app.core.models import IntentType, ParsedIntent
-from app.core.dependencies import (
-    clear_sessions,
-    get_sessions_store,
-    set_meals_connector,
-    set_sport_connector,
-)
-from app.core.session_manager import get_session_manager, SessionManager
+from app.core.dependencies import clear_sessions, set_sport_connector
+from app.core.session_manager import get_session_manager
 
 client = TestClient(app)
 API_HEADERS = {"X-API-Key": "test_api_key"}

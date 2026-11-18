@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.core.models import IntentType
 from app.core.audio.phonetic_normalizer import normalize_phonetics
-from app.core.audio.stt_service import AudioSTTService, get_stt_service, set_stt_service
+from app.core.audio.stt_service import AudioSTTService, set_stt_service
 
 
 def test_phonetic_normalizer_replaces_common_speech_errors():

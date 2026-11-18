@@ -3,14 +3,11 @@
 Par défaut, tous les tests s'exécutent sur un classeur in-memory mocké ultra-réaliste
 pour garantir ZÉRO effet de bord et ZÉRO pollution sur le Google Sheet réel de l'utilisateur.
 """
-from datetime import date, datetime, timedelta
-import os
-from pathlib import Path
+from datetime import date, datetime
 from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import settings
 from app.main import app, set_meals_connector
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 

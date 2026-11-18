@@ -1,5 +1,5 @@
 """Tests unitaires TDD pour le connecteur SqlSportConnector (< 1ms, SQLite unifié)."""
-from datetime import date, timedelta
+from datetime import date
 import os
 import tempfile
 import pytest

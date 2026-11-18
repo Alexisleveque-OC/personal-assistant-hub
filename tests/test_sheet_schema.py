@@ -8,7 +8,6 @@ from app.connectors.sheets.schema_validator import (
     SheetSchemaValidator,
     SheetSchemaWorksheetNotFoundError,
     SheetSchemaHeaderDriftError,
-    SheetSchemaError,
 )
 from tests.live import requires_live_sheets
 
