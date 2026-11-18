@@ -23,6 +23,7 @@ from app.routers.interact import (
 from app.routers.mobile import router as mobile_router, mobile_interact
 from app.routers.meals import router as meals_router
 from app.routers.sport import router as sport_router
+from app.routers.sport_screenshot import router as sport_screenshot_router
 from app.routers.strava import router as strava_router
 from app.routers.second_brain import router as second_brain_router
 from app.routers.home import router as home_router
@@ -133,6 +134,7 @@ app.include_router(mobile_router)
 app.include_router(meals_router)
 app.include_router(tasks_router)
 app.include_router(sport_router)
+app.include_router(sport_screenshot_router)
 app.include_router(strava_router)
 app.include_router(second_brain_router)
 app.include_router(home_router)
