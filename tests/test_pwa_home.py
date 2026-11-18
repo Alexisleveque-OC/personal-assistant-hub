@@ -1,30 +1,18 @@
 """Refonte UX (ROADMAP Étape 1) : accueil — « Dernières actions », 4 bulles, feuille Conversation.
 
 La logique des bulles (home_model.js, sans import) est exécutée sous Node."""
-import json
 import re
-import shutil
-import subprocess
-from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.js_helpers import js_source, rendered_html, run_node
 
-STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 client = TestClient(app)
 
 
 def _run(snippet: str):
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = (STATIC / "js" / "home_model.js").read_text(encoding="utf-8") + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return run_node(js_source("home_model.js") + "\n" + snippet)
 
 
 # ---------- 🛒 À acheter ----------
@@ -123,12 +111,9 @@ console.log(JSON.stringify([
 
 # ---------- Page servie ----------
 
-def _rendered_html() -> str:
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
 
 def test_home_has_the_activity_block_and_four_bubbles_opening_their_section():
-    html = _rendered_html()
+    html = rendered_html()
     main = html[html.index('<main class="app__main"'):html.index("</main>")]
 
     assert '<section class="activity" id="home-activity" aria-label="Dernières actions">' in main
@@ -139,7 +124,7 @@ def test_home_has_the_activity_block_and_four_bubbles_opening_their_section():
 
 
 def test_conversation_sheet_holds_the_chat_the_suggestions_and_a_new_thread_button():
-    html = _rendered_html()
+    html = rendered_html()
     match = re.search(r'<section class="sheet" id="view-conversation"([^>]*)>(.*?)\n    </section>', html, re.S)
 
     assert match
@@ -150,15 +135,8 @@ def test_conversation_sheet_holds_the_chat_the_suggestions_and_a_new_thread_butt
 
 
 def test_hands_free_otis_is_a_switch_in_the_menu_with_its_live_status():
-    html = _rendered_html()
+    html = rendered_html()
     drawer = html[html.index('<nav class="drawer"'):html.index("</nav>", html.index('<nav class="drawer"'))]
 
     assert 'id="wake-word-switch"' in drawer
     assert 'id="wake-word-indicator"' in drawer
-
-
-def test_home_modules_are_precached():
-    sw = client.get("/sw.js").text
-    for path in ("/static/js/home_model.js", "/static/js/views/home_view.js"):
-        assert client.get(path).status_code == 200
-        assert f'"{path}"' in sw

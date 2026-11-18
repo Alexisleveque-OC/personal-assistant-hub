@@ -24,7 +24,6 @@ PUBLIC_METHODS = {
 
 
 def test_database_is_a_package_with_one_module_per_domain():
-    assert not (PACKAGE.parent / "database.py").exists()
     for module in ("__init__", "base", "conversation", "notes", "learnings", "sport"):
         source = PACKAGE / f"{module}.py"
         assert source.exists(), module

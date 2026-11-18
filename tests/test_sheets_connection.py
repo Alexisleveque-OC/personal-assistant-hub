@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from app.config import settings
+from tests.live import requires_live_sheets
 
 
 class PlanningWorksheetNotFoundError(Exception):
@@ -79,6 +80,7 @@ def test_sheets_connection_mocked():
         assert "Recettes" in titles
 
 
+@requires_live_sheets
 @pytest.mark.skipif(
     not Path(settings.google_service_account_file).exists()
     or not settings.spreadsheet_meals_shopping_id,

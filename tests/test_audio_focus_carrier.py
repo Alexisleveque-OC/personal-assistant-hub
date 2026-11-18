@@ -1,14 +1,9 @@
 """Clip porteur (ROADMAP Étape 2) : une balise <audio> quasi silencieuse fait baisser la musique pendant qu'Otis parle (Chrome Android)."""
-import json
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
+from tests.js_helpers import run_node
 
 MODULE_PATH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "audio_focus.js"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 # Fausse balise <audio> : journalise les appels qui prennent ou rendent le focus audio.
 BROWSER_FAKES = """
@@ -37,12 +32,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 def _run_module_with(snippet: str) -> dict:
     """Exécute le module ES réel sous Node (code envoyé sur stdin) et renvoie le JSON affiché par l'extrait."""
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = BROWSER_FAKES + MODULE_PATH.read_text(encoding="utf-8") + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return run_node(BROWSER_FAKES + MODULE_PATH.read_text(encoding="utf-8") + "\n" + snippet)
 
 
 def test_tts_ducking_plays_a_looping_near_silent_wav_clip():

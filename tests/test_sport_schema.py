@@ -11,6 +11,7 @@ from app.connectors.sheets.sport_schema import (
     CANONICAL_SEANCES_COLUMNS,
     EXPECTED_SYNTHESE_HEBDO_HEADERS,
 )
+from tests.live import requires_live_sheets
 
 
 def test_sport_schema_validator_conforming_sheet_passes():
@@ -72,6 +73,7 @@ def test_sport_schema_validator_header_drift_raises_error():
     assert "Distance" in str(exc_info.value)
 
 
+@requires_live_sheets
 @pytest.mark.skipif(not settings.spreadsheet_sport_id, reason="SPREADSHEET_SPORT_ID non configuré")
 def test_live_google_sheet_sport_conformity():
     """Vérifie la conformité en direct du Google Sheet Sport réel d'Alexis."""

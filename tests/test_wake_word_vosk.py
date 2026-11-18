@@ -1,31 +1,22 @@
 """Moteur local du mot-clé « Otis » via Vosk (Étape 3) : micro brut, grammaire restreinte, échecs explicites."""
 import json
 import mimetypes
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from scripts.fetch_vosk_assets import ASSETS_VERSION
+from tests.js_helpers import run_node
 
 client = TestClient(app)
 
 MODULE_PATH = Path(__file__).resolve().parent.parent / "app" / "static" / "js" / "wake_word_vosk.js"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 
 def _run_module_with(snippet: str) -> str:
     """Exécute le module ES réel sous Node (code envoyé sur stdin) suivi d'un extrait de test."""
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = MODULE_PATH.read_text(encoding="utf-8") + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return result.stdout
+    return run_node(MODULE_PATH.read_text(encoding="utf-8") + "\n" + snippet, parse_json=False)
 
 
 def _module() -> str:
@@ -33,33 +24,6 @@ def _module() -> str:
     assert res.status_code == 200
     assert "javascript" in res.headers.get("content-type", "")
     return res.text
-
-
-def test_module_exposes_a_detector_and_an_explicit_load_error():
-    content = _module()
-    assert "export class VoskWakeWordDetector" in content
-    assert "export class WakeWordLoadError" in content
-    assert "export function transcriptHasWakeWord" in content
-
-
-def test_module_uses_a_raw_microphone_to_keep_the_music_untouched():
-    content = _module()
-    assert "echoCancellation: false" in content
-    assert "noiseSuppression: false" in content
-    assert "autoGainControl: false" in content
-    assert "echoCancellation: true" not in content
-
-
-def test_module_restricts_recognition_to_the_wake_word():
-    content = _module()
-    assert '["otis", "[unk]"]' in content
-
-
-def test_module_triggers_on_final_results_only_to_avoid_false_wakes():
-    """Mesuré en navigateur : les résultats partiels déclenchent sur « les hôtes », les résultats finaux non."""
-    content = _module()
-    assert 'recognizer.on("result"' in content
-    assert "partialresult" not in content
 
 
 def test_wake_word_must_be_the_last_word_before_the_pause():
@@ -83,22 +47,6 @@ def test_model_url_is_versioned_with_the_fetched_assets_to_refresh_the_browser_c
     assert f"/vosk/model.tar.gz?v={ASSETS_VERSION}" in _module()
 
 
-def test_module_loads_vendored_assets_and_fails_fast_on_timeout_or_worker_error():
-    content = _module()
-    assert "/static/vendor/vosk/vosk.wasm.js" in content
-    assert "/static/vendor/vosk/vosk.worker.js" in content
-    assert "/static/vendor/vosk/vosk.wasm" in content
-    assert "LOAD_TIMEOUT_MS" in content
-    assert 'on("error"' in content
-
-
-def test_module_releases_the_microphone_on_stop():
-    content = _module()
-    assert "stop()" in content
-    assert "getTracks().forEach" in content
-    assert ".close()" in content
-
-
 def test_capture_worklet_is_served_and_registered():
     res = client.get("/static/js/vosk_capture_worklet.js")
     assert res.status_code == 200
@@ -118,28 +66,32 @@ def test_diag_page_offers_a_vosk_wake_word_mode():
 
 BROWSER_FAKES = """
 const tracks = [];
+const micConstraints = [];
 let pendingMicrophone = null;
 Object.defineProperty(globalThis, "navigator", { configurable: true, value: { mediaDevices: {
-  getUserMedia: () => new Promise((resolve) => { pendingMicrophone = resolve; }),
+  getUserMedia: (constraints) => new Promise((resolve) => { micConstraints.push(constraints); pendingMicrophone = resolve; }),
 } } });
 function grantMicrophone() {
   const track = { stopped: false, stop() { this.stopped = true; } };
   tracks.push(track);
   pendingMicrophone({ getTracks: () => [track] });
 }
+const contexts = [];
 globalThis.AudioContext = class {
-  constructor() { this.state = "running"; this.sampleRate = 48000; this.audioWorklet = { addModule: async () => {} }; }
+  constructor() { this.state = "running"; this.sampleRate = 48000; this.audioWorklet = { addModule: async () => {} }; contexts.push(this); }
   createMediaStreamSource() { return { connect() {} }; }
   close() { this.closed = true; }
 };
 globalThis.AudioWorkletNode = class { constructor() { this.port = {}; } };
 const handlers = {};
 let recognizersCreated = 0;
+let recognizerArgs = null;
+let recognizersRemoved = 0;
 const fakeClient = { KaldiRecognizer: class {
-  constructor() { recognizersCreated += 1; }
+  constructor(...args) { recognizersCreated += 1; recognizerArgs = args; }
   on(event, listener) { handlers[event] = listener; }
   setWords() {}
-  remove() {}
+  remove() { recognizersRemoved += 1; }
 } };
 const logs = [];
 const wakes = [];
@@ -202,3 +154,82 @@ console.log(JSON.stringify({ wakes, runningAfterLowConfidence, logs }));
     assert result["wakes"] == ["otis"]
     assert result["runningAfterLowConfidence"] is True
     assert any("ignoré" in line and "0.90" in line for line in result["logs"])
+
+
+def test_listening_uses_a_raw_microphone_and_final_results_of_a_wake_word_grammar():
+    """Micro brut : la musique n'est pas touchée. Résultats finaux seulement : les partiels déclenchent sur « les hôtes »."""
+    snippet = BROWSER_FAKES + """
+const starting = detector.start();
+await tick();
+grantMicrophone();
+await starting;
+console.log(JSON.stringify({ micConstraints, recognizerArgs, events: Object.keys(handlers).sort() }));
+"""
+    result = json.loads(_run_module_with(snippet))
+    assert result["micConstraints"] == [{"audio": {"echoCancellation": False, "noiseSuppression": False,
+                                                   "autoGainControl": False, "channelCount": 1}}]
+    assert result["recognizerArgs"] == [48000, '["otis","[unk]"]']
+    assert result["events"] == ["error", "result"]
+
+
+def test_stop_releases_the_microphone_the_audio_context_and_the_recognizer():
+    snippet = BROWSER_FAKES + """
+const starting = detector.start();
+await tick();
+grantMicrophone();
+await starting;
+detector.stop();
+console.log(JSON.stringify({ running: detector.isRunning, released: tracks[0].stopped,
+                             closed: !!contexts[0].closed, recognizersRemoved }));
+"""
+    assert json.loads(_run_module_with(snippet)) == {"running": False, "released": True, "closed": True,
+                                                     "recognizersRemoved": 1}
+
+
+ENGINE_FAKES = """
+const timers = new Map();
+let timerId = 0;
+globalThis.setTimeout = (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; };
+globalThis.clearTimeout = (id) => timers.delete(id);
+globalThis.setInterval = () => 0;
+globalThis.clearInterval = () => {};
+let clientOptions = null;
+let engineHandlers = {};
+let importFails = false;
+const fakeImport = async (url) => {
+  if (importFails) throw new Error(`introuvable : ${url}`);
+  return { VoskClient: class {
+    constructor(options) { clientOptions = options; this.worker = { addEventListener() {} }; }
+    on(event, listener) { engineHandlers[event] = listener; }
+  } };
+};
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+const failureOf = async (outcome) => {
+  const detector = new VoskWakeWordDetector({ onWake() {} });
+  const starting = detector.start().then(() => null, (err) => `${err.name}: ${err.message}`);
+  await flush();
+  outcome();
+  return starting;
+};
+"""
+
+
+def test_engine_loads_the_vendored_assets_and_fails_explicitly():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert source.count("await import(VOSK_CLIENT_URL)") == 1
+    source = source.replace("await import(VOSK_CLIENT_URL)", "await fakeImport(VOSK_CLIENT_URL)")
+    snippet = ENGINE_FAKES + source + """
+const workerError = await failureOf(() => engineHandlers.error({ error: "mémoire saturée" }));
+const options = clientOptions;
+const timeout = await failureOf(() => [...timers.values()].find((t) => t.ms === LOAD_TIMEOUT_MS).fn());
+importFails = true;
+const missing = await failureOf(() => {});
+console.log(JSON.stringify({ options, workerError, timeout, missing }));
+"""
+    result = json.loads(run_node(snippet, parse_json=False))
+    assert result["options"]["workerUrl"] == "/static/vendor/vosk/vosk.worker.js"
+    assert result["options"]["wasmUrl"] == "/static/vendor/vosk/vosk.wasm"
+    assert result["options"]["modelUrl"] == f"/vosk/model.tar.gz?v={ASSETS_VERSION}"
+    assert result["workerError"] == "WakeWordLoadError: Erreur du moteur Vosk : mémoire saturée"
+    assert result["timeout"].startswith("WakeWordLoadError: Chargement du modèle Vosk trop long (> 120 s")
+    assert result["missing"].startswith("WakeWordLoadError: Moteur Vosk introuvable (/static/vendor/vosk/vosk.wasm.js)")
