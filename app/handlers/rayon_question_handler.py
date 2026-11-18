@@ -60,7 +60,9 @@ async def handle_rayon_reply(
     data: Dict[str, Any] = {}
     if answer.added:
         data["items"] = [item.model_dump() for item in answer.added]  # toast « article(s) ajouté(s) »
-        _journalize(session_id, session_ctx, answer)
+        batch_id = _journalize(session_id, session_ctx, answer)
+        if batch_id is not None:
+            data["undo_batch_id"] = batch_id  # annulable depuis « Dernières actions »
     if answer.next_question:
         session_ctx[RAYON_QUESTION_KEY] = data["rayon_question"] = answer.next_question.model_dump()
     rayon = answer.added[0].rayon if answer.added and answer.consumed else None
@@ -76,10 +78,11 @@ def is_idle_reply(parsed: ParsedIntent, query: str) -> bool:
     return parsed.intent in _IDLE_INTENTS and len(query.split()) <= _IDLE_REPLY_MAX_WORDS
 
 
-def _journalize(session_id: str, session_ctx: Dict[str, Any], answer: RayonAnswer) -> None:
+def _journalize(session_id: str, session_ctx: Dict[str, Any], answer: RayonAnswer) -> Optional[int]:
     """« Annule ça » : annulation exacte par le journal en mode agent (article + rayon appris), legacy sinon."""
-    UndoJournal(get_database_manager()).record(session_id, list(answer.undos))
+    batch_id = UndoJournal(get_database_manager()).record(session_id, list(answer.undos))
     if settings.nlu_mode == "agent":
         session_ctx.pop("last_undoable_action", None)
     else:
         session_ctx["last_undoable_action"] = {"type": "add_shopping_item", "items": [it.item for it in answer.added]}
+    return batch_id

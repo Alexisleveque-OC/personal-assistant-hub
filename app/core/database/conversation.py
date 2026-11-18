@@ -89,6 +89,16 @@ class ConversationStore(SQLiteBase):
             row = cursor.fetchone()
             return dict(row) if row else None
 
+    def get_agent_undo_batches(self, batch_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+        """Lots d'annulation par identifiant (annulés ou non) ; les identifiants inconnus sont absents."""
+        if not batch_ids:
+            return {}
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ", ".join("?" for _ in batch_ids)
+            cursor.execute(f"SELECT * FROM agent_undo_batches WHERE id IN ({placeholders})", list(batch_ids))
+            return {row["id"]: dict(row) for row in cursor.fetchall()}
+
     def mark_agent_undo_batch_undone(self, batch_id: int) -> bool:
         """Marque un lot comme annulé (il ne sera plus proposé)."""
         with self.get_connection() as conn:

@@ -13,7 +13,7 @@ PACKAGE = Path(__file__).resolve().parent.parent / "app" / "core" / "database"
 
 PUBLIC_METHODS = {
     "get_connection", "init_db",
-    "add_agent_undo_batch", "get_last_agent_undo_batch", "mark_agent_undo_batch_undone",
+    "add_agent_undo_batch", "get_last_agent_undo_batch", "get_agent_undo_batches", "mark_agent_undo_batch_undone",
     "log_conversation", "get_conversation_log", "get_conversation_logs", "add_feedback", "get_feedbacks_for_log",
     "add_note", "get_note", "get_notes", "update_note", "delete_note", "get_notes_stats",
     "add_learning", "get_learning", "get_learnings", "get_active_learnings", "update_learning", "delete_learning",

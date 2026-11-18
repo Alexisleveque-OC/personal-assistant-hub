@@ -72,6 +72,13 @@ export function actionTime(iso, now = new Date()) {
   return `${DAYS_SHORT[at.getDay()]} ${at.getDate()}`;
 }
 
+// « Dernières actions » : bouton « Annuler », mention « Annulée » (action défaite depuis la liste) ou heure.
+export function activityStatus(action, now = new Date()) {
+  if (action.undoable) return { kind: "undo", text: "Annuler" };
+  if (action.undone) return { kind: "undone", text: "Annulée" };
+  return { kind: "time", text: actionTime(action.created_at, now) };
+}
+
 // Dernière réponse d'Otis dans la conversation sauvegardée sur ce téléphone.
 export function lastAssistantReply(history) {
   const last = [...(history || [])].reverse().find((m) => m.role === "assistant" && m.text);

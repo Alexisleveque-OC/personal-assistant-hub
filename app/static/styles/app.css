@@ -75,6 +75,7 @@ button.activity__undo {
   cursor: pointer;
 }
 button.activity__undo:disabled { color: var(--disabled); cursor: default; }
+.activity__item--undone .activity__text { color: var(--muted); }
 
 /* Bulles : textes longs coupés pour garder la grille régulière */
 .bubble__value { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }

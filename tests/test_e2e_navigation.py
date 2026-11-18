@@ -54,7 +54,8 @@ def _free_port() -> int:
 
 
 @pytest.fixture(scope="module")
-def base_url(tmp_path_factory):
+def e2e_server(tmp_path_factory):
+    """Serveur isolé : (url, chemin de sa base SQLite, que les tests peuvent pré-remplir)."""
     port = _free_port()
     workdir = tmp_path_factory.mktemp("e2e")
     log_path = workdir / "server.log"
@@ -93,7 +94,7 @@ def base_url(tmp_path_factory):
                         output = log_path.read_text(encoding="utf-8")
                         raise RuntimeError(f"Le serveur E2E n'a pas démarré sur {url} :\n{output[-3000:]}")
                     time.sleep(0.2)
-            yield url
+            yield url, workdir / "hub.db"
         finally:
             server.terminate()
             try:
@@ -114,6 +115,11 @@ def browser():
             pytest.skip(message)
         yield chromium
         chromium.close()
+
+
+@pytest.fixture(scope="module")
+def base_url(e2e_server):
+    return e2e_server[0]
 
 
 @pytest.fixture
