@@ -16,7 +16,12 @@ from pathlib import Path
 
 import pytest
 
-sync_api = pytest.importorskip("playwright.sync_api")
+try:
+    from playwright import sync_api
+except ImportError:
+    if os.environ.get("E2E_BROWSER_REQUIRED"):
+        raise
+    pytest.skip("Playwright absent (`pip install -r requirements-dev.txt`)", allow_module_level=True)
 
 ROOT = Path(__file__).resolve().parent.parent
 HOME_PLACEHOLDER = "Écrire à Otis…"
