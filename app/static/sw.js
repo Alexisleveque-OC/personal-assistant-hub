@@ -1,4 +1,4 @@
-const CACHE_NAME = "pah-pwa-cache-v47";
+const CACHE_NAME = "pah-pwa-cache-v48";
 const ASSETS_TO_CACHE = [
   "/app",
   "/static/styles/hub.css",
@@ -55,7 +55,10 @@ const ASSETS_TO_CACHE = [
   "/static/icons/icon-maskable-192.png",
   "/static/icons/icon-maskable-512.png",
   "/static/icons/apple-touch-icon.png",
-  "/static/icons/icon.svg"
+  "/static/icons/favicon.svg",
+  "/static/icons/favicon-32.png",
+  "/static/icons/favicon-16.png",
+  "/static/icons/logo-otis.svg"
 ];
 
 // Installation du Service Worker

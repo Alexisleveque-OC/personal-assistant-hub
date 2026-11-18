@@ -80,10 +80,10 @@ function speakerIcon() {
 function otisHead() {
   const head = document.createElement("div");
   head.className = "msg__head";
-  const avatar = document.createElement("span");
+  const avatar = document.createElement("img");
   avatar.className = "avatar-otis";
-  avatar.setAttribute("aria-hidden", "true");
-  avatar.textContent = "O";
+  avatar.src = "/static/icons/logo-otis.svg";
+  avatar.alt = "";
   const who = document.createElement("span");
   who.className = "msg__who";
   who.textContent = "Otis";

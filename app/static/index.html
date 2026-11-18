@@ -18,20 +18,18 @@
     })();
   </script>
 
-  <link rel="manifest" href="/manifest.json?v=7.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png?v=7.1" />
-  <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png?v=7.1" />
-  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg?v=7.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png?v=7.1" />
-  <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-maskable-192.png?v=7.1" />
-  <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-maskable-512.png?v=7.1" />
+  <link rel="manifest" href="/manifest.json?v=8" />
+  <link rel="icon" href="/static/icons/favicon.svg?v=8" type="image/svg+xml" />
+  <link rel="icon" href="/static/icons/favicon-32.png?v=8" sizes="32x32" type="image/png" />
+  <link rel="icon" href="/static/icons/favicon-16.png?v=8" sizes="16x16" type="image/png" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v=8" />
 
   <!-- Google Fonts (Manrope, chargée par hub.css) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-  <link rel="stylesheet" href="/static/styles/hub.css?v=2" />
-  <link rel="stylesheet" href="/static/styles/app.css?v=4" />
+  <link rel="stylesheet" href="/static/styles/hub.css?v=3" />
+  <link rel="stylesheet" href="/static/styles/app.css?v=5" />
 </head>
 <body>
 
@@ -75,7 +73,7 @@
 
       <section class="activity" id="home-activity" aria-label="Dernières actions">
         <button type="button" class="activity__head" data-open-conversation aria-label="Dernières actions — ouvrir la conversation avec Otis">
-          Dernières actions <span class="avatar-otis" aria-hidden="true">O</span>
+          Dernières actions <img class="avatar-otis" src="/static/icons/logo-otis.svg" alt="" width="30" height="30" />
         </button>
         <div id="home-activity-list" aria-live="polite"></div>
       </section>
@@ -162,7 +160,7 @@
       <div class="sheet__body">
         <div id="chat-stream" class="chat-stream" role="log" aria-live="polite" aria-label="Messages">
           <div class="msg msg--otis">
-            <div class="msg__head"><span class="avatar-otis" aria-hidden="true">O</span><span class="msg__who">Otis</span></div>
+            <div class="msg__head"><img class="avatar-otis" src="/static/icons/logo-otis.svg" alt="" width="30" height="30" /><span class="msg__who">Otis</span></div>
             <p class="msg__text">Bonjour ! Je suis votre assistant personnel. Appuyez sur le micro ou tapez un message pour gérer vos repas ou votre liste de courses.</p>
           </div>
         </div>
@@ -486,7 +484,7 @@
   <!-- Menu burger (remplace la barre d'onglets du bas) -->
   <nav class="drawer" id="drawer" aria-label="Menu principal" aria-hidden="true" tabindex="-1" inert>
     <div class="drawer__brand">
-      <span class="avatar-otis avatar-otis--lg" aria-hidden="true">O</span>
+      <img class="avatar-otis avatar-otis--lg" src="/static/icons/logo-otis.svg" alt="" width="44" height="44" />
       <div class="drawer__brand-text"><strong>Assistant Hub</strong><span class="drawer__status">Otis en ligne</span></div>
       <button type="button" class="icon-btn" data-drawer-close aria-label="Fermer le menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
