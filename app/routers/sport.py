@@ -280,7 +280,7 @@ async def draft_sport_session(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Le flux audio envoyé est vide.")
         mime = (audio_file.content_type or "audio/webm").split(";")[0].strip().lower()
         try:
-            transcription, _ = await get_stt_service().process_audio(audio_bytes=audio_bytes, mime_type=mime, context={})
+            transcription = await get_stt_service().transcribe(audio_bytes=audio_bytes, mime_type=mime)
         except STTUnavailableError as exc:
             logger.error(f"Brouillon de séance : transcription impossible : {exc}")
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=exc.user_message)

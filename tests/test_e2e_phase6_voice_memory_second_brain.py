@@ -18,7 +18,6 @@ from app.main import app
 from app.core.database import get_database_manager
 from app.core.models import (
     IntentType,
-    ParsedIntent,
     SecondBrainImageAnalysisResult,
 )
 
@@ -46,17 +45,10 @@ def test_e2e_phase6_full_user_journey(clean_db):
     # =========================================================================
     fake_audio = io.BytesIO(b"RIFF....WAVEfmt ....fakeaudiochunk....")
 
-    parsed_audio_intent = ParsedIntent(
-        raw_query="Qu'est-ce qu'on a sur la liste de courses ?",
-        intent=IntentType.GET_SHOPPING_LIST,
-        confidence=0.98,
-        parameters={},
-        conversational_reply="Voici vos articles de courses.",
-    )
 
-    with patch("app.core.audio.stt_service.AudioSTTService.process_audio") as mock_stt:
+    with patch("app.core.audio.stt_service.AudioSTTService.transcribe") as mock_stt:
         # Simule transcription avec normalisation phonétique ("RPE à Troyes" -> "RPE à 3")
-        mock_stt.return_value = ("Qu'est-ce qu'on a sur la liste de courses ?", parsed_audio_intent)
+        mock_stt.return_value = "Qu'est-ce qu'on a sur la liste de courses ?"
 
         res_audio = client.post(
             "/api/v1/interact/audio",

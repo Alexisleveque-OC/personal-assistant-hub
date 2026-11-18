@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from app.core.audio.stt_service import set_stt_service
 from app.core.database import get_database_manager
-from app.core.models import IntentType
 from app.core.sport_session_draft import (
     DRAFT_SCHEMA,
     SessionDraftService,
@@ -108,9 +107,8 @@ def test_route_drafts_from_text_without_saving_or_logging_anything(client):
 def test_route_transcribes_the_audio_first(client):
     fake = FakeDraftService({"type_seance": "Vitesse"})
     set_session_draft_service(fake)
-    parsed = MagicMock(intent=IntentType.UNKNOWN, parameters={}, confidence=0.0, conversational_reply=None, raw_query="")
     stt = MagicMock()
-    stt.process_audio = AsyncMock(return_value=("séance de vitesse jeudi", parsed))
+    stt.transcribe = AsyncMock(return_value="séance de vitesse jeudi")
     set_stt_service(stt)
 
     res = client.post(
