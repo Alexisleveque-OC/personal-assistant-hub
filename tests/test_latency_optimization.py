@@ -27,8 +27,6 @@ def test_warmup_cache_preloads_all_catalogues():
     assert data["stats"]["recipes_count"] == 42
     mock_connector.warmup_cache.assert_called_once()
 
-    set_meals_connector(None)
-
 
 def test_hot_cache_requires_zero_network_calls_on_read():
     """Quand le cache est chaud, une lecture de planning ou liste de courses ne fait aucun appel réseau."""
@@ -50,8 +48,6 @@ def test_hot_cache_requires_zero_network_calls_on_read():
     assert "Salade" in res.json()["spoken_response"]
     # Vérification que le temps de traitement local en mémoire est quasi-instantané (< 300 ms en test)
     assert duration < 0.5
-
-    set_meals_connector(None)
 
 
 def test_async_shopping_item_addition_with_optimistic_cache():
@@ -79,5 +75,3 @@ def test_async_shopping_item_addition_with_optimistic_cache():
     assert duration < 0.5
     # La persistance en tâche de fond a bien été appelée
     mock_connector.add_shopping_item.assert_called_once()
-
-    set_meals_connector(None)

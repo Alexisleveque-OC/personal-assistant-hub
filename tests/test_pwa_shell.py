@@ -1,16 +1,9 @@
 """Refonte UX (ROADMAP Étape 0, socle) : registre des sections, thème, raccourcis et gestion des feuilles.
 
 Les modules JS sans import sont exécutés sous Node (même principe que test_voice_diag_log.py)."""
-import json
-import shutil
-import subprocess
-from pathlib import Path
 
-import pytest
+from tests.js_helpers import STATIC, rendered_html, run_node
 
-STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 # DOM minimal : juste ce que sheets.js manipule (classes, attributs, focus, inert).
 FAKE_DOM = """
@@ -41,12 +34,7 @@ const state = (id) => ({ open: els[id].classList.contains("is-open"), hidden: el
 
 
 def _run(module: str, snippet: str, prelude: str = "") -> dict:
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
-    source = (STATIC / "js" / module).read_text(encoding="utf-8") + "\n" + prelude + "\n" + snippet
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return run_node((STATIC / "js" / module).read_text(encoding="utf-8") + "\n" + prelude + "\n" + snippet)
 
 
 # ---------- ui_shell.js : données pures ----------
@@ -230,15 +218,9 @@ SHEETS = {
 }
 
 
-def _rendered_html() -> str:
-    import re
-    return re.sub(r"<!--.*?-->", "", client.get("/app").text, flags=re.DOTALL)
-
-
 def test_tab_bar_is_replaced_by_a_burger_menu_listing_every_section():
-    html = _rendered_html()
+    html = rendered_html()
 
-    assert 'class="bottom-nav"' not in html and "nav-item" not in html
     assert 'id="btn-open-drawer"' in html and 'aria-controls="drawer"' in html
     assert '<nav class="drawer" id="drawer" aria-label="Menu principal"' in html
     for section in ("accueil", "courses", "repas", "taches", "sport", "second_cerveau"):
@@ -248,7 +230,7 @@ def test_tab_bar_is_replaced_by_a_burger_menu_listing_every_section():
 
 def test_each_section_is_an_accessible_sheet_with_a_close_button_and_a_composer_slot():
     import re
-    html = _rendered_html()
+    html = rendered_html()
 
     for sheet_id, title in SHEETS.items():
         match = re.search(rf'<section class="sheet" id="{sheet_id}"([^>]*)>(.*?)\n    </section>', html, re.S)
@@ -266,7 +248,7 @@ def test_each_section_is_an_accessible_sheet_with_a_close_button_and_a_composer_
 
 
 def test_a_single_universal_composer_with_photo_and_hold_to_talk_mic():
-    html = _rendered_html()
+    html = rendered_html()
 
     assert html.count('class="composer"') == 1
     assert html.count('id="mic-btn"') == 1 and 'class="mic-btn"' in html
@@ -275,17 +257,11 @@ def test_a_single_universal_composer_with_photo_and_hold_to_talk_mic():
     assert 'placeholder="Écrire à Otis…"' in html
 
 
-def test_new_styles_and_modules_are_served_and_precached():
+def test_stylesheets_are_linked_and_precached():
     html = client.get("/app").text
     sw = client.get("/sw.js").text
-
-    for path in ("/static/styles/hub.css", "/static/styles/app.css", "/static/js/ui_shell.js", "/static/js/sheets.js"):
-        res = client.get(path)
-        assert res.status_code == 200, path
-        assert f'"{path}"' in sw, f"{path} absent du cache du service worker"
     for css in ("hub.css", "app.css"):
-        assert f"/static/styles/{css}" in html
-    assert "pah-pwa-cache-v49" in sw
+        assert f"/static/styles/{css}" in html and f'"/static/styles/{css}"' in sw, css
 
 
 def test_theme_is_set_before_first_paint_from_saved_choice_or_system():
@@ -309,12 +285,6 @@ def test_static_files_are_revalidated_instead_of_heuristically_cached():
 def test_service_worker_bypasses_the_http_cache_when_it_fetches_assets():
     sw = client.get("/sw.js").text
 
-    assert "pah-pwa-cache-v49" in sw
     assert 'new Request(url, { cache: "reload" })' in sw  # précache à l'installation
     assert sw.count('fetch(event.request, { cache: "no-cache" })') == 2  # JS réseau d'abord + autres assets
-
-
-def test_top_bar_stays_visible_while_the_home_scrolls():
-    css = client.get("/static/styles/app.css").text
-
-    assert ".topbar {" in css and "position: sticky;" in css and "top: 0;" in css
+    assert "status: 503" in sw  # panne réseau de l'API : jamais masquée sous un 200

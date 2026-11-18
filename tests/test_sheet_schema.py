@@ -10,6 +10,7 @@ from app.connectors.sheets.schema_validator import (
     SheetSchemaHeaderDriftError,
     SheetSchemaError,
 )
+from tests.live import requires_live_sheets
 
 load_dotenv()
 
@@ -182,6 +183,7 @@ def test_schema_validator_non_strict_mode_aggregates_multiple_errors():
     assert any("Hors_Repas" in err for err in report.errors)
 
 
+@requires_live_sheets
 @pytest.mark.skipif(not HAS_LIVE_ENV, reason="Identifiants GCP ou SPREADSHEET_ID absents")
 def test_live_google_sheet_schema_conformity():
     """Test d'intégration réel : valide que le Google Sheet réel de production est 100% conforme."""

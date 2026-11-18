@@ -14,6 +14,7 @@ from app.connectors.sheets.sport_models import (
 )
 from app.config import settings
 from app.connectors.sheets.sport_connector import SportConnector
+from tests.live import requires_live_sheets
 
 
 def create_mock_worksheet(title: str, records: list[list]) -> MagicMock:
@@ -338,6 +339,7 @@ def test_sport_connector_weekly_summary_includes_charge_rpe(mock_sport_spreadshe
     assert summary.charge_rpe_totale >= 180
 
 
+@requires_live_sheets
 @pytest.mark.skipif(not settings.spreadsheet_sport_id, reason="SPREADSHEET_SPORT_ID non configuré")
 def test_live_sport_connector_read_real_sheet():
     """Vérifie la lecture en direct sur le vrai Google Sheet d'Alexis."""

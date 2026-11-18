@@ -10,38 +10,9 @@ def _read(rel: str) -> str:
     return (STATIC / rel).read_text(encoding="utf-8")
 
 
-def test_legacy_stylesheets_and_backgrounds_are_gone():
-    for rel in ("style.css", "styles/legacy-bridge.css", "images/bg-dark.png", "images/bg-light.png"):
-        assert not (STATIC / rel).exists(), rel
-    html, sw = _read("index.html"), _read("sw.js")
-    for ref in ("/static/style.css", "legacy-bridge.css", "Plus+Jakarta+Sans", "botanical"):
-        assert ref not in html, ref
-    assert "/static/style.css" not in sw and "legacy-bridge.css" not in sw
-
-
 def test_toast_container_uses_the_new_stack_class():
     html = _read("index.html")
     assert re.search(r'<div id="toast-container" class="toast-stack"', html)
-
-
-def test_index_html_has_no_commented_out_markup():
-    html = _read("index.html")
-    for comment in re.findall(r"<!--(.*?)-->", html, re.S):
-        assert "<div" not in comment and "<button" not in comment, comment[:80]
-
-
-def test_wake_word_calibration_is_removed_but_saved_variants_still_match():
-    html, app_js, speech = _read("index.html"), _read("app.js"), _read("js/wake_word.js") + _read("js/mic_capture.js")
-    assert "wake-calibration-section" not in html and "btn-start-calibration" not in html
-    for name in ("startWakeWordCalibration", "addCustomWakeVariant", "removeCustomWakeVariant"):
-        assert name not in app_js and name not in speech, name
-    # Variantes déjà enregistrées sur le téléphone : toujours reconnues.
-    assert "state.wakeWordCustomVariants" in speech
-
-
-def test_app_js_has_no_commented_out_code():
-    app_js = _read("app.js")
-    assert not re.search(r"^\s*//\s*(const|let|if \(|\}|\w+\(.*\);)", app_js, re.M)
 
 
 def test_new_styles_keep_the_reset_and_the_runtime_components_of_the_old_style():

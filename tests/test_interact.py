@@ -1,5 +1,7 @@
 """Tests fonctionnels de l'endpoint d'interaction universel."""
 from unittest.mock import MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app, set_meals_connector
 from app.connectors.sheets.models import (
@@ -10,6 +12,14 @@ from app.connectors.sheets.models import (
 )
 
 client = TestClient(app)
+
+
+@pytest.fixture
+def meals():
+    """Connecteur repas/courses simulé et vierge (remplace celui du conftest, remis à None par lui en fin de test)."""
+    connector = MagicMock()
+    set_meals_connector(connector)
+    return connector
 
 
 def test_interact_meal_plan_fallback():
@@ -23,45 +33,43 @@ def test_interact_meal_plan_fallback():
     assert data["intent"]["intent"] == "get_meal_plan"
 
 
-def test_interact_with_mocked_connector():
+def test_interact_with_mocked_connector(meals):
     """Avec connecteur injecté, l'endpoint appelle les méthodes métier et renvoie la réponse adaptée."""
-    mock_connector = MagicMock()
-    mock_connector.get_meal_plan.return_value = DayMealPlan(
+    meals.get_meal_plan.return_value = DayMealPlan(
         date_str="11/09/2026",
         day_name="Vendredi",
         lunch="Salade César",
         dinner="Pizza 4 fromages",
     )
-    mock_connector.get_recipe_ingredients.return_value = Recipe(
+    meals.get_recipe_ingredients.return_value = Recipe(
         name="Risotto de quinoa",
         category="Féculents",
         is_complete=True,
         ingredients=["Quinoa", "Champignons", "Parmesan"],
     )
-    mock_connector.add_recipe_ingredients_to_shopping_list.return_value = (
+    meals.add_recipe_ingredients_to_shopping_list.return_value = (
         Recipe(name="Guacamole", ingredients=["Avocat", "Épices"]),
         [
             WaitingListItem(item="Avocat", rayon="Légumes"),
             WaitingListItem(item="Épices", rayon="Épicerie"),
         ],
     )
-    mock_connector.set_meal_plan.return_value = DayMealPlan(
+    meals.set_meal_plan.return_value = DayMealPlan(
         date_str="11/09/2026",
         day_name="Vendredi",
         dinner="Pâtes carbonara",
     )
-    mock_connector.add_shopping_item.return_value = (
+    meals.add_shopping_item.return_value = (
         WaitingListItem(item="Café bio", rayon="Épicerie"),
         None,
     )
-    mock_connector.get_shopping_list.return_value = {
+    meals.get_shopping_list.return_value = {
         "waiting_list": [WaitingListItem(item="Café bio", rayon="Épicerie")],
         "current_week_items": [ShoppingItem(name="Pommes", checked=False)],
     }
-    mock_connector.mark_shopping_items_bought.return_value = ["Café bio"]
-    mock_connector.clear_shopping_list.return_value = 1
+    meals.mark_shopping_items_bought.return_value = ["Café bio"]
+    meals.clear_shopping_list.return_value = 1
 
-    set_meals_connector(mock_connector)
 
     # 1. Repas du soir
     r1 = client.post("/api/v1/interact", json={"query": "Qu'est-ce qu'on mange ce soir ?"})
@@ -107,7 +115,6 @@ def test_interact_with_mocked_connector():
     assert "nettoyée" in r8.json()["spoken_response"]
 
     # Nettoyage après test
-    set_meals_connector(None)
 
 
 def test_interact_budget_query():
@@ -121,14 +128,13 @@ def test_interact_budget_query():
     assert "budget courses" in data["spoken_response"]
 
 
-def test_interact_conversational_anaphora_followup():
+def test_interact_conversational_anaphora_followup(meals):
     """Vérifie le chaînage conversationnel : consultation de recette puis 'Ajoutes ces ingrédients'."""
-    mock_connector = MagicMock()
-    mock_connector.get_recipe_ingredients.return_value = Recipe(
+    meals.get_recipe_ingredients.return_value = Recipe(
         name="Orzo brocolis",
         ingredients=["Orzo", "Brocolis", "Champignons", "Poitrine", "Lait"],
     )
-    mock_connector.add_recipe_ingredients_to_shopping_list.return_value = (
+    meals.add_recipe_ingredients_to_shopping_list.return_value = (
         Recipe(name="Orzo brocolis", ingredients=["Orzo", "Brocolis", "Champignons", "Poitrine", "Lait"]),
         [
             WaitingListItem(item="Orzo", rayon="Féculents"),
@@ -137,7 +143,6 @@ def test_interact_conversational_anaphora_followup():
             WaitingListItem(item="Lait", rayon="Frais"),
         ],
     )
-    set_meals_connector(mock_connector)
 
     # 1. Première requête : consultation de recette
     r1 = client.post(
@@ -159,12 +164,10 @@ def test_interact_conversational_anaphora_followup():
     assert "hors champignons" in res_data["spoken_response"]
 
     # Vérification que le connecteur a bien été appelé avec la recette mémorisée
-    mock_connector.add_recipe_ingredients_to_shopping_list.assert_called_with(
+    meals.add_recipe_ingredients_to_shopping_list.assert_called_with(
         recipe_name="Orzo brocolis",
         exclude_items=["champignons"],
     )
-
-    set_meals_connector(None)
 
 
 def test_interact_conversational_anaphora_without_context():
@@ -180,14 +183,13 @@ def test_interact_conversational_anaphora_without_context():
     assert "Je ne sais pas de quelle recette vous parlez" in data["spoken_response"]
 
 
-def test_interact_multi_turn_with_politeness_and_modal_anaphora():
+def test_interact_multi_turn_with_politeness_and_modal_anaphora(meals):
     """Vérifie l'enchaînement naturel : consultation -> politesse ('ok merci') -> anaphore modale ('tu peux tout rajouter')."""
-    mock_connector = MagicMock()
-    mock_connector.get_recipe_ingredients.return_value = Recipe(
+    meals.get_recipe_ingredients.return_value = Recipe(
         name="Wrap de légumes",
         ingredients=["Wrap", "Salade", "Tomates cerises", "Carotte", "Crème fraiche"],
     )
-    mock_connector.add_recipe_ingredients_to_shopping_list.return_value = (
+    meals.add_recipe_ingredients_to_shopping_list.return_value = (
         Recipe(name="Wrap de légumes", ingredients=["Wrap", "Salade", "Tomates cerises", "Carotte", "Crème fraiche"]),
         [
             WaitingListItem(item="Wrap", rayon="Pain"),
@@ -197,7 +199,6 @@ def test_interact_multi_turn_with_politeness_and_modal_anaphora():
             WaitingListItem(item="Crème fraiche", rayon="Frais"),
         ],
     )
-    set_meals_connector(mock_connector)
 
     # 1. Consultation des ingrédients
     r1 = client.post(
@@ -226,28 +227,24 @@ def test_interact_multi_turn_with_politeness_and_modal_anaphora():
     d3 = r3.json()
     assert d3["intent"]["intent"] == "add_recipe_ingredients"
     assert "Wrap de légumes" in d3["spoken_response"]
-    mock_connector.add_recipe_ingredients_to_shopping_list.assert_called_with(
+    meals.add_recipe_ingredients_to_shopping_list.assert_called_with(
         recipe_name="Wrap de légumes",
         exclude_items=None,
     )
 
-    set_meals_connector(None)
 
-
-def test_interact_smart_next_meal_and_recipe_anaphora():
+def test_interact_smart_next_meal_and_recipe_anaphora(meals):
     """'On mange quoi?' récupère le prochain repas réel et alimente l'anaphore d'ingrédients."""
-    mock_connector = MagicMock()
-    mock_connector.get_next_meal_plan.return_value = (
+    meals.get_next_meal_plan.return_value = (
         DayMealPlan(date_str="21/09/2026", day_name="Lundi", dinner="Salade de lentilles"),
         "dinner",
         "ce soir",
         "Salade de lentilles",
     )
-    mock_connector.get_recipe_ingredients.return_value = Recipe(
+    meals.get_recipe_ingredients.return_value = Recipe(
         name="Salade de lentilles",
         ingredients=["Lentilles", "Échalote", "Vinaigre", "Moutarde"],
     )
-    set_meals_connector(mock_connector)
 
     # 1. On mange quoi?
     r1 = client.post(
@@ -269,21 +266,17 @@ def test_interact_smart_next_meal_and_recipe_anaphora():
     assert d2["intent"]["intent"] == "get_recipe_ingredients"
     assert "Salade de lentilles" in d2["spoken_response"]
     assert "Lentilles" in d2["spoken_response"]
-    mock_connector.get_recipe_ingredients.assert_called_with("Salade de lentilles")
-
-    set_meals_connector(None)
+    meals.get_recipe_ingredients.assert_called_with("Salade de lentilles")
 
 
-def test_interact_meal_plan_both_lunch_and_dinner():
+def test_interact_meal_plan_both_lunch_and_dinner(meals):
     """Vérifie l'affichage combiné midi et soir pour une requête de journée complète."""
-    mock_connector = MagicMock()
-    mock_connector.get_meal_plan.return_value = DayMealPlan(
+    meals.get_meal_plan.return_value = DayMealPlan(
         date_str="24/09/2026",
         day_name="Jeudi",
         lunch="Salade César",
         dinner="Gratin dauphinois",
     )
-    set_meals_connector(mock_connector)
 
     r = client.post(
         "/api/v1/interact",
@@ -296,20 +289,16 @@ def test_interact_meal_plan_both_lunch_and_dinner():
     assert "midi" in spoken
     assert "soir" in spoken
 
-    set_meals_connector(None)
 
-
-def test_interact_set_meal_plan_unknown_recipe_confirmation_flow():
+def test_interact_set_meal_plan_unknown_recipe_confirmation_flow(meals):
     """Si la recette est inconnue, demande confirmation avant insertion (Oui / Non)."""
-    mock_connector = MagicMock()
     # "poulet" n'est pas dans les recettes
-    mock_connector.get_recipe_ingredients.return_value = None
-    mock_connector.set_meal_plan.return_value = DayMealPlan(
+    meals.get_recipe_ingredients.return_value = None
+    meals.set_meal_plan.return_value = DayMealPlan(
         date_str="24/09/2026",
         day_name="Jeudi",
         dinner="Poulet rôti",
     )
-    set_meals_connector(mock_connector)
 
     # 1. Demande de planification
     r1 = client.post(
@@ -320,7 +309,7 @@ def test_interact_set_meal_plan_unknown_recipe_confirmation_flow():
     d1 = r1.json()
     assert "pas répertoriée" in d1["spoken_response"]
     assert "Voulez-vous quand même" in d1["spoken_response"]
-    mock_connector.set_meal_plan.assert_not_called()
+    meals.set_meal_plan.assert_not_called()
 
     # 2. Utilisateur confirme avec "oui"
     r2 = client.post(
@@ -330,15 +319,12 @@ def test_interact_set_meal_plan_unknown_recipe_confirmation_flow():
     assert r2.status_code == 200
     d2 = r2.json()
     assert "confirmé" in d2["spoken_response"]
-    mock_connector.set_meal_plan.assert_called_once()
-
-    set_meals_connector(None)
+    meals.set_meal_plan.assert_called_once()
 
 
-def test_interact_get_waiting_list_specifically():
+def test_interact_get_waiting_list_specifically(meals):
     """'donne moi la liste d'attente' filtre spécifiquement les articles en attente."""
-    mock_connector = MagicMock()
-    mock_connector.get_shopping_list.return_value = {
+    meals.get_shopping_list.return_value = {
         "waiting_list": [
             WaitingListItem(item="Café", rayon="Épicerie"),
             WaitingListItem(item="Blanc de poulet", rayon="Boucherie"),
@@ -347,7 +333,6 @@ def test_interact_get_waiting_list_specifically():
             ShoppingItem(name="Pommes", checked=False),
         ],
     }
-    set_meals_connector(mock_connector)
 
     r = client.post("/api/v1/interact", json={"query": "donne moi la liste d'attente"})
     assert r.status_code == 200
@@ -357,17 +342,13 @@ def test_interact_get_waiting_list_specifically():
     assert "Blanc de poulet" in spoken
     assert "Pommes" not in spoken
 
-    set_meals_connector(None)
 
-
-def test_interact_what_to_buy_synonym():
+def test_interact_what_to_buy_synonym(meals):
     """'Qu'est ce que je doit acheter ?' renvoie la liste de courses unifiée."""
-    mock_connector = MagicMock()
-    mock_connector.get_shopping_list.return_value = {
+    meals.get_shopping_list.return_value = {
         "waiting_list": [WaitingListItem(item="Crème fraiche", rayon="Frais")],
         "current_week_items": [ShoppingItem(name="Pain", checked=False)],
     }
-    set_meals_connector(mock_connector)
 
     r = client.post("/api/v1/interact", json={"query": "Qu'est ce que je doit acheter ?"})
     assert r.status_code == 200
@@ -375,104 +356,53 @@ def test_interact_what_to_buy_synonym():
     assert "Crème fraiche" in spoken
     assert "Pain" in spoken
 
-    set_meals_connector(None)
 
-
-def test_interact_mark_all_shopping_bought():
+def test_interact_mark_all_shopping_bought(meals):
     """'J'ai acheté tout les produit de la listes d'attente' coche tous les articles."""
-    mock_connector = MagicMock()
-    mock_connector.mark_shopping_items_bought.return_value = ["Café", "Blanc de poulet", "Crème fraiche"]
-    set_meals_connector(mock_connector)
+    meals.mark_shopping_items_bought.return_value = ["Café", "Blanc de poulet", "Crème fraiche"]
 
     r = client.post("/api/v1/interact", json={"query": "J'ai acheté tout les produit de la listes d'attente"})
     assert r.status_code == 200
     spoken = r.json()["spoken_response"]
     assert "tous les articles" in spoken
     assert "3" in spoken
-    mock_connector.mark_shopping_items_bought.assert_called_with(mark_all=True)
-
-    set_meals_connector(None)
+    meals.mark_shopping_items_bought.assert_called_with(mark_all=True)
 
 
-def test_interact_shopping_list_by_rayon_only_cette_semaine():
-    """'j'ai quoi a acheter au rayon Fruits' interroge UNIQUEMENT 'Cette semaine' et tient compte des cochés."""
-    mock_connector = MagicMock()
-    mock_connector.get_shopping_list.return_value = {
-        "waiting_list": [WaitingListItem(item="Chocolat", rayon="Petit dej + bio")],
-        "current_week_items": [
-            ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
-            ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
-            ShoppingItem(name="Lait", checked=False, rayon="Oeufs/farine/lait"),
-        ],
-    }
-    set_meals_connector(mock_connector)
+THIS_WEEK_AND_WAITING_LIST = {
+    "waiting_list": [WaitingListItem(item="Chocolat", rayon="Petit dej + bio")],
+    "current_week_items": [
+        ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
+        ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
+        ShoppingItem(name="Lait", checked=False, rayon="Oeufs/farine/lait"),
+    ],
+}
 
-    r = client.post("/api/v1/interact", json={"query": "j'ai quoi a acheter au rayon \"Fruits\""})
+
+@pytest.mark.parametrize("query, present, absent", [
+    ('j\'ai quoi a acheter au rayon "Fruits"', ["Bananes", "coché"], ["Chocolat", "Lait"]),
+    ("Il me reste quoi a acheté", ["Bananes", "Lait", "1 article(s) déjà coché"], ["Chocolat"]),
+    ("qu'est-ce qui est déjà coché au rayon Fruits ?", ["Pommes"], ["Bananes"]),
+])
+def test_interact_shopping_questions_read_only_this_week(meals, query, present, absent):
+    """Reste à acheter / déjà coché, par rayon ou non : « Cette semaine » seule, jamais la liste d'attente."""
+    meals.get_shopping_list.return_value = THIS_WEEK_AND_WAITING_LIST
+
+    r = client.post("/api/v1/interact", json={"query": query})
     assert r.status_code == 200
     spoken = r.json()["spoken_response"]
-    assert "Bananes" in spoken
-    assert "Chocolat" not in spoken  # Ne doit PAS venir de Liste_Attente
-    assert "Lait" not in spoken
-    assert "coché" in spoken
-
-    set_meals_connector(None)
+    assert [word for word in present if word not in spoken] == []
+    assert [word for word in absent if word in spoken] == []
 
 
-def test_interact_shopping_list_general_remaining_cette_semaine():
-    """'Il me reste quoi a acheté' renvoie tous les articles non cochés de 'Cette semaine' sans la liste d'attente."""
-    mock_connector = MagicMock()
-    mock_connector.get_shopping_list.return_value = {
-        "waiting_list": [WaitingListItem(item="Chocolat", rayon="Petit dej + bio")],
-        "current_week_items": [
-            ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
-            ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
-            ShoppingItem(name="Lait", checked=False, rayon="Oeufs/farine/lait"),
-        ],
-    }
-    set_meals_connector(mock_connector)
-
-    r = client.post("/api/v1/interact", json={"query": "Il me reste quoi a acheté"})
-    assert r.status_code == 200
-    spoken = r.json()["spoken_response"]
-    assert "Bananes" in spoken
-    assert "Lait" in spoken
-    assert "Chocolat" not in spoken  # Ne doit PAS venir de Liste_Attente
-    assert "1 article(s) déjà coché" in spoken
-
-    set_meals_connector(None)
-
-
-def test_interact_shopping_list_already_checked():
-    """'qu'est-ce qui est déjà coché au rayon Fruits ?' renvoie les articles déjà cochés."""
-    mock_connector = MagicMock()
-    mock_connector.get_shopping_list.return_value = {
-        "waiting_list": [],
-        "current_week_items": [
-            ShoppingItem(name="Bananes", checked=False, rayon="Fruits"),
-            ShoppingItem(name="Pommes", checked=True, rayon="Fruits"),
-        ],
-    }
-    set_meals_connector(mock_connector)
-
-    r = client.post("/api/v1/interact", json={"query": "qu'est-ce qui est déjà coché au rayon Fruits ?"})
-    assert r.status_code == 200
-    spoken = r.json()["spoken_response"]
-    assert "Pommes" in spoken
-    assert "Bananes" not in spoken
-
-    set_meals_connector(None)
-
-
-def test_interact_shopping_rayon_conversational_followup():
+def test_interact_shopping_rayon_conversational_followup(meals):
     """Enchaînement conversationnel : 'au rayon Charcuterie' après une première question."""
-    mock_connector = MagicMock()
-    mock_connector.get_shopping_list.return_value = {
+    meals.get_shopping_list.return_value = {
         "waiting_list": [],
         "current_week_items": [
             ShoppingItem(name="Jambon", checked=False, rayon="Charcuterie"),
         ],
     }
-    set_meals_connector(mock_connector)
 
     r = client.post(
         "/api/v1/interact",
@@ -483,19 +413,15 @@ def test_interact_shopping_rayon_conversational_followup():
     assert "Charcuterie" in spoken
     assert "Jambon" in spoken
 
-    set_meals_connector(None)
 
-
-def test_interact_explicit_weekday_plus_date():
+def test_interact_explicit_weekday_plus_date(meals):
     """'qu'est ce qu'on mange dimanche 20 septembre ?' interroge bien le 20/09/2026 et non le 27/09/2026."""
-    mock_connector = MagicMock()
-    mock_connector.get_meal_plan.return_value = DayMealPlan(
+    meals.get_meal_plan.return_value = DayMealPlan(
         date_str="20/09/2026",
         day_name="Dimanche",
         lunch="Avocado toast",
         dinner="Gauffre carotte + Crudités",
     )
-    set_meals_connector(mock_connector)
 
     r = client.post("/api/v1/interact", json={"query": "qu'est ce qu'on mange dimanche 20 septembre ?"})
     assert r.status_code == 200
@@ -504,8 +430,6 @@ def test_interact_explicit_weekday_plus_date():
     assert "27/09/2026" not in spoken
     assert "Avocado toast" in spoken
     assert "Gauffre carotte" in spoken
-
-    set_meals_connector(None)
 
 
 

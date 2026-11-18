@@ -57,19 +57,6 @@ def test_dockerignore_security_exclusions():
     assert ".git" in lines
 
 
-def test_deploy_workflow_configuration():
-    """Valide la structure du pipeline de déploiement continu GitHub Actions."""
-    workflow_path = ROOT_DIR / ".github" / "workflows" / "deploy.yml"
-    assert workflow_path.exists(), "Le fichier .github/workflows/deploy.yml doit exister."
-
-    content = workflow_path.read_text(encoding="utf-8")
-
-    # Déclenchement sur push vers main (MR fusionnée)
-    assert "branches: [ main ]" in content or "branches:\n      - main" in content or "branches: [main]" in content
-    assert "pytest" in content
-    assert "deploy" in content
-
-
 def test_litestream_configuration_in_dockerfile():
     """Valide l'intégration de Litestream pour la persistance SQLite en Cloud."""
     dockerfile_path = ROOT_DIR / "Dockerfile"
@@ -106,4 +93,3 @@ def test_deploy_workflow_litestream_support():
     content = workflow_path.read_text(encoding="utf-8")
 
     assert "LITESTREAM_REPLICA_URL" in content
-

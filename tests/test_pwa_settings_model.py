@@ -3,25 +3,15 @@
 `settings_model.js` (sans import ni DOM) est exécuté sous Node. Contenu inchangé par rapport à l'ancienne modale.
 """
 import json
-import shutil
-import subprocess
-from pathlib import Path
 
-import pytest
+from tests.js_helpers import STATIC, run_node
 
-STATIC = Path(__file__).resolve().parent.parent / "app" / "static"
-WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
-NODE = shutil.which("node") or (str(WINDOWS_NODE) if WINDOWS_NODE.exists() else None)
 
 
 def stats(data):
-    if not NODE:
-        pytest.skip("Node.js indisponible pour exécuter le module JS")
     source = (STATIC / "js" / "settings_model.js").read_text(encoding="utf-8")
     source += f"\nconsole.log(JSON.stringify(llmStatsView({json.dumps(data)})));"
-    result = subprocess.run([NODE, "--input-type=module"], input=source, capture_output=True, text=True, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    return run_node(source)
 
 
 def usage(**extra):
