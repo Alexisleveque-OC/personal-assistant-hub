@@ -5,7 +5,9 @@ from app.config import settings
 from app.main import set_meals_connector
 from app.connectors.sheets.models import DayMealPlan, WaitingListItem
 from app.core.database import DatabaseManager, set_database_manager
-from app.core.dependencies import set_calendar_connector, set_task_events_connector, set_tasks_connector
+from app.core.dependencies import (
+    set_budget_connector, set_calendar_connector, set_task_events_connector, set_tasks_connector,
+)
 from app.core.llm.rayon_suggester import set_rayon_suggester
 
 
@@ -27,6 +29,14 @@ def isolate_sqlite_database(tmp_path, monkeypatch):
         yield test_manager
     finally:
         set_database_manager(None)
+
+
+@pytest.fixture(autouse=True)
+def offline_budget():
+    """Aucun appel réel au classeur Budget (SPREADSHEET_BUDGET_ID est dans le .env) : doublure injectée par test."""
+    set_budget_connector(None, error="Classeur Budget désactivé en test")
+    yield
+    set_budget_connector(None, error="Classeur Budget désactivé en test")
 
 
 @pytest.fixture(autouse=True)

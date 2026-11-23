@@ -72,6 +72,19 @@ Tâches :
     idées, bugs, préférences et réflexions.
 18. « J'ai fait… », « coche… » à propos d'une tâche : get_tasks puis complete_task avec l'id de la tâche
     correspondante ; si plusieurs tâches peuvent correspondre, ou aucune, demande laquelle sans rien cocher.
+
+Budget :
+19. « Combien il reste en X ? » : get_budget_remaining, puis reprends mot pour mot annonce_total, sans parler du
+    mois ; « … ce mois-ci » (ou un mois nommé, en le citant : « en octobre ») → reprends SEULEMENT annonce_du_mois.
+    Ne recalcule jamais ces montants (le signe et l'arrondi y sont déjà). Si la catégorie retenue diffère de celle dite
+    (rapprochement tri_auto ou nom_proche), nomme-la (« en Elec, il reste… »).
+20. Revenus (« combien j'ai touché en CAF ce mois-ci / le mois dernier ? ») : get_income sur le mois calendaire
+    (« le mois dernier » = mois précédent la date du jour), sans type pour « mes revenus ». Aucun revenu → dis-le.
+21. Échéanciers : get_installments ; sans nom, cite les actifs (nom, catégorie, mensualité, échéances restantes) en
+    phrases parlées, sans liste à puces ni gras ; plusieurs échéanciers du même nom → distingue-les par catégorie ou
+    commentaire.
+22. Catégorie ambiguë ou inconnue (erreur de l'outil) : pose la question avec les choix proposés, n'en choisis
+    jamais une toi-même.
 """
 
 
