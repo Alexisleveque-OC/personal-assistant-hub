@@ -71,10 +71,6 @@ class BudgetCategoryNotFoundError(BudgetConnectorError):
     """Catégorie absente de `Gestion`."""
 
 
-class BudgetGroupError(BudgetConnectorError):
-    """Nom d'un groupe de `Gestion` (Courants, Loisir…) utilisé là où une catégorie est attendue."""
-
-
 class BudgetMonthNotFoundError(BudgetConnectorError):
     """Mois absent de la ligne 2 de `Gestion`."""
 
@@ -229,7 +225,11 @@ class BudgetConnector:
         ]
 
     def resolve_category(self, spoken: str) -> CategoryResolution:
-        """Catégorie exacte (sans accents ni casse) → mot-clé de `Tri auto` → noms proches (question) → inconnue."""
+        """Catégorie exacte (sans accents ni casse) → mot-clé de `Tri auto` → nom proche unique → question ou inconnue.
+
+        Un seul nom proche est retenu sans question (décision du 23/11 : l'utilisateur corrige si besoin) ;
+        plusieurs choix possibles → question, jamais de choix au hasard.
+        """
         wanted = normalize(spoken)
         if not wanted:
             raise ValueError("Catégorie vide : précisez la catégorie de la dépense ou du revenu.")
@@ -248,6 +248,8 @@ class BudgetConnector:
             return CategoryResolution(spoken=spoken, status="ambiguous", candidates=matches)
 
         close = difflib.get_close_matches(wanted, list(categories), n=3, cutoff=CLOSE_MATCH_CUTOFF)
+        if len(close) == 1:
+            return CategoryResolution(spoken=spoken, status="resolved", category=categories[close[0]], source="close_match")
         if close:
             return CategoryResolution(spoken=spoken, status="ambiguous", candidates=[categories[c] for c in close])
         return CategoryResolution(spoken=spoken, status="unknown")
@@ -269,17 +271,26 @@ class BudgetConnector:
     # --- Gestion : reste par catégorie -----------------------------------------------------------
 
     def get_remaining(self, category: str, month: Optional[BudgetMonth] = None) -> CategoryRemaining:
-        """Reste total (colonne B) et reste fin du mois (`month`, sinon le mois actif) d'une catégorie."""
+        """Reste total (colonne B) et reste fin du mois (`month`, sinon le mois actif) d'une catégorie.
+
+        Un nom de groupe (Loisir, Courants…) donne la somme de ses catégories, comme sa ligne « Total »
+        (décision du 23/11) ; une catégorie homonyme de son groupe (« Epargne ») l'emporte.
+        """
         rows = self._values(GESTION_SHEET)
         target = month or self.get_active_month()
-        row = self._gestion_category_row(rows, category)
+        name, lines, members = self._gestion_lines(rows, category)
         col = self._gestion_month_col(rows, target) + 2
-        name = str(row[0])
+        total = month_total = 0.0
+        for line in lines:
+            where = f"« {GESTION_SHEET} », {line[0]}"
+            total += self._amount(_cell(line, GESTION_REMAINING_COL), f"{where}, colonne B")
+            month_total += self._amount(_cell(line, col), f"{where}, reste de {target.label}")
         return CategoryRemaining(
             category=name,
-            total_remaining=self._amount(_cell(row, GESTION_REMAINING_COL), f"« {GESTION_SHEET} », {name}, colonne B"),
+            total_remaining=round(total, 2),
             month=target,
-            month_remaining=self._amount(_cell(row, col), f"« {GESTION_SHEET} », {name}, reste de {target.label}"),
+            month_remaining=round(month_total, 2),
+            group_categories=members,
         )
 
     @staticmethod
@@ -303,7 +314,8 @@ class BudgetConnector:
                 groups[current].append(index)
         return groups
 
-    def _gestion_category_row(self, rows: List[List[Any]], category: str) -> List[Any]:
+    def _gestion_lines(self, rows: List[List[Any]], category: str) -> Tuple[str, List[List[Any]], List[str]]:
+        """(nom, lignes à additionner, catégories du groupe) : une ligne pour une catégorie, toutes pour un groupe."""
         wanted = normalize(category)
         groups = self._gestion_groups(rows)
         category_rows = [i for members in groups.values() for i in members]
@@ -314,13 +326,10 @@ class BudgetConnector:
                 f"(lignes {[i + 1 for i in found]}) : impossible de choisir."
             )
         if found:
-            return rows[found[0]]
+            return str(rows[found[0]][0]), [rows[found[0]]], []
         for header, members in groups.items():
             if normalize(rows[header][0]) == wanted:
-                raise BudgetGroupError(
-                    f"« {rows[header][0]} » est un groupe de « {GESTION_SHEET} », pas une catégorie. "
-                    f"Catégories du groupe : {[str(rows[i][0]) for i in members]}"
-                )
+                return str(rows[header][0]), [rows[i] for i in members], [str(rows[i][0]) for i in members]
         raise BudgetCategoryNotFoundError(
             f"Catégorie « {category} » introuvable dans « {GESTION_SHEET} ». "
             f"Catégories disponibles : {[str(rows[i][0]) for i in category_rows]}"

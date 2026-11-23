@@ -8,7 +8,6 @@ from app.connectors.sheets.budget_connector import (
     BudgetCategoryNotFoundError,
     BudgetConnector,
     BudgetConnectorError,
-    BudgetGroupError,
     BudgetHeaderError,
     BudgetMonthNotFoundError,
     BudgetWorksheetNotFoundError,
@@ -113,11 +112,18 @@ def test_remaining_category_also_named_like_its_group() -> None:
     assert connector.get_remaining("Epargne").total_remaining == 300.0
 
 
-def test_remaining_of_a_group_is_refused_with_its_categories() -> None:
+def test_remaining_of_a_group_sums_its_categories() -> None:
+    """Décision du 23/11 (option A) : « combien il reste en Loisir ? » → reste du groupe (= sa ligne Total)."""
     connector, _ = make()
-    with pytest.raises(BudgetGroupError, match="Loisir Alex") as exc:
-        connector.get_remaining("Loisir")
-    assert "groupe" in str(exc.value)
+    remaining = connector.get_remaining("loisir")
+    assert remaining.category == "Loisir"
+    assert remaining.group_categories == ["Loisir Alex", "Cadeaux Elias "]
+    assert (remaining.total_remaining, remaining.month_remaining) == (170.0, 75.0)
+
+
+def test_remaining_of_a_category_has_no_group_categories() -> None:
+    connector, _ = make()
+    assert connector.get_remaining("Course").group_categories == []
 
 
 def test_remaining_unknown_category_lists_available_ones() -> None:
@@ -246,12 +252,19 @@ def test_resolve_auto_sort_with_several_categories_is_ambiguous() -> None:
     assert resolution.candidates == ["Chats", "Loisir Alex"]
 
 
-def test_resolve_close_name_is_a_question_not_a_guess() -> None:
+def test_resolve_single_close_name_without_question() -> None:
+    """Décision du 23/11 : un seul nom proche suffit (l'utilisateur corrigera si besoin)."""
     connector, _ = make()
     resolution = connector.resolve_category("cadeau elias")
-    assert resolution.status == "ambiguous"
-    assert resolution.category is None
-    assert "Cadeaux Elias " in resolution.candidates
+    assert (resolution.status, resolution.category, resolution.source) == ("resolved", "Cadeaux Elias ", "close_match")
+
+
+def test_resolve_several_close_names_is_a_question() -> None:
+    today = date(2024, 1, 1)
+    connector, _ = make(BudgetSheetState(categories=(("Tel 1", today, None), ("Tel 2", today, None))))
+    resolution = connector.resolve_category("tel 3")
+    assert (resolution.status, resolution.category) == ("ambiguous", None)
+    assert sorted(resolution.candidates) == ["Tel 1", "Tel 2"]
 
 
 def test_resolve_unknown() -> None:

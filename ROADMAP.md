@@ -24,6 +24,8 @@ Interroger et alimenter à la voix le classeur budget existant (`SPREADSHEET_BUD
   - dépense → `Débit` (ou `Swile` si « en Swile / ticket resto ») ; revenu → `Revenus` ; intitulé `Otis : <libellé dicté>` (reconnaissable dans la fenêtre de doublon de l'import) ;
   - échéancier → `Échéanciers` ; dépense multiple pré-déclarée (« dépense d'avance ») → `Dépenses Multiples`.
 - Catégorie toujours donnée par l'utilisateur : rapprochement avec `Catégories` (sans accents ni casse), puis avec les mots-clés de `Tri auto`, sinon **question**. Jamais d'invention.
+  - Un seul nom proche (« cadeau candice » → « Cadeaux Candice ») est retenu sans question ; l'utilisateur corrige au besoin (« non, c'était dans la catégorie X »). Plusieurs choix possibles → question.
+  - Nom de groupe (Loisir, Courants…) : en lecture, reste du groupe = somme de ses catégories (comme sa ligne « Total ») ; en écriture, question « laquelle ? » avec la liste des catégories du groupe. Catégorie homonyme de son groupe (« Epargne ») : la catégorie l'emporte.
 - Hors V1 (et peut-être jamais dans Otis) : import bancaire, nouveau mois, nouvelle ligne de dépense, réparation des formules (modifient la structure de `Gestion`).
 - Le classeur garde son nom (« Budget 2026 », prévu pour durer) : Otis utilise l'ID, le nom n'a pas d'effet.
 

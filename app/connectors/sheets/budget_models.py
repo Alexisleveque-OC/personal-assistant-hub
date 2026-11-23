@@ -47,11 +47,15 @@ class AutoSortRule(BaseModel):
 
 
 class CategoryRemaining(BaseModel):
-    """Reste d'une catégorie dans `Gestion` : reste total (colonne B) et reste fin du mois du mois demandé."""
+    """Reste d'une catégorie (ou d'un groupe) dans `Gestion` : reste total (colonne B) et reste fin du mois.
+
+    Pour un groupe (Loisir, Courants…), somme de ses catégories, listées dans `group_categories`.
+    """
     category: str
     total_remaining: float
     month: BudgetMonth
     month_remaining: float
+    group_categories: List[str] = Field(default_factory=list)
 
 
 class IncomeSummary(BaseModel):
@@ -84,9 +88,9 @@ class Installment(BaseModel):
 
 
 class CategoryResolution(BaseModel):
-    """Rapprochement d'une catégorie dictée : jamais d'invention, une question si ce n'est pas certain."""
+    """Rapprochement d'une catégorie dictée : jamais d'invention, une question si plusieurs choix sont possibles."""
     spoken: str
     status: Literal["resolved", "ambiguous", "unknown"]
     category: Optional[str] = None
-    source: Optional[Literal["category", "auto_sort"]] = None
+    source: Optional[Literal["category", "auto_sort", "close_match"]] = None
     candidates: List[str] = Field(default_factory=list)
