@@ -1,4 +1,4 @@
-"""Modèles Pydantic du classeur Budget (lecture) : contrats renvoyés par `BudgetConnector`."""
+"""Modèles Pydantic du classeur Budget : contrats lus et écrits par `BudgetConnector`."""
 from datetime import date
 from typing import List, Literal, Optional
 
@@ -94,3 +94,17 @@ class CategoryResolution(BaseModel):
     category: Optional[str] = None
     source: Optional[Literal["category", "auto_sort", "close_match"]] = None
     candidates: List[str] = Field(default_factory=list)
+
+
+EntrySheet = Literal["Débit", "Swile", "Revenus"]
+
+
+class BudgetEntry(BaseModel):
+    """Ligne de saisie écrite par Otis (dépense, remboursement négatif, revenu) : de quoi la retrouver par son contenu."""
+    model_config = ConfigDict(frozen=True)
+
+    sheet: EntrySheet
+    day: date
+    amount: float
+    category: str = Field(min_length=1)
+    label: str = Field(min_length=1, description="« Otis : <libellé dicté> » (Intitulé, ou Commentaires pour Swile).")

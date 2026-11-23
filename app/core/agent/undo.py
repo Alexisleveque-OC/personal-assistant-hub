@@ -3,6 +3,9 @@ from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from app.connectors.sheets.budget_models import BudgetEntry
+from app.core.agent.tools.budget_models import BudgetCategoryChangedUndo, BudgetEntryAddedUndo
+from app.core.agent.tools.budget_tools import BudgetTools
 from app.core.agent.tools.meals_models import (
     MealUndo,
     RayonLearnedUndo,
@@ -27,12 +30,13 @@ class NoteUndo(BaseModel):
 AgentUndo = Annotated[
     Union[
         UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo,
-        TaskAddedUndo, TaskCompletedUndo,
+        TaskAddedUndo, TaskCompletedUndo, BudgetEntryAddedUndo, BudgetCategoryChangedUndo,
     ],
     Field(discriminator="kind"),
 ]
 _MEALS_UNDOS = (ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo)
 _TASKS_UNDOS = (TaskAddedUndo, TaskCompletedUndo)
+_BUDGET_UNDOS = (BudgetEntryAddedUndo, BudgetCategoryChangedUndo)
 _UNDOS_ADAPTER = TypeAdapter(List[AgentUndo])
 
 
@@ -45,6 +49,16 @@ class UndoBatch(BaseModel):
     undos: List[AgentUndo]
     session_id: str = ""
     undone: bool = False
+
+
+def last_budget_entry(batch: Optional[UndoBatch]) -> Optional[BudgetEntry]:
+    """Dernière ligne budget laissée par le lot (ajout ou correction) : cible de « non, c'était dans X »."""
+    if batch is None:
+        return None
+    for undo in reversed(batch.undos):
+        if isinstance(undo, _BUDGET_UNDOS):
+            return undo.entry
+    return None
 
 
 class UndoOutcome(BaseModel):
@@ -87,10 +101,11 @@ class UndoJournal:
 class UndoService:
     def __init__(
         self, sport_tools: SportTools, db: DatabaseManager, journal: UndoJournal, meals_tools: Optional[MealsTools] = None,
-        tasks_tools: Optional[TasksTools] = None,
+        tasks_tools: Optional[TasksTools] = None, budget_tools: Optional[BudgetTools] = None,
     ) -> None:
         self.sport_tools = sport_tools
         self.tasks_tools = tasks_tools
+        self.budget_tools = budget_tools
         self.db = db
         self.journal = journal
         self.meals_tools = meals_tools
@@ -134,6 +149,8 @@ class UndoService:
             return [("sport_session", undo.session_id)]
         if isinstance(undo, _TASKS_UNDOS):
             return TasksTools.undo_targets(undo)
+        if isinstance(undo, _BUDGET_UNDOS):
+            return BudgetTools.undo_targets(undo)
         return MealsTools.undo_targets(undo)
 
     def _meals(self) -> MealsTools:
@@ -146,7 +163,18 @@ class UndoService:
             raise UndoError("Annulation impossible : Google Tasks est indisponible.")
         return self.tasks_tools
 
+    def _budget(self) -> BudgetTools:
+        if self.budget_tools is None:
+            raise UndoError("Annulation impossible : le classeur Budget est indisponible.")
+        return self.budget_tools
+
     def _check(self, undo: AgentUndo, targets: set) -> None:
+        if isinstance(undo, _BUDGET_UNDOS):
+            try:
+                self._budget().check_undo(undo)
+            except ToolError as exc:
+                raise UndoError(str(exc)) from exc
+            return
         if isinstance(undo, _TASKS_UNDOS):
             try:
                 self._tasks().check_undo(undo)
@@ -169,6 +197,8 @@ class UndoService:
             raise UndoError(str(exc)) from exc
 
     def _apply(self, undo: AgentUndo) -> str:
+        if isinstance(undo, _BUDGET_UNDOS):
+            return self._budget().apply_undo(undo)
         if isinstance(undo, _TASKS_UNDOS):
             return self._tasks().apply_undo(undo)
         if isinstance(undo, _MEALS_UNDOS):

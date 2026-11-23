@@ -65,6 +65,17 @@ def _session_label(day: Any, verb: str, distance: Any = None) -> str:
     return base + _km(distance)
 
 
+def _euros(raw: Any) -> str:
+    return f"{float(raw):g}".replace(".", ",") + " €" if raw not in (None, "") else ""
+
+
+def _budget_label(kind: str, a: Dict[str, Any]) -> str:
+    category = a.get("type") if kind == "Revenu" else a.get("categorie")
+    details = " en ".join(part for part in (_euros(a.get("montant")), category or "") if part)
+    verb = "enregistré" if kind in ("Revenu", "Remboursement") else "enregistrée"
+    return f"{kind} {verb}" + (f" : {details}" if details else "")
+
+
 # Outils de l'agent qui modifient des données → libellé (à partir de leurs arguments).
 _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "add_shopping_items": lambda a: _items_label([x.get("nom", "") for x in a.get("articles", [])], "ajouté", "aux courses"),
@@ -83,6 +94,9 @@ _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "plan_sport_session": lambda a: _session_label(a.get("date"), "planifiée"),
     "update_sport_session": lambda a: "Séance modifiée",
     "plan_weekly_training": lambda a: "Semaine d'entraînement planifiée",
+    "add_expense": lambda a: _budget_label("Remboursement" if a.get("remboursement") else "Dépense", a),
+    "add_income": lambda a: _budget_label("Revenu", a),
+    "correct_budget_category": lambda a: "Catégorie corrigée" + (f" : {a['categorie']}" if a.get("categorie") else ""),
     "undo_last_action": lambda a: "Dernière action annulée",
 }
 

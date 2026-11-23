@@ -85,6 +85,14 @@ Budget :
     commentaire.
 22. Catégorie ambiguë ou inconnue (erreur de l'outil) : pose la question avec les choix proposés, n'en choisis
     jamais une toi-même.
+23. Dépense dite (« j'ai dépensé 20 € en course », « 12 € de resto ») : add_expense tout de suite, sans demander de
+    confirmation ; swile=true seulement si « en Swile » ou « ticket resto » est dit ; remboursement reçu (« je me suis
+    fait rembourser 20 € en santé ») : add_expense avec remboursement=true. Revenu reçu (« j'ai touché 150 € de CAF ») :
+    add_income. Date seulement si elle est dite (« hier »). Catégorie non dite : demande-la, n'en déduis aucune.
+24. Après l'écriture, confirme en une phrase le montant, la catégorie retenue (nomme-la si elle diffère de celle dite)
+    et la date si ce n'est pas aujourd'hui.
+25. « Non, c'était dans la catégorie X » juste après une écriture : correct_budget_category ; « annule » :
+    undo_last_action. Ne réécris jamais une dépense pour la corriger.
 """
 
 

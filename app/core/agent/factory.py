@@ -23,7 +23,7 @@ from app.core.agent.tools.sport_registry import sport_tool_definitions
 from app.core.agent.tools.sport_tools import SportTools
 from app.core.agent.tools.escalation_tools import escalation_tool_definitions
 from app.core.agent.tools.undo_tools import undo_tool_definitions
-from app.core.agent.undo import UndoJournal, UndoService
+from app.core.agent.undo import UndoJournal, UndoService, last_budget_entry
 from app.core.database import get_database_manager
 from app.core.dependencies import (
     get_budget_connector,
@@ -87,8 +87,12 @@ def build_undo_service(sport_connector: Any, meals_connector: Any = None) -> Und
     db = get_database_manager()
     return UndoService(
         sport_tools=_sport_tools(sport_connector), db=db, journal=UndoJournal(db), meals_tools=MealsTools(meals_connector),
-        tasks_tools=_tasks_tools(),
+        tasks_tools=_tasks_tools(), budget_tools=_budget_tools(),
     )
+
+
+def _budget_tools() -> BudgetTools:
+    return BudgetTools(get_budget_connector(), unavailable_reason=get_budget_connector_error())
 
 
 def _tasks_tools() -> TasksTools:
@@ -112,18 +116,20 @@ def build_cascade_service(
     db = get_database_manager()
     weekly_tool = WeeklyPlanningTool(sport_tools, SportCoachService(connector=sport_connector))
     tasks_tools = _tasks_tools()
+    budget_tools = _budget_tools()
+    journal = UndoJournal(db)
     undo_service = UndoService(
-        sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools, tasks_tools=tasks_tools,
+        sport_tools=sport_tools, db=db, journal=journal, meals_tools=meals_tools, tasks_tools=tasks_tools,
+        budget_tools=budget_tools,
     )
     calendar_tools = CalendarTools(get_calendar_connector(), unavailable_reason=get_calendar_connector_error())
-    budget_tools = BudgetTools(get_budget_connector(), unavailable_reason=get_budget_connector_error())
     domain_tools = (
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)
         + meals_tool_definitions(meals_tools)
         + calendar_tool_definitions(calendar_tools)
         + tasks_tool_definitions(tasks_tools)
-        + budget_tool_definitions(budget_tools)
+        + budget_tool_definitions(budget_tools, last_entry=lambda: last_budget_entry(journal.last(session_id)))
         + note_tool_definitions(db, history)
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )

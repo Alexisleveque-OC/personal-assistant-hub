@@ -1,9 +1,13 @@
-"""Connecteur Google Sheets du classeur Budget (Phase 10) : lecture des catégories, restes, revenus, échéanciers.
+"""Connecteur Google Sheets du classeur Budget (Phase 10) : catégories, restes, revenus, échéanciers, saisies.
 
 Le classeur est aussi piloté par un Apps Script (menu « Budget ») : ce connecteur en suit les règles
 (mois actif = dernière case cochée en ligne 4 de `Total dépenses`, mots-clés de `Tri auto`). Les valeurs
 sont lues brutes (`UNFORMATTED_VALUE` : nombres, booléens, dates en numéros de série) et mises en cache
 par onglet (règle 8) ; toute anomalie de structure lève une erreur qui cite l'attendu et le disponible.
+
+Écritures (dépenses, revenus) : `USER_ENTERED` à la première ligne vide sous les données, comme `getLastRow()+1`
+de l'Apps Script, après relecture fraîche de l'onglet ; une ligne écrite est retrouvée par son contenu (l'import
+bancaire ajoute des lignes entre-temps) et n'est modifiée ou supprimée que si elle est restée identique.
 """
 import base64
 import difflib
@@ -11,12 +15,13 @@ import json
 import time
 import unicodedata
 from datetime import date, timedelta
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, Tuple
 
 from app.connectors.sheets.budget_models import (
     AutoSortRule,
     BudgetCategory,
     BudgetMonth,
+    BudgetEntry,
     CategoryRemaining,
     CategoryResolution,
     IncomeSummary,
@@ -39,11 +44,15 @@ CATEGORIES_SHEET = "Catégories"
 AUTO_SORT_SHEET = "Tri auto"
 INCOME_SHEET = "Revenus"
 INSTALLMENTS_SHEET = "Échéanciers"
+DEBIT_SHEET = "Débit"
+SWILE_SHEET = "Swile"
 
 EXPECTED_HEADERS: Dict[str, Tuple[str, ...]] = {
     CATEGORIES_SHEET: ("Catégorie", "Date de création", "Date de fin"),
     AUTO_SORT_SHEET: ("Nom", "Catégorie"),
     INCOME_SHEET: ("Date", "Montant", "Type"),
+    DEBIT_SHEET: ("Date", "Montant", "Type", "Commentaires"),  # colonne E (intitulé) sans en-tête dans le classeur
+    SWILE_SHEET: ("Date", "Montant", "Type", "Commentaires"),
     INSTALLMENTS_SHEET: (
         "Nom du Projet", "Montant Total", "Nb Échéances", "Échéance Actuelle", "Mensualité", "Mois Début",
         "Catégorie", "Commentaires", "Statut",
@@ -53,6 +62,7 @@ GESTION_MONTHS_ROW = 1  # index 0 : ligne 2 (mois en numéro de série)
 GESTION_FIRST_MONTH_COL = 5  # index 0 : colonne F, puis un bloc Prévu | Equilibrage | Reste fin du mois
 GESTION_REMAINING_COL = 1  # colonne B : reste total
 TOTAL_MONTHS_ROW, TOTAL_CHECKS_ROW, TOTAL_FIRST_MONTH_COL = 1, 3, 3  # lignes 2 et 4, à partir de D
+ENTRY_CATEGORY_COL = "C"
 
 
 class BudgetConnectorError(Exception):
@@ -81,6 +91,10 @@ class ActiveMonthNotFoundError(BudgetConnectorError):
 
 class InstallmentNotFoundError(BudgetConnectorError):
     """Aucun échéancier de ce nom."""
+
+
+class BudgetEntryChangedError(BudgetConnectorError):
+    """Ligne écrite par Otis introuvable telle quelle : supprimée ou modifiée depuis."""
 
 
 def normalize(text: str) -> str:
@@ -224,23 +238,30 @@ class BudgetConnector:
             if not _is_blank(_cell(row, 0)) and not _is_blank(_cell(row, 1))
         ]
 
-    def resolve_category(self, spoken: str) -> CategoryResolution:
+    def resolve_category(self, spoken: str, among: Optional[Collection[str]] = None) -> CategoryResolution:
         """Catégorie exacte (sans accents ni casse) → mot-clé de `Tri auto` → nom proche unique → question ou inconnue.
 
         Un seul nom proche est retenu sans question (décision du 23/11 : l'utilisateur corrige si besoin) ;
-        plusieurs choix possibles → question, jamais de choix au hasard.
+        plusieurs choix possibles → question, jamais de choix au hasard. `among` : seules ces catégories sont
+        candidates (ex. celles du groupe Revenus pour un revenu).
         """
         wanted = normalize(spoken)
         if not wanted:
             raise ValueError("Catégorie vide : précisez la catégorie de la dépense ou du revenu.")
-        categories = {normalize(c.name): c.name for c in self.get_categories(active_only=True)}
+        allowed = None if among is None else {normalize(name) for name in among}
+
+        def candidate(name: str) -> bool:
+            return allowed is None or normalize(name) in allowed
+
+        categories = {normalize(c.name): c.name for c in self.get_categories(active_only=True) if candidate(c.name)}
         if wanted in categories:
             return CategoryResolution(spoken=spoken, status="resolved", category=categories[wanted], source="category")
 
         padded = f" {wanted} "
         matches = sorted({
             rule.category for rule in self.get_auto_sort_rules()
-            if f" {normalize(rule.keyword)} " in padded or padded in f" {normalize(rule.keyword)} "
+            if candidate(rule.category)
+            and (f" {normalize(rule.keyword)} " in padded or padded in f" {normalize(rule.keyword)} ")
         })
         if len(matches) == 1:
             return CategoryResolution(spoken=spoken, status="resolved", category=matches[0], source="auto_sort")
@@ -295,6 +316,10 @@ class BudgetConnector:
             month_remaining=round(month_total, 2),
             group_categories=members,
         )
+
+    def group_members(self, name: str) -> List[str]:
+        """Catégories du groupe `name` dans `Gestion` ; liste vide si `name` est une catégorie (elle l'emporte)."""
+        return self._gestion_lines(self._values(GESTION_SHEET), name)[2]
 
     @staticmethod
     def _gestion_groups(rows: List[List[Any]]) -> Dict[int, List[int]]:
@@ -412,3 +437,75 @@ class BudgetConnector:
                 f"Aucun échéancier nommé « {name} ». Échéanciers existants : {sorted({i.name for i in everything})}"
             )
         return found
+
+    # --- Saisies : dépenses, remboursements, revenus ---------------------------------------------
+
+    def add_entry(self, entry: BudgetEntry) -> int:
+        """Écrit la ligne à la première ligne vide de son onglet (relu à neuf) et renvoie son numéro (1-indexé)."""
+        rows = self._fresh_table(entry.sheet)
+        row = len(rows) + 2  # en-tête + données : comme getLastRow() + 1
+        worksheet = self._worksheet(entry.sheet)
+        if worksheet.row_count < row:
+            worksheet.add_rows(row - worksheet.row_count)  # onglet plein (Revenus le 23/11) : grille agrandie
+        cells = _entry_cells(entry)
+        worksheet.update(
+            range_name=f"A{row}:{chr(ord('A') + len(cells) - 1)}{row}", values=[cells], value_input_option="USER_ENTERED",
+        )
+        self._invalidate_after_write(entry.sheet)
+        return row
+
+    def delete_entry(self, entry: BudgetEntry) -> None:
+        """Supprime la ligne écrite par Otis, seulement si elle est restée identique."""
+        row = self.require_entry_row(entry)
+        self._worksheet(entry.sheet).delete_rows(row)
+        self._invalidate_after_write(entry.sheet)
+
+    def set_entry_category(self, entry: BudgetEntry, category: str) -> BudgetEntry:
+        """Change la catégorie (colonne Type) de la ligne écrite par Otis, seulement si elle est restée identique."""
+        row = self.require_entry_row(entry)
+        self._worksheet(entry.sheet).update(
+            range_name=f"{ENTRY_CATEGORY_COL}{row}", values=[[category]], value_input_option="USER_ENTERED",
+        )
+        self._invalidate_after_write(entry.sheet)
+        return entry.model_copy(update={"category": category})
+
+    def _fresh_table(self, title: str) -> List[List[Any]]:
+        """Lignes de données relues à neuf : jamais d'écriture sur la foi d'un cache (l'import a pu ajouter des lignes)."""
+        self.invalidate_cache(title)
+        return self._table(title)
+
+    def require_entry_row(self, entry: BudgetEntry) -> int:
+        """Numéro (1-indexé) de la dernière ligne identique à `entry`, sinon erreur « supprimée ou modifiée depuis »."""
+        expected = _entry_cells(entry)
+        rows = self._fresh_table(entry.sheet)
+        for index in range(len(rows) - 1, -1, -1):  # la plus récente d'abord (deux dépenses identiques dictées)
+            if _same_entry(rows[index], expected):
+                return index + 2
+        raise BudgetEntryChangedError(
+            f"La ligne « {entry.label} » ({entry.amount:g} € en {entry.category.strip()} le {entry.day:%d/%m/%Y}) "
+            f"a été supprimée ou modifiée depuis dans « {entry.sheet} » : je n'y touche pas."
+        )
+
+    def _invalidate_after_write(self, title: str) -> None:
+        self.invalidate_cache(title)
+        self.invalidate_cache(GESTION_SHEET)
+
+
+def _entry_cells(entry: BudgetEntry) -> List[Any]:
+    """Cellules A→ de la ligne : date ISO (comprise par Sheets quelle que soit la langue), montant, catégorie,
+    commentaire vide et intitulé ; Swile n'a pas de colonne Intitulé, l'intitulé va dans Commentaires."""
+    head: List[Any] = [entry.day.isoformat(), entry.amount, entry.category]
+    if entry.sheet == SWILE_SHEET:
+        return head + [entry.label]
+    return head + ["", entry.label]
+
+
+def _same_entry(row: Sequence[Any], expected: Sequence[Any]) -> bool:
+    """Ligne relue (valeurs brutes) identique aux cellules écrites ; espaces de bord des textes ignorés."""
+    day = date.fromisoformat(expected[0])
+    if _cell(row, 0) != (day - SHEETS_EPOCH).days:
+        return False
+    amount = _cell(row, 1)
+    if not _is_number(amount) or round(float(amount), 2) != round(float(expected[1]), 2):
+        return False
+    return all(str(_cell(row, i)).strip() == str(expected[i]).strip() for i in range(2, len(expected)))
