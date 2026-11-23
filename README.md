@@ -204,6 +204,13 @@ personal-assistant-hub/
   - Échec de chargement → message explicite et mains-libres désactivé ; calibrage des variantes masqué (code conservé)
   - Test E2E du flux (`tests/test_e2e_wake_word_audio_focus.py`)
   - Suite : musique baissée pendant les réponses d'Otis (`speechSynthesis` ne demande pas le focus audio sur Chrome Android) grâce à un clip `<audio>` quasi silencieux de 1 s joué en boucle puis vidé à la fin de la réponse (une simple pause garde la musique baissée) — branche `feat/otis-reply-ducking`, test E2E `tests/test_e2e_otis_reply_ducking.py`
+- [x] **Phase 6.10 : Cerveau en cascade (PWA → Gemini → Claude)** — *branche `feat/llm-cascade` (détail : `ROADMAP.md`)*
+  - Niveau 0 sans LLM (voie rapide), niveau 1 agent Gemini (gratuit), niveau 2 expert **Claude Sonnet 5.5** (API payante) pour les questions ouvertes : conseils, explications, bricolage…
+  - Passage à l'expert : outil `demander_expert` de Gemini, ou échec de Gemini sans modification ; la réponse à une question de l'expert lui revient directement pendant 10 minutes ; l'expert demande de préciser s'il ne sait pas
+  - Réponses courtes (2 à 4 phrases à l'oral) ; lien discret « Approfondir » (réponse détaillée en étapes) ; bouton « ⏸ Pause » pour couper la voix d'Otis
+  - Coûts : chaque appel est enregistré (`llm_usage`, en $) ; plafond `CLAUDE_MONTHLY_BUDGET_USD` (5 $ par défaut) au-delà duquel Gemini répond seul ; total du mois sur `GET /api/v1/system/expert-usage`. Mesuré : ~1,3 centime par question (outils de l'expert réduits aux suites d'un conseil : tâches, agenda, courses, notes)
+  - Sans `ANTHROPIC_API_KEY`, l'application se comporte comme avant (Gemini seul) ; les tests ne peuvent jamais appeler Claude (doublure imposée par `tests/conftest.py`)
+  - Tests E2E : `tests/test_interact_expert.py` (cascade de bout en bout dans `/interact`), `tests/test_e2e_expert_reply.py` (Chromium)
 - [x] **Refonte UX/UI de la PWA** — *branche `feat/ux-redesign` (détail : `ROADMAP.md`)*
   - Menu burger + accueil à bulles + sections en feuilles empilables, barre de saisie universelle dont seul le placeholder change ; logique métier inchangée
   - Écrans rhabillés un à un et validés sur téléphone : Sport (dictée de séance pré-remplissant le formulaire), Trophées (dates de déblocage rejouées, 122 trophées), Courses, Tâches, Repas, Second cerveau, Journal, Réglages, fil de conversation et notifications
@@ -264,6 +271,8 @@ LOG_LEVEL=INFO
 API_KEY=votre_cle_api_secrete
 GOOGLE_SERVICE_ACCOUNT_INFO={"type": "service_account", ...} # ou chemin vers credentials.json
 GEMINI_API_KEY=votre_cle_gemini_flash
+ANTHROPIC_API_KEY=...            # facultatif : expert Claude (payant), absent = Gemini seul
+CLAUDE_MONTHLY_BUDGET_USD=5      # plafond mensuel de l'expert Claude
 NLU_MODE=agent          # agent : Gemini en premier ; legacy : regex puis Gemini en dernier recours
 GOOGLE_OAUTH_CLIENT_ID=...       # Agenda & Tasks (OAuth utilisateur)
 GOOGLE_OAUTH_CLIENT_SECRET=...

@@ -59,6 +59,17 @@ def offline_rayon_suggester():
 
 
 @pytest.fixture(autouse=True)
+def offline_expert(monkeypatch):
+    """Aucun appel réel (payant) à Claude : le .env peut contenir une vraie clé ; doublure injectée par test."""
+    from app.core.agent.factory import set_expert_llm
+
+    monkeypatch.setattr(settings, "anthropic_api_key", "")
+    set_expert_llm(None)
+    yield
+    set_expert_llm(None)
+
+
+@pytest.fixture(autouse=True)
 def isolate_test_environment(request, monkeypatch):
     """Isole l'environnement de test pour garantir ZÉRO effet de bord sur le Google Sheet réel.
     

@@ -246,11 +246,11 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - **Budget :** plafond de **5 €/mois** (décision utilisateur du 23/11/2026, phase de test pour mesurer le coût réel). Plafond de dépense réglé sur la console Anthropic + garde-fou applicatif (coût de chaque appel journalisé, total du mois consultable ; au-delà du plafond, retour au niveau 1 avec un message explicite).
   - La transcription audio reste sur Gemini (Claude ne transcrit pas l'audio).
   - Étapes prévues (détaillées dans `ROADMAP.md` au démarrage de la branche) :
-    - [ ] 6.10.0 : Choix arrêtés avec l'utilisateur (modèle Claude du niveau 2, critères de passage à l'expert, réponse orale d'une réponse longue, filet manuel « creuse ça ») ; clé API Anthropic en secret (`.env` + secret GitHub/Cloud Run), jamais dans le dépôt.
-    - [ ] 6.10.1 : Connecteur Claude isolé (`app/core/llm/`), fonctionnel en mock hors ligne, erreurs explicites.
-    - [ ] 6.10.2 : Outil d'escalade côté niveau 1 + aiguillage vers le niveau 2 avec l'historique de session.
-    - [ ] 6.10.3 : Journal des coûts (tokens et € par appel, total mensuel) + garde-fou des 5 €/mois.
-    - [ ] 6.10.4 : Affichage PWA des réponses longues de l'expert (+ filet manuel « creuse ça »).
+    - [x] 6.10.0 : Choix arrêtés avec l'utilisateur (modèle Claude du niveau 2, critères de passage à l'expert, réponse orale d'une réponse longue, filet manuel « creuse ça ») ; clé API Anthropic en secret (`.env` + secret GitHub/Cloud Run), jamais dans le dépôt.
+    - [x] 6.10.1 : Connecteur Claude isolé (`app/core/llm/`), fonctionnel en mock hors ligne, erreurs explicites.
+    - [x] 6.10.2 : Outil d'escalade côté niveau 1 + aiguillage vers le niveau 2 avec l'historique de session.
+    - [x] 6.10.3 : Journal des coûts (tokens et € par appel, total mensuel) + garde-fou des 5 €/mois.
+    - [x] 6.10.4 : Affichage PWA des réponses longues de l'expert (+ filet manuel « creuse ça »).
     - [ ] 6.10.5 : Validation réelle sur des questions types (simples et complexes), test E2E, déploiement, puis bilan de coût après un mois.
 
 - [ ] **Phase 7 : Otis Live Runner - Coach Vocal Temps Réel & Traqueur GPS Natif**

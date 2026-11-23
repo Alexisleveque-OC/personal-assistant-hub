@@ -9,10 +9,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.connectors.sqlite.sport_connector import SqlSportConnector
-from app.core.agent.agent_service import AgentReply, AgentService
+from app.core.agent.agent_service import AgentService
 from app.core.agent.prompt import build_system_prompt
 from app.core.agent.tools.sport_registry import build_sport_registry
 from app.core.agent.tools.sport_tools import SportTools
+from app.core.expert.cascade import CascadeReply
 from app.core.session_manager import get_session_manager
 from app.core.audio.stt_service import set_stt_service
 from app.handlers import agent_handler
@@ -56,12 +57,12 @@ async def test_agent_run_puts_the_open_screen_in_the_system_instruction(isolate_
 async def test_agent_turn_forwards_the_session_screen_to_the_agent(monkeypatch):
     captured = {}
 
-    async def fake_run(query, history=(), ui_context=None, ui_session_id=None):
+    async def fake_run(query, history=(), ui_context=None, ui_session_id=None, expert_follow_up=False, detailed=False):
         captured["ui_context"] = ui_context
-        return AgentReply(text="Ok", executions=[])
+        return CascadeReply(text="Ok", executions=[])
 
     monkeypatch.setattr(
-        agent_handler, "build_agent_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None),
+        agent_handler, "build_cascade_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None, expert_disabled=None),
     )
     session_ctx = {"ui_context": "courses"}
 
@@ -136,12 +137,12 @@ async def test_agent_run_looks_up_the_open_session(isolate_sqlite_database):
 async def test_agent_turn_forwards_the_open_session(monkeypatch):
     captured = {}
 
-    async def fake_run(query, history=(), ui_context=None, ui_session_id=None):
+    async def fake_run(query, history=(), ui_context=None, ui_session_id=None, expert_follow_up=False, detailed=False):
         captured.update(ui_context=ui_context, ui_session_id=ui_session_id)
-        return AgentReply(text="Ok", executions=[])
+        return CascadeReply(text="Ok", executions=[])
 
     monkeypatch.setattr(
-        agent_handler, "build_agent_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None),
+        agent_handler, "build_cascade_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None, expert_disabled=None),
     )
 
     await agent_handler.handle_agent_turn(
