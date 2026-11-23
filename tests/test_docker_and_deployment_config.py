@@ -39,6 +39,13 @@ def test_deploy_workflow_forwards_nlu_mode():
     assert "NLU_MODE=${NLU_MODE}" in content
 
 
+def test_deploy_workflow_forwards_the_anthropic_key_from_a_secret():
+    """Expert Claude (Phase 6.10) : la clé vient d'un secret GitHub, jamais du dépôt ; absente = Gemini seul."""
+    content = (ROOT_DIR / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+    assert "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}" in content
+    assert "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" in content
+
+
 def test_dockerignore_security_exclusions():
     """Valide que les fichiers sensibles et temporaires sont exclus de l'image Docker."""
     dockerignore_path = ROOT_DIR / ".dockerignore"

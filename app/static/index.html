@@ -30,12 +30,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
   <link rel="stylesheet" href="/static/styles/hub.css?v=3" />
-  <link rel="stylesheet" href="/static/styles/app.css?v=6" />
+  <link rel="stylesheet" href="/static/styles/app.css?v=7" />
 </head>
 <body>
 
   <!-- Toast Notification Container (Observabilité UI) -->
   <div id="toast-container" class="toast-stack" aria-live="polite"></div>
+  <!-- Pause : visible seulement pendant qu'Otis parle, coupe la voix ; hors de #app-home pour rester cliquable sur une feuille -->
+  <button type="button" id="btn-tts-stop" class="tts-stop" aria-label="Couper la voix d'Otis" hidden>⏸ Pause</button>
 
   <div class="app" id="app-home">
   <!-- Barre du haut : menu · salutation · voix -->

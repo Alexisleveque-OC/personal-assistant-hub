@@ -85,6 +85,16 @@ async def get_conversation_logs_endpoint(
 
 
 @router.get(
+    "/api/v1/system/expert-usage",
+    dependencies=[Depends(verify_api_key)],
+    summary="Coût de l'expert Claude sur le mois en cours, comparé au budget mensuel",
+)
+async def get_expert_usage_endpoint():
+    from app.core.expert.budget import month_usage
+    return month_usage(get_database_manager())
+
+
+@router.get(
     "/api/v1/system/conversation-logs/{log_id}",
     dependencies=[Depends(verify_api_key)],
     summary="Détail d'un log conversationnel précis",

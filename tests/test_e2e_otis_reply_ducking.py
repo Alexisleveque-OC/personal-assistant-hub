@@ -30,7 +30,10 @@ globalThis.document = {
   addEventListener: () => {},
 };
 globalThis.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init.detail; } };
-globalThis.dispatchEvent = (event) => events.push(`${event.type} ${event.detail.reason}`);
+// Seuls les évènements d'atténuation font partie de ce scénario (tts-state, pour le bouton pause, est testé ailleurs).
+globalThis.dispatchEvent = (event) => {
+  if (event.type.startsWith("pah-audio-ducking")) events.push(`${event.type} ${event.detail.reason}`);
+};
 URL.createObjectURL = (blob) => `blob:${blob.type}`;
 globalThis.Audio = class {
   constructor() { this.attributes = {}; }

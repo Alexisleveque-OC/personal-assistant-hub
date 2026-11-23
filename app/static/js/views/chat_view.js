@@ -1,5 +1,7 @@
 // Vue Assistant Conversationnel / Chat & Vocal avec Persistance 20 Messages
-import { speak } from "../tts.js";
+import { speak, cancelSpeaking } from "../tts.js";
+import { initTtsStop } from "../tts_stop.js";
+import { canDeepen, DEEPEN_QUERY, deepenContext } from "../expert_reply.js";
 import { showUndoToast, hideUndoToast } from "../undo_bar.js";
 import {
   postInteract,
@@ -105,7 +107,8 @@ function renderUserBubble(text, shouldScroll = true) {
   return bubble;
 }
 
-function renderAssistantBubble(text, shouldScroll = true) {
+// `onDeepen` : réponse courte de l'expert Claude, un lien discret « Approfondir » demande le détail.
+function renderAssistantBubble(text, shouldScroll = true, onDeepen = null) {
   if (!chatStream) return null;
   const bubble = document.createElement("div");
   bubble.className = "msg msg--otis";
@@ -121,6 +124,17 @@ function renderAssistantBubble(text, shouldScroll = true) {
   content.className = "msg__text";
   content.textContent = text;
   bubble.append(head, content);
+  if (onDeepen) {
+    const deepen = document.createElement("button");
+    deepen.type = "button";
+    deepen.className = "msg__deepen";
+    deepen.textContent = "Approfondir";
+    deepen.addEventListener("click", () => {
+      deepen.remove();
+      onDeepen();
+    });
+    bubble.append(deepen);
+  }
   chatStream.appendChild(bubble);
   scrollToMessage(bubble, shouldScroll);
   return bubble;
@@ -163,8 +177,8 @@ function hideThinkingIndicator() {
   thinkingBubble = null;
 }
 
-export function appendAssistantMessage(text) {
-  renderAssistantBubble(text, true);
+export function appendAssistantMessage(text, options = {}) {
+  renderAssistantBubble(text, true, options.onDeepen || null);
   saveChatMessage("assistant", text);
   // Refonte UX : app.js affiche la réponse en toast si une feuille est ouverte, puis la rafraîchit.
   window.dispatchEvent(new CustomEvent("otis-reply", { detail: { text } }));
@@ -252,7 +266,12 @@ function handleUndoToast(data) {
   }
 }
 
-export async function sendInteraction(text) {
+function deepenOption(data) {
+  return canDeepen(data) ? { onDeepen: () => sendInteraction(DEEPEN_QUERY, deepenContext()) } : {};
+}
+
+// `extraContext` : drapeaux ponctuels envoyés avec ce message (ex. « Approfondir »).
+export async function sendInteraction(text, extraContext = null) {
   appendUserMessage(text);
 
   if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -263,7 +282,7 @@ export async function sendInteraction(text) {
 
   try {
     showThinkingIndicator();
-    const res = await postInteract(text);
+    const res = await postInteract(text, null, extraContext);
     hideThinkingIndicator();
 
     if (res.status === 401) {
@@ -277,7 +296,7 @@ export async function sendInteraction(text) {
     }
 
     const data = await res.json();
-    appendAssistantMessage(data.spoken_response);
+    appendAssistantMessage(data.spoken_response, deepenOption(data));
     speak(data.spoken_response);
     handleUndoToast(data);
 
@@ -343,7 +362,7 @@ export async function sendAudioInteraction(audioBlob) {
       updateLastUserMessage(fullText);
     }
 
-    appendAssistantMessage(data.spoken_response);
+    appendAssistantMessage(data.spoken_response, deepenOption(data));
     speak(data.spoken_response);
     handleUndoToast(data);
 
@@ -458,6 +477,7 @@ export async function handleChatImageUpload(file) {
 export function initChatView() {
   // Réhydrater immédiatement les 20 derniers messages
   restoreChatHistory();
+  initTtsStop(document.getElementById("btn-tts-stop"), cancelSpeaking);
 
   if (queryForm) {
     queryForm.addEventListener("submit", (e) => {

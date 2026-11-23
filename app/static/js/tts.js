@@ -47,6 +47,13 @@ export function populateVoiceList(voiceSelect) {
   }
 }
 
+// Annonce aux vues (bouton pause) qu'Otis commence ou arrête de parler.
+function announceSpeaking(speaking) {
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("tts-state", { detail: { speaking } }));
+  }
+}
+
 export function cancelSpeaking() {
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     try {
@@ -60,6 +67,7 @@ export function cancelSpeaking() {
   activeUtterance = null;
   audioFocusManager.releaseDucking("tts");
   resumeWakeWordDetector();
+  announceSpeaking(false);
 }
 
 export function speak(text, overrideVoiceUri = null) {
@@ -86,11 +94,13 @@ export function speak(text, overrideVoiceUri = null) {
     activeUtterance = null;
     audioFocusManager.releaseDucking("tts");
     resumeWakeWordDetector();
+    announceSpeaking(false);
   }
 
   utterance.onstart = () => {
     pauseWakeWordDetector();
     audioFocusManager.requestDucking("tts");
+    announceSpeaking(true);
   };
 
   utterance.onend = () => {

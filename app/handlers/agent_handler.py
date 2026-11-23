@@ -1,17 +1,21 @@
 """Handler de l'agent LLM à outils (Phase 6.8) : routage depuis /interact et mise en forme de la réponse."""
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
 from app.config import settings
 from app.core.agent.errors import AgentError, AgentUnavailableError
-from app.core.agent.factory import build_agent_service, build_undo_service
+from app.core.agent.factory import build_cascade_service, build_undo_service
 from app.core.agent.agent_service import ConversationTurn
 from app.core.agent.tool_registry import ToolExecution
 from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.undo import UndoError, UndoJournal
 from app.core.database import get_database_manager
+from app.core.expert.budget import record_usages, usages_payload
+from app.core.expert.cascade import CascadeReply
+from app.core.expert.errors import ExpertError, ExpertUnavailableError
 from app.core.models import IntentType, ParsedIntent
 from app.core.shopping.rayon_questions import RAYON_QUESTION_KEY
 from app.handlers.fast_lane import FAST_LANE_INTENTS, is_fast_lane
@@ -93,7 +97,11 @@ def handle_agent_undo(query: str, session_id: str, sport_connector: Any, meals_c
 
 async def handle_agent_turn(
     query: str, session_id: str, session_ctx: Dict[str, Any], sport_connector: Any, meals_connector: Any = None,
+    expert_follow_up: bool = False, expert_detailed: bool = False,
 ) -> AgentTurnOutcome:
+    """`expert_follow_up` : le tour précédent de l'expert Claude posait une question, la réponse lui revient.
+
+    `expert_detailed` : lien « Approfondir » de la PWA, l'expert donne une réponse détaillée."""
     history = [
         ConversationTurn(role=h["role"], text=h["text"])
         for h in session_ctx.get("history", [])
@@ -106,11 +114,12 @@ async def handle_agent_turn(
     )
     service = None
     try:
-        service = build_agent_service(
+        service = build_cascade_service(
             sport_connector, session_id, "last_undoable_action" in session_ctx, meals_tools, history,
         )
         reply = await service.run(
             query, history, ui_context=session_ctx.get("ui_context"), ui_session_id=session_ctx.get("ui_session_id"),
+            expert_follow_up=expert_follow_up, detailed=expert_detailed,
         )
     except AgentError as exc:
         logger.error(f"Agent en échec ({type(exc).__name__}) : {exc}")
@@ -118,6 +127,12 @@ async def handle_agent_turn(
         data = _response_data(exc.executions, batch_id)
         data["error"] = str(exc)
         _add_latency_details(data, exc.llm_calls, fast_reply=False)
+        if isinstance(exc, ExpertError):
+            data["level"] = "expert"
+            data["expert"] = {
+                "usages": usages_payload(exc.usages),
+                "cost_usd": record_usages(get_database_manager(), exc.usages, session_id),
+            }
         return AgentTurnOutcome(
             parsed=ParsedIntent(intent=IntentType.AGENT, confidence=0.0, parameters={"error": str(exc)}, raw_query=query),
             spoken=_failure_message(exc),
@@ -128,10 +143,13 @@ async def handle_agent_turn(
     batch_id = _journalize(session_id, session_ctx, reply.executions)
     if "?" in reply.text:
         session_ctx["agent_awaiting_reply"] = True
+        if reply.level == "expert":
+            session_ctx["expert_awaiting_reply"] = time.time()  # horodatage : renvoi direct pendant 10 minutes
     if meals_tools.refused_dishes:
         session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
     spoken, data = reply.text, _response_data(reply.executions, batch_id)
     _add_latency_details(data, reply.llm_calls, reply.fast_reply)
+    _add_level_details(data, reply, session_id, service.expert_disabled)
     if meals_tools.unknown_articles:
         # Article au rayon inconnu : la question est posée par l'application, la réponse traitée sans LLM.
         question = await ask_rayon_question(meals_tools.unknown_articles, session_ctx, meals_connector)
@@ -167,6 +185,22 @@ def _add_latency_details(data: Dict[str, Any], llm_calls: List[Any], fast_reply:
     data["fast_reply"] = fast_reply
 
 
+def _add_level_details(
+    data: Dict[str, Any], reply: CascadeReply, session_id: str, expert_disabled: Optional[str],
+) -> None:
+    """Niveau de la cascade qui a répondu ; pour l'expert : raison du passage, modèle, tokens et coût (enregistré)."""
+    data["level"] = reply.level
+    if expert_disabled:
+        data["expert_disabled"] = expert_disabled
+    if reply.level == "expert":
+        data["expert"] = {
+            "reason": reply.escalation_reason,
+            "model": reply.expert_model,
+            "usages": usages_payload(reply.expert_usages),
+            "cost_usd": record_usages(get_database_manager(), reply.expert_usages, session_id),
+        }
+
+
 def _response_data(executions: List[ToolExecution], batch_id: Optional[int] = None) -> Dict[str, Any]:
     """Expose la trace des outils et les clés attendues par la PWA (rafraîchissement sport, toast d'annulation)."""
     data: Dict[str, Any] = {
@@ -188,7 +222,11 @@ def _response_data(executions: List[ToolExecution], batch_id: Optional[int] = No
 
 
 def _failure_message(exc: AgentError) -> str:
-    if isinstance(exc, AgentUnavailableError):
+    if isinstance(exc, ExpertError):
+        message = "L'expert Claude est indisponible pour le moment." if isinstance(exc, ExpertUnavailableError) else (
+            "L'expert Claude n'a pas réussi à répondre."
+        )
+    elif isinstance(exc, AgentUnavailableError):
         message = "Mon cerveau Gemini est indisponible pour le moment."
     else:
         message = "Je n'ai pas réussi à traiter ta demande jusqu'au bout."
