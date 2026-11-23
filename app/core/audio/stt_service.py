@@ -1,9 +1,11 @@
-"""Transcription vocale (STT) par l'API Google Gemini : le texte seul, mot pour mot.
+"""Transcription vocale (STT) par l'API Google Gemini multimodale.
 
-L'intention est comprise ensuite par l'agent à partir du texte : la transcription ne demande ni intention ni JSON
-(un gros schéma ralentissait chaque dictée et la consigne de « corriger » faisait réécrire les propos).
+La consigne et le schéma JSON (intentions et paramètres de l'assistant) donnent à Gemini le contexte du domaine
+(courses, repas, sport…) : sans eux, du 18 au 23/11, « emmental » était transcrit « élémental » et « sucre roux »
+« bureau de tabac ». Seul le texte transcrit est utilisé ; l'agent comprend ensuite la demande.
 """
 import base64
+import json
 import logging
 import re
 import time
@@ -11,24 +13,35 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from app.core.models import IntentType
 from app.core.llm.gemini_client import (
     GEMINI_API_BASE_URL,
     GeminiClient,
     get_gemini_client,
 )
+from app.core.llm.nlu_service import GEMINI_JSON_SCHEMA
 from app.core.audio.phonetic_normalizer import normalize_phonetics
 
 logger = logging.getLogger(__name__)
 
-# Marqueur demandé quand rien n'est dit : un modèle renvoie mal une réponse vide (mesuré le 18/11 sur du bruit :
-# « 00:01 », un horodatage inventé).
-NOTHING_SAID = "[rien]"
-TRANSCRIPTION_PROMPT = (
-    "Transcris mot pour mot, en français, ce qui est dit dans cet enregistrement. "
-    "Ne corrige pas, ne reformule pas, ne réponds pas, n'ajoute ni horodatage ni description des sons : "
-    "renvoie uniquement le texte prononcé, sans guillemets. "
-    f"S'il n'y a aucune parole intelligible (silence, bruit, musique), renvoie exactement {NOTHING_SAID}"
-)
+GEMINI_AUDIO_JSON_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "transcribed_text": {
+            "type": "STRING",
+            "description": "Transcription textuelle exacte et fidèle de la parole de l'utilisateur",
+        },
+        "intent": {
+            "type": "STRING",
+            "enum": [i.value for i in IntentType],
+        },
+        "confidence": {"type": "NUMBER"},
+        "parameters": GEMINI_JSON_SCHEMA["properties"]["parameters"],
+        "conversational_reply": {"type": "STRING"},
+    },
+    "required": ["transcribed_text", "intent", "parameters"],
+}
+
 
 # Horodatage seul (« 0:00 », « 00:01 ») : renvoyé malgré la consigne sur du bruit (mesuré le 18/11).
 _NO_WORDS = re.compile(r"^[\d\s:.,;!?…'\"()\[\]-]*$")
@@ -69,9 +82,22 @@ class AudioSTTService:
     def __init__(self, gemini_client: Optional[GeminiClient] = None) -> None:
         self.gemini_client = gemini_client or get_gemini_client()
 
-    def build_multimodal_gemini_payload(self, audio_bytes: bytes, mime_type: str = "audio/webm") -> Dict[str, Any]:
-        """Payload Gemini : l'audio en base64 (inlineData) et la consigne de transcription, réponse en texte brut."""
+    def build_multimodal_gemini_payload(
+        self,
+        audio_bytes: bytes,
+        mime_type: str = "audio/webm",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Construit le payload Gemini contenant le bloc inlineData base64 et le prompt d'analyse."""
         b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
+
+        prompt_text = (
+            "Tu es Otis. Écoute attentivement cet extrait audio enregistré par Alexis.\n"
+            "1. Transcris fidèlement ses propos dans 'transcribed_text' en éliminant les confusions phonétiques courantes.\n"
+            "2. Identifie l'intention et extrait tous les paramètres correspondants selon le schéma fourni.\n"
+        )
+        if context:
+            prompt_text += f"\nContexte : {json.dumps(context, ensure_ascii=False, default=str)}"
 
         # Nettoyage et normalisation du MIME type (suppression des paramètres ;codecs=opus etc.)
         clean_mime = (mime_type or "audio/webm").split(";")[0].strip().lower()
@@ -86,15 +112,26 @@ class AudioSTTService:
             "contents": [
                 {
                     "parts": [
-                        {"inlineData": {"mimeType": clean_mime, "data": b64_audio}},
-                        {"text": TRANSCRIPTION_PROMPT},
+                        {
+                            "inlineData": {
+                                "mimeType": clean_mime,
+                                "data": b64_audio,
+                            }
+                        },
+                        {"text": prompt_text},
                     ]
                 }
             ],
-            "generationConfig": {"temperature": 0.0, "response_mime_type": "text/plain"},
+            "generationConfig": {
+                "temperature": 0.1,
+                "response_mime_type": "application/json",
+                "response_schema": GEMINI_AUDIO_JSON_SCHEMA,
+            },
         }
 
-    async def transcribe(self, audio_bytes: bytes, mime_type: str = "audio/webm") -> str:
+    async def transcribe(
+        self, audio_bytes: bytes, mime_type: str = "audio/webm", context: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Envoie l'audio à Gemini et retourne le texte transcrit (normalisation phonétique appliquée)."""
         if not self.gemini_client.is_configured:
             raise STTUnavailableError(
@@ -114,7 +151,7 @@ class AudioSTTService:
             if cand not in candidates_to_try:
                 candidates_to_try.append(cand)
 
-        payload = self.build_multimodal_gemini_payload(audio_bytes, mime_type)
+        payload = self.build_multimodal_gemini_payload(audio_bytes, mime_type, context)
         per_model_timeout = min(self.gemini_client.timeout, 12.0)
         failures: list[str] = []
 
@@ -141,7 +178,8 @@ class AudioSTTService:
 
                 # Sans aucune partie de texte : rien d'audible, traité comme une transcription vide.
                 parts = candidates[0].get("content", {}).get("parts", [])
-                transcription = "".join(part.get("text", "") for part in parts).strip().strip('"«»').strip()
+                raw = "".join(part.get("text", "") for part in parts).strip()
+                transcription = str(json.loads(raw).get("transcribed_text") or "").strip() if raw else ""
                 break
             except Exception as exc:
                 failures.append(f"{candidate_model} : {_describe_failure(exc)}")
@@ -152,7 +190,7 @@ class AudioSTTService:
             raise STTUnavailableError(detail)
 
         # Réponse vide : rien d'audible (bruit, silence). Ce n'est pas une panne : pas de repli sur un autre modèle.
-        if transcription == NOTHING_SAID or _NO_WORDS.match(transcription):
+        if _NO_WORDS.match(transcription):
             raise STTUnavailableError(f"Aucune parole transcrite par {candidate_model}.", user_message=NOTHING_HEARD_MESSAGE)
         return normalize_phonetics(transcription)
 
