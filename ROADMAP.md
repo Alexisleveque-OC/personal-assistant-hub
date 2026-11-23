@@ -26,6 +26,12 @@ Interroger et alimenter à la voix le classeur budget existant (`SPREADSHEET_BUD
 - Catégorie toujours donnée par l'utilisateur : rapprochement avec `Catégories` (sans accents ni casse), puis avec les mots-clés de `Tri auto`, sinon **question**. Jamais d'invention.
   - Un seul nom proche (« cadeau candice » → « Cadeaux Candice ») est retenu sans question ; l'utilisateur corrige au besoin (« non, c'était dans la catégorie X »). Plusieurs choix possibles → question.
   - Nom de groupe (Loisir, Courants…) : en lecture, reste du groupe = somme de ses catégories (comme sa ligne « Total ») ; en écriture, question « laquelle ? » avec la liste des catégories du groupe. Catégorie homonyme de son groupe (« Epargne ») : la catégorie l'emporte.
+- Écriture, précisions du 23/11 (après l'étape 2) :
+  - date = aujourd'hui sauf date dite (« hier ») ; intitulé `Otis : <libellé dicté>` en colonne E (Débit, Revenus) ; commentaire vide ;
+  - « non, c'était dans la catégorie X » → Otis **modifie la catégorie (colonne Type)** de la ligne qu'il vient d'écrire, seulement si elle est restée identique (sinon refus « modifiée depuis ») ;
+  - remboursement (« je me suis fait rembourser 20 € en Santé ») → ligne **négative dans `Débit`** dans la catégorie ;
+  - revenu → catégories du **groupe Revenus** de `Gestion` uniquement (Salaire…, CAF, Ticket resto, Autre), sinon question ;
+  - dépense sur un nom de groupe (« loisir ») → question « laquelle ? » avec les catégories du groupe.
 - Hors V1 (et peut-être jamais dans Otis) : import bancaire, nouveau mois, nouvelle ligne de dépense, réparation des formules (modifient la structure de `Gestion`).
 - Le classeur garde son nom (« Budget 2026 », prévu pour durer) : Otis utilise l'ID, le nom n'a pas d'effet.
 
