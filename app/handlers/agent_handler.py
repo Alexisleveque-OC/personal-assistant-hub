@@ -1,5 +1,6 @@
 """Handler de l'agent LLM à outils (Phase 6.8) : routage depuis /interact et mise en forme de la réponse."""
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
@@ -143,7 +144,7 @@ async def handle_agent_turn(
     if "?" in reply.text:
         session_ctx["agent_awaiting_reply"] = True
         if reply.level == "expert":
-            session_ctx["expert_awaiting_reply"] = True
+            session_ctx["expert_awaiting_reply"] = time.time()  # horodatage : renvoi direct pendant 10 minutes
     if meals_tools.refused_dishes:
         session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
     spoken, data = reply.text, _response_data(reply.executions, batch_id)

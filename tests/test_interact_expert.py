@@ -112,3 +112,30 @@ def test_deepen_request_goes_straight_to_the_expert_for_a_detailed_answer(db):
     assert len(gemini.requests) == 1
     assert claude.requests[1]["max_tokens"] > claude.requests[0]["max_tokens"]
     assert "expert_detailed" not in get_session_manager().get_session("expert-test")
+
+
+def test_expert_only_gets_the_light_follow_up_tools(db):
+    set_agent_llm(ScriptedLLM([_escalate()]))
+    claude = ScriptedExpertLLM([expert_text("Réponse.")])
+    set_expert_llm(claude)
+
+    _ask("Comment changer la porte de mon frigo ?")
+
+    names = {t["name"] for t in claude.requests[0]["tools"]}
+    assert names == {"add_task", "get_tasks", "get_agenda", "add_shopping_items", "save_note"}
+
+
+def test_an_answer_more_than_10_minutes_after_the_expert_question_goes_back_to_gemini(db):
+    gemini = ScriptedLLM([_escalate(), text_turn("C'est noté.")])
+    set_agent_llm(gemini)
+    claude = ScriptedExpertLLM([expert_text("Quelle est la marque du frigo ?")])
+    set_expert_llm(claude)
+
+    _ask("Comment changer la porte de mon frigo ?")
+    session = get_session_manager().get_session("expert-test")
+    session["expert_awaiting_reply"] -= 601  # la question de l'expert date de plus de 10 minutes
+    body = _ask("Bosch")
+
+    assert body["spoken_response"] == "C'est noté."
+    assert body["data"]["level"] == "agent"
+    assert len(claude.requests) == 1

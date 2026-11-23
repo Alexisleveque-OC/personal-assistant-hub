@@ -40,6 +40,10 @@ from app.core.sport_coach_service import SportCoachService
 
 logger = logging.getLogger(__name__)
 
+# Outils laissés à l'expert Claude : les suites utiles d'un conseil. Les déclarations d'outils pèsent ~78 % des tokens
+# d'entrée (payants) ; sport et repas restent à Gemini (décision utilisateur du 23/11/2026).
+EXPERT_TOOL_NAMES = frozenset({"add_task", "get_tasks", "get_agenda", "add_shopping_items", "save_note"})
+
 _agent_llm: Optional[AgentLLM] = None
 _expert_llm: Optional[ExpertLLM] = None
 
@@ -124,5 +128,6 @@ def build_cascade_service(
         expert_llm = None
     agent_tools = domain_tools + (escalation_tool_definitions() if expert_llm else [])
     agent = AgentService(llm=get_agent_llm(), registry=ToolRegistry(agent_tools), sport_tools=sport_tools)
-    expert = ExpertService(llm=expert_llm, registry=ToolRegistry(domain_tools)) if expert_llm else None
+    expert_tools = [tool for tool in domain_tools if tool.name in EXPERT_TOOL_NAMES]
+    expert = ExpertService(llm=expert_llm, registry=ToolRegistry(expert_tools)) if expert_llm else None
     return CascadeService(agent=agent, expert=expert, expert_disabled=expert_disabled)

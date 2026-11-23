@@ -39,6 +39,8 @@ from app.handlers.rayon_question_handler import handle_rayon_reply, is_idle_repl
 
 logger = logging.getLogger(__name__)
 
+EXPERT_FOLLOW_UP_SECONDS = 600  # au-delà, la réponse à une question de l'expert repasse par Gemini (coût)
+
 router = APIRouter(
     prefix="/api/v1",
     dependencies=[Depends(verify_api_key)],
@@ -125,7 +127,9 @@ async def interact(
 
     handled = None
     awaiting_agent_reply = session_ctx.pop("agent_awaiting_reply", False)
-    expert_follow_up = session_ctx.pop("expert_awaiting_reply", False)
+    # Réponse à une question de l'expert Claude : renvoyée directement à l'expert seulement dans les 10 minutes
+    expert_asked_at = session_ctx.pop("expert_awaiting_reply", None)
+    expert_follow_up = bool(expert_asked_at) and time.time() - float(expert_asked_at) <= EXPERT_FOLLOW_UP_SECONDS
     expert_detailed = bool(session_ctx.pop("expert_detailed", False))  # lien « Approfondir » de la PWA
     if rayon_reply is not None and (rayon_reply.consumed or is_idle_reply(parsed, normalized_query)):
         parsed, handled = rayon_reply.parsed, (rayon_reply.spoken, rayon_reply.data)
