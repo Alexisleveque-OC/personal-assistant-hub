@@ -62,7 +62,7 @@ async def test_agent_turn_forwards_the_session_screen_to_the_agent(monkeypatch):
         return CascadeReply(text="Ok", executions=[])
 
     monkeypatch.setattr(
-        agent_handler, "build_cascade_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None),
+        agent_handler, "build_cascade_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None, expert_disabled=None),
     )
     session_ctx = {"ui_context": "courses"}
 
@@ -142,7 +142,7 @@ async def test_agent_turn_forwards_the_open_session(monkeypatch):
         return CascadeReply(text="Ok", executions=[])
 
     monkeypatch.setattr(
-        agent_handler, "build_cascade_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None),
+        agent_handler, "build_cascade_service", lambda *a, **k: SimpleNamespace(run=fake_run, llm=None, expert_disabled=None),
     )
 
     await agent_handler.handle_agent_turn(

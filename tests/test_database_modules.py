@@ -6,6 +6,7 @@ from pathlib import Path
 from app.core.database import DatabaseManager, get_database_manager, set_database_manager
 from app.core.database.conversation import ConversationStore
 from app.core.database.learnings import LearningsStore
+from app.core.database.llm_usage import LlmUsageStore
 from app.core.database.notes import NotesStore
 from app.core.database.sport import SportStore
 
@@ -20,18 +21,19 @@ PUBLIC_METHODS = {
     "add_sport_session", "get_sport_session_by_id", "get_sport_session_by_date", "get_sport_sessions",
     "get_last_sport_session", "update_sport_session", "delete_sport_session", "upsert_sport_weekly_summary",
     "get_sport_weekly_summary", "get_all_sport_weekly_summaries", "delete_sport_weekly_summary",
+    "add_llm_usage", "get_llm_usage_totals",
 }
 
 
 def test_database_is_a_package_with_one_module_per_domain():
-    for module in ("__init__", "base", "conversation", "notes", "learnings", "sport"):
+    for module in ("__init__", "base", "conversation", "notes", "learnings", "sport", "llm_usage"):
         source = PACKAGE / f"{module}.py"
         assert source.exists(), module
         assert len(source.read_text(encoding="utf-8").splitlines()) < 400, f"{module}.py trop long"
 
 
 def test_manager_assembles_the_domain_stores_with_the_same_public_interface():
-    for store in (ConversationStore, NotesStore, LearningsStore, SportStore):
+    for store in (ConversationStore, NotesStore, LearningsStore, SportStore, LlmUsageStore):
         assert issubclass(DatabaseManager, store)
     public = {name for name in dir(DatabaseManager) if not name.startswith("_")}
     assert public == PUBLIC_METHODS
@@ -44,7 +46,7 @@ def test_init_db_still_creates_every_table(tmp_path):
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert {
         "conversation_logs", "conversation_feedbacks", "user_learnings", "second_brain_notes",
-        "sport_sessions", "sport_weekly_summaries", "agent_undo_batches",
+        "sport_sessions", "sport_weekly_summaries", "agent_undo_batches", "llm_usage",
     } <= tables
 
 

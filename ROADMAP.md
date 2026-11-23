@@ -27,6 +27,6 @@ Garder la rapidité actuelle sur les demandes simples tout en sachant répondre 
 ## Étapes
 - [x] **Étape 1 — Connecteur Claude + boucle de l'expert** : `ClaudeExpertLLM` (SDK, erreurs explicites typées, mock hors ligne), conversion des outils au format Claude, `ExpertService` (boucle outils → réponse), consigne courte. Tests unitaires avec un faux client.
 - [x] **Étape 2 — Escalade depuis Gemini** : outil `demander_expert`, escalade automatique sur échec sans mutation, suite directe à l'expert quand il a posé une question, réponse et journal (`llm_calls` avec le niveau). Tests du handler.
-- [ ] **Étape 3 — Coûts et garde-fou** : table `llm_usage`, calcul du coût par appel, total du mois, refus au-delà du budget ; coût visible dans le journal des conversations.
+- [x] **Étape 3 — Coûts et garde-fou** : table `llm_usage`, calcul du coût par appel, total du mois, refus au-delà du budget ; coût visible dans le journal des conversations.
 - [ ] **Étape 4 — PWA** : bouton pause pendant la lecture vocale (`cancelSpeaking`) ; lien discret « Approfondir » sous une réponse de l'expert (réponse détaillée affichée à l'écran). Tests Node + E2E Chromium.
 - [ ] **Étape 5 — Déploiement et validation réelle** : secret `ANTHROPIC_API_KEY` dans la CD, questions types réelles (simples → niveau 0/1, complexes → expert), E2E de bout en bout, README, déploiement, test téléphone ; bilan de coût après quelques jours.

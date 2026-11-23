@@ -12,6 +12,7 @@ from app.core.agent.tool_registry import ToolExecution
 from app.core.agent.tools.meals_tools import MealsTools
 from app.core.agent.undo import UndoError, UndoJournal
 from app.core.database import get_database_manager
+from app.core.expert.budget import record_usages, usages_payload
 from app.core.expert.cascade import CascadeReply
 from app.core.expert.errors import ExpertError, ExpertUnavailableError
 from app.core.models import IntentType, ParsedIntent
@@ -125,7 +126,10 @@ async def handle_agent_turn(
         _add_latency_details(data, exc.llm_calls, fast_reply=False)
         if isinstance(exc, ExpertError):
             data["level"] = "expert"
-            data["expert"] = {"usages": [u.model_dump() for u in exc.usages]}
+            data["expert"] = {
+                "usages": usages_payload(exc.usages),
+                "cost_usd": record_usages(get_database_manager(), exc.usages, session_id),
+            }
         return AgentTurnOutcome(
             parsed=ParsedIntent(intent=IntentType.AGENT, confidence=0.0, parameters={"error": str(exc)}, raw_query=query),
             spoken=_failure_message(exc),
@@ -142,7 +146,7 @@ async def handle_agent_turn(
         session_ctx["meal_confirmation_pending"] = meals_tools.refused_dishes
     spoken, data = reply.text, _response_data(reply.executions, batch_id)
     _add_latency_details(data, reply.llm_calls, reply.fast_reply)
-    _add_level_details(data, reply)
+    _add_level_details(data, reply, session_id, service.expert_disabled)
     if meals_tools.unknown_articles:
         # Article au rayon inconnu : la question est posée par l'application, la réponse traitée sans LLM.
         question = await ask_rayon_question(meals_tools.unknown_articles, session_ctx, meals_connector)
@@ -178,14 +182,19 @@ def _add_latency_details(data: Dict[str, Any], llm_calls: List[Any], fast_reply:
     data["fast_reply"] = fast_reply
 
 
-def _add_level_details(data: Dict[str, Any], reply: CascadeReply) -> None:
-    """Niveau de la cascade qui a répondu ; pour l'expert : raison du passage, modèle et tokens facturés."""
+def _add_level_details(
+    data: Dict[str, Any], reply: CascadeReply, session_id: str, expert_disabled: Optional[str],
+) -> None:
+    """Niveau de la cascade qui a répondu ; pour l'expert : raison du passage, modèle, tokens et coût (enregistré)."""
     data["level"] = reply.level
+    if expert_disabled:
+        data["expert_disabled"] = expert_disabled
     if reply.level == "expert":
         data["expert"] = {
             "reason": reply.escalation_reason,
             "model": reply.expert_model,
-            "usages": [u.model_dump() for u in reply.expert_usages],
+            "usages": usages_payload(reply.expert_usages),
+            "cost_usd": record_usages(get_database_manager(), reply.expert_usages, session_id),
         }
 
 

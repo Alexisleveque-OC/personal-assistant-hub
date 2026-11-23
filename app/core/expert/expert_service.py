@@ -76,7 +76,7 @@ class ExpertService:
         try:
             for _ in range(self.max_llm_calls):
                 turn = await self.llm.generate(system=system, messages=messages, tools=tools, max_tokens=max_tokens)
-                usages.append(turn.usage)
+                usages.append(turn.usage if turn.usage.model else turn.usage.model_copy(update={"model": turn.model}))
                 if turn.stop_reason == "refusal":
                     raise ExpertRefusalError("Claude a refusé de répondre à cette demande.")
 

@@ -1,5 +1,6 @@
 """Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, agenda, tâches, notes,
 LLM Gemini et, si configuré, expert Claude (cerveau en cascade, Phase 6.10)."""
+import logging
 from typing import Any, Optional, Sequence
 
 from app.config import settings
@@ -30,11 +31,14 @@ from app.core.dependencies import (
     get_tasks_connector,
     get_tasks_connector_error,
 )
+from app.core.expert.budget import budget_exhausted_reason
 from app.core.expert.cascade import CascadeService
 from app.core.expert.expert_service import ExpertService
 from app.core.expert.llm import ClaudeExpertLLM, ExpertLLM
 from app.core.llm.gemini_client import get_gemini_client
 from app.core.sport_coach_service import SportCoachService
+
+logger = logging.getLogger(__name__)
 
 _agent_llm: Optional[AgentLLM] = None
 _expert_llm: Optional[ExpertLLM] = None
@@ -114,7 +118,11 @@ def build_cascade_service(
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )
     expert_llm = get_expert_llm()
+    expert_disabled = budget_exhausted_reason(db) if expert_llm else None
+    if expert_disabled:
+        logger.warning(f"Expert Claude non proposé : {expert_disabled}.")
+        expert_llm = None
     agent_tools = domain_tools + (escalation_tool_definitions() if expert_llm else [])
     agent = AgentService(llm=get_agent_llm(), registry=ToolRegistry(agent_tools), sport_tools=sport_tools)
     expert = ExpertService(llm=expert_llm, registry=ToolRegistry(domain_tools)) if expert_llm else None
-    return CascadeService(agent=agent, expert=expert)
+    return CascadeService(agent=agent, expert=expert, expert_disabled=expert_disabled)

@@ -36,10 +36,14 @@ class CascadeReply(BaseModel):
 
 
 class CascadeService:
-    def __init__(self, agent: AgentService, expert: Optional[ExpertService]) -> None:
-        """`expert` absent (clé Anthropic non configurée) : l'agent Gemini répond seul, comme avant la Phase 6.10."""
+    def __init__(
+        self, agent: AgentService, expert: Optional[ExpertService], expert_disabled: Optional[str] = None,
+    ) -> None:
+        """`expert` absent (clé Anthropic non configurée, budget atteint) : l'agent Gemini répond seul, comme avant la
+        Phase 6.10. `expert_disabled` : raison explicite quand l'expert est configuré mais coupé (ex. budget)."""
         self.agent = agent
         self.expert = expert
+        self.expert_disabled = expert_disabled
 
     @property
     def llm(self):
