@@ -70,6 +70,7 @@ jobs:
           BUDGET_SHEET_ID: ${{ secrets.SPREADSHEET_BUDGET_ID }}
           GSA_INFO: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_INFO }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LITESTREAM_REPLICA_URL: ${{ secrets.LITESTREAM_REPLICA_URL }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
@@ -92,6 +93,10 @@ jobs:
           fi
           if [ -n "$GEMINI_API_KEY" ]; then
             ENV_VARS="${ENV_VARS},GEMINI_API_KEY=${GEMINI_API_KEY}"
+          fi
+          # Expert Claude (cascade, API payante) : absent = Gemini répond seul
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            ENV_VARS="${ENV_VARS},ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
           fi
           if [ -n "$LITESTREAM_REPLICA_URL" ]; then
             ENV_VARS="${ENV_VARS},LITESTREAM_REPLICA_URL=${LITESTREAM_REPLICA_URL}"
