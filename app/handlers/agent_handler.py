@@ -96,9 +96,11 @@ def handle_agent_undo(query: str, session_id: str, sport_connector: Any, meals_c
 
 async def handle_agent_turn(
     query: str, session_id: str, session_ctx: Dict[str, Any], sport_connector: Any, meals_connector: Any = None,
-    expert_follow_up: bool = False,
+    expert_follow_up: bool = False, expert_detailed: bool = False,
 ) -> AgentTurnOutcome:
-    """`expert_follow_up` : le tour précédent de l'expert Claude posait une question, la réponse lui revient."""
+    """`expert_follow_up` : le tour précédent de l'expert Claude posait une question, la réponse lui revient.
+
+    `expert_detailed` : lien « Approfondir » de la PWA, l'expert donne une réponse détaillée."""
     history = [
         ConversationTurn(role=h["role"], text=h["text"])
         for h in session_ctx.get("history", [])
@@ -116,7 +118,7 @@ async def handle_agent_turn(
         )
         reply = await service.run(
             query, history, ui_context=session_ctx.get("ui_context"), ui_session_id=session_ctx.get("ui_session_id"),
-            expert_follow_up=expert_follow_up,
+            expert_follow_up=expert_follow_up, detailed=expert_detailed,
         )
     except AgentError as exc:
         logger.error(f"Agent en échec ({type(exc).__name__}) : {exc}")

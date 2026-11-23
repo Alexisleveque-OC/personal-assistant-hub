@@ -400,6 +400,19 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .msg__replay { width: 32px; height: 32px; margin: -6px -6px -6px 0; background: transparent; color: var(--muted); }
 .msg__replay svg { width: 18px; height: 18px; }
 .msg__text { margin: 0; }
+/* Expert Claude : lien discret pour une réponse détaillée */
+.msg__deepen {
+  align-self: flex-start; margin-top: 6px; padding: 2px 0; border: 0; background: none;
+  color: var(--muted); font: inherit; font-size: var(--fs-sm); text-decoration: underline; cursor: pointer;
+}
+/* Pause de la voix d'Otis : petite pastille au-dessus de la barre de saisie, seulement pendant la lecture */
+.tts-stop {
+  position: fixed; z-index: 70; right: 16px; bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border-strong);
+  background: var(--card-2); color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25); cursor: pointer;
+}
+.tts-stop[hidden] { display: none; }
 .msg--thinking .msg__text { color: var(--muted); }
 .msg__dots { display: inline-flex; gap: 3px; margin-left: 4px; }
 .msg__dots span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: msg-dot 1.2s infinite ease-in-out; }

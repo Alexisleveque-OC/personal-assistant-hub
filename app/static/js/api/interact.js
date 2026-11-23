@@ -2,12 +2,14 @@
 import { state, getActiveSessionId } from "../config.js";
 import { currentInteractionContext, getAuthHeaders } from "./http.js";
 
-export async function postInteract(queryText, sessionId = null) {
+// `extraContext` : drapeaux ponctuels ajoutés au contexte (ex. { expert_detailed: true } pour « Approfondir »).
+export async function postInteract(queryText, sessionId = null, extraContext = null) {
   const finalSessionId = sessionId || getActiveSessionId();
+  const context = { ...currentInteractionContext(), ...(extraContext || {}) };
   const res = await fetch("/api/v1/interact", {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ query: queryText, session_id: finalSessionId, context: currentInteractionContext() })
+    body: JSON.stringify({ query: queryText, session_id: finalSessionId, context })
   });
   return res;
 }

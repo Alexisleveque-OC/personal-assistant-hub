@@ -74,6 +74,16 @@ print([first, last()]);
     assert second["body"]["session_id"] == "autre" and second["body"]["context"]["ui_session_id"] is None
 
 
+def test_interact_can_add_flags_to_the_context():
+    out = _run("""
+await postInteract("Approfondis", null, { expert_detailed: true });
+print(last().body);
+""")
+
+    assert out == {"query": "Approfondis", "session_id": "sess-1",
+                   "context": {"ui_context": "sport", "ui_session_id": 7, "expert_detailed": True}}
+
+
 def test_audio_is_named_after_its_mime_type_and_the_request_can_be_aborted():
     out = _run("""
 const names = [];

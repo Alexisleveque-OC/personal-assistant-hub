@@ -57,7 +57,7 @@ async def test_agent_run_puts_the_open_screen_in_the_system_instruction(isolate_
 async def test_agent_turn_forwards_the_session_screen_to_the_agent(monkeypatch):
     captured = {}
 
-    async def fake_run(query, history=(), ui_context=None, ui_session_id=None, expert_follow_up=False):
+    async def fake_run(query, history=(), ui_context=None, ui_session_id=None, expert_follow_up=False, detailed=False):
         captured["ui_context"] = ui_context
         return CascadeReply(text="Ok", executions=[])
 
@@ -137,7 +137,7 @@ async def test_agent_run_looks_up_the_open_session(isolate_sqlite_database):
 async def test_agent_turn_forwards_the_open_session(monkeypatch):
     captured = {}
 
-    async def fake_run(query, history=(), ui_context=None, ui_session_id=None, expert_follow_up=False):
+    async def fake_run(query, history=(), ui_context=None, ui_session_id=None, expert_follow_up=False, detailed=False):
         captured.update(ui_context=ui_context, ui_session_id=ui_session_id)
         return CascadeReply(text="Ok", executions=[])
 

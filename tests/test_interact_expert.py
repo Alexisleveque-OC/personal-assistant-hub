@@ -93,3 +93,22 @@ def test_expert_unavailable_gives_an_explicit_answer(db):
     assert "expert" in body["spoken_response"].lower()
     assert "indisponible" in body["spoken_response"]
     assert "Crédit Anthropic épuisé" in body["data"]["error"]
+
+
+def test_deepen_request_goes_straight_to_the_expert_for_a_detailed_answer(db):
+    gemini = ScriptedLLM([_escalate()])
+    set_agent_llm(gemini)
+    claude = ScriptedExpertLLM([expert_text("Réponse courte."), expert_text("1. Relève la référence. 2. …")])
+    set_expert_llm(claude)
+
+    _ask("Comment changer la porte de mon frigo ?")
+    resp = TestClient(app).post("/api/v1/interact", json={
+        "query": "Approfondis", "session_id": "expert-test", "context": {"expert_detailed": True},
+    })
+    body = resp.json()
+
+    assert body["data"]["expert"]["reason"] == "approfondir"
+    assert body["spoken_response"].startswith("1. Relève")
+    assert len(gemini.requests) == 1
+    assert claude.requests[1]["max_tokens"] > claude.requests[0]["max_tokens"]
+    assert "expert_detailed" not in get_session_manager().get_session("expert-test")

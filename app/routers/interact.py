@@ -126,6 +126,7 @@ async def interact(
     handled = None
     awaiting_agent_reply = session_ctx.pop("agent_awaiting_reply", False)
     expert_follow_up = session_ctx.pop("expert_awaiting_reply", False)
+    expert_detailed = bool(session_ctx.pop("expert_detailed", False))  # lien « Approfondir » de la PWA
     if rayon_reply is not None and (rayon_reply.consumed or is_idle_reply(parsed, normalized_query)):
         parsed, handled = rayon_reply.parsed, (rayon_reply.spoken, rayon_reply.data)
         rayon_reply = None
@@ -133,9 +134,10 @@ async def interact(
     elif routes_to_agent_undo(parsed, session_ctx):
         outcome = handle_agent_undo(request.query, session_id, sport_connector, connector)
         parsed, handled = outcome.parsed, (outcome.spoken, outcome.data)
-    elif routes_to_agent(parsed, request.query, awaiting_agent_reply):
+    elif expert_detailed or routes_to_agent(parsed, request.query, awaiting_agent_reply):
         outcome = await handle_agent_turn(
             request.query, session_id, session_ctx, sport_connector, connector, expert_follow_up=expert_follow_up,
+            expert_detailed=expert_detailed,
         )
         parsed, used_llm_model = outcome.parsed, outcome.llm_model
         handled = (outcome.spoken, outcome.data)
