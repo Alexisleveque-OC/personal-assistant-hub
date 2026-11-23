@@ -1,4 +1,4 @@
-"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, agenda, tâches, notes,
+"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, agenda, tâches, budget, notes,
 LLM Gemini et, si configuré, expert Claude (cerveau en cascade, Phase 6.10)."""
 import logging
 from typing import Any, Optional, Sequence
@@ -9,6 +9,8 @@ from app.core.agent.agent_service import AgentService, ConversationTurn
 from app.core.agent.errors import AgentUnavailableError
 from app.core.agent.llm import AgentLLM, GeminiAgentLLM
 from app.core.agent.tool_registry import ToolRegistry
+from app.core.agent.tools.budget_registry import budget_tool_definitions
+from app.core.agent.tools.budget_tools import BudgetTools
 from app.core.agent.tools.calendar_registry import calendar_tool_definitions
 from app.core.agent.tools.calendar_tools import CalendarTools
 from app.core.agent.tools.tasks_registry import tasks_tool_definitions
@@ -24,6 +26,8 @@ from app.core.agent.tools.undo_tools import undo_tool_definitions
 from app.core.agent.undo import UndoJournal, UndoService
 from app.core.database import get_database_manager
 from app.core.dependencies import (
+    get_budget_connector,
+    get_budget_connector_error,
     get_calendar_connector,
     get_calendar_connector_error,
     get_task_events_connector,
@@ -41,7 +45,7 @@ from app.core.sport_coach_service import SportCoachService
 logger = logging.getLogger(__name__)
 
 # Outils laissés à l'expert Claude : les suites utiles d'un conseil. Les déclarations d'outils pèsent ~78 % des tokens
-# d'entrée (payants) ; sport et repas restent à Gemini (décision utilisateur du 23/11/2026).
+# d'entrée (payants) ; sport, repas et budget restent à Gemini (décisions utilisateur du 23/11/2026).
 EXPERT_TOOL_NAMES = frozenset({"add_task", "get_tasks", "get_agenda", "add_shopping_items", "save_note"})
 
 _agent_llm: Optional[AgentLLM] = None
@@ -112,12 +116,14 @@ def build_cascade_service(
         sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools, tasks_tools=tasks_tools,
     )
     calendar_tools = CalendarTools(get_calendar_connector(), unavailable_reason=get_calendar_connector_error())
+    budget_tools = BudgetTools(get_budget_connector(), unavailable_reason=get_budget_connector_error())
     domain_tools = (
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)
         + meals_tool_definitions(meals_tools)
         + calendar_tool_definitions(calendar_tools)
         + tasks_tool_definitions(tasks_tools)
+        + budget_tool_definitions(budget_tools)
         + note_tool_definitions(db, history)
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )

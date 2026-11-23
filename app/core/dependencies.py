@@ -10,6 +10,7 @@ from app.config import settings
 from app.connectors.calendar.calendar_connector import CalendarConnector
 from app.connectors.calendar.task_events import TaskEventsConnector
 from app.connectors.google_oauth import GoogleOAuthNotConfiguredError
+from app.connectors.sheets.budget_connector import BudgetConnector
 from app.connectors.sheets.meals_connector import MealsShoppingConnector
 from app.connectors.sheets.sport_connector import SportConnector
 from app.connectors.sqlite.sport_connector import SqlSportConnector
@@ -23,6 +24,8 @@ from app.core.database import (
 logger = logging.getLogger(__name__)
 
 _meals_connector: Any = "UNSET"
+_budget_connector: Any = "UNSET"
+_budget_connector_error: str = ""
 _sport_connector: Any = "UNSET"
 _sport_connector_error: Optional[str] = None
 _calendar_connector: Any = "UNSET"
@@ -50,6 +53,31 @@ def set_meals_connector(connector: Optional[MealsShoppingConnector]) -> None:
     """Permet l'injection d'un connecteur (mock) pour les tests unitaires et d'intégration."""
     global _meals_connector
     _meals_connector = connector
+
+
+def get_budget_connector() -> Optional[BudgetConnector]:
+    """Classeur Budget (compte de service) ou tentative d'ouverture ; cause d'échec conservée pour l'utilisateur."""
+    global _budget_connector, _budget_connector_error
+    if _budget_connector == "UNSET":
+        try:
+            _budget_connector = BudgetConnector.from_settings(settings)
+            _budget_connector_error = ""
+        except Exception as exc:  # identifiant absent, partage manquant, réseau : dit à l'utilisateur, pas masqué
+            logger.warning(f"Classeur Budget indisponible : {exc}")
+            _budget_connector = None
+            _budget_connector_error = str(exc) or type(exc).__name__
+    return _budget_connector
+
+
+def get_budget_connector_error() -> str:
+    return _budget_connector_error
+
+
+def set_budget_connector(connector: Optional[Any], error: str = "") -> None:
+    """Permet l'injection d'un connecteur Budget (doublure) ou son absence motivée, pour les tests."""
+    global _budget_connector, _budget_connector_error
+    _budget_connector = connector
+    _budget_connector_error = error
 
 
 def get_calendar_connector() -> Optional[CalendarConnector]:

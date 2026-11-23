@@ -41,6 +41,9 @@ AGENT_ROUTED_INTENTS = frozenset({
     # Le flux regex n'a pour les tâches que des réponses fictives codées en dur : l'agent lit le vrai Google Tasks.
     IntentType.LIST_TASKS,
     IntentType.ADD_TASK,
+    # Idem pour le budget (« 145 euros » fictifs) : l'agent lit le vrai classeur Budget (Phase 10).
+    IntentType.GET_BUDGET_BALANCE,
+    IntentType.LOG_EXPENSE,
 })
 
 
