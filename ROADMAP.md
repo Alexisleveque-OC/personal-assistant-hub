@@ -35,7 +35,7 @@ Interroger et alimenter à la voix le classeur budget existant (`SPREADSHEET_BUD
 - Tests hors ligne avec un faux classeur (comme `tests/meals_fakes.py`) ; aucun appel réel à Google dans la suite.
 
 ## Étapes
-- [ ] **Étape 1 — Lecture** : connecteur (catégories, tri auto, mois actif, reste total / du mois, revenus par type et par mois, échéanciers) + résolution de catégorie (Catégories → Tri auto → ambigu/inconnu). Tests unitaires sur faux classeur.
+- [x] **Étape 1 — Lecture** : connecteur (catégories, tri auto, mois actif, reste total / du mois, revenus par type et par mois, échéanciers) + résolution de catégorie (Catégories → Tri auto → ambigu/inconnu). Tests unitaires sur faux classeur.
 - [ ] **Étape 2 — Outils de lecture de l'agent** : `get_budget_remaining`, `get_income`, `get_installments` ; consigne de l'agent (reste total par défaut, mois si demandé) ; câblage dans `factory.py`.
 - [ ] **Étape 3 — Écritures dépense / revenu** : `add_expense` (Débit / Swile), `add_income` (Revenus), invalidation du cache, annulation.
 - [ ] **Étape 4 — Échéanciers et dépenses multiples** : `add_installment` (mensualité arrondie au centime, échéance actuelle 0, Actif), `predeclare_split_expense` (somme des parts = total, sinon refus), annulation.
