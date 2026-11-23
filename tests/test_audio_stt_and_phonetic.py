@@ -1,5 +1,6 @@
 """Tests unitaires et fonctionnels TDD pour le pipeline STT multimodal et la normalisation phonétique."""
 import base64
+import json
 import io
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -45,23 +46,27 @@ def test_audio_stt_service_builds_gemini_multimodal_payload():
     assert parts[0]["inlineData"]["data"] == base64.b64encode(audio_bytes).decode("utf-8")
 
 
-def test_audio_payload_asks_for_a_plain_verbatim_transcription_only():
-    """Transcription seule : ni intention ni schéma JSON (l'agent comprend ensuite le texte), jamais de « correction »."""
+def test_audio_payload_gives_gemini_the_assistant_context_of_before_18_11():
+    """Régression du 18/11 : sans contexte (« mot pour mot »), « emmental » devenait « élémental ». La consigne et le
+    schéma d'avant (intentions courses/repas/sport, paramètres article/rayon) donnent le domaine à Gemini."""
     service = AudioSTTService(gemini_client=MagicMock())
 
-    payload = service.build_multimodal_gemini_payload(b"AUDIO", mime_type="audio/webm")
+    payload = service.build_multimodal_gemini_payload(b"AUDIO", mime_type="audio/webm", context={"session_id": "s1"})
 
     config = payload["generationConfig"]
-    assert "response_schema" not in config and config["response_mime_type"] == "text/plain"
+    assert config["response_mime_type"] == "application/json" and config["temperature"] == 0.1
+    schema = config["response_schema"]
+    assert "transcribed_text" in schema["required"] and "add_shopping_item" in schema["properties"]["intent"]["enum"]
     prompt = payload["contents"][0]["parts"][1]["text"]
-    assert "mot pour mot" in prompt and "ne corrige pas" in prompt.lower()
-    assert "Otis" not in prompt and "intention" not in prompt.lower()
+    assert prompt.startswith("Tu es Otis. Écoute attentivement cet extrait audio enregistré par Alexis.")
+    assert 'Contexte : {"session_id": "s1"}' in prompt
 
 
 def _gemini_text(text: str):
     mock_resp = MagicMock()
     mock_resp.status_code = 200
-    mock_resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": text}]}}]}
+    reply = json.dumps({"transcribed_text": text, "intent": "unknown", "parameters": {}})
+    mock_resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": reply}]}}]}
     return mock_resp
 
 
@@ -84,7 +89,7 @@ async def test_transcribe_returns_the_plain_text_normalized():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("reply", ["  ", "[rien]", "0:00", "00:01.", "…"])
+@pytest.mark.parametrize("reply", ["  ", "0:00", "00:01.", "…"])
 async def test_nothing_audible_is_reported_without_trying_another_model(reply):
     with patch("httpx.AsyncClient.post", return_value=_gemini_text(reply)) as post:
         with pytest.raises(STTUnavailableError) as err:

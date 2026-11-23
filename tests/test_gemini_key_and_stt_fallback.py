@@ -47,7 +47,7 @@ def _client(candidates):
     return client
 
 
-def _response(status: int, text: str = "ajoute du lait"):
+def _response(status: int, text: str = '{"transcribed_text": "ajoute du lait", "intent": "unknown", "parameters": {}}'):
     request = httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/models/m:generateContent")
     if status != 200:
         return httpx.Response(status, json={"error": {"message": "boom"}}, request=request)

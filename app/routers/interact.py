@@ -316,7 +316,9 @@ async def interact_audio(
 
     stt_service = get_stt_service()
     try:
-        transcribed_text = await stt_service.transcribe(audio_bytes=audio_bytes, mime_type=content_type)
+        transcribed_text = await stt_service.transcribe(
+            audio_bytes=audio_bytes, mime_type=content_type, context={"session_id": session_id},
+        )
     except STTUnavailableError as exc:
         # Détail modèle par modèle dans les logs ; le téléphone reçoit un message lisible, sans détail technique.
         logger.error(f"Transcription audio impossible : {exc}")
