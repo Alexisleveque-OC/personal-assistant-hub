@@ -95,6 +95,8 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 
 ## 3. Feuille de Route / Backlog d'Implémentation
 
+> **Ordre de priorité (décision utilisateur du 23/11/2026) :** Phase 6.10 (cerveau en cascade Gemini → Claude) → Phase 10 (Budget) → Phase 11 (Alexa, Telegram, « Hey Google »). La conversation continue (micro rouvert sans mot de réveil) est reportée.
+
 - [x] **Phase 1 : Socle & Pratiques (Terminée)**
   - [x] Création des fichiers de contexte (`AGENTS.md`, `SPEC.md`, `.gitignore`)
   - [x] Configuration de l'environnement Python (`.venv`, `requirements.txt`)
@@ -236,6 +238,21 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [ ] **Mémoire Conversationnelle Multi-Tours (Gestion d'État / Session Contextuelle) :**
     - Fin du mode 100% "stateless" : mise en place d'un historique tampon des derniers tours de conversation pour maintenir le contexte (*« C'est l'application » ➔ Otis sait de quoi on parlait*).
 
+- [ ] **Phase 6.10 : Cerveau en Cascade (Niveau 0 PWA → Niveau 1 Gemini → Niveau 2 Claude)**
+  *Objectif : garder la rapidité actuelle sur les demandes simples tout en sachant répondre à une question complexe (ex. « je dois changer la porte de mon frigo, comment faire ? »). Chaque demande va au niveau le moins coûteux capable de la traiter, automatiquement.*
+  - **Niveau 0 — PWA / sans LLM (existant) :** voie rapide des courses et réponse directe après une modification simple (`fast_reply.py`). Gratuit, instantané.
+  - **Niveau 1 — Gemini (gratuit) :** l'agent actuel avec ses outils (courses, repas, sport, tâches, agenda, notes). Il reçoit un outil supplémentaire « passer la main à l'expert », à appeler quand la demande sort de ses outils ou demande du raisonnement / des conseils.
+  - **Niveau 2 — API Claude (payante) :** réponse de l'expert à partir de la question et de l'historique de la session ; il garde l'accès aux outils d'Otis (ex. « ajoute la porte à mes tâches »).
+  - **Budget :** plafond de **5 €/mois** (décision utilisateur du 23/11/2026, phase de test pour mesurer le coût réel). Plafond de dépense réglé sur la console Anthropic + garde-fou applicatif (coût de chaque appel journalisé, total du mois consultable ; au-delà du plafond, retour au niveau 1 avec un message explicite).
+  - La transcription audio reste sur Gemini (Claude ne transcrit pas l'audio).
+  - Étapes prévues (détaillées dans `ROADMAP.md` au démarrage de la branche) :
+    - [ ] 6.10.0 : Choix arrêtés avec l'utilisateur (modèle Claude du niveau 2, critères de passage à l'expert, réponse orale d'une réponse longue, filet manuel « creuse ça ») ; clé API Anthropic en secret (`.env` + secret GitHub/Cloud Run), jamais dans le dépôt.
+    - [ ] 6.10.1 : Connecteur Claude isolé (`app/core/llm/`), fonctionnel en mock hors ligne, erreurs explicites.
+    - [ ] 6.10.2 : Outil d'escalade côté niveau 1 + aiguillage vers le niveau 2 avec l'historique de session.
+    - [ ] 6.10.3 : Journal des coûts (tokens et € par appel, total mensuel) + garde-fou des 5 €/mois.
+    - [ ] 6.10.4 : Affichage PWA des réponses longues de l'expert (+ filet manuel « creuse ça »).
+    - [ ] 6.10.5 : Validation réelle sur des questions types (simples et complexes), test E2E, déploiement, puis bilan de coût après un mois.
+
 - [ ] **Phase 7 : Otis Live Runner - Coach Vocal Temps Réel & Traqueur GPS Natif**
   *(Chaque sous-étape fait l'objet d'un déploiement en production et d'une validation utilisateur)*
   - [ ] **Phase 7.0 : Socle Tracking GPS Haute Précision & Coach Vocal Temps Réel :**
@@ -283,6 +300,7 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [ ] Webhook FastAPI compatible avec le protocole Amazon Alexa Custom Skill
   - [ ] Routage direct des commandes vocales Alexa vers le moteur central
   - [ ] Passerelle bot Telegram (texte et messages vocaux entrants/sortants)
+  - [ ] « Hey Google » → Otis (souhait utilisateur du 23/11/2026) : faisabilité à vérifier en début de phase. Hypothèse à confirmer : Google a arrêté les actions conversationnelles tierces de l'Assistant (2023), donc dicter une phrase à Otis via « Hey Google » ne serait plus possible ; restent à tester « Hey Google, ouvre Otis » (PWA installée) et les raccourcis de l'application (`?action=`).
 
 - [ ] **Phase 12 : Connecteurs Professionnels (Mails Pro, Jira & Trello)**
   - [ ] Connecteur Jira (lecture des tickets et logging de temps)
