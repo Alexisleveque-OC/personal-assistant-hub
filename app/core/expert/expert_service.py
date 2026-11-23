@@ -47,9 +47,11 @@ class ExpertReply(BaseModel):
         return [undo for e in self.executions for undo in e.undos]
 
 
-def build_expert_system(base_system: str, detailed: bool) -> str:
+def build_expert_system(base_system: str, detailed: bool, handover: Optional[str] = None) -> str:
+    """`handover` : demande reformulée par l'agent Gemini au moment de passer la main."""
     length_rules = _DETAILED_RULES if detailed else _SHORT_RULES
-    return f"{base_system}\n{_EXPERT_RULES}\n{length_rules}\n{_COMMON_RULES}"
+    note = f"\nDemande transmise par l'agent : {handover}" if handover else ""
+    return f"{base_system}\n{_EXPERT_RULES}{note}\n{length_rules}\n{_COMMON_RULES}"
 
 
 class ExpertService:
@@ -60,9 +62,10 @@ class ExpertService:
 
     async def run(
         self, query: str, history: Sequence[ConversationTurn] = (), *, base_system: str, detailed: bool = False,
+        handover: Optional[str] = None,
     ) -> ExpertReply:
         """`base_system` : consigne de l'agent (date, règles métier, séances récentes) que l'expert complète."""
-        system = build_expert_system(base_system, detailed)
+        system = build_expert_system(base_system, detailed, handover)
         max_tokens = DETAILED_MAX_TOKENS if detailed else SHORT_MAX_TOKENS
         messages: List[Dict[str, Any]] = [{"role": turn.role, "content": turn.text} for turn in history]
         messages.append({"role": "user", "content": query})

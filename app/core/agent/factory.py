@@ -1,6 +1,8 @@
-"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, agenda, tâches, notes et LLM Gemini."""
+"""Assemblage de l'agent pour une requête : outils sport (SQLite), planning hebdo, repas & courses, agenda, tâches, notes,
+LLM Gemini et, si configuré, expert Claude (cerveau en cascade, Phase 6.10)."""
 from typing import Any, Optional, Sequence
 
+from app.config import settings
 from app.connectors.sqlite.sport_connector import SqlSportConnector
 from app.core.agent.agent_service import AgentService, ConversationTurn
 from app.core.agent.errors import AgentUnavailableError
@@ -16,6 +18,7 @@ from app.core.agent.tools.note_tools import note_tool_definitions
 from app.core.agent.tools.sport_planning import WeeklyPlanningTool, weekly_planning_tool_definitions
 from app.core.agent.tools.sport_registry import sport_tool_definitions
 from app.core.agent.tools.sport_tools import SportTools
+from app.core.agent.tools.escalation_tools import escalation_tool_definitions
 from app.core.agent.tools.undo_tools import undo_tool_definitions
 from app.core.agent.undo import UndoJournal, UndoService
 from app.core.database import get_database_manager
@@ -27,10 +30,14 @@ from app.core.dependencies import (
     get_tasks_connector,
     get_tasks_connector_error,
 )
+from app.core.expert.cascade import CascadeService
+from app.core.expert.expert_service import ExpertService
+from app.core.expert.llm import ClaudeExpertLLM, ExpertLLM
 from app.core.llm.gemini_client import get_gemini_client
 from app.core.sport_coach_service import SportCoachService
 
 _agent_llm: Optional[AgentLLM] = None
+_expert_llm: Optional[ExpertLLM] = None
 
 
 def get_agent_llm() -> AgentLLM:
@@ -41,6 +48,19 @@ def set_agent_llm(llm: Optional[AgentLLM]) -> None:
     """Injection d'un LLM (ex. scripté) pour les tests."""
     global _agent_llm
     _agent_llm = llm
+
+
+def get_expert_llm() -> Optional[ExpertLLM]:
+    """Expert Claude (niveau 2) : seulement si une clé Anthropic est configurée (API payante)."""
+    if _expert_llm is not None:
+        return _expert_llm
+    return ClaudeExpertLLM() if settings.anthropic_api_key else None
+
+
+def set_expert_llm(llm: Optional[ExpertLLM]) -> None:
+    """Injection d'un expert (ex. scripté) pour les tests."""
+    global _expert_llm
+    _expert_llm = llm
 
 
 def _sport_tools(sport_connector: Any) -> SportTools:
@@ -66,11 +86,13 @@ def _tasks_tools() -> TasksTools:
     )
 
 
-def build_agent_service(
+def build_cascade_service(
     sport_connector: Any, session_id: str, legacy_action_pending: bool, meals_tools: MealsTools,
     history: Sequence[ConversationTurn] = (),
-) -> AgentService:
-    """`legacy_action_pending` : la dernière action de la session vient du flux regex (ex. ajout aux courses).
+) -> CascadeService:
+    """Agent Gemini (niveau 1) + expert Claude (niveau 2) s'il est configuré, avec les mêmes outils métier.
+
+    `legacy_action_pending` : la dernière action de la session vient du flux regex (ex. ajout aux courses).
 
     `meals_tools` sans connecteur (classeur non configuré) : les outils repas & courses répondent par une erreur explicite.
     """
@@ -82,7 +104,7 @@ def build_agent_service(
         sport_tools=sport_tools, db=db, journal=UndoJournal(db), meals_tools=meals_tools, tasks_tools=tasks_tools,
     )
     calendar_tools = CalendarTools(get_calendar_connector(), unavailable_reason=get_calendar_connector_error())
-    registry = ToolRegistry(
+    domain_tools = (
         sport_tool_definitions(sport_tools)
         + weekly_planning_tool_definitions(weekly_tool)
         + meals_tool_definitions(meals_tools)
@@ -91,4 +113,8 @@ def build_agent_service(
         + note_tool_definitions(db, history)
         + undo_tool_definitions(undo_service, session_id, legacy_action_pending)
     )
-    return AgentService(llm=get_agent_llm(), registry=registry, sport_tools=sport_tools)
+    expert_llm = get_expert_llm()
+    agent_tools = domain_tools + (escalation_tool_definitions() if expert_llm else [])
+    agent = AgentService(llm=get_agent_llm(), registry=ToolRegistry(agent_tools), sport_tools=sport_tools)
+    expert = ExpertService(llm=expert_llm, registry=ToolRegistry(domain_tools)) if expert_llm else None
+    return CascadeService(agent=agent, expert=expert)
