@@ -59,8 +59,8 @@ class CategoryRemaining(BaseModel):
 
 
 class IncomeSummary(BaseModel):
-    """Somme des revenus d'un type sur un mois (onglet `Revenus`)."""
-    income_type: str
+    """Somme des revenus d'un type (tous si None) sur un mois (onglet `Revenus`)."""
+    income_type: Optional[str]
     month: BudgetMonth
     total: float
     count: int

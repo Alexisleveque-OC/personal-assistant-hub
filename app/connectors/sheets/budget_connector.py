@@ -247,7 +247,10 @@ class BudgetConnector:
         if matches:
             return CategoryResolution(spoken=spoken, status="ambiguous", candidates=matches)
 
-        close = difflib.get_close_matches(wanted, list(categories), n=3, cutoff=CLOSE_MATCH_CUTOFF)
+        close: List[str] = difflib.get_close_matches(wanted, list(categories), n=3, cutoff=CLOSE_MATCH_CUTOFF)
+        if not close:  # mot(s) dicté(s) contenu(s) dans le nom (« salaire » → Salaire Alexis, Salaire Amélie)
+            words = set(wanted.split())
+            close = [name for name in categories if words <= set(name.split())]
         if len(close) == 1:
             return CategoryResolution(spoken=spoken, status="resolved", category=categories[close[0]], source="close_match")
         if close:
@@ -362,9 +365,9 @@ class BudgetConnector:
 
     # --- Revenus ---------------------------------------------------------------------------------
 
-    def get_income(self, income_type: str, month: BudgetMonth) -> IncomeSummary:
-        """Somme des revenus d'un type (casse et accents ignorés) datés du mois demandé."""
-        wanted = normalize(income_type)
+    def get_income(self, income_type: Optional[str], month: BudgetMonth) -> IncomeSummary:
+        """Somme des revenus d'un type (casse et accents ignorés), ou de tous si `income_type` est None, sur un mois."""
+        wanted = None if income_type is None else normalize(income_type)
         total, count = 0.0, 0
         for index, row in enumerate(self._table(INCOME_SHEET), start=2):
             if all(_is_blank(_cell(row, i)) for i in range(3)):
@@ -372,7 +375,7 @@ class BudgetConnector:
             where = f"« {INCOME_SHEET} » ligne {index}"
             day = self._date(_cell(row, 0), where)
             amount = self._amount(_cell(row, 1), where)
-            if normalize(_cell(row, 2)) == wanted and month.contains(day):
+            if (wanted is None or normalize(_cell(row, 2)) == wanted) and month.contains(day):
                 total += amount
                 count += 1
         return IncomeSummary(income_type=income_type, month=month, total=round(total, 2), count=count)

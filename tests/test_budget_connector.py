@@ -355,3 +355,23 @@ def test_remaining_amounts_are_rounded_to_the_cent() -> None:
     connector, _ = make(state)
     remaining = connector.get_remaining("Course")
     assert (remaining.total_remaining, remaining.month_remaining) == (923.15, 0.3)
+
+
+def test_income_without_type_sums_every_income_of_the_month() -> None:
+    connector, _ = make(income_state())
+    summary = connector.get_income(None, BudgetMonth(year=2026, month=11))
+    assert (summary.income_type, summary.total, summary.count) == (None, 2097.41, 3)
+
+
+def test_resolve_word_contained_in_names() -> None:
+    today = date(2024, 1, 1)
+    state = BudgetSheetState(categories=(
+        ("Salaire Alexis", today, None), ("Salaire Amélie", today, None), ("Monnaie candice", today, None),
+    ))
+    connector, _ = make(state)
+    salary = connector.resolve_category("salaire")
+    assert (salary.status, salary.candidates) == ("ambiguous", ["Salaire Alexis", "Salaire Amélie"])
+    pocket_money = connector.resolve_category("monnaie")
+    assert (pocket_money.status, pocket_money.category, pocket_money.source) == (
+        "resolved", "Monnaie candice", "close_match",
+    )
