@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     gemini_model: str = "auto"
     gemini_max_daily_requests: int = 1000
 
+    # Expert Claude (niveau 2 du cerveau en cascade, API payante)
+    anthropic_api_key: str = ""
+    claude_expert_model: str = "claude-sonnet-5-5"
+
     # Compréhension des demandes : regex historiques (legacy) ou agent Gemini à outils (agent)
     nlu_mode: Literal["legacy", "agent"] = "legacy"
 

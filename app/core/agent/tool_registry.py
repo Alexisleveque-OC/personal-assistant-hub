@@ -55,6 +55,13 @@ class ToolRegistry:
     def declarations(self) -> List[Dict[str, Any]]:
         return [tool.declaration() for tool in self._tools.values()]
 
+    def claude_declarations(self) -> List[Dict[str, Any]]:
+        """Format Claude (expert) : le JSON Schema de Pydantic est accepté tel quel dans `input_schema`."""
+        return [
+            {"name": t.name, "description": t.description, "input_schema": t.args_model.model_json_schema()}
+            for t in self._tools.values()
+        ]
+
     async def execute(self, name: str, raw_args: Dict[str, Any]) -> ToolExecution:
         tool = self._tools.get(name)
         if tool is None:
