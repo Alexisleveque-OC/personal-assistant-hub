@@ -38,7 +38,7 @@ Interroger et alimenter à la voix le classeur budget existant (`SPREADSHEET_BUD
 
 ## Étapes
 - [x] **Étape 1 — Lecture** : connecteur (catégories, tri auto, mois actif, reste total / du mois, revenus par type et par mois, échéanciers) + résolution de catégorie (Catégories → Tri auto → ambigu/inconnu). Tests unitaires sur faux classeur.
-- [ ] **Étape 2 — Outils de lecture de l'agent** : `get_budget_remaining`, `get_income`, `get_installments` ; consigne de l'agent (reste total par défaut, mois si demandé) ; câblage dans `factory.py`.
+- [x] **Étape 2 — Outils de lecture de l'agent** : `get_budget_remaining`, `get_income`, `get_installments` ; consigne de l'agent (reste total par défaut, mois si demandé) ; câblage dans `factory.py`.
 - [ ] **Étape 3 — Écritures dépense / revenu** : `add_expense` (Débit / Swile), `add_income` (Revenus), invalidation du cache, annulation.
 - [ ] **Étape 4 — Échéanciers et dépenses multiples** : `add_installment` (mensualité arrondie au centime, échéance actuelle 0, Actif), `predeclare_split_expense` (somme des parts = total, sinon refus), annulation.
 - [ ] **Étape 5 — Validation réelle** (accord explicite requis : données réelles) : lectures sur le vrai classeur ; écritures sur une **copie** du classeur partagée au compte de service (à décider avec l'utilisateur). E2E du flux voix → outil → classeur (faux classeur). README, SPEC, déploiement (variable `SPREADSHEET_BUDGET_ID` côté CD), test sur téléphone.
