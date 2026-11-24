@@ -74,7 +74,7 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
 
 ### G. Connecteur Budget (Google Sheets)
 * **Rôle :** Suivi financier sur le classeur Google Sheets dédié.
-* **Intentions associées :** Consultation du solde restant par catégorie, saisie vocale rapide de dépenses avec catégorisation automatique.
+* **Intentions associées :** Consultation du reste par catégorie / groupe / mois, des revenus et des échéanciers ; saisie vocale de dépenses (compte ou Swile), remboursements, revenus, échéanciers et dépenses multiples, au format de l'Apps Script existant ; catégorie rapprochée (Catégories, Tri auto), jamais inventée ; correction et annulation par contenu.
 
 ### G. Interfaces Vocales & Messageries (Alexa Skill & Bot Telegram)
 * **Amazon Alexa (Enceintes Echo) :**
@@ -292,9 +292,11 @@ Un **assistant personnel unifié du quotidien**, capable d'assister l'utilisateu
   - [ ] API de distribution (audio pour PWA et déclenchement planifié)
 
 - [ ] **Phase 10 : Connecteur Budget (Google Sheets)**
-  - [ ] Modélisation des dépenses et catégories sur le classeur financier
-  - [ ] Calculs de soldes restants et saisie de dépenses
-  - [ ] Tests automatisés dédiés
+  - [x] Modélisation des dépenses et catégories sur le classeur financier (`budget_connector.py`, `budget_models.py`)
+  - [x] Restes (total, mois, groupe), revenus et échéanciers ; saisie de dépenses, revenus, échéanciers et dépenses multiples, avec correction et annulation
+  - [x] Tests automatisés dédiés (faux classeur, `tests/test_budget_*.py`, E2E `tests/test_e2e_budget.py`) et validation réelle sur une copie du classeur
+  - [ ] Repasse sur l'Apps Script « Budget » (projet séparé)
+  - [ ] Écran Budget dans la PWA (restes, totaux, graphique, formulaires)
 
 - [ ] **Phase 11 : Interfaces Vocales & Messageries (Alexa Skill & Bot Telegram)**
   - [ ] Webhook FastAPI compatible avec le protocole Amazon Alexa Custom Skill
