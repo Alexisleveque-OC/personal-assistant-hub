@@ -35,6 +35,7 @@ class BudgetFakeWorksheet:
         self.reads = 0
         self.row_count = len(self.rows) + spare_rows
         self.writes: List[Tuple[str, List[List[Any]]]] = []
+        self.formats: List[Dict[str, Any]] = []
 
     def get_all_values(self, value_render_option: Optional[str] = None, **_: Any) -> List[List[Any]]:
         if value_render_option != "UNFORMATTED_VALUE":
@@ -61,6 +62,10 @@ class BudgetFakeWorksheet:
             while len(target) <= col + offset:
                 target.append("")
             target[col + offset] = _user_entered(value)
+
+    def batch_format(self, formats: List[Dict[str, Any]]) -> None:
+        """Formats de nombre (monnaie, mois) : enregistrés tels quels, sans effet sur les valeurs."""
+        self.formats.extend(formats)
 
     def add_rows(self, count: int) -> None:
         self.row_count += count
@@ -154,7 +159,9 @@ class BudgetSheetState:
     installments: Sequence[Installment] = ()
     debits: Sequence[Tuple[date, float, str, str, str]] = ()  # Date | Montant | Type | Commentaires | Intitulé
     swile: Sequence[Tuple[date, float, str, str]] = ()  # Date | Montant | Type | Commentaires
-    spare_rows: int = 20  # lignes vides de la grille sous les données (0 = onglet plein, comme Revenus le 23/11)
+    # Date approximative | Mot-clé banque | Montant total | Statut | Description | Parts JSON
+    splits: Sequence[Tuple[date, str, float, str, str, str]] = ()
+    spare_rows: int = 20  # lignes vides sous les données (0 = onglet plein, comme Revenus et Échéanciers le 24/11)
 
 
 def build_budget_spreadsheet(state: BudgetSheetState) -> FakeSpreadsheet:
@@ -181,7 +188,10 @@ def build_budget_spreadsheet(state: BudgetSheetState) -> FakeSpreadsheet:
         ]] + [
             [i.name, i.total, i.count, i.current, i.monthly, serial(i.start), i.category, i.comment, i.status]
             for i in state.installments
-        ]),
+        ], spare_rows=state.spare_rows),
+        BudgetFakeWorksheet("Dépenses Multiples", [[
+            "Date Approximative", "Mot-clé Banque", "Montant Total", "Statut", "Description du Split", "Splits JSON",
+        ]] + [[serial(day), *rest] for day, *rest in state.splits], spare_rows=state.spare_rows),
     ])
 
 

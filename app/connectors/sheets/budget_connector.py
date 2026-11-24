@@ -5,7 +5,7 @@ Le classeur est aussi piloté par un Apps Script (menu « Budget ») : ce connec
 sont lues brutes (`UNFORMATTED_VALUE` : nombres, booléens, dates en numéros de série) et mises en cache
 par onglet (règle 8) ; toute anomalie de structure lève une erreur qui cite l'attendu et le disponible.
 
-Écritures (dépenses, revenus) : `USER_ENTERED` à la première ligne vide sous les données, comme `getLastRow()+1`
+Écritures (dépenses, revenus, échéanciers, dépenses multiples) : `USER_ENTERED` à la première ligne vide sous les données, comme `getLastRow()+1`
 de l'Apps Script, après relecture fraîche de l'onglet ; une ligne écrite est retrouvée par son contenu (l'import
 bancaire ajoute des lignes entre-temps) et n'est modifiée ou supprimée que si elle est restée identique.
 """
@@ -15,7 +15,7 @@ import json
 import time
 import unicodedata
 from datetime import date, timedelta
-from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, Tuple, Union
 
 from app.connectors.sheets.budget_models import (
     AutoSortRule,
@@ -26,6 +26,8 @@ from app.connectors.sheets.budget_models import (
     CategoryResolution,
     IncomeSummary,
     Installment,
+    NewInstallment,
+    SplitExpense,
 )
 from app.core.clock import paris_today
 
@@ -46,6 +48,7 @@ INCOME_SHEET = "Revenus"
 INSTALLMENTS_SHEET = "Échéanciers"
 DEBIT_SHEET = "Débit"
 SWILE_SHEET = "Swile"
+SPLITS_SHEET = "Dépenses Multiples"
 
 EXPECTED_HEADERS: Dict[str, Tuple[str, ...]] = {
     CATEGORIES_SHEET: ("Catégorie", "Date de création", "Date de fin"),
@@ -57,12 +60,22 @@ EXPECTED_HEADERS: Dict[str, Tuple[str, ...]] = {
         "Nom du Projet", "Montant Total", "Nb Échéances", "Échéance Actuelle", "Mensualité", "Mois Début",
         "Catégorie", "Commentaires", "Statut",
     ),
+    SPLITS_SHEET: (
+        "Date Approximative", "Mot-clé Banque", "Montant Total", "Statut", "Description du Split", "Splits JSON",
+    ),
 }
 GESTION_MONTHS_ROW = 1  # index 0 : ligne 2 (mois en numéro de série)
 GESTION_FIRST_MONTH_COL = 5  # index 0 : colonne F, puis un bloc Prévu | Equilibrage | Reste fin du mois
 GESTION_REMAINING_COL = 1  # colonne B : reste total
 TOTAL_MONTHS_ROW, TOTAL_CHECKS_ROW, TOTAL_FIRST_MONTH_COL = 1, 3, 3  # lignes 2 et 4, à partir de D
 ENTRY_CATEGORY_COL = "C"
+INSTALLMENT_ACTIVE, SPLIT_TO_PROCESS = "Actif", "A traiter"
+# Formats posés par l'Apps Script sur ses lignes (une ligne ajoutée par l'API n'hérite d'aucun format).
+CURRENCY_FORMAT = {"numberFormat": {"type": "CURRENCY", "pattern": "#,##0.00 €"}}
+MONTH_FORMAT = {"numberFormat": {"type": "DATE", "pattern": "mmmm yyyy"}}
+DAY_FORMAT = {"numberFormat": {"type": "DATE", "pattern": "dd/mm/yyyy"}}
+
+WrittenRow = Union[BudgetEntry, NewInstallment, SplitExpense]
 
 
 class BudgetConnectorError(Exception):
@@ -438,27 +451,44 @@ class BudgetConnector:
             )
         return found
 
-    # --- Saisies : dépenses, remboursements, revenus ---------------------------------------------
+    # --- Écritures : saisies, échéanciers, dépenses multiples ------------------------------------
 
     def add_entry(self, entry: BudgetEntry) -> int:
-        """Écrit la ligne à la première ligne vide de son onglet (relu à neuf) et renvoie son numéro (1-indexé)."""
-        rows = self._fresh_table(entry.sheet)
+        """Dépense, remboursement ou revenu ; renvoie le numéro de la ligne écrite (1-indexé)."""
+        return self._append(entry)
+
+    def add_installment(self, installment: NewInstallment) -> int:
+        """Échéancier au format de `createInstallment` ; renvoie le numéro de la ligne écrite (1-indexé)."""
+        return self._append(installment)
+
+    def add_split_expense(self, split: SplitExpense) -> int:
+        """Dépense multiple au format de `createSplitTransaction` ; renvoie le numéro de la ligne écrite (1-indexé)."""
+        return self._append(split)
+
+    def _append(self, record: WrittenRow) -> int:
+        """Écrit la ligne à la première ligne vide de son onglet (relu à neuf), puis ses formats de nombre."""
+        sheet = _sheet_of(record)
+        rows = self._fresh_table(sheet)
         row = len(rows) + 2  # en-tête + données : comme getLastRow() + 1
-        worksheet = self._worksheet(entry.sheet)
+        worksheet = self._worksheet(sheet)
         if worksheet.row_count < row:
-            worksheet.add_rows(row - worksheet.row_count)  # onglet plein (Revenus le 23/11) : grille agrandie
-        cells = _entry_cells(entry)
+            worksheet.add_rows(row - worksheet.row_count)  # onglet plein (Revenus, Échéanciers) : grille agrandie
+        cells = [value.isoformat() if isinstance(value, date) else value for value in _cells(record)]
         worksheet.update(
             range_name=f"A{row}:{chr(ord('A') + len(cells) - 1)}{row}", values=[cells], value_input_option="USER_ENTERED",
         )
-        self._invalidate_after_write(entry.sheet)
+        formats = [{"range": f"{col}{row}", "format": fmt} for col, fmt in _FORMATS.get(sheet, ())]
+        if formats:
+            worksheet.batch_format(formats)
+        self._invalidate_after_write(sheet)
         return row
 
-    def delete_entry(self, entry: BudgetEntry) -> None:
+    def delete_entry(self, record: WrittenRow) -> None:
         """Supprime la ligne écrite par Otis, seulement si elle est restée identique."""
-        row = self.require_entry_row(entry)
-        self._worksheet(entry.sheet).delete_rows(row)
-        self._invalidate_after_write(entry.sheet)
+        row = self.require_entry_row(record)
+        sheet = _sheet_of(record)
+        self._worksheet(sheet).delete_rows(row)
+        self._invalidate_after_write(sheet)
 
     def set_entry_category(self, entry: BudgetEntry, category: str) -> BudgetEntry:
         """Change la catégorie (colonne Type) de la ligne écrite par Otis, seulement si elle est restée identique."""
@@ -474,38 +504,86 @@ class BudgetConnector:
         self.invalidate_cache(title)
         return self._table(title)
 
-    def require_entry_row(self, entry: BudgetEntry) -> int:
-        """Numéro (1-indexé) de la dernière ligne identique à `entry`, sinon erreur « supprimée ou modifiée depuis »."""
-        expected = _entry_cells(entry)
-        rows = self._fresh_table(entry.sheet)
+    def require_entry_row(self, record: WrittenRow) -> int:
+        """Numéro (1-indexé) de la dernière ligne identique à `record`, sinon erreur « supprimée ou modifiée depuis »."""
+        expected = _cells(record)
+        sheet = _sheet_of(record)
+        rows = self._fresh_table(sheet)
         for index in range(len(rows) - 1, -1, -1):  # la plus récente d'abord (deux dépenses identiques dictées)
-            if _same_entry(rows[index], expected):
+            if _same_row(rows[index], expected):
                 return index + 2
-        raise BudgetEntryChangedError(
-            f"La ligne « {entry.label} » ({entry.amount:g} € en {entry.category.strip()} le {entry.day:%d/%m/%Y}) "
-            f"a été supprimée ou modifiée depuis dans « {entry.sheet} » : je n'y touche pas."
-        )
+        raise BudgetEntryChangedError(f"{_describe(record)} dans « {sheet} » : je n'y touche pas.")
 
     def _invalidate_after_write(self, title: str) -> None:
         self.invalidate_cache(title)
         self.invalidate_cache(GESTION_SHEET)
 
 
-def _entry_cells(entry: BudgetEntry) -> List[Any]:
-    """Cellules A→ de la ligne : date ISO (comprise par Sheets quelle que soit la langue), montant, catégorie,
-    commentaire vide et intitulé ; Swile n'a pas de colonne Intitulé, l'intitulé va dans Commentaires."""
-    head: List[Any] = [entry.day.isoformat(), entry.amount, entry.category]
-    if entry.sheet == SWILE_SHEET:
-        return head + [entry.label]
-    return head + ["", entry.label]
+_FORMATS: Dict[str, Tuple[Tuple[str, Dict[str, Any]], ...]] = {
+    INSTALLMENTS_SHEET: (("B", CURRENCY_FORMAT), ("E", CURRENCY_FORMAT), ("F", MONTH_FORMAT)),
+    SPLITS_SHEET: (("A", DAY_FORMAT), ("C", CURRENCY_FORMAT)),
+}
 
 
-def _same_entry(row: Sequence[Any], expected: Sequence[Any]) -> bool:
-    """Ligne relue (valeurs brutes) identique aux cellules écrites ; espaces de bord des textes ignorés."""
-    day = date.fromisoformat(expected[0])
-    if _cell(row, 0) != (day - SHEETS_EPOCH).days:
-        return False
-    amount = _cell(row, 1)
-    if not _is_number(amount) or round(float(amount), 2) != round(float(expected[1]), 2):
-        return False
-    return all(str(_cell(row, i)).strip() == str(expected[i]).strip() for i in range(2, len(expected)))
+def _sheet_of(record: WrittenRow) -> str:
+    if isinstance(record, NewInstallment):
+        return INSTALLMENTS_SHEET
+    if isinstance(record, SplitExpense):
+        return SPLITS_SHEET
+    return record.sheet
+
+
+def _cells(record: WrittenRow) -> List[Any]:
+    """Cellules A→ de la ligne, dates en `date` (écrites en ISO : comprises par Sheets quelle que soit la langue).
+
+    Saisie : date, montant, catégorie, commentaire vide et intitulé (Swile n'a pas de colonne Intitulé : l'intitulé va
+    dans Commentaires). Échéancier et dépense multiple : colonnes de `createInstallment` / `createSplitTransaction`,
+    le mois de début étant stocké en date du 1er du mois, comme le fait l'`appendRow` de l'Apps Script.
+    """
+    if isinstance(record, NewInstallment):
+        start = date(record.start_month.year, record.start_month.month, 1)
+        return [
+            record.name, record.total_amount, record.count, 0, record.monthly_amount, start, record.category,
+            record.comment, INSTALLMENT_ACTIVE,
+        ]
+    if isinstance(record, SplitExpense):
+        return [
+            record.day, record.keyword, record.total_amount, SPLIT_TO_PROCESS, record.description, record.parts_json,
+        ]
+    head: List[Any] = [record.day, record.amount, record.category]
+    if record.sheet == SWILE_SHEET:
+        return head + [record.label]
+    return head + ["", record.label]
+
+
+def _describe(record: WrittenRow) -> str:
+    if isinstance(record, NewInstallment):
+        return (
+            f"L'échéancier « {record.name} » ({record.total_amount:g} € en {record.count} fois) a été supprimé ou "
+            "modifié depuis (une échéance a peut-être déjà été rapprochée par l'import)"
+        )
+    if isinstance(record, SplitExpense):
+        return (
+            f"La dépense multiple « {record.keyword} » ({record.total_amount:g} € vers le {record.day:%d/%m/%Y}) a été "
+            "supprimée, modifiée ou déjà traitée par l'import depuis"
+        )
+    return (
+        f"La ligne « {record.label} » ({record.amount:g} € en {record.category.strip()} le {record.day:%d/%m/%Y}) "
+        "a été supprimée ou modifiée depuis"
+    )
+
+
+def _same_row(row: Sequence[Any], expected: Sequence[Any]) -> bool:
+    """Ligne relue (valeurs brutes) identique aux cellules écrites : date = numéro de série, montant au centime,
+    texte aux espaces de bord près."""
+    for index, wanted in enumerate(expected):
+        found = _cell(row, index)
+        if isinstance(wanted, date):
+            if found != (wanted - SHEETS_EPOCH).days:
+                return False
+        elif _is_number(wanted):
+            if not _is_number(found) or round(float(found), 2) != round(float(wanted), 2):
+                return False
+        elif str(found).strip() != str(wanted).strip():
+            return False
+    return True

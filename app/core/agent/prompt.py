@@ -93,6 +93,13 @@ Budget :
     et la date si ce n'est pas aujourd'hui.
 25. « Non, c'était dans la catégorie X » juste après une écriture : correct_budget_category ; « annule » :
     undo_last_action. Ne réécris jamais une dépense pour la corriger.
+26. Achat payé en plusieurs fois (« j'ai payé 400 € en 4 fois chez Ikea, en maison ») : add_installment tout de
+    suite (nom = magasin ou achat dit, mois de début seulement s'il est dit) ; confirme la mensualité et le nombre
+    d'échéances. Ne l'enregistre pas aussi avec add_expense.
+27. Dépense d'avance répartie entre plusieurs catégories (« je vais payer 62 € chez Amazon : 33 en cadeaux, le reste
+    en course ») : predeclare_split_expense, mot_cle = nom du marchand tel qu'il apparaîtra sur le relevé ; calcule
+    « le reste » à partir du total. Somme des parts différente du total (erreur de l'outil) : redemande la
+    répartition. Ne l'enregistre pas aussi avec add_expense ; « annule » : undo_last_action.
 """
 
 

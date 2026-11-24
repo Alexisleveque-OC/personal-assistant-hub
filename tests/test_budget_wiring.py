@@ -16,6 +16,7 @@ from tests.budget_fakes import BudgetSheetState, build_budget_spreadsheet
 
 BUDGET_TOOLS = {
     "get_budget_remaining", "get_income", "get_installments", "add_expense", "add_income", "correct_budget_category",
+    "add_installment", "predeclare_split_expense",
 }
 
 
@@ -136,3 +137,25 @@ def test_recent_action_undo_deletes_the_budget_line(agent_with_budget) -> None:
 def test_budget_writes_have_a_recent_action_label(tool, args, label) -> None:
     log = {"intent": "agent", "parameters": {"tool_calls": [{"name": tool, "args": args}]}}
     assert action_label(log) == label
+
+
+def test_installment_and_split_then_undo_through_interact(agent_with_budget) -> None:
+    spreadsheet = agent_with_budget
+    set_agent_llm(ScriptedLLM([
+        call_turn({"name": "add_installment", "args": {
+            "nom": "ikea", "montant_total": 400, "nb_echeances": 4, "categorie": "course"}}),
+        text_turn("Échéancier créé : 4 fois 100 euros."),
+        call_turn({"name": "predeclare_split_expense", "args": {"mot_cle": "amazon", "montant_total": 50, "parts": [
+            {"categorie": "course", "montant": 30}, {"categorie": "chats", "montant": 20}]}}),
+        text_turn("Dépense multiple notée."),
+        call_turn({"name": "undo_last_action", "args": {}}),
+        text_turn("Annulé."),
+    ]))
+
+    _ask("J'ai payé 400 euros en 4 fois chez Ikea en course", "budget-plans")
+    assert [row[:5] for row in spreadsheet.worksheet("Échéanciers").rows[1:]] == [["ikea", 400, 4, 0, 100.0]]
+    _ask("Dépense d'avance de 50 euros chez Amazon, 30 en course et 20 en chats", "budget-plans")
+    assert spreadsheet.worksheet("Dépenses Multiples").rows[1][1:4] == ["amazon", 50, "A traiter"]
+    _ask("Annule", "budget-plans")
+    assert spreadsheet.worksheet("Dépenses Multiples").rows[1:] == []
+    assert len(spreadsheet.worksheet("Échéanciers").rows) == 2

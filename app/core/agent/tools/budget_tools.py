@@ -1,4 +1,5 @@
-"""Outils Budget de l'agent : restes par catégorie, revenus, échéanciers, saisies (dépense, revenu, correction).
+"""Outils Budget de l'agent : restes par catégorie, revenus, échéanciers, saisies (dépense, revenu, correction),
+création d'échéanciers et pré-déclaration de dépenses multiples.
 
 La catégorie dictée est rapprochée par le connecteur ; plusieurs possibilités ou aucune → erreur renvoyée au modèle
 pour qu'il pose la question (jamais de catégorie inventée). Une saisie n'est jamais écrite sur un nom de groupe
@@ -8,11 +9,28 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Callable, List, Optional
 
-from app.connectors.sheets.budget_connector import INCOME_SHEET, BudgetConnector, BudgetConnectorError
-from app.connectors.sheets.budget_models import BudgetEntry, BudgetMonth, Installment
+from pydantic import ValidationError
+
+from app.connectors.sheets.budget_connector import (
+    DEBIT_SHEET,
+    INCOME_SHEET,
+    INSTALLMENT_ACTIVE,
+    SPLIT_TO_PROCESS,
+    BudgetConnector,
+    BudgetConnectorError,
+)
+from app.connectors.sheets.budget_models import (
+    BudgetEntry,
+    BudgetMonth,
+    Installment,
+    NewInstallment,
+    SplitExpense,
+    SplitPart,
+)
 from app.core.agent.tools.budget_models import (
     AddExpenseArgs,
     AddIncomeArgs,
+    AddInstallmentArgs,
     BudgetCategoryChangedUndo,
     BudgetEntryAddedUndo,
     BudgetEntryView,
@@ -24,8 +42,15 @@ from app.core.agent.tools.budget_models import (
     GetIncomeArgs,
     GetInstallmentsArgs,
     IncomeView,
+    InstallmentAddedUndo,
+    InstallmentMutation,
     InstallmentsView,
     InstallmentView,
+    PredeclareSplitExpenseArgs,
+    SplitDeclaredUndo,
+    SplitExpenseView,
+    SplitMutation,
+    SplitPartView,
 )
 from app.core.agent.tools.tool_error import ToolError
 from app.core.clock import paris_today
@@ -182,23 +207,89 @@ class BudgetTools:
             undos=[BudgetCategoryChangedUndo(entry=changed, previous_category=last.category)],
         )
 
+    # --- Échéanciers et dépenses multiples ---------------------------------------------------------
+
+    def add_installment(self, args: AddInstallmentArgs) -> InstallmentMutation:
+        """Échéancier « Actif » à l'échéance 0, à partir du mois en cours sauf mois dit (déjà passé → l'an prochain)."""
+        today = self._today()
+        start = BudgetMonth(year=today.year, month=today.month)
+        if args.mois_debut is not None:
+            year = args.annee_debut
+            if year is None:
+                year = today.year + (1 if args.mois_debut < today.month else 0)
+            start = BudgetMonth(year=year, month=args.mois_debut)
+        try:
+            category, match = self._resolve_for_entry(args.categorie, DEBIT_SHEET)
+            installment = NewInstallment(
+                name=args.nom, total_amount=round(args.montant_total, 2), count=args.nb_echeances, start_month=start,
+                category=category, comment=args.commentaire.strip(),
+            )
+            self.connector.add_installment(installment)
+        except BudgetConnectorError as exc:
+            raise BudgetToolError(str(exc)) from exc
+        view = _installment_view(Installment(
+            name=installment.name, total_amount=installment.total_amount, installments_count=installment.count,
+            current_installment=0, monthly_amount=installment.monthly_amount, start_month=start, category=category,
+            comment=installment.comment, status=INSTALLMENT_ACTIVE,
+        ))
+        return InstallmentMutation(echeancier=view, rapprochement=match, undos=[InstallmentAddedUndo(installment=installment)])
+
+    def predeclare_split_expense(self, args: PredeclareSplitExpenseArgs) -> SplitMutation:
+        """Dépense multiple « A traiter » : l'import découpera le débit bancaire correspondant entre les catégories."""
+        try:
+            resolved = [(self._resolve_for_entry(part.categorie, DEBIT_SHEET), part.montant) for part in args.parts]
+            split = SplitExpense(
+                day=args.date or self._today(), keyword=args.mot_cle, total_amount=round(args.montant_total, 2),
+                parts=tuple(SplitPart(category=category, amount=round(amount, 2)) for (category, _), amount in resolved),
+            )
+        except BudgetConnectorError as exc:
+            raise BudgetToolError(str(exc)) from exc
+        except ValidationError as exc:
+            raise BudgetToolError(
+                "; ".join(error["msg"].removeprefix("Value error, ") for error in exc.errors())
+                + " Redemande la répartition à l'utilisateur."
+            ) from exc
+        try:
+            self.connector.add_split_expense(split)
+        except BudgetConnectorError as exc:
+            raise BudgetToolError(str(exc)) from exc
+        view = SplitExpenseView(
+            date=split.day, mot_cle=split.keyword, montant_total=split.total_amount, statut=SPLIT_TO_PROCESS,
+            parts=[
+                SplitPartView(categorie=category.strip(), montant=amount, rapprochement=match)
+                for (category, match), amount in resolved
+            ],
+        )
+        return SplitMutation(depense=view, undos=[SplitDeclaredUndo(split=split)])
+
     # --- Annulation (appelée par `UndoService`) ---------------------------------------------------
 
     @staticmethod
     def undo_targets(undo: BudgetUndo) -> List[tuple]:
+        if isinstance(undo, InstallmentAddedUndo):
+            i = undo.installment
+            return [("budget_installment", i.name, i.total_amount, i.count, i.start_month)]
+        if isinstance(undo, SplitDeclaredUndo):
+            return [("budget_split", undo.split.day, undo.split.keyword, undo.split.total_amount)]
         entry = undo.entry
         return [("budget_entry", entry.sheet, entry.day, entry.amount, entry.label)]
 
     def check_undo(self, undo: BudgetUndo) -> None:
         """Annulation refusée si la ligne a été supprimée ou modifiée depuis (retrouvée par son contenu)."""
         try:
-            self.connector.require_entry_row(undo.entry)
+            self.connector.require_entry_row(_written(undo))
         except BudgetConnectorError as exc:
             raise BudgetToolError(f"Annulation impossible : {exc}") from exc
 
     def apply_undo(self, undo: BudgetUndo) -> str:
-        entry = undo.entry
         try:
+            if isinstance(undo, InstallmentAddedUndo):
+                self.connector.delete_entry(undo.installment)
+                return f"échéancier « {undo.installment.name} » supprimé du budget"
+            if isinstance(undo, SplitDeclaredUndo):
+                self.connector.delete_entry(undo.split)
+                return f"dépense multiple « {undo.split.keyword} » supprimée du budget"
+            entry = undo.entry
             if isinstance(undo, BudgetEntryAddedUndo):
                 self.connector.delete_entry(entry)
                 return f"ligne « {entry.label} » supprimée du budget ({entry.sheet})"
@@ -206,6 +297,15 @@ class BudgetTools:
         except BudgetConnectorError as exc:
             raise BudgetToolError(str(exc)) from exc
         return f"ligne « {entry.label} » remise en {undo.previous_category.strip()}"
+
+
+def _written(undo: BudgetUndo) -> BudgetEntry | NewInstallment | SplitExpense:
+    """Ligne du classeur visée par une annulation."""
+    if isinstance(undo, InstallmentAddedUndo):
+        return undo.installment
+    if isinstance(undo, SplitDeclaredUndo):
+        return undo.split
+    return undo.entry
 
 
 def _entry_view(entry: BudgetEntry, match: str) -> BudgetEntryView:

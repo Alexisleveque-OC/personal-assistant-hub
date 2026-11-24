@@ -4,7 +4,7 @@ from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.connectors.sheets.budget_models import BudgetEntry, EntrySheet
+from app.connectors.sheets.budget_models import BudgetEntry, EntrySheet, NewInstallment, SplitExpense
 from app.core.agent.tools.sport_models import StrictArgs
 
 
@@ -114,7 +114,91 @@ class BudgetCategoryChangedUndo(BaseModel):
     previous_category: str
 
 
-BudgetUndo = Union[BudgetEntryAddedUndo, BudgetCategoryChangedUndo]
+# --- Échéanciers et dépenses multiples (étape 4) --------------------------------------------------------
+
+def _required_text(value: str, what: str) -> str:
+    if not value.strip():
+        raise ValueError(f"{what} est vide.")
+    return value.strip()
+
+
+class AddInstallmentArgs(StrictArgs):
+    nom: str = Field(description="Nom du magasin ou de l'achat tel que dit (« ikea », « frigo »).")
+    montant_total: float = Field(gt=0, description="Montant total en euros.")
+    nb_echeances: int = Field(ge=2, description="Nombre de paiements (« en 4 fois » → 4).")
+    categorie: str = Field(description="Catégorie de dépense telle que dite par l'utilisateur.")
+    mois_debut: Optional[int] = Field(
+        None, ge=1, le=12, description="Mois de la 1re échéance seulement s'il est dit ; sinon le mois en cours.",
+    )
+    annee_debut: Optional[int] = Field(None, description="Année de la 1re échéance seulement si elle est dite.")
+    commentaire: str = Field("", description="Précision dite (« le canapé ») ; sinon vide.")
+
+    @field_validator("nom")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        return _required_text(value, "Le nom de l'échéancier")
+
+
+class SplitPartArgs(StrictArgs):
+    categorie: str = Field(description="Catégorie de cette part telle que dite.")
+    montant: float = Field(gt=0, description="Montant de cette part en euros.")
+
+
+class PredeclareSplitExpenseArgs(StrictArgs):
+    mot_cle: str = Field(
+        description="Nom du marchand tel qu'il apparaîtra sur le relevé bancaire (« amazon », « leclerc »).",
+    )
+    montant_total: float = Field(gt=0, description="Montant total qui sera débité, en euros.")
+    parts: List[SplitPartArgs] = Field(min_length=1, description="Chaque catégorie et son montant ; somme = total.")
+    date: Optional[dt_date] = Field(None, description="Date prévue du débit seulement si elle est dite ; sinon aujourd'hui.")
+
+    @field_validator("mot_cle")
+    @classmethod
+    def _keyword(cls, value: str) -> str:
+        return _required_text(value, "Le mot-clé bancaire")
+
+
+Match = Literal["exact", "tri_auto", "nom_proche"]
+
+
+class SplitPartView(BaseModel):
+    categorie: str
+    montant: float
+    rapprochement: Match
+
+
+class SplitExpenseView(BaseModel):
+    date: dt_date
+    mot_cle: str
+    montant_total: float
+    parts: List[SplitPartView]
+    statut: str = Field(description="« A traiter » : l'import découpera le débit correspondant (±3 jours).")
+
+
+class InstallmentAddedUndo(BaseModel):
+    kind: Literal["budget_installment_added"] = "budget_installment_added"
+    installment: NewInstallment
+
+
+class SplitDeclaredUndo(BaseModel):
+    kind: Literal["budget_split_declared"] = "budget_split_declared"
+    split: SplitExpense
+
+
+class InstallmentMutation(BaseModel):
+    action: Literal["echeancier_ajoute"] = "echeancier_ajoute"
+    echeancier: InstallmentView
+    rapprochement: Match
+    undos: List[InstallmentAddedUndo]
+
+
+class SplitMutation(BaseModel):
+    action: Literal["depense_multiple_predeclaree"] = "depense_multiple_predeclaree"
+    depense: SplitExpenseView
+    undos: List[SplitDeclaredUndo]
+
+
+BudgetUndo = Union[BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo, SplitDeclaredUndo]
 
 
 class BudgetMutation(BaseModel):

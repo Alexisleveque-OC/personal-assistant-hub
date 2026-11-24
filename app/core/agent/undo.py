@@ -4,7 +4,12 @@ from typing import Annotated, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, TypeAdapter
 
 from app.connectors.sheets.budget_models import BudgetEntry
-from app.core.agent.tools.budget_models import BudgetCategoryChangedUndo, BudgetEntryAddedUndo
+from app.core.agent.tools.budget_models import (
+    BudgetCategoryChangedUndo,
+    BudgetEntryAddedUndo,
+    InstallmentAddedUndo,
+    SplitDeclaredUndo,
+)
 from app.core.agent.tools.budget_tools import BudgetTools
 from app.core.agent.tools.meals_models import (
     MealUndo,
@@ -30,13 +35,15 @@ class NoteUndo(BaseModel):
 AgentUndo = Annotated[
     Union[
         UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo,
-        TaskAddedUndo, TaskCompletedUndo, BudgetEntryAddedUndo, BudgetCategoryChangedUndo,
+        TaskAddedUndo, TaskCompletedUndo, BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo,
+        SplitDeclaredUndo,
     ],
     Field(discriminator="kind"),
 ]
 _MEALS_UNDOS = (ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo)
 _TASKS_UNDOS = (TaskAddedUndo, TaskCompletedUndo)
-_BUDGET_UNDOS = (BudgetEntryAddedUndo, BudgetCategoryChangedUndo)
+_BUDGET_ENTRY_UNDOS = (BudgetEntryAddedUndo, BudgetCategoryChangedUndo)
+_BUDGET_UNDOS = _BUDGET_ENTRY_UNDOS + (InstallmentAddedUndo, SplitDeclaredUndo)
 _UNDOS_ADAPTER = TypeAdapter(List[AgentUndo])
 
 
@@ -52,11 +59,12 @@ class UndoBatch(BaseModel):
 
 
 def last_budget_entry(batch: Optional[UndoBatch]) -> Optional[BudgetEntry]:
-    """Dernière ligne budget laissée par le lot (ajout ou correction) : cible de « non, c'était dans X »."""
+    """Dernière dépense ou dernier revenu laissé par le lot (ajout ou correction) : cible de « non, c'était dans X »
+    (échéanciers et dépenses multiples exclus)."""
     if batch is None:
         return None
     for undo in reversed(batch.undos):
-        if isinstance(undo, _BUDGET_UNDOS):
+        if isinstance(undo, _BUDGET_ENTRY_UNDOS):
             return undo.entry
     return None
 

@@ -97,6 +97,10 @@ _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "add_expense": lambda a: _budget_label("Remboursement" if a.get("remboursement") else "Dépense", a),
     "add_income": lambda a: _budget_label("Revenu", a),
     "correct_budget_category": lambda a: "Catégorie corrigée" + (f" : {a['categorie']}" if a.get("categorie") else ""),
+    "add_installment": lambda a: "Échéancier créé" + (
+        f" : {a.get('nom', '')}, {_euros(a.get('montant_total'))} en {a.get('nb_echeances')} fois" if a.get("nom") else ""),
+    "predeclare_split_expense": lambda a: "Dépense multiple pré-déclarée" + (
+        f" : {a.get('mot_cle', '')}, {_euros(a.get('montant_total'))}" if a.get("mot_cle") else ""),
     "undo_last_action": lambda a: "Dernière action annulée",
 }
 

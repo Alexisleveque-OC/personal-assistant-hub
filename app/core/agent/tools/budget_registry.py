@@ -6,11 +6,13 @@ from app.core.agent.tool_registry import AgentTool
 from app.core.agent.tools.budget_models import (
     AddExpenseArgs,
     AddIncomeArgs,
+    AddInstallmentArgs,
     BudgetMutation,
     CorrectBudgetCategoryArgs,
     GetBudgetRemainingArgs,
     GetIncomeArgs,
     GetInstallmentsArgs,
+    PredeclareSplitExpenseArgs,
 )
 from app.core.agent.tools.budget_tools import BudgetTools
 
@@ -78,5 +80,24 @@ def budget_tool_definitions(
             ),
             args_model=CorrectBudgetCategoryArgs,
             handler=correct_budget_category,
+        ),
+        AgentTool(
+            name="add_installment",
+            description=(
+                "Budget : crée un échéancier pour un achat payé en plusieurs fois (« j'ai payé 400 € en 4 fois chez "
+                "Ikea, en maison ») ; l'import bancaire rapprochera chaque mensualité. Écrit tout de suite."
+            ),
+            args_model=AddInstallmentArgs,
+            handler=tools.add_installment,
+        ),
+        AgentTool(
+            name="predeclare_split_expense",
+            description=(
+                "Budget : pré-déclare une dépense multiple (« dépense d'avance ») qui sera débitée en une fois mais "
+                "répartie entre plusieurs catégories (« 62 € chez Amazon : 33 en cadeaux, 29 en course ») ; l'import "
+                "bancaire découpera le débit. La somme des parts doit égaler le total. Écrit tout de suite."
+            ),
+            args_model=PredeclareSplitExpenseArgs,
+            handler=tools.predeclare_split_expense,
         ),
     ]

@@ -136,6 +136,7 @@ def test_declared_tools() -> None:
     names = [tool.name for tool in budget_tool_definitions(tools())]
     assert names == [
         "get_budget_remaining", "get_income", "get_installments", "add_expense", "add_income", "correct_budget_category",
+        "add_installment", "predeclare_split_expense",
     ]
 
 
