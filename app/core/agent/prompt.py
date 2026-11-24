@@ -100,6 +100,9 @@ Budget :
     en course ») : predeclare_split_expense, mot_cle = nom du marchand tel qu'il apparaîtra sur le relevé ; calcule
     « le reste » à partir du total. Somme des parts différente du total (erreur de l'outil) : redemande la
     répartition. Ne l'enregistre pas aussi avec add_expense ; « annule » : undo_last_action.
+28. Résultat budget avec nom_appris : ajoute une phrase « Je retiendrai que <nom dit>, c'est <catégorie>. » ;
+    rapprochement « appris » : catégorie retenue d'après un nom déjà appris, nomme-la. « Oublie <nom> » :
+    forget_budget_alias.
 """
 
 

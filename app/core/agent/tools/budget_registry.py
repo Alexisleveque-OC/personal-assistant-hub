@@ -9,6 +9,7 @@ from app.core.agent.tools.budget_models import (
     AddInstallmentArgs,
     BudgetMutation,
     CorrectBudgetCategoryArgs,
+    ForgetBudgetAliasArgs,
     GetBudgetRemainingArgs,
     GetIncomeArgs,
     GetInstallmentsArgs,
@@ -99,5 +100,14 @@ def budget_tool_definitions(
             ),
             args_model=PredeclareSplitExpenseArgs,
             handler=tools.predeclare_split_expense,
+        ),
+        AgentTool(
+            name="forget_budget_alias",
+            description=(
+                "Budget : oublie un nom de catégorie qu'Otis avait appris (« oublie loisir alexis ») ; la prochaine "
+                "fois, il reposera la question « lequel ? »."
+            ),
+            args_model=ForgetBudgetAliasArgs,
+            handler=tools.forget_alias,
         ),
     ]
