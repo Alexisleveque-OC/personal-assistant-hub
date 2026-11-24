@@ -8,12 +8,14 @@ Gère la persistance locale haute performance (< 1ms, mode WAL) :
 - Séances de sport et synthèses hebdomadaires (sport_sessions, sport_weekly_summaries)
 - Lots d'annulation de l'agent (agent_undo_batches)
 - Consommation de l'API payante Claude (llm_usage)
+- Noms de catégorie budget appris à la voix (budget_category_aliases)
 
-Un module par domaine (conversation, notes, learnings, sport, llm_usage), assemblés ici dans DatabaseManager.
+Un module par domaine (conversation, notes, learnings, sport, llm_usage, budget_aliases), assemblés ici dans DatabaseManager.
 """
 import logging
 from typing import Optional
 
+from app.core.database.budget_aliases import BudgetAliasStore
 from app.core.database.conversation import ConversationStore
 from app.core.database.learnings import LearningsStore
 from app.core.database.llm_usage import LlmUsageStore
@@ -23,7 +25,7 @@ from app.core.database.sport import SportStore
 logger = logging.getLogger(__name__)
 
 
-class DatabaseManager(ConversationStore, LearningsStore, NotesStore, SportStore, LlmUsageStore):
+class DatabaseManager(ConversationStore, LearningsStore, NotesStore, SportStore, LlmUsageStore, BudgetAliasStore):
     """Gestionnaire de persistance SQLite avec mode WAL et pragma haute performance."""
 
     def init_db(self) -> None:
@@ -42,6 +44,7 @@ class DatabaseManager(ConversationStore, LearningsStore, NotesStore, SportStore,
             self._create_notes_schema(cursor)
             self._create_sport_schema(cursor)
             self._create_llm_usage_schema(cursor)
+            self._create_budget_aliases_schema(cursor)
 
         logger.info(f"Base de données SQLite initialisée avec succès : {self.db_path} (mode WAL)")
 

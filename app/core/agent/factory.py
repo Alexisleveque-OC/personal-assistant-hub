@@ -10,6 +10,7 @@ from app.core.agent.errors import AgentUnavailableError
 from app.core.agent.llm import AgentLLM, GeminiAgentLLM
 from app.core.agent.tool_registry import ToolRegistry
 from app.core.agent.tools.budget_registry import budget_tool_definitions
+from app.core.agent.tools.budget_pending import get_pending_category_questions
 from app.core.agent.tools.budget_tools import BudgetTools
 from app.core.agent.tools.calendar_registry import calendar_tool_definitions
 from app.core.agent.tools.calendar_tools import CalendarTools
@@ -91,8 +92,12 @@ def build_undo_service(sport_connector: Any, meals_connector: Any = None) -> Und
     )
 
 
-def _budget_tools() -> BudgetTools:
-    return BudgetTools(get_budget_connector(), unavailable_reason=get_budget_connector_error())
+def _budget_tools(session_id: str = "") -> BudgetTools:
+    """`session_id` : conversation dont la question « lequel ? » peut apprendre un nom de catégorie."""
+    return BudgetTools(
+        get_budget_connector(), unavailable_reason=get_budget_connector_error(), aliases=get_database_manager(),
+        session_id=session_id, pending=get_pending_category_questions(),
+    )
 
 
 def _tasks_tools() -> TasksTools:
@@ -116,7 +121,7 @@ def build_cascade_service(
     db = get_database_manager()
     weekly_tool = WeeklyPlanningTool(sport_tools, SportCoachService(connector=sport_connector))
     tasks_tools = _tasks_tools()
-    budget_tools = _budget_tools()
+    budget_tools = _budget_tools(session_id)
     journal = UndoJournal(db)
     undo_service = UndoService(
         sport_tools=sport_tools, db=db, journal=journal, meals_tools=meals_tools, tasks_tools=tasks_tools,

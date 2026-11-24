@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from app.connectors.sheets.budget_models import BudgetEntry
 from app.core.agent.tools.budget_models import (
+    BudgetAliasLearnedUndo,
     BudgetCategoryChangedUndo,
     BudgetEntryAddedUndo,
     InstallmentAddedUndo,
@@ -36,7 +37,7 @@ AgentUndo = Annotated[
     Union[
         UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo,
         TaskAddedUndo, TaskCompletedUndo, BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo,
-        SplitDeclaredUndo,
+        SplitDeclaredUndo, BudgetAliasLearnedUndo,
     ],
     Field(discriminator="kind"),
 ]
@@ -153,6 +154,8 @@ class UndoService:
     def _targets(undo: AgentUndo) -> List[tuple]:
         if isinstance(undo, NoteUndo):
             return [("note", undo.note_id)]
+        if isinstance(undo, BudgetAliasLearnedUndo):
+            return [("budget_alias", undo.alias)]
         if isinstance(undo, UndoSnapshot):
             return [("sport_session", undo.session_id)]
         if isinstance(undo, _TASKS_UNDOS):
@@ -177,6 +180,8 @@ class UndoService:
         return self.budget_tools
 
     def _check(self, undo: AgentUndo, targets: set) -> None:
+        if isinstance(undo, BudgetAliasLearnedUndo):
+            return  # déjà oublié ou réappris autrement : rien à vérifier, l'oubli ne touche que ce couple
         if isinstance(undo, _BUDGET_UNDOS):
             try:
                 self._budget().check_undo(undo)
@@ -205,6 +210,10 @@ class UndoService:
             raise UndoError(str(exc)) from exc
 
     def _apply(self, undo: AgentUndo) -> str:
+        if isinstance(undo, BudgetAliasLearnedUndo):
+            if self.db.get_budget_alias(undo.alias) == undo.category:
+                self.db.forget_budget_alias(undo.alias)
+            return f"nom appris « {undo.alias} » oublié"
         if isinstance(undo, _BUDGET_UNDOS):
             return self._budget().apply_undo(undo)
         if isinstance(undo, _TASKS_UNDOS):
