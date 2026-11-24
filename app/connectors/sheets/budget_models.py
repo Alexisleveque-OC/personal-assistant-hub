@@ -1,8 +1,10 @@
-"""Modèles Pydantic du classeur Budget (lecture) : contrats renvoyés par `BudgetConnector`."""
+"""Modèles Pydantic du classeur Budget : contrats lus et écrits par `BudgetConnector`."""
+import json
 from datetime import date
-from typing import List, Literal, Optional
+from decimal import ROUND_HALF_UP, Decimal
+from typing import List, Literal, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 FRENCH_MONTHS = (
     "janvier", "février", "mars", "avril", "mai", "juin",
@@ -94,3 +96,92 @@ class CategoryResolution(BaseModel):
     category: Optional[str] = None
     source: Optional[Literal["category", "auto_sort", "close_match"]] = None
     candidates: List[str] = Field(default_factory=list)
+
+
+EntrySheet = Literal["Débit", "Swile", "Revenus"]
+
+
+class BudgetEntry(BaseModel):
+    """Ligne de saisie écrite par Otis (dépense, remboursement négatif, revenu) : de quoi la retrouver par son contenu."""
+    model_config = ConfigDict(frozen=True)
+
+    sheet: EntrySheet
+    day: date
+    amount: float
+    category: str = Field(min_length=1)
+    label: str = Field(min_length=1, description="« Otis : <libellé dicté> » (Intitulé, ou Commentaires pour Swile).")
+
+
+class NewInstallment(BaseModel):
+    """Échéancier écrit par Otis dans `Échéanciers` (format de `createInstallment` : échéance actuelle 0, Actif).
+
+    L'import bancaire le rapproche par mois attendu et mensualité (±0,05 €), pas par son nom.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(min_length=1)
+    total_amount: float = Field(gt=0)
+    count: int = Field(ge=1)
+    start_month: BudgetMonth
+    category: str = Field(min_length=1)
+    comment: str = ""
+
+    @property
+    def monthly_amount(self) -> float:
+        """Arrondi au centime, demi vers le haut (`Math.round(total / count * 100) / 100` de l'Apps Script)."""
+        exact = Decimal(str(self.total_amount)) / Decimal(self.count)
+        return float(exact.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+class SplitPart(BaseModel):
+    """Part d'une dépense multiple : catégorie exacte du classeur et montant positif."""
+    model_config = ConfigDict(frozen=True)
+
+    category: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+
+
+class SplitExpense(BaseModel):
+    """Dépense multiple pré-déclarée dans `Dépenses Multiples` (format de `createSplitTransaction`, statut « A traiter »).
+
+    L'import la découpe quand un débit du même montant (±0,05 €) contenant `keyword` arrive à ±3 jours de `day`.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    day: date
+    keyword: str = Field(min_length=1, description="Mot-clé du libellé bancaire, sans préfixe (sert au rapprochement).")
+    total_amount: float = Field(gt=0)
+    parts: Tuple[SplitPart, ...] = Field(min_length=1)
+
+    @field_validator("keyword")
+    @classmethod
+    def _strip_keyword(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Le mot-clé bancaire est vide.")
+        return value.strip()
+
+    @model_validator(mode="after")
+    def _parts_add_up(self) -> "SplitExpense":
+        allotted = round(sum(part.amount for part in self.parts), 2)
+        if allotted != round(self.total_amount, 2):
+            raise ValueError(
+                f"Le montant total ({self.total_amount:.2f} €) diffère de la somme des parts ({allotted:.2f} €) : "
+                f"écart de {round(self.total_amount - allotted, 2):.2f} €."
+            )
+        return self
+
+    @property
+    def description(self) -> str:
+        return " | ".join(f"{part.category} : {part.amount:.2f} €" for part in self.parts)
+
+    @property
+    def parts_json(self) -> str:
+        """Comme `JSON.stringify` : sans espaces, accents tels quels, montant entier sans « .0 »."""
+        return json.dumps(
+            [{"category": part.category, "amount": _js_number(part.amount)} for part in self.parts],
+            ensure_ascii=False, separators=(",", ":"),
+        )
+
+
+def _js_number(value: float) -> float | int:
+    return int(value) if float(value).is_integer() else value
