@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from app.core.database import DatabaseManager, get_database_manager, set_database_manager
+from app.core.database.budget_aliases import BudgetAliasStore
 from app.core.database.conversation import ConversationStore
 from app.core.database.learnings import LearningsStore
 from app.core.database.llm_usage import LlmUsageStore
@@ -22,6 +23,7 @@ PUBLIC_METHODS = {
     "get_last_sport_session", "update_sport_session", "delete_sport_session", "upsert_sport_weekly_summary",
     "get_sport_weekly_summary", "get_all_sport_weekly_summaries", "delete_sport_weekly_summary",
     "add_llm_usage", "get_llm_usage_totals",
+    "learn_budget_alias", "get_budget_alias", "forget_budget_alias", "list_budget_aliases",
 }
 
 
@@ -33,7 +35,7 @@ def test_database_is_a_package_with_one_module_per_domain():
 
 
 def test_manager_assembles_the_domain_stores_with_the_same_public_interface():
-    for store in (ConversationStore, NotesStore, LearningsStore, SportStore, LlmUsageStore):
+    for store in (ConversationStore, NotesStore, LearningsStore, SportStore, LlmUsageStore, BudgetAliasStore):
         assert issubclass(DatabaseManager, store)
     public = {name for name in dir(DatabaseManager) if not name.startswith("_")}
     assert public == PUBLIC_METHODS
@@ -46,7 +48,7 @@ def test_init_db_still_creates_every_table(tmp_path):
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert {
         "conversation_logs", "conversation_feedbacks", "user_learnings", "second_brain_notes",
-        "sport_sessions", "sport_weekly_summaries", "agent_undo_batches", "llm_usage",
+        "sport_sessions", "sport_weekly_summaries", "agent_undo_batches", "llm_usage", "budget_category_aliases",
     } <= tables
 
 

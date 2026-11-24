@@ -7,6 +7,13 @@ from pydantic import BaseModel, Field, field_validator
 from app.connectors.sheets.budget_models import BudgetEntry, EntrySheet, NewInstallment, SplitExpense
 from app.core.agent.tools.sport_models import StrictArgs
 
+# « appris » : nom de catégorie appris par la réponse à une question « lequel ? » (étape 5 bis)
+Match = Literal["exact", "tri_auto", "nom_proche", "appris"]
+LEARNED_DESCRIPTION = (
+    "Non vide : Otis vient d'apprendre ce nom de catégorie ; annonce-le en une phrase "
+    "(« Je retiendrai que … , c'est … »)."
+)
+
 
 class GetBudgetRemainingArgs(StrictArgs):
     categorie: str = Field(description="Catégorie ou groupe tel que dit par l'utilisateur (« course », « loisir »).")
@@ -17,7 +24,7 @@ class GetBudgetRemainingArgs(StrictArgs):
 class BudgetRemainingView(BaseModel):
     categorie: str
     categorie_dite: str
-    rapprochement: Literal["exact", "tri_auto", "nom_proche"]
+    rapprochement: Match
     reste_total: float
     annonce_total: str = Field(description="Phrase à dire pour le reste total (signe déjà interprété).")
     mois: str
@@ -26,6 +33,7 @@ class BudgetRemainingView(BaseModel):
     categories_du_groupe: List[str] = Field(
         default_factory=list, description="Non vide : la catégorie est un groupe, restes = somme de ces catégories.",
     )
+    nom_appris: Optional[str] = Field(None, description=LEARNED_DESCRIPTION)
 
 
 class GetIncomeArgs(StrictArgs):
@@ -39,6 +47,7 @@ class IncomeView(BaseModel):
     mois: str
     total: float
     nombre: int
+    nom_appris: Optional[str] = Field(None, description=LEARNED_DESCRIPTION)
 
 
 class GetInstallmentsArgs(StrictArgs):
@@ -99,7 +108,7 @@ class BudgetEntryView(BaseModel):
     montant: float = Field(description="Négatif pour un remboursement.")
     categorie: str
     intitule: str
-    rapprochement: Literal["exact", "tri_auto", "nom_proche"]
+    rapprochement: Match
 
 
 class BudgetEntryAddedUndo(BaseModel):
@@ -158,8 +167,6 @@ class PredeclareSplitExpenseArgs(StrictArgs):
         return _required_text(value, "Le mot-clé bancaire")
 
 
-Match = Literal["exact", "tri_auto", "nom_proche"]
-
 
 class SplitPartView(BaseModel):
     categorie: str
@@ -185,24 +192,44 @@ class SplitDeclaredUndo(BaseModel):
     split: SplitExpense
 
 
+class BudgetAliasLearnedUndo(BaseModel):
+    """Nom de catégorie appris avec l'écriture : « annule » juste après l'oublie aussi (décision du 24/11)."""
+    kind: Literal["budget_alias_learned"] = "budget_alias_learned"
+    alias: str
+    category: str
+
+
 class InstallmentMutation(BaseModel):
     action: Literal["echeancier_ajoute"] = "echeancier_ajoute"
     echeancier: InstallmentView
     rapprochement: Match
-    undos: List[InstallmentAddedUndo]
+    nom_appris: Optional[str] = Field(None, description=LEARNED_DESCRIPTION)
+    undos: List[Union[InstallmentAddedUndo, BudgetAliasLearnedUndo]]
 
 
 class SplitMutation(BaseModel):
     action: Literal["depense_multiple_predeclaree"] = "depense_multiple_predeclaree"
     depense: SplitExpenseView
-    undos: List[SplitDeclaredUndo]
+    nom_appris: Optional[str] = Field(None, description=LEARNED_DESCRIPTION)
+    undos: List[Union[SplitDeclaredUndo, BudgetAliasLearnedUndo]]
 
 
 BudgetUndo = Union[BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo, SplitDeclaredUndo]
+
+
+class ForgetBudgetAliasArgs(StrictArgs):
+    nom: str = Field(description="Nom de catégorie appris à oublier, tel que dit (« oublie loisir alexis »).")
+
+
+class ForgottenAliasView(BaseModel):
+    action: Literal["nom_appris_oublie"] = "nom_appris_oublie"
+    nom: str
+    categorie: str
 
 
 class BudgetMutation(BaseModel):
     action: Literal["depense_ajoutee", "remboursement_ajoute", "revenu_ajoute", "categorie_corrigee"]
     ligne: BudgetEntryView
     ancienne_categorie: Optional[str] = None
-    undos: List[BudgetUndo]
+    nom_appris: Optional[str] = Field(None, description=LEARNED_DESCRIPTION)
+    undos: List[Union[BudgetUndo, BudgetAliasLearnedUndo]]

@@ -4,6 +4,9 @@ création d'échéanciers et pré-déclaration de dépenses multiples.
 La catégorie dictée est rapprochée par le connecteur ; plusieurs possibilités ou aucune → erreur renvoyée au modèle
 pour qu'il pose la question (jamais de catégorie inventée). Une saisie n'est jamais écrite sur un nom de groupe
 (question « laquelle ? ») ; un revenu ne prend qu'une catégorie du groupe Revenus.
+
+Noms appris (étape 5 bis, décisions du 24/11) : la réponse à une question « lequel ? » est retenue (base de l'app) et
+resservira sans question ; un nom exact du classeur l'emporte toujours ; « non, c'était dans X » n'apprend rien.
 """
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -18,6 +21,7 @@ from app.connectors.sheets.budget_connector import (
     SPLIT_TO_PROCESS,
     BudgetConnector,
     BudgetConnectorError,
+    normalize,
 )
 from app.connectors.sheets.budget_models import (
     BudgetEntry,
@@ -31,6 +35,7 @@ from app.core.agent.tools.budget_models import (
     AddExpenseArgs,
     AddIncomeArgs,
     AddInstallmentArgs,
+    BudgetAliasLearnedUndo,
     BudgetCategoryChangedUndo,
     BudgetEntryAddedUndo,
     BudgetEntryView,
@@ -38,6 +43,8 @@ from app.core.agent.tools.budget_models import (
     BudgetRemainingView,
     BudgetUndo,
     CorrectBudgetCategoryArgs,
+    ForgetBudgetAliasArgs,
+    ForgottenAliasView,
     GetBudgetRemainingArgs,
     GetIncomeArgs,
     GetInstallmentsArgs,
@@ -52,8 +59,10 @@ from app.core.agent.tools.budget_models import (
     SplitMutation,
     SplitPartView,
 )
+from app.core.agent.tools.budget_pending import PendingCategoryQuestions
 from app.core.agent.tools.tool_error import ToolError
 from app.core.clock import paris_today
+from app.core.database.budget_aliases import BudgetAliasStore
 
 INCOME_GROUP = "Revenus"
 LABEL_PREFIX = "Otis : "
@@ -76,11 +85,19 @@ class BudgetToolError(ToolError):
 class BudgetTools:
     def __init__(
         self, connector: Optional[BudgetConnector], unavailable_reason: str = "", today: Callable[[], date] = paris_today,
+        aliases: Optional[BudgetAliasStore] = None, session_id: str = "", pending: Optional[PendingCategoryQuestions] = None,
     ) -> None:
-        """`unavailable_reason` : cause de l'absence de connecteur (identifiant du classeur manquant…)."""
+        """`unavailable_reason` : cause de l'absence de connecteur (identifiant du classeur manquant…).
+
+        `aliases` / `pending` / `session_id` : noms appris et question « lequel ? » en attente de la conversation
+        (absents = ni apprentissage ni noms appris).
+        """
         self._connector = connector
         self._unavailable_reason = unavailable_reason
         self._today = today
+        self._aliases = aliases
+        self._session_id = session_id
+        self._pending = pending
 
     @property
     def connector(self) -> BudgetConnector:
@@ -94,7 +111,14 @@ class BudgetTools:
         `among` : catégories permises (revenus) ; une catégorie inconnue cite alors la liste des choix.
         """
         resolution = self.connector.resolve_category(spoken, among=among)
+        if resolution.status == "resolved" and resolution.source == "category":
+            return resolution.category, _MATCH_LABELS["category"]
+        learned = self._learned_category(spoken, among)
+        if learned is not None:
+            return learned, "appris"
         if resolution.status == "ambiguous":
+            if self._pending is not None:
+                self._pending.ask(self._session_id, normalize(spoken), resolution.candidates)
             raise BudgetToolError(
                 f"Catégorie « {spoken} » ambiguë : {', '.join(c.strip() for c in resolution.candidates)}. "
                 "Demande laquelle à l'utilisateur, sans rien supposer."
@@ -109,6 +133,42 @@ class BudgetTools:
                 f"Catégorie « {spoken} » inconnue du budget. Demande à l'utilisateur de préciser la catégorie."
             )
         return resolution.category, _MATCH_LABELS[resolution.source]
+
+    def _learned_category(self, spoken: str, among: Optional[List[str]]) -> Optional[str]:
+        """Catégorie exacte d'un nom appris, si elle existe encore (et est permise) ; sinon None."""
+        if self._aliases is None:
+            return None
+        learned = self._aliases.get_budget_alias(normalize(spoken))
+        if learned is None:
+            return None
+        names = among if among is not None else [c.name for c in self.connector.get_categories(active_only=True)]
+        return next((name for name in names if normalize(name) == normalize(learned)), None)
+
+    def _answered(self, categories: List[str]) -> Optional[tuple[str, str]]:
+        """(nom dit, catégorie) si cet appel répond à la question « lequel ? » en attente (consommée)."""
+        if self._pending is None or self._aliases is None:
+            return None
+        return self._pending.take(self._session_id, categories)
+
+    def _learn(self, answer: Optional[tuple[str, str]]) -> tuple[Optional[str], List[BudgetAliasLearnedUndo]]:
+        """Enregistre le nom appris : (phrase pour le modèle, annulation à joindre à l'écriture)."""
+        if answer is None:
+            return None, []
+        alias, category = answer
+        self._aliases.learn_budget_alias(alias, category)
+        return f"« {alias} » = {category}", [BudgetAliasLearnedUndo(alias=alias, category=category)]
+
+    def forget_alias(self, args: ForgetBudgetAliasArgs) -> ForgottenAliasView:
+        """« Oublie loisir alexis » : la question « lequel ? » reviendra, et sa réponse sera réapprise."""
+        if self._aliases is None:
+            raise BudgetToolError("Les noms de catégorie appris sont indisponibles.")
+        alias = normalize(args.nom)
+        category = self._aliases.get_budget_alias(alias)
+        if category is None or not self._aliases.forget_budget_alias(alias):
+            known = self._aliases.list_budget_aliases()
+            listed = ", ".join(f"« {name} » ({cat})" for name, cat in known.items()) or "aucun"
+            raise BudgetToolError(f"Aucun nom de catégorie appris « {args.nom} ». Noms appris : {listed}.")
+        return ForgottenAliasView(nom=alias, categorie=category)
 
     def _resolve_for_entry(self, spoken: str, sheet: str) -> tuple[str, str]:
         """Catégorie où écrire : groupe Revenus pour un revenu ; jamais un nom de groupe (question « laquelle ? »)."""
@@ -133,6 +193,7 @@ class BudgetTools:
             remaining = self.connector.get_remaining(category, month=month)
         except BudgetConnectorError as exc:
             raise BudgetToolError(str(exc)) from exc
+        learned, _ = self._learn(self._answered([category]))
         return BudgetRemainingView(
             categorie=remaining.category.strip(),
             categorie_dite=args.categorie,
@@ -143,6 +204,7 @@ class BudgetTools:
             reste_du_mois=remaining.month_remaining,
             annonce_du_mois=spoken_remaining(remaining.month_remaining),
             categories_du_groupe=[name.strip() for name in remaining.group_categories],
+            nom_appris=learned,
         )
 
     def get_income(self, args: GetIncomeArgs) -> IncomeView:
@@ -151,11 +213,13 @@ class BudgetTools:
             summary = self.connector.get_income(income_type, BudgetMonth(year=args.annee, month=args.mois))
         except BudgetConnectorError as exc:
             raise BudgetToolError(str(exc)) from exc
+        learned, _ = self._learn(self._answered([income_type])) if income_type is not None else (None, [])
         return IncomeView(
             type=None if income_type is None else income_type.strip(),
             mois=summary.month.label,
             total=summary.total,
             nombre=summary.count,
+            nom_appris=learned,
         )
 
     def get_installments(self, args: GetInstallmentsArgs) -> InstallmentsView:
@@ -187,7 +251,11 @@ class BudgetTools:
             self.connector.add_entry(entry)
         except BudgetConnectorError as exc:
             raise BudgetToolError(str(exc)) from exc
-        return BudgetMutation(action=action, ligne=_entry_view(entry, match), undos=[BudgetEntryAddedUndo(entry=entry)])
+        learned, learned_undos = self._learn(self._answered([category]))
+        return BudgetMutation(
+            action=action, ligne=_entry_view(entry, match), nom_appris=learned,
+            undos=[BudgetEntryAddedUndo(entry=entry), *learned_undos],
+        )
 
     def correct_category(self, args: CorrectBudgetCategoryArgs, last: Optional[BudgetEntry]) -> BudgetMutation:
         """« Non, c'était dans X » : catégorie de la dernière ligne écrite par Otis, seulement si elle est inchangée."""
@@ -195,6 +263,7 @@ class BudgetTools:
             raise BudgetToolError(
                 "Aucune dépense ni aucun revenu écrit par Otis juste avant dans cette conversation : rien à corriger."
             )
+        self._answered([])  # une correction répond à la question sans rien apprendre (décision du 24/11)
         try:
             category, match = self._resolve_for_entry(args.categorie, last.sheet)
             if category.strip() == last.category.strip():
@@ -227,12 +296,16 @@ class BudgetTools:
             self.connector.add_installment(installment)
         except BudgetConnectorError as exc:
             raise BudgetToolError(str(exc)) from exc
+        learned, learned_undos = self._learn(self._answered([category]))
         view = _installment_view(Installment(
             name=installment.name, total_amount=installment.total_amount, installments_count=installment.count,
             current_installment=0, monthly_amount=installment.monthly_amount, start_month=start, category=category,
             comment=installment.comment, status=INSTALLMENT_ACTIVE,
         ))
-        return InstallmentMutation(echeancier=view, rapprochement=match, undos=[InstallmentAddedUndo(installment=installment)])
+        return InstallmentMutation(
+            echeancier=view, rapprochement=match, nom_appris=learned,
+            undos=[InstallmentAddedUndo(installment=installment), *learned_undos],
+        )
 
     def predeclare_split_expense(self, args: PredeclareSplitExpenseArgs) -> SplitMutation:
         """Dépense multiple « A traiter » : l'import découpera le débit bancaire correspondant entre les catégories."""
@@ -253,6 +326,7 @@ class BudgetTools:
             self.connector.add_split_expense(split)
         except BudgetConnectorError as exc:
             raise BudgetToolError(str(exc)) from exc
+        learned, learned_undos = self._learn(self._answered([category for (category, _), _ in resolved]))
         view = SplitExpenseView(
             date=split.day, mot_cle=split.keyword, montant_total=split.total_amount, statut=SPLIT_TO_PROCESS,
             parts=[
@@ -260,7 +334,7 @@ class BudgetTools:
                 for (category, match), amount in resolved
             ],
         )
-        return SplitMutation(depense=view, undos=[SplitDeclaredUndo(split=split)])
+        return SplitMutation(depense=view, nom_appris=learned, undos=[SplitDeclaredUndo(split=split), *learned_undos])
 
     # --- Annulation (appelée par `UndoService`) ---------------------------------------------------
 

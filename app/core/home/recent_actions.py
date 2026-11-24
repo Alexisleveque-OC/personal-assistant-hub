@@ -101,6 +101,7 @@ _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
         f" : {a.get('nom', '')}, {_euros(a.get('montant_total'))} en {a.get('nb_echeances')} fois" if a.get("nom") else ""),
     "predeclare_split_expense": lambda a: "Dépense multiple pré-déclarée" + (
         f" : {a.get('mot_cle', '')}, {_euros(a.get('montant_total'))}" if a.get("mot_cle") else ""),
+    "forget_budget_alias": lambda a: "Nom de catégorie oublié" + (f" : {a['nom']}" if a.get("nom") else ""),
     "undo_last_action": lambda a: "Dernière action annulée",
 }
 
