@@ -151,6 +151,14 @@ personal-assistant-hub/
 * **Feuille « Tâches » de la PWA :** tâches par échéance (en retard, cette semaine, plus tard, sans date), sous-tâches groupées, ajout avec date et heure (heure = événement Agenda de 30 min), cochage immédiat avec « Annuler ».
 * **Cache 3 min** partagé par la voix et l'onglet, invalidé à chaque écriture (quotas Google, réponses rapides).
 
+### 💰 6. Budget (Google Sheets) — [🟢 Opérationnel à la voix]
+* **Classeur existant inchangé :** Otis lit et alimente le classeur budget (`SPREADSHEET_BUDGET_ID`) en écrivant **le même format** que les formulaires de l'Apps Script « Budget » (import bancaire, échéanciers, dépenses multiples), sans passer par son menu.
+* **Lecture :** *« combien il reste en course ? »* (reste total, ou du mois si « ce mois-ci »), reste d'un groupe (somme de ses catégories), *« combien j'ai touché en CAF ce mois-ci ? »*, échéanciers actifs ou suivi d'un échéancier.
+* **Écriture sans confirmation :** dépense (`Débit`, ou `Swile` si « en Swile / ticket resto »), remboursement (ligne négative), revenu (catégories du groupe Revenus), échéancier (`Échéanciers`, mensualité arrondie au centime), dépense d'avance découpée en parts (`Dépenses Multiples`, « A traiter ») ; intitulé `Otis : <libellé>` repérable à l'import ; *« non, c'était dans la catégorie X »* corrige la ligne.
+* **Catégorie jamais inventée :** rapprochement avec `Catégories` (sans accents ni casse) puis les mots-clés de `Tri auto` ; plusieurs choix ou nom de groupe → question.
+* **Annulation sûre :** « annule ça » ou « Dernières actions » retrouve la ligne par son contenu (l'import ajoute des lignes entre-temps) et refuse si elle a été modifiée ou déjà rapprochée par l'import.
+* **Cache 3 min** par onglet, relecture fraîche avant toute écriture. Outils réservés à Gemini (pas à l'expert Claude).
+
 ---
 
 ## 🗺️ Backlog & Feuilles de Route
@@ -231,7 +239,11 @@ personal-assistant-hub/
   - Reste à faire : connecteur Gmail perso (nouveau consentement `gmail.readonly`)
   - Hors périmètre : tâches par personne, notifications push, création d'événements
 - [ ] **Phase 9 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
-- [ ] **Phase 10 : Connecteur Budget (Google Sheets)**
+- [ ] **Phase 10 : Connecteur Budget (Google Sheets)** — *lecture et écritures à la voix terminées sur `feat/budget-connector` (détail : `ROADMAP.md`)*
+  - Connecteur `app/connectors/sheets/budget_connector.py` (valeurs brutes, écriture `USER_ENTERED`, grille agrandie si l'onglet est plein, formats posés comme l'Apps Script)
+  - Outils agent `get_budget_remaining`, `get_income`, `get_installments`, `add_expense`, `add_income`, `correct_budget_category`, `add_installment`, `predeclare_split_expense` (+ annulation)
+  - Validé sur une copie du classeur (écritures, formats, annulations) ; E2E de la conversation au classeur (`tests/test_e2e_budget.py`)
+  - Reste à faire : repasse sur l'Apps Script (projet séparé), écran Budget dans la PWA
 - [ ] **Phase 11 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
 - [ ] **Phase 12 : Connecteurs Professionnels (Mails Pro, Jira, Trello)**
 - [ ] **Phase 13 : Domotique (Tuya / Home Assistant)**
@@ -271,6 +283,7 @@ LOG_LEVEL=INFO
 API_KEY=votre_cle_api_secrete
 GOOGLE_SERVICE_ACCOUNT_INFO={"type": "service_account", ...} # ou chemin vers credentials.json
 GEMINI_API_KEY=votre_cle_gemini_flash
+SPREADSHEET_BUDGET_ID=...       # classeur Budget (facultatif : outils budget indisponibles sans)
 ANTHROPIC_API_KEY=...            # facultatif : expert Claude (payant), absent = Gemini seul
 CLAUDE_MONTHLY_BUDGET_USD=5      # plafond mensuel de l'expert Claude
 NLU_MODE=agent          # agent : Gemini en premier ; legacy : regex puis Gemini en dernier recours
