@@ -7,6 +7,7 @@ import { createSheetManager, bindSheetInteractions } from "./sheets.js";
 import { scrollConversationToEnd } from "./views/chat_view.js";
 import { fetchShoppingList } from "./views/shopping_view.js";
 import { loadTasks } from "./views/tasks_view.js";
+import { loadBudget } from "./views/budget_view.js";
 import { initDuePicker, setDuePickerVisible } from "./views/task_due_picker.js";
 import { loadMeals, resetMealsWeek } from "./views/meals_view.js";
 import { initSportSheet, loadSport } from "./views/sport/sport_sheet.js";
@@ -25,6 +26,8 @@ function loadSection(section) {
     loadMeals();
   } else if (section === "sport") {
     loadSport();
+  } else if (section === "budget") {
+    loadBudget();
   } else if (section === "second_cerveau") {
     loadSecondBrain();
   } else if (section === "journal") {

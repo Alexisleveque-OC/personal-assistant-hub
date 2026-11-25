@@ -88,10 +88,14 @@ def _user_entered(value: Any) -> Any:
 
 @dataclass
 class GestionLine:
-    """Ligne catégorie de `Gestion` : reste total (colonne B) et reste fin du mois par mois."""
+    """Ligne catégorie de `Gestion` : reste total (colonne B) et, par mois, reste fin du mois, Prévu (300 par
+    défaut) et Equilibrage (vide par défaut) ; `spent` : sa ligne de `Total dépenses` (0 par défaut)."""
     name: str
     total_remaining: float
     month_remaining: Dict[Tuple[int, int], float] = field(default_factory=dict)
+    planned: Dict[Tuple[int, int], Any] = field(default_factory=dict)
+    balancing: Dict[Tuple[int, int], Any] = field(default_factory=dict)
+    spent: Dict[Tuple[int, int], Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -162,6 +166,9 @@ class BudgetSheetState:
     # Date approximative | Mot-clé banque | Montant total | Statut | Description | Parts JSON
     splits: Sequence[Tuple[date, str, float, str, str, str]] = ()
     spare_rows: int = 20  # lignes vides sous les données (0 = onglet plein, comme Revenus et Échéanciers le 24/11)
+    # Lignes 5-7 de `Total dépenses` par mois : (Total dépense, Total revenus, Total épargné) ; défaut (100, 0, "").
+    monthly_totals: Dict[Tuple[int, int], Tuple[Any, Any, Any]] = field(default_factory=dict)
+    total_labels: Tuple[str, str, str] = ("Total dépense", "Total revenus", "Total épargné")
 
 
 def build_budget_spreadsheet(state: BudgetSheetState) -> FakeSpreadsheet:
@@ -196,15 +203,28 @@ def build_budget_spreadsheet(state: BudgetSheetState) -> FakeSpreadsheet:
 
 
 def _total_rows(state: BudgetSheetState) -> List[List[Any]]:
+    """Comme le vrai classeur : lignes 5-7 = totaux du mois, puis les groupes dès la ligne 8 (sans ligne vide
+    avant le premier), en-tête aux cellules vides, « Total » / « Total: » / « Total revenus » en fin de groupe."""
     months = [serial(date(y, m, 1)) for y, m in state.months]
     checks = [(y, m) in state.checked for y, m in state.months]
-    return [
+    totals = [state.monthly_totals.get(month, (100.0, 0.0, "")) for month in state.months]
+    expense_label, income_label, saved_label = state.total_labels
+    rows: List[List[Any]] = [
         [],
         ["Type", "2024", "2025", *months, "2026", "Moyenne total"],
         ["Quotient24", 12, 12, *["f"] * len(months)],
         ["nbr: mois", "", "", *checks, sum(checks)],
-        ["Total dépense", 5066.9, 4806.74, *[100.0] * len(months)],
+        [expense_label, 5066.9, 4806.74, *[t[0] for t in totals]],
+        [income_label, 4878.59, 4882.44, *[t[1] for t in totals]],
+        [saved_label, 65, "", *[t[2] for t in totals]],
     ]
+    for group, lines in state.groups:
+        rows.append([group, "", "", *[""] * len(months)])
+        for line in lines:
+            rows.append([line.name, 1000.0, 900.0, *[line.spent.get(month, 0.0) for month in state.months]])
+        rows.append(["Total revenus" if group == "Revenus" else "Total:", 0.0, 0.0, *[0.0] * len(months)])
+        rows.append([])
+    return rows
 
 
 def _gestion_rows(state: BudgetSheetState) -> List[List[Any]]:
@@ -224,9 +244,11 @@ def _gestion_rows(state: BudgetSheetState) -> List[List[Any]]:
         for line in lines:
             row: List[Any] = [line.name, line.total_remaining, 300.0, "", 300.0]
             for month in state.months:
-                row += [300.0, "", line.month_remaining.get(month, 0.0)]
+                row += [line.planned.get(month, 300.0), line.balancing.get(month, ""), line.month_remaining.get(month, 0.0)]
             rows.append(row)
         rows.append(["Total:", sum(line.total_remaining for line in lines)])
         rows.append([])
-    rows += [[], ["Totaux dépenses"], ["Total des revenus"], ["Différence"]]
+    # Bas de l'onglet (relevé le 25/11) : blocs de synthèse qui ne sont pas des groupes (pas de ligne « Total »).
+    rows += [[], ["Totaux dépenses"], ["Total des revenus"], ["Différence"], [],
+             ["Reste pour équilibrage (base)", ""], ["Déjà réinjecté", ""], ["A réinjécté", ""]]
     return rows

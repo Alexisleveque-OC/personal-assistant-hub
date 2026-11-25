@@ -52,9 +52,11 @@ def test_each_section_has_its_sheet_placeholder_and_otis_context():
     assert {key: s["context"] for key, s in out.items()} == {
         "accueil": "accueil", "courses": "courses", "repas": "repas", "taches": "taches",
         "sport": "sport", "second_cerveau": "second_cerveau", "journal": "journal",
-        "reglages": "reglages",
+        "reglages": "reglages", "budget": "budget",
     }
     assert out["journal"]["sheetId"] == "view-journal"
+    assert out["budget"] == {"sheetId": "view-budget", "title": "Budget", "placeholder": "Noter une dépense…",
+                             "context": "budget"}
 
 
 def test_section_is_found_back_from_its_sheet():
