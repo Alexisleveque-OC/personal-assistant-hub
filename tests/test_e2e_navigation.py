@@ -33,6 +33,7 @@ SECTIONS = {
     "taches": ("view-tasks", "Nouvelle tâche…"),
     "sport": ("view-sport", None),  # barre d'actions seulement (décision du 16/11)
     "second_cerveau": ("view-second-brain", "Noter une idée…"),
+    "budget": ("view-budget", "Noter une dépense…"),
     "journal": ("view-journal", None),
     "reglages": ("view-settings", None),
 }
