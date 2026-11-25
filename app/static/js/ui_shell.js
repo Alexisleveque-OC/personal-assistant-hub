@@ -8,6 +8,8 @@ export const SECTIONS = {
   repas: { sheetId: "view-meals", title: "Repas", placeholder: "Planifier un repas…", context: "repas" },
   taches: { sheetId: "view-tasks", title: "Tâches", placeholder: "Nouvelle tâche…", context: "taches" },
   sport: { sheetId: "view-sport", title: "Sport", placeholder: "Écrire à Otis…", context: "sport" },
+  // Lecture seule (étape 7a) ; une dépense se dicte ou s'écrit à Otis depuis la feuille.
+  budget: { sheetId: "view-budget", title: "Budget", placeholder: "Noter une dépense…", context: "budget" },
   second_cerveau: {
     sheetId: "view-second-brain", title: "Second cerveau", placeholder: "Noter une idée…", context: "second_cerveau",
   },

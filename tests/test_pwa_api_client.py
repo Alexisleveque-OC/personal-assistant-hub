@@ -37,7 +37,7 @@ const print = (value) => console.log(JSON.stringify(value));
 """
 
 
-API_MODULES = ("http", "interact", "sport", "meals", "second_brain", "tasks")
+API_MODULES = ("http", "interact", "sport", "meals", "second_brain", "tasks", "budget")
 
 
 def _run(snippet: str):

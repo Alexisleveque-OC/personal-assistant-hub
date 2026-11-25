@@ -214,6 +214,19 @@
       <div class="composer-slot"></div>
     </section>
 
+    <!-- Feuille Budget (Phase 10, étape 7a) : suivi en lecture seule du classeur Budget (views/budget_view.js) -->
+    <section class="sheet" id="view-budget" role="dialog" aria-modal="true" aria-labelledby="view-budget-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header">
+        <h2 class="sheet__title" id="view-budget-title">Budget <small id="budget-month"></small></h2>
+        <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="sheet__body">
+        <div id="budget-container" class="budget"></div>
+      </div>
+      <div class="composer-slot"></div>
+    </section>
+
     <!-- VIEW 3: MEAL PLAN -->
     <section class="sheet" id="view-meals" role="dialog" aria-modal="true" aria-labelledby="view-meals-title" aria-hidden="true" tabindex="-1" inert>
       <span class="sheet__handle" aria-hidden="true"></span>
@@ -496,6 +509,7 @@
     <button type="button" class="drawer__item" data-section="repas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17 3c-2 0-3 2-3 5s1 4 3 4v9"/></svg><span class="drawer__label">Repas</span></button>
     <button type="button" class="drawer__item" data-section="taches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><path d="M8 12l3 3 5-6"/></svg><span class="drawer__label">Tâches</span><span class="count" id="drawer-count-taches"></span></button>
     <button type="button" class="drawer__item" data-section="sport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span class="drawer__label">Sport</span></button>
+    <button type="button" class="drawer__item" data-section="budget"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/></svg><span class="drawer__label">Budget</span></button>
     <button type="button" class="drawer__item" data-section="second_cerveau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg><span class="drawer__label">Second cerveau</span><span class="count" id="drawer-count-second_cerveau"></span></button>
     <button type="button" class="drawer__item" id="drawer-journal" data-section="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6"/></svg><span class="drawer__label">Journal &amp; feedback</span></button>
     <div class="drawer__footer">
