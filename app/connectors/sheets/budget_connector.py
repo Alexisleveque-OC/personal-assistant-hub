@@ -20,12 +20,16 @@ from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, Tu
 from app.connectors.sheets.budget_models import (
     AutoSortRule,
     BudgetCategory,
+    BudgetCategoryLine,
+    BudgetGroup,
     BudgetMonth,
     BudgetEntry,
+    BudgetOverview,
     CategoryRemaining,
     CategoryResolution,
     IncomeSummary,
     Installment,
+    MonthlyTotals,
     NewInstallment,
     SplitExpense,
 )
@@ -68,6 +72,10 @@ GESTION_MONTHS_ROW = 1  # index 0 : ligne 2 (mois en numéro de série)
 GESTION_FIRST_MONTH_COL = 5  # index 0 : colonne F, puis un bloc Prévu | Equilibrage | Reste fin du mois
 GESTION_REMAINING_COL = 1  # colonne B : reste total
 TOTAL_MONTHS_ROW, TOTAL_CHECKS_ROW, TOTAL_FIRST_MONTH_COL = 1, 3, 3  # lignes 2 et 4, à partir de D
+TOTAL_EXPENSES_ROW, TOTAL_INCOME_ROW, TOTAL_SAVED_ROW = 4, 5, 6  # lignes 5 à 7 : totaux du mois
+TOTAL_LINE_LABELS = {TOTAL_EXPENSES_ROW: "Total dépense", TOTAL_INCOME_ROW: "Total revenus", TOTAL_SAVED_ROW: "Total épargné"}
+TOTAL_FIRST_GROUP_ROW = 7  # ligne 8 : premier groupe, sans ligne vide avant lui
+INCOME_GROUP = "Revenus"
 ENTRY_CATEGORY_COL = "C"
 INSTALLMENT_ACTIVE, SPLIT_TO_PROCESS = "Actif", "A traiter"
 # Formats posés par l'Apps Script sur ses lignes (une ligne ajoutée par l'API n'hérite d'aucun format).
@@ -218,7 +226,12 @@ class BudgetConnector:
     def _amount(value: Any, where: str) -> float:
         if not _is_number(value):
             raise BudgetConnectorError(f"Montant invalide {value!r} ({where}) : nombre attendu.")
-        return round(float(value), 2)  # les formules du classeur laissent du bruit flottant (923.1539999…)
+        # Les formules du classeur laissent du bruit flottant (923.1539999…, -1e-12) ; « + 0.0 » efface le zéro négatif.
+        return round(float(value), 2) + 0.0
+
+    def _optional_amount(self, value: Any, where: str) -> float:
+        """Montant d'une cellule laissée vide quand il n'y a rien (Prévu, Equilibrage, dépensé du mois) : vide = 0."""
+        return 0.0 if _is_blank(value) else self._amount(value, where)
 
     def _month(self, value: Any, where: str) -> BudgetMonth:
         day = self._date(value, where)
@@ -337,23 +350,8 @@ class BudgetConnector:
     @staticmethod
     def _gestion_groups(rows: List[List[Any]]) -> Dict[int, List[int]]:
         """Groupes de `Gestion` (index de la ligne d'en-tête → index de ses catégories), après la 1re ligne vide."""
-        groups: Dict[int, List[int]] = {}
-        current: Optional[int] = None
-        seen_blank = False
-        for index, row in enumerate(rows):
-            label = _cell(row, 0)
-            if _is_blank(label):
-                seen_blank, current = True, None
-            elif not seen_blank:
-                continue
-            elif current is None:
-                current = index
-                groups[current] = []
-            elif normalize(label).startswith("total"):
-                current = None
-            else:
-                groups[current].append(index)
-        return groups
+        first_blank = next((i for i, row in enumerate(rows) if _is_blank(_cell(row, 0))), len(rows))
+        return _row_groups(rows, first_blank)
 
     def _gestion_lines(self, rows: List[List[Any]], category: str) -> Tuple[str, List[List[Any]], List[str]]:
         """(nom, lignes à additionner, catégories du groupe) : une ligne pour une catégorie, toutes pour un groupe."""
@@ -400,6 +398,84 @@ class BudgetConnector:
                 f"en ligne 1, colonne {col + 3}, trouvé {header!r}."
             )
         return col
+
+    # --- Écran Budget : vue d'ensemble (lecture seule) -------------------------------------------
+
+    def get_overview(self) -> BudgetOverview:
+        """Groupes et catégories de `Gestion` avec le suivi du mois actif, série Dépenses / Revenus et épargné.
+
+        Budget du mois = Prévu + Equilibrage (Reste fin du mois = budget − dépensé dans le classeur) ; dépensé = ligne
+        de la catégorie dans `Total dépenses`. Catégories terminées (`Catégories`) masquées, mais comptées dans le
+        total de leur groupe, comme la ligne « Total » du classeur ; un groupe sans catégorie affichée est omis.
+        """
+        active = self.get_active_month()
+        total = self._values(TOTAL_SHEET)
+        gestion = self._values(GESTION_SHEET)
+        self._check_total_lines(total)
+        month_cols = self._total_month_cols(total)
+        active_col = month_cols[active]
+
+        def total_line(row: int, col: int, month: BudgetMonth) -> float:
+            where = f"« {TOTAL_SHEET} », {TOTAL_LINE_LABELS[row]} de {month.label}"
+            return self._optional_amount(_cell(_cell(total, row) or [], col), where)
+
+        series = [
+            MonthlyTotals(month=month, expenses=total_line(TOTAL_EXPENSES_ROW, col, month),
+                          income=total_line(TOTAL_INCOME_ROW, col, month))
+            for month, col in month_cols.items() if month.year == active.year and month.month <= active.month
+        ]
+        spent_rows = _rows_by_name(total, _row_groups(total, TOTAL_FIRST_GROUP_ROW))
+        today = self._today()
+        ended = {normalize(c.name) for c in self.get_categories() if not c.is_active(today)}
+        col = self._gestion_month_col(gestion, active)
+        groups = []
+        for header, members in self._gestion_groups(gestion).items():
+            lines, group_total = [], 0.0
+            for index in members:
+                row = gestion[index]
+                name = str(row[0]).strip()
+                where = f"« {GESTION_SHEET} », {name}"
+                group_total += self._amount(_cell(row, GESTION_REMAINING_COL), f"{where}, colonne B")
+                if normalize(name) in ended:
+                    continue
+                spent_row = _single_row(total, spent_rows, name, TOTAL_SHEET)
+                lines.append(BudgetCategoryLine(
+                    name=name,
+                    total_remaining=self._amount(_cell(row, GESTION_REMAINING_COL), f"{where}, colonne B"),
+                    month_spent=self._optional_amount(
+                        _cell(total[spent_row], active_col), f"« {TOTAL_SHEET} », {name}, {active.label}"),
+                    month_budget=round(
+                        self._optional_amount(_cell(row, col), f"{where}, Prévu de {active.label}")
+                        + self._optional_amount(_cell(row, col + 1), f"{where}, Equilibrage de {active.label}"), 2,
+                    ) + 0.0,
+                ))
+            if lines:
+                name = str(gestion[header][0]).strip()
+                groups.append(BudgetGroup(
+                    name=name, kind="income" if normalize(name) == normalize(INCOME_GROUP) else "expense",
+                    total_remaining=round(group_total, 2) + 0.0, categories=lines,
+                ))
+        return BudgetOverview(
+            active_month=active, saved=total_line(TOTAL_SAVED_ROW, active_col, active), series=series, groups=groups,
+        )
+
+    @staticmethod
+    def _check_total_lines(rows: List[List[Any]]) -> None:
+        for row, label in TOTAL_LINE_LABELS.items():
+            found = _cell(_cell(rows, row) or [], 0)
+            if normalize(found) != normalize(label):
+                raise BudgetHeaderError(
+                    f"« {label} » attendu en ligne {row + 1} (colonne A) de « {TOTAL_SHEET} », trouvé {found!r} : "
+                    "la structure de l'onglet a changé."
+                )
+
+    def _total_month_cols(self, rows: List[List[Any]]) -> Dict[BudgetMonth, int]:
+        """Colonnes des mois de `Total dépenses` (ligne 2, numéros de série à partir de D), dans l'ordre."""
+        months = _cell(rows, TOTAL_MONTHS_ROW) or []
+        return {
+            self._month(months[col], f"« {TOTAL_SHEET} » ligne 2, colonne {col + 1}"): col
+            for col in range(TOTAL_FIRST_MONTH_COL, len(months)) if _is_number(months[col])
+        }
 
     # --- Revenus ---------------------------------------------------------------------------------
 
@@ -517,6 +593,55 @@ class BudgetConnector:
     def _invalidate_after_write(self, title: str) -> None:
         self.invalidate_cache(title)
         self.invalidate_cache(GESTION_SHEET)
+
+
+def _row_groups(rows: List[List[Any]], start: int) -> Dict[int, List[int]]:
+    """Groupes à partir de la ligne `start` (index 0) : en-tête = 1re ligne non vide (au début ou après une ligne
+    vide), puis ses catégories jusqu'à une ligne « Total… » (« Total », « Total: », « Total revenus »).
+
+    Seul un bloc fermé par sa ligne « Total… » et non vide est un groupe : le bas de `Gestion` porte des blocs de
+    synthèse (« Reste pour équilibrage (base) », « Déjà réinjecté »…) qui n'en sont pas.
+    """
+    groups: Dict[int, List[int]] = {}
+    current: Optional[int] = None
+    members: List[int] = []
+    for index in range(start, len(rows)):
+        label = _cell(rows[index], 0)
+        if _is_blank(label):
+            current = None
+        elif current is None:
+            current, members = index, []
+        elif normalize(label).startswith("total"):
+            if members:
+                groups[current] = members
+            current = None
+        else:
+            members.append(index)
+    return groups
+
+
+def _rows_by_name(rows: List[List[Any]], groups: Dict[int, List[int]]) -> Dict[str, List[int]]:
+    """Index des lignes de catégorie par nom normalisé (un nom en double est refusé à la lecture)."""
+    found: Dict[str, List[int]] = {}
+    for members in groups.values():
+        for index in members:
+            found.setdefault(normalize(rows[index][0]), []).append(index)
+    return found
+
+
+def _single_row(table: List[List[Any]], rows_by_name: Dict[str, List[int]], name: str, sheet: str) -> int:
+    rows = rows_by_name.get(normalize(name), [])
+    if len(rows) > 1:
+        raise BudgetCategoryNotFoundError(
+            f"Catégorie « {name} » présente {len(rows)} fois dans « {sheet} » (lignes {[i + 1 for i in rows]}) : "
+            "impossible de choisir."
+        )
+    if not rows:
+        raise BudgetCategoryNotFoundError(
+            f"Catégorie « {name} » introuvable dans « {sheet} ». Catégories disponibles : "
+            f"{[str(table[i][0]).strip() for found in rows_by_name.values() for i in found]}"
+        )
+    return rows[0]
 
 
 _FORMATS: Dict[str, Tuple[Tuple[str, Dict[str, Any]], ...]] = {

@@ -185,3 +185,38 @@ class SplitExpense(BaseModel):
 
 def _js_number(value: float) -> float | int:
     return int(value) if float(value).is_integer() else value
+
+
+class BudgetCategoryLine(BaseModel):
+    """Catégorie de l'écran Budget : reste total (colonne B de `Gestion`) et suivi du mois actif.
+
+    `month_budget` = Prévu + Equilibrage du mois dans `Gestion` ; `month_spent` = sa ligne de `Total dépenses`
+    (pour une catégorie de revenus : prévu et reçu).
+    """
+    name: str
+    total_remaining: float
+    month_spent: float
+    month_budget: float
+
+
+class BudgetGroup(BaseModel):
+    """Groupe de `Gestion` (Courants, Loisir…) ; `total_remaining` couvre toutes ses catégories, même masquées."""
+    name: str
+    kind: Literal["expense", "income"]
+    total_remaining: float
+    categories: List[BudgetCategoryLine]
+
+
+class MonthlyTotals(BaseModel):
+    """Lignes « Total dépense » et « Total revenus » de `Total dépenses` pour un mois."""
+    month: BudgetMonth
+    expenses: float
+    income: float
+
+
+class BudgetOverview(BaseModel):
+    """Écran Budget (lecture seule) : mois actif, épargné du mois, série de l'année jusqu'au mois actif, groupes."""
+    active_month: BudgetMonth
+    saved: float
+    series: List[MonthlyTotals]
+    groups: List[BudgetGroup]
