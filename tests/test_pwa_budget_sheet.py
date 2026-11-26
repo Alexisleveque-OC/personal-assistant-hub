@@ -46,8 +46,11 @@ def test_budget_header_opens_a_stacked_entry_form():
     assert 'id="btn-budget-add"' in sheet and 'aria-label="Noter une dépense ou un revenu"' in sheet
     form = section(html, "view-budget-form")
     assert 'class="sheet sheet--stacked" id="view-budget-form"' in html
+    assert "<select" not in form  # liste trop longue (retour du 26/11) : champ texte avec suggestions
     for needle in ('id="budget-form"', 'data-type="depense"', 'data-type="revenu"', 'id="budget-form-montant"',
-                   'inputmode="decimal"', 'id="budget-form-categorie"', 'id="budget-form-libelle"',
+                   'inputmode="decimal"', 'id="budget-form-categorie"', 'role="combobox"',
+                   'aria-controls="budget-form-suggestions"', 'id="budget-form-suggestions" role="listbox"',
+                   'id="budget-form-libelle"',
                    'id="budget-form-date"', 'id="budget-form-swile"', 'id="budget-form-remboursement"',
                    'id="budget-form-expense-options"', 'id="budget-form-errors"', 'form="budget-form"'):
         assert needle in form, needle
@@ -56,7 +59,8 @@ def test_budget_header_opens_a_stacked_entry_form():
 def test_form_view_saves_then_offers_undo_without_html_injection():
     view = static_source("js/views/budget_form_view.js")
     for needle in ("budgetFormToPayload(", "categoryChoices(", "addBudgetEntry(", "undoRecentAction(",
-                   "getActiveSessionId()", '"Annuler"', "action_id", "optgroup"):
+                   "getActiveSessionId()", '"Annuler"', "action_id", "matchCategories(", "aria-expanded",
+                   '"option"'):
         assert needle in view, needle
     assert "innerHTML" not in view and "alert(" not in view
     assert "initBudgetForm(" in static_source("js/views/budget_view.js")

@@ -246,10 +246,11 @@
             <span class="field__label">Montant (€)</span>
             <input class="input" type="text" inputmode="decimal" id="budget-form-montant" autocomplete="off" placeholder="12,50" required>
           </label>
-          <label class="field">
-            <span class="field__label" id="budget-form-categorie-label">Catégorie</span>
-            <select class="select" id="budget-form-categorie" required></select>
-          </label>
+          <div class="field budget-combo">
+            <label class="field__label" id="budget-form-categorie-label" for="budget-form-categorie">Catégorie</label>
+            <input class="input" type="text" id="budget-form-categorie" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="budget-form-suggestions" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Tape « cour », « resto »…" required>
+            <ul class="budget-combo__list" id="budget-form-suggestions" role="listbox" aria-labelledby="budget-form-categorie-label" hidden></ul>
+          </div>
           <label class="field">
             <span class="field__label">Libellé</span>
             <input class="input" type="text" id="budget-form-libelle" maxlength="80" autocomplete="off" placeholder="ex. pain, CAF novembre" required>

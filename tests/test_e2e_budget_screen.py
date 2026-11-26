@@ -106,15 +106,21 @@ def test_entry_form_writes_an_expense_then_the_toast_undoes_it(page, isolate_sql
         page.click("#budget-form-type [data-type='revenu']")
         assert page.text_content("#budget-form-categorie-label") == "Type de revenu"
         assert page.is_hidden("#budget-form-expense-options")
+        page.fill("#budget-form-categorie", "ca")
+        assert page.locator("#budget-form-suggestions [role='option']").all_text_contents() == ["CAFRevenus"]
         page.click("#budget-form-type [data-type='depense']")
-        assert page.locator("#budget-form-categorie optgroup").first.get_attribute("label") == "Courants"
+        assert page.input_value("#budget-form-categorie") == ""  # Dépense et Revenu n'ont aucune catégorie commune
 
         page.click("#view-budget-form [type='submit']")
         assert "Montant invalide" in page.text_content("#budget-form-errors")
         assert ("POST", "api/v1/budget/entries") not in calls
 
         page.fill("#budget-form-montant", "12,50")
-        page.select_option("#budget-form-categorie", "Course")
+        page.fill("#budget-form-categorie", "cour")
+        assert page.get_attribute("#budget-form-categorie", "aria-expanded") == "true"
+        page.click("#budget-form-suggestions [role='option']:has-text('Course')")
+        assert page.input_value("#budget-form-categorie") == "Course"
+        assert page.is_hidden("#budget-form-suggestions")
         page.fill("#budget-form-libelle", "pain")
         page.click("#view-budget-form [type='submit']")
         page.wait_for_selector("#view-budget-form[aria-hidden='true']", state="attached")
