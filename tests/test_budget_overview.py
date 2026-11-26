@@ -44,12 +44,10 @@ def test_active_month_saved_amount_and_series_of_the_year_up_to_the_active_month
     ]
 
 
-def test_groups_follow_gestion_order_and_revenus_is_an_income_group() -> None:
+def test_groups_follow_gestion_order_without_the_revenus_group() -> None:
+    """Revenus déjà dans le graphique ; leur « reste » de `Gestion` n'a pas de sens (décision utilisateur du 26/11)."""
     result = overview()
-    assert [(g.name, g.kind) for g in result.groups] == [
-        ("Courants", "expense"), ("Loisir", "expense"), ("Fixes", "expense"), ("Epargne", "expense"),
-        ("Revenus", "income"),
-    ]
+    assert [g.name for g in result.groups] == ["Courants", "Loisir", "Fixes", "Epargne"]
     assert [c.name for c in result.groups[0].categories] == ["Course", "Restaurant", "Chats"]
 
 

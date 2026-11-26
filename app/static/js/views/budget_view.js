@@ -77,7 +77,7 @@ function categoryRow(cat) {
 }
 
 function groupBlock(group, index) {
-  const block = el("section", `budget-group budget-group--${group.kind}`);
+  const block = el("section", "budget-group");
   const bodyId = `budget-group-${index}`;
   const head = button("budget-group__head");
   head.setAttribute("aria-expanded", "false");

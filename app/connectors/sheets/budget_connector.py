@@ -407,6 +407,7 @@ class BudgetConnector:
         Budget du mois = Prévu + Equilibrage (Reste fin du mois = budget − dépensé dans le classeur) ; dépensé = ligne
         de la catégorie dans `Total dépenses`. Catégories terminées (`Catégories`) masquées, mais comptées dans le
         total de leur groupe, comme la ligne « Total » du classeur ; un groupe sans catégorie affichée est omis.
+        Le groupe Revenus est omis : les revenus ne figurent que dans la série (décision utilisateur du 26/11).
         """
         active = self.get_active_month()
         total = self._values(TOTAL_SHEET)
@@ -430,6 +431,9 @@ class BudgetConnector:
         col = self._gestion_month_col(gestion, active)
         groups = []
         for header, members in self._gestion_groups(gestion).items():
+            group_name = str(gestion[header][0]).strip()
+            if normalize(group_name) == normalize(INCOME_GROUP):
+                continue  # revenus : seulement dans le graphique (leur « reste » n'a pas de sens)
             lines, group_total = [], 0.0
             for index in members:
                 row = gestion[index]
@@ -450,11 +454,7 @@ class BudgetConnector:
                     ) + 0.0,
                 ))
             if lines:
-                name = str(gestion[header][0]).strip()
-                groups.append(BudgetGroup(
-                    name=name, kind="income" if normalize(name) == normalize(INCOME_GROUP) else "expense",
-                    total_remaining=round(group_total, 2) + 0.0, categories=lines,
-                ))
+                groups.append(BudgetGroup(name=group_name, total_remaining=round(group_total, 2) + 0.0, categories=lines))
         return BudgetOverview(
             active_month=active, saved=total_line(TOTAL_SAVED_ROW, active_col, active), series=series, groups=groups,
         )

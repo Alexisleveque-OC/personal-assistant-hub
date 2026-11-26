@@ -1,7 +1,7 @@
 // Écran Budget (Phase 10, étape 7a) : données pures, sans import ni DOM (testées sous Node).
 // Entrée : GET /api/v1/budget/overview. Graphique Dépenses vs Revenus par mois, épargné du mois actif, groupes de
 // `Gestion` avec, par catégorie, le reste total (rouge si négatif) et le suivi du mois (barre de progression).
-// Groupe Revenus : « reçu / prévu », jamais en rouge (un reste négatif y veut dire « plus reçu que prévu »).
+// Le groupe Revenus n'est pas envoyé : les revenus ne figurent que dans le graphique (décision du 26/11).
 
 const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin",
   "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -31,8 +31,8 @@ function compactEuros(amount) {
   return `${sign}${(Math.round(abs / 100) / 10).toString().replace(".", ",")}k`;
 }
 
-function toneOf(amount, kind) {
-  return kind === "expense" && Math.round(amount * 100) < 0 ? "danger" : "default";
+function toneOf(amount) {
+  return Math.round(amount * 100) < 0 ? "danger" : "default";
 }
 
 function chartOf(series, active) {
@@ -47,19 +47,18 @@ function chartOf(series, active) {
   }));
 }
 
-function categoryOf(c, kind) {
+function categoryOf(c) {
   const spent = c.month_spent;
   const budget = c.month_budget;
   let pct = 0;
   if (budget > 0) pct = Math.min(100, Math.round((spent / budget) * 100));
   else if (spent > 0) pct = 100;
-  const [spentWord, budgetWord] = kind === "income" ? ["reçu", "prévu"] : ["dépensé", "budget"];
   return {
     name: c.name,
-    remaining: { text: formatEuros(c.total_remaining), tone: toneOf(c.total_remaining, kind) },
-    detail: `ce mois : ${spentWord} ${formatEuros(spent)} / ${budgetWord} ${formatEuros(budget)}`,
+    remaining: { text: formatEuros(c.total_remaining), tone: toneOf(c.total_remaining) },
+    detail: `ce mois : dépensé ${formatEuros(spent)} / budget ${formatEuros(budget)}`,
     pct: Math.max(pct, 0),
-    over: kind === "expense" && Math.round(spent * 100) > Math.round(budget * 100),
+    over: Math.round(spent * 100) > Math.round(budget * 100),
   };
 }
 
@@ -71,9 +70,8 @@ export function budgetSheet(overview) {
     chart: chartOf(overview.series || [], active),
     groups: (overview.groups || []).map((g) => ({
       name: g.name,
-      kind: g.kind,
-      total: { text: formatEuros(g.total_remaining), tone: toneOf(g.total_remaining, g.kind) },
-      categories: g.categories.map((c) => categoryOf(c, g.kind)),
+      total: { text: formatEuros(g.total_remaining), tone: toneOf(g.total_remaining) },
+      categories: g.categories.map(categoryOf),
     })),
   };
 }

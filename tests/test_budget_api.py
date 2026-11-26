@@ -34,11 +34,9 @@ def test_overview_returns_month_series_and_groups():
     assert body["saved"] == 2012.35
     assert body["series"][-1] == {"month": {"year": 2026, "month": 11}, "expenses": 203.2, "income": 2215.55}
     assert body["groups"] == [
-        {"name": "Courants", "kind": "expense", "total_remaining": 923.15, "categories": [
+        {"name": "Courants", "total_remaining": 923.15, "categories": [
             {"name": "Course", "total_remaining": 923.15, "month_spent": 76.02, "month_budget": 1000.0}]},
-        {"name": "Revenus", "kind": "income", "total_remaining": -20.0, "categories": [
-            {"name": "CAF", "total_remaining": -20.0, "month_spent": 240.45, "month_budget": 151.05}]},
-    ]
+    ]  # Revenus : seulement dans le graphique
 
 
 def test_overview_never_writes_to_the_sheet():

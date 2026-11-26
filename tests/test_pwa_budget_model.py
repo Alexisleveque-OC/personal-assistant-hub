@@ -2,7 +2,7 @@
 
 Cadrage du 25/11 : graphique Dépenses vs Revenus par mois + épargné du mois actif ; groupes de `Gestion` repliables
 avec leur total ; par catégorie, reste total (rouge si négatif) et « ce mois : dépensé X / budget Y » avec barre.
-Groupe Revenus : « reçu X / prévu Y », jamais en rouge (un reste négatif y est une bonne nouvelle).
+Le serveur n'envoie pas le groupe Revenus (décision utilisateur du 26/11) : les revenus ne sont que dans le graphique.
 """
 import json
 
@@ -28,13 +28,11 @@ OVERVIEW = {
     "saved": 2012.35,
     "series": [month(9, 4458.4, 4346.92), month(10, 4839.65, 4468.81), month(11, 203.2, 2215.55)],
     "groups": [
-        {"name": "Courants", "kind": "expense", "total_remaining": 404.91, "categories": [
+        {"name": "Courants", "total_remaining": 404.91, "categories": [
             cat("Course", 923.15, 76.02, 1000), cat("Restaurant", -100.69, 49, 35), cat("Voiture", 0, 0, 0),
             cat("Imprévu", 10, 12.5, 0),
         ]},
-        {"name": "Revenus", "kind": "income", "total_remaining": -5168.04, "categories": [
-            cat("Salaire Amélie", -1886.74, 1973.55, 1947.79),
-        ]},
+        {"name": "Loisir", "total_remaining": 120, "categories": [cat("Sorties", 120, 0, 50)]},
     ],
 }
 
@@ -71,12 +69,13 @@ def test_chart_without_amounts_has_flat_bars():
     assert chart[0]["expenses"]["pct"] == 0 and chart[0]["income"]["pct"] == 0
 
 
-def test_groups_keep_their_order_and_total_negative_expense_total_in_red():
+def test_groups_keep_their_order_and_total_negative_total_in_red():
     groups = sheet()["groups"]
-    assert [(g["name"], g["kind"], g["total"]) for g in groups] == [
-        ("Courants", "expense", {"text": f"404,91{NBSP}€", "tone": "default"}),
-        ("Revenus", "income", {"text": f"−5{NNBSP}168,04{NBSP}€", "tone": "default"}),
+    assert [(g["name"], g["total"]) for g in groups] == [
+        ("Courants", {"text": f"404,91{NBSP}€", "tone": "default"}),
+        ("Loisir", {"text": f"120{NBSP}€", "tone": "default"}),
     ]
+    assert all("kind" not in g for g in groups)
     red = sheet({**OVERVIEW, "groups": [{**OVERVIEW["groups"][0], "total_remaining": -1307.18}]})
     assert red["groups"][0]["total"]["tone"] == "danger"
 
@@ -91,10 +90,3 @@ def test_expense_category_shows_remaining_month_detail_and_progress():
     assert (restaurant["pct"], restaurant["over"]) == (100, True)
     assert (voiture["pct"], voiture["over"]) == (0, False)
     assert (imprevu["pct"], imprevu["over"]) == (100, True)  # dépense sans budget
-
-
-def test_income_category_reads_received_over_expected_and_is_never_red():
-    salary = sheet()["groups"][1]["categories"][0]
-    assert salary["remaining"] == {"text": f"−1{NNBSP}886,74{NBSP}€", "tone": "default"}
-    assert salary["detail"] == f"ce mois : reçu 1{NNBSP}973,55{NBSP}€ / prévu 1{NNBSP}947,79{NBSP}€"
-    assert (salary["pct"], salary["over"]) == (100, False)
