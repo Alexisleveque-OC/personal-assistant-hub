@@ -31,7 +31,9 @@ from app.connectors.sheets.budget_models import (
     Installment,
     MonthlyTotals,
     NewInstallment,
+    RecordedEntry,
     SplitExpense,
+    SwileBalance,
 )
 from app.core.clock import paris_today
 
@@ -76,6 +78,7 @@ TOTAL_EXPENSES_ROW, TOTAL_INCOME_ROW, TOTAL_SAVED_ROW = 4, 5, 6  # lignes 5 à 7
 TOTAL_LINE_LABELS = {TOTAL_EXPENSES_ROW: "Total dépense", TOTAL_INCOME_ROW: "Total revenus", TOTAL_SAVED_ROW: "Total épargné"}
 TOTAL_FIRST_GROUP_ROW = 7  # ligne 8 : premier groupe, sans ligne vide avant lui
 INCOME_GROUP = "Revenus"
+SWILE_BALANCE_LABEL = "Reste Swile"  # ligne 9 de Gestion : solde Swile, colonne Prévu du mois
 ENTRY_CATEGORY_COL = "C"
 INSTALLMENT_ACTIVE, SPLIT_TO_PROCESS = "Actif", "A traiter"
 # Formats posés par l'Apps Script sur ses lignes (une ligne ajoutée par l'API n'hérite d'aucun format).
@@ -563,6 +566,49 @@ class BudgetConnector:
         self._invalidate_after_write(sheet)
         return row
 
+    def add_entries(self, sheet: str, entries: Sequence[BudgetEntry]) -> None:
+        """Plusieurs saisies d'un même onglet en une seule écriture (import Swile : quota Sheets de 60 requêtes/min)."""
+        if any(entry.sheet != sheet for entry in entries):
+            raise ValueError(f"add_entries : toutes les lignes doivent viser « {sheet} ».")
+        if not entries:
+            return
+        first = len(self._fresh_table(sheet)) + 2
+        last = first + len(entries) - 1
+        worksheet = self._worksheet(sheet)
+        if worksheet.row_count < last:
+            worksheet.add_rows(last - worksheet.row_count)
+        values = [[v.isoformat() if isinstance(v, date) else v for v in _cells(entry)] for entry in entries]
+        worksheet.update(
+            range_name=f"A{first}:{_column_letters(len(values[0]) - 1)}{last}", values=values,
+            value_input_option="USER_ENTERED",
+        )
+        self._invalidate_after_write(sheet)
+
+    def require_entry_rows(self, entries: Sequence[BudgetEntry]) -> Dict[str, List[int]]:
+        """Lignes (1-indexées) restées identiques, une par saisie (doublons inclus), par onglet relu une seule fois ;
+        erreur « supprimée ou modifiée depuis » pour la première introuvable."""
+        found: Dict[str, List[int]] = {}
+        tables: Dict[str, List[List[Any]]] = {}
+        for entry in entries:
+            if entry.sheet not in tables:
+                tables[entry.sheet] = self._fresh_table(entry.sheet)
+            taken = found.setdefault(entry.sheet, [])
+            rows, expected = tables[entry.sheet], _cells(entry)
+            row = next((index + 2 for index in range(len(rows) - 1, -1, -1)
+                        if index + 2 not in taken and _same_row(rows[index], expected)), None)
+            if row is None:
+                raise BudgetEntryChangedError(f"{_describe(entry)} dans « {entry.sheet} » : je n'y touche pas.")
+            taken.append(row)
+        return found
+
+    def delete_entries(self, entries: Sequence[BudgetEntry]) -> None:
+        """Supprime les saisies restées identiques, du bas vers le haut (les numéros de ligne restent valables)."""
+        for sheet, rows in self.require_entry_rows(entries).items():
+            worksheet = self._worksheet(sheet)
+            for row in sorted(rows, reverse=True):
+                worksheet.delete_rows(row)
+            self._invalidate_after_write(sheet)
+
     def delete_entry(self, record: WrittenRow) -> None:
         """Supprime la ligne écrite par Otis, seulement si elle est restée identique."""
         row = self.require_entry_row(record)
@@ -594,9 +640,83 @@ class BudgetConnector:
                 return index + 2
         raise BudgetEntryChangedError(f"{_describe(record)} dans « {sheet} » : je n'y touche pas.")
 
+    # --- Import Swile : lignes existantes et case « Reste Swile » --------------------------------
+
+    def get_entries(self, sheet: str) -> List[RecordedEntry]:
+        """Lignes datées et chiffrées de `Swile` ou `Revenus` (les lignes sans date ou sans montant sont ignorées)."""
+        entries = []
+        for index, row in enumerate(self._table(sheet), start=2):
+            day, amount = _cell(row, 0), _cell(row, 1)
+            if _is_blank(day) or _is_blank(amount):
+                continue
+            where = f"« {sheet} » ligne {index}"
+            entries.append(RecordedEntry(
+                day=self._date(day, where), amount=self._amount(amount, where), category=str(_cell(row, 2)).strip(),
+            ))
+        return entries
+
+    def get_swile_balance(self, month: Optional[BudgetMonth] = None, fresh: bool = False) -> SwileBalance:
+        """Case « Reste Swile » de `month` (sinon du mois actif) ; `fresh` : relue sans cache (avant une écriture)."""
+        month = month or self.get_active_month()
+        if fresh:
+            self.invalidate_cache(GESTION_SHEET)
+        rows = self._values(GESTION_SHEET)
+        row, col = self._swile_balance_cell(rows, month)
+        return SwileBalance(month=month, value=self._balance_value(rows, row, col))
+
+    def set_swile_balance(self, month: BudgetMonth, value: Optional[float], expected: Optional[float]) -> None:
+        """Écrit (ou vide, `value` None) la case du mois, seulement si elle vaut encore `expected` (relue à neuf)."""
+        self.invalidate_cache(GESTION_SHEET)
+        rows = self._values(GESTION_SHEET)
+        row, col = self._swile_balance_cell(rows, month)
+        found = self._balance_value(rows, row, col)
+        if found != expected:
+            raise BudgetEntryChangedError(
+                f"La case « {SWILE_BALANCE_LABEL} » de {month.label} vaut {_euros(found)} au lieu de "
+                f"{_euros(expected)} : modifiée depuis, je n'y touche pas."
+            )
+        self._worksheet(GESTION_SHEET).update(
+            range_name=f"{_column_letters(col)}{row + 1}", values=[["" if value is None else value]],
+            value_input_option="USER_ENTERED",
+        )
+        self.invalidate_cache(GESTION_SHEET)
+
+    def _swile_balance_cell(self, rows: List[List[Any]], month: BudgetMonth) -> Tuple[int, int]:
+        """(ligne, colonne) index 0 de la case Prévu du mois sur la ligne « Reste Swile » (en-tête de `Gestion`)."""
+        col = self._gestion_month_col(rows, month)
+        first_group = min(_row_groups(rows, GESTION_MONTHS_ROW + 1), default=len(rows))
+        labels = {index: str(_cell(rows[index], 0)).strip() for index in range(GESTION_MONTHS_ROW + 1, first_group)}
+        found = [index for index, label in labels.items() if normalize(label) == normalize(SWILE_BALANCE_LABEL)]
+        if len(found) != 1:
+            raise BudgetHeaderError(
+                f"Ligne « {SWILE_BALANCE_LABEL} » introuvable (ou en double) en tête de « {GESTION_SHEET} ». "
+                f"Lignes disponibles : {[label for label in labels.values() if label]}"
+            )
+        return found[0], col
+
+    def _balance_value(self, rows: List[List[Any]], row: int, col: int) -> Optional[float]:
+        value = _cell(rows[row], col)
+        if _is_blank(value):
+            return None
+        return self._amount(value, f"« {GESTION_SHEET} » {_column_letters(col)}{row + 1} ({SWILE_BALANCE_LABEL})")
+
     def _invalidate_after_write(self, title: str) -> None:
         self.invalidate_cache(title)
         self.invalidate_cache(GESTION_SHEET)
+
+
+def _column_letters(index: int) -> str:
+    """Lettres de colonne A1 d'un index 0 (0 → A, 26 → AA) : les mois de `Gestion` dépassent la colonne Z."""
+    letters = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        letters = chr(ord("A") + rest) + letters
+    return letters
+
+
+def _euros(value: Optional[float]) -> str:
+    return "vide" if value is None else f"{value:.2f} €".replace(".", ",")
 
 
 def _row_groups(rows: List[List[Any]], start: int) -> Dict[int, List[int]]:

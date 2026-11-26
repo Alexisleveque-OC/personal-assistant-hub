@@ -1,22 +1,12 @@
 """Service d'analyse multimodale de captures d'écran de séances de sport (Strava, Decathlon, Garmin)."""
-import base64
-from datetime import date, datetime, timedelta
-import json
-import logging
-import re
+from datetime import date
 from typing import Any, Dict, Optional
 
-import httpx
-
-from app.core.models import SportScreenshotAnalysisResult
-from app.core.llm.gemini_client import (
-    GEMINI_API_BASE_URL,
-    GeminiClient,
-    get_gemini_client,
-)
+from app.core.llm.gemini_client import GeminiClient, get_gemini_client
 from app.core.screenshot_date import parse_screenshot_date
+from app.core.vision.gemini_vision import VisionServiceUnavailableError, generate_vision_json
 
-logger = logging.getLogger(__name__)
+__all__ = ["GEMINI_SPORT_VISION_SCHEMA", "SportVisionService", "VisionServiceUnavailableError", "get_sport_vision_service"]
 
 GEMINI_SPORT_VISION_SCHEMA = {
     "type": "OBJECT",
@@ -95,10 +85,6 @@ GEMINI_SPORT_VISION_SCHEMA = {
 }
 
 
-class VisionServiceUnavailableError(RuntimeError):
-    """Gemini Vision est inaccessible (clé absente, quota, modèles indisponibles)."""
-
-
 class SportVisionService:
     """Service d'extraction de métriques sportives depuis des images de montres et d'applications."""
 
@@ -158,87 +144,13 @@ class SportVisionService:
 
         Lève VisionServiceUnavailableError si la clé est absente ou si tous les modèles échouent.
         """
-        client = self.gemini_client
-        if not client or not client.api_key:
-            raise VisionServiceUnavailableError(
-                "Analyse de capture impossible : aucune clé GEMINI_API_KEY n'est configurée sur le serveur."
-            )
-
-        prompt = self.build_prompt(reference_date)
-        b64_img = base64.b64encode(image_bytes).decode("utf-8")
-
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "inlineData": {
-                                "mimeType": mime_type,
-                                "data": b64_img,
-                            }
-                        },
-                        {"text": prompt},
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "responseSchema": GEMINI_SPORT_VISION_SCHEMA,
-                "temperature": 0.1,
-            },
-        }
-
-        # Meilleurs modèles d'abord (relais au modèle inférieur sur quota), complétés par une liste de secours
-        candidates = await client.premium_candidate_models() if hasattr(client, "premium_candidate_models") else []
-        preferred_models = [
-            "gemini-3.8-flash",
-            "gemini-3.5-flash",
-            "gemini-flash-latest",
-            "gemini-3.6-flash",
-            "gemini-3.7-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite",
-        ]
-        to_try: list[str] = []
-        for m in candidates + preferred_models:
-            clean = m.replace("models/", "").strip()
-            # Écarter les versions dépréciées (404)
-            if clean and clean not in to_try and not any(old in clean for old in ("2.5", "1.5", "2.0")):
-                to_try.append(clean)
-
-        failures: list[str] = []
-        async with httpx.AsyncClient(timeout=25.0) as http_client:
-            for model_name in to_try:
-                url = f"{GEMINI_API_BASE_URL}/models/{model_name}:generateContent"
-                try:
-                    resp = await http_client.post(url, headers={"x-goog-api-key": client.api_key}, json=payload)
-                except Exception as exc:
-                    logger.warning(f"[SportVisionService] Échec appel {model_name} : {exc}")
-                    failures.append(f"{model_name} ({type(exc).__name__}: {exc})")
-                    continue
-
-                if resp.status_code == 200:
-                    res_json = resp.json()
-                    cands = res_json.get("candidates", [])
-                    if not cands:
-                        failures.append(f"{model_name} (réponse sans candidat)")
-                        continue
-                    raw_text = cands[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                    parsed = json.loads(raw_text)
-                    if parsed.get("date"):
-                        parsed["date"] = parse_screenshot_date(parsed["date"], reference_date=reference_date).isoformat()
-                    return parsed
-
-                if resp.status_code in (429, 503) and hasattr(client, "mark_model_temporarily_unavailable"):
-                    client.mark_model_temporarily_unavailable(model_name, 30.0)
-                logger.warning(
-                    f"[SportVisionService] Modèle {model_name} erreur ({resp.status_code}): {resp.text[:150]}"
-                )
-                failures.append(f"{model_name} ({resp.status_code})")
-
-        raise VisionServiceUnavailableError(
-            "Tous les modèles Gemini Vision ont échoué : " + ", ".join(failures)
+        parsed = await generate_vision_json(
+            self.gemini_client, image_bytes, mime_type, self.build_prompt(reference_date), GEMINI_SPORT_VISION_SCHEMA,
+            tag="SportVisionService",
         )
+        if parsed.get("date"):
+            parsed["date"] = parse_screenshot_date(parsed["date"], reference_date=reference_date).isoformat()
+        return parsed
 
 
 _sport_vision_service_instance: Optional[SportVisionService] = None

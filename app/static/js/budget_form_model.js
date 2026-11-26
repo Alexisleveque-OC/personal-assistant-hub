@@ -63,7 +63,7 @@ export function removePart(form, index) {
 }
 
 // Nom tapé en entier (« course ») → nom exact de la liste ; "" s'il n'y est pas.
-function resolveCategory(choices, text) {
+export function resolveCategory(choices, text) {
   const q = normalizeName(text);
   const found = q && choices.flatMap((c) => c.names).find((name) => normalizeName(name) === q);
   return found ? found.trim() : "";

@@ -112,6 +112,19 @@ class BudgetEntry(BaseModel):
     label: str = Field(min_length=1, description="« Otis : <libellé dicté> » (Intitulé, ou Commentaires pour Swile).")
 
 
+class RecordedEntry(BaseModel):
+    """Ligne déjà présente dans `Swile` ou `Revenus` (recherche de doublons de l'import Swile)."""
+    day: date
+    amount: float
+    category: str
+
+
+class SwileBalance(BaseModel):
+    """Case « Reste Swile » de `Gestion`, colonne Prévu du mois ; `value` None si la case est vide."""
+    month: BudgetMonth
+    value: Optional[float] = None
+
+
 class NewInstallment(BaseModel):
     """Échéancier écrit par Otis dans `Échéanciers` (format de `createInstallment` : échéance actuelle 0, Actif).
 

@@ -4,7 +4,7 @@ from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.connectors.sheets.budget_models import BudgetEntry, EntrySheet, NewInstallment, SplitExpense
+from app.connectors.sheets.budget_models import BudgetEntry, BudgetMonth, EntrySheet, NewInstallment, SplitExpense
 from app.core.agent.tools.sport_models import StrictArgs
 
 # « appris » : nom de catégorie appris par la réponse à une question « lequel ? » (étape 5 bis)
@@ -214,7 +214,23 @@ class SplitMutation(BaseModel):
     undos: List[Union[SplitDeclaredUndo, BudgetAliasLearnedUndo]]
 
 
-BudgetUndo = Union[BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo, SplitDeclaredUndo]
+class SwileBalanceChange(BaseModel):
+    """Case « Reste Swile » remplacée par l'import : l'annulation remet `previous` (None = case vide)."""
+    month: BudgetMonth
+    previous: Optional[float] = None
+    written: float
+
+
+class SwileImportUndo(BaseModel):
+    """Import Swile entier (étape 8) : annulé d'un coup, refusé si une de ses lignes ou le solde a changé depuis."""
+    kind: Literal["budget_swile_import"] = "budget_swile_import"
+    entries: List[BudgetEntry] = Field(default_factory=list)
+    balance: Optional[SwileBalanceChange] = None
+
+
+BudgetUndo = Union[
+    BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo, SplitDeclaredUndo, SwileImportUndo,
+]
 
 
 class ForgetBudgetAliasArgs(StrictArgs):

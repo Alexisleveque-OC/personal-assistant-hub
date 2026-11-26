@@ -31,6 +31,7 @@ from app.routers.pwa import router as pwa_router, mount_static_files
 from app.routers.wake_word import router as wake_word_router
 from app.routers.tasks import router as tasks_router
 from app.routers.budget import router as budget_router
+from app.routers.budget_swile import router as budget_swile_router
 
 
 # Réexports rétrocompatibles des dépendances et singletons pour les tests
@@ -135,6 +136,7 @@ app.include_router(mobile_router)
 app.include_router(meals_router)
 app.include_router(tasks_router)
 app.include_router(budget_router)
+app.include_router(budget_swile_router)
 app.include_router(sport_router)
 app.include_router(sport_screenshot_router)
 app.include_router(strava_router)

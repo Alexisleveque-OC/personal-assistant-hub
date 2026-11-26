@@ -55,6 +55,7 @@ from app.core.agent.tools.budget_models import (
     InstallmentView,
     PredeclareSplitExpenseArgs,
     SplitDeclaredUndo,
+    SwileImportUndo,
     SplitExpenseView,
     SplitMutation,
     SplitPartView,
@@ -340,6 +341,9 @@ class BudgetTools:
 
     @staticmethod
     def undo_targets(undo: BudgetUndo) -> List[tuple]:
+        if isinstance(undo, SwileImportUndo):
+            targets = [("budget_entry", e.sheet, e.day, e.amount, e.label) for e in undo.entries]
+            return targets + ([("budget_swile_balance", undo.balance.month)] if undo.balance else [])
         if isinstance(undo, InstallmentAddedUndo):
             i = undo.installment
             return [("budget_installment", i.name, i.total_amount, i.count, i.start_month)]
@@ -350,13 +354,38 @@ class BudgetTools:
 
     def check_undo(self, undo: BudgetUndo) -> None:
         """Annulation refusée si la ligne a été supprimée ou modifiée depuis (retrouvée par son contenu)."""
+        if isinstance(undo, SwileImportUndo):
+            self._check_swile_import(undo)
+            return
         try:
             self.connector.require_entry_row(_written(undo))
         except BudgetConnectorError as exc:
             raise BudgetToolError(f"Annulation impossible : {exc}") from exc
 
+    def _check_swile_import(self, undo: SwileImportUndo) -> None:
+        try:
+            self.connector.require_entry_rows(undo.entries)
+            if undo.balance is not None:
+                current = self.connector.get_swile_balance(undo.balance.month, fresh=True)
+                if current.value != undo.balance.written:
+                    raise BudgetToolError(
+                        f"Annulation impossible : la case « Reste Swile » de {undo.balance.month.label} a été modifiée "
+                        "depuis l'import."
+                    )
+        except BudgetConnectorError as exc:
+            raise BudgetToolError(f"Annulation impossible : {exc}") from exc
+
+    def _undo_swile_import(self, undo: SwileImportUndo) -> str:
+        self.connector.delete_entries(undo.entries)
+        if undo.balance is not None:
+            self.connector.set_swile_balance(undo.balance.month, undo.balance.previous, expected=undo.balance.written)
+        balance = " et solde Swile remis" if undo.balance else ""
+        return f"import Swile annulé ({len(undo.entries)} ligne(s) supprimée(s){balance})"
+
     def apply_undo(self, undo: BudgetUndo) -> str:
         try:
+            if isinstance(undo, SwileImportUndo):
+                return self._undo_swile_import(undo)
             if isinstance(undo, InstallmentAddedUndo):
                 self.connector.delete_entry(undo.installment)
                 return f"échéancier « {undo.installment.name} » supprimé du budget"

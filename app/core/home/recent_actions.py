@@ -77,8 +77,19 @@ def _budget_label(kind: str, a: Dict[str, Any]) -> str:
     return f"{kind} {verb}" + (f" : {details}" if details else "")
 
 
+def swile_import_label(form: Dict[str, Any]) -> str:
+    """« Import Swile : 3 lignes, solde 95,64 € » (étape 8)."""
+    count = len(form.get("lignes") or [])
+    parts = [f"{count} ligne{'s' if count > 1 else ''}"] if count else []
+    if form.get("solde") is not None:
+        parts.append(f"solde {_euros(form['solde'])}")
+    return "Import Swile : " + ", ".join(parts)
+
+
 def budget_form_label(form: Dict[str, Any]) -> str:
     """Saisie d'un formulaire de l'écran Budget (étapes 7b, 7c) : même libellé que la saisie vocale."""
+    if form.get("type") == "swile":
+        return swile_import_label(form)
     if form.get("type") in _PLAN_FORM_TOOLS:
         return _TOOL_LABELS[_PLAN_FORM_TOOLS[form["type"]]](form)
     if form.get("type") == "revenu":
