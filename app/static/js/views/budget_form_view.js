@@ -1,14 +1,31 @@
-// Feuille Budget : formulaire Dépense / Revenu (Phase 10, étape 7b), en feuille empilée.
-// Mêmes écritures que la voix (« Otis : <libellé> ») ; la saisie va au journal : toast « Annuler » juste après,
-// puis annulable depuis « Dernières actions » (refus si la ligne a changé depuis). Décisions du 26/11.
-// Catégorie : champ texte avec suggestions (combobox ARIA) plutôt qu'une liste déroulante trop longue.
-import { addBudgetEntry, undoRecentAction } from "../api.js";
+// Feuille Budget : formulaires en onglets (Phase 10) — Dépense / Revenu (7b), Échéancier et Dépense multiple (7c),
+// en feuille empilée. Mêmes écritures que la voix ; chaque saisie va au journal : toast « Annuler » juste après, puis
+// annulable depuis « Dernières actions » (refus si la ligne a changé depuis). Décisions du 26/11.
+// Catégories : champs texte avec suggestions (budget_combo.js) plutôt qu'une liste déroulante trop longue.
+import { addBudgetEntry, addBudgetInstallment, addBudgetSplitExpense, undoRecentAction } from "../api.js";
 import { getActiveSessionId } from "../config.js";
 import { showToastSuccess, showToastError } from "../toast.js";
-import { emptyBudgetForm, categoryChoices, budgetFormToPayload, matchCategories } from "../budget_form_model.js";
-import { el } from "./sport/dom.js";
+import { formatEuros } from "../budget_model.js";
+import {
+  emptyBudgetForm, categoryChoices, budgetFormToPayload, splitRemainder, fillRemainder, addPart, removePart,
+} from "../budget_form_model.js";
+import { bindCombo } from "./budget_combo.js";
+import { el, button } from "./sport/dom.js";
 
 export const BUDGET_FORM_SHEET_ID = "view-budget-form";
+
+const SEND = { depense: addBudgetEntry, revenu: addBudgetEntry, echeancier: addBudgetInstallment, multiple: addBudgetSplitExpense };
+const TEXT_FIELDS = {
+  montant: "budget-form-montant", categorie: "budget-form-categorie", libelle: "budget-form-libelle",
+  date: "budget-form-date", nom: "budget-form-nom", motCle: "budget-form-mot-cle",
+  nbEcheances: "budget-form-nb-echeances", moisDebut: "budget-form-mois-debut", commentaire: "budget-form-commentaire",
+};
+const LABELS = {
+  depense: { montant: "Montant (€)", date: "Date", categorie: "Catégorie", hint: "Tape « cour », « resto »…" },
+  revenu: { montant: "Montant (€)", date: "Date", categorie: "Type de revenu", hint: "Tape « caf », « salaire »…" },
+  echeancier: { montant: "Montant total (€)", date: "Date", categorie: "Catégorie", hint: "Tape « cour », « loisir »…" },
+  multiple: { montant: "Montant total débité (€)", date: "Date prévue du débit", categorie: "Catégorie", hint: "" },
+};
 
 let manager = null;
 let overview = null; // dernière vue d'ensemble chargée : source des catégories
@@ -17,6 +34,8 @@ let saving = false;
 let onChanged = () => {};
 
 const $ = (id) => document.getElementById(id);
+const scroller = () => document.querySelector(`#${BUDGET_FORM_SHEET_ID} .sheet__body`);
+const choices = () => categoryChoices(overview || {}, form.type);
 
 const todayIso = () => {
   const d = new Date();
@@ -27,66 +46,95 @@ function renderType() {
   $("budget-form-type").querySelectorAll("button[data-type]").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.type === form.type));
   });
-  const income = form.type === "revenu";
-  $("budget-form-categorie-label").textContent = income ? "Type de revenu" : "Catégorie";
-  $("budget-form-expense-options").hidden = income;
-  $("budget-form-categorie").placeholder = income ? "Tape « caf », « salaire »…" : "Tape « cour », « resto »…";
-  $("budget-form-categorie").value = form.categorie;
-  hideSuggestions();
-}
-
-const choices = () => categoryChoices(overview || {}, form.type);
-
-function hideSuggestions() {
-  $("budget-form-suggestions").hidden = true;
-  $("budget-form-categorie").setAttribute("aria-expanded", "false");
-}
-
-function pick(name) {
-  $("budget-form-categorie").value = name;
-  hideSuggestions();
-  $("budget-form-libelle").focus();
-}
-
-// Le clavier couvre le bas de l'écran : pendant la saisie de la catégorie, le formulaire réserve de la place en bas
-// (classe `is-searching`) et la feuille défile pour placer le champ juste sous son en-tête (retour du 26/11).
-function liftField() {
-  const body = document.querySelector(`#${BUDGET_FORM_SHEET_ID} .sheet__body`);
-  const combo = $("budget-form-categorie").closest(".budget-combo");
-  body.scrollTop += combo.getBoundingClientRect().top - body.getBoundingClientRect().top;
-}
-
-function showSuggestions() {
-  const matches = matchCategories(choices(), $("budget-form-categorie").value);
-  const options = matches.map(({ name, group }, index) => {
-    const option = el("li");
-    option.id = `budget-form-suggestion-${index}`;
-    option.setAttribute("role", "option");
-    option.append(el("span", null, name), el("small", null, group));
-    option.addEventListener("click", () => pick(name));
-    return option;
+  $("budget-form").querySelectorAll("[data-types]").forEach((node) => {
+    node.hidden = !node.dataset.types.split(" ").includes(form.type);
   });
-  $("budget-form-suggestions").replaceChildren(...options);
-  $("budget-form-suggestions").hidden = options.length === 0;
-  $("budget-form-categorie").setAttribute("aria-expanded", String(options.length > 0));
-  if (options.length) liftField();
+  const labels = LABELS[form.type];
+  $("budget-form-montant-label").textContent = labels.montant;
+  $("budget-form-date-label").textContent = labels.date;
+  $("budget-form-categorie-label").textContent = labels.categorie;
+  $("budget-form-categorie").placeholder = labels.hint;
+  $("budget-form-categorie").value = form.categorie;
+  renderParts();
 }
+
+// ---------- Dépense multiple : parts et reste à répartir ----------
+
+function renderRemainder() {
+  const remainder = splitRemainder(form);
+  const box = $("budget-form-remainder");
+  box.textContent = remainder >= 0 ? `Reste à répartir : ${formatEuros(remainder)}` : `En trop : ${formatEuros(-remainder)}`;
+  box.classList.toggle("budget-parts__remainder--off", remainder < 0);
+}
+
+function partRow(part, index) {
+  const row = el("div", "budget-part");
+  const category = el("input", "input");
+  category.type = "text";
+  category.id = `budget-part-${index}-categorie`;
+  category.placeholder = "Catégorie";
+  category.autocomplete = "off";
+  category.setAttribute("autocapitalize", "off");
+  category.setAttribute("aria-label", `Catégorie de la part ${index + 1}`);
+  category.value = part.categorie;
+  const amount = el("input", "input");
+  amount.type = "text";
+  amount.inputMode = "decimal";
+  amount.id = `budget-part-${index}-montant`;
+  amount.placeholder = "€";
+  amount.autocomplete = "off";
+  amount.setAttribute("aria-label", `Montant de la part ${index + 1}`);
+  amount.value = part.montant;
+  const list = el("ul", "budget-combo__list");
+  list.id = `budget-part-${index}-suggestions`;
+  list.hidden = true;
+  const rest = button("btn budget-part__rest", "Reste", `Mettre le reste dans la part ${index + 1}`);
+  const remove = button("icon-btn", "×", `Retirer la part ${index + 1}`);
+  remove.disabled = form.parts.length <= 1;
+
+  category.addEventListener("input", () => { form.parts[index].categorie = category.value; });
+  category.addEventListener("change", () => { form.parts[index].categorie = category.value; });
+  amount.addEventListener("input", () => {
+    form.parts[index].montant = amount.value;
+    renderRemainder();
+  });
+  rest.addEventListener("click", () => {
+    readFields();
+    form = fillRemainder(form, index);
+    renderParts();
+  });
+  remove.addEventListener("click", () => {
+    readFields();
+    form = removePart(form, index);
+    renderParts();
+  });
+  bindCombo({
+    input: category, list, anchor: row, form: $("budget-form"), scroller: scroller(), getChoices: choices,
+    onPick: () => amount.focus(),
+  });
+  const actions = el("div", "budget-part__actions");
+  actions.append(rest, remove);
+  row.append(category, amount, actions, list);
+  return row;
+}
+
+function renderParts() {
+  $("budget-form-parts").replaceChildren(...form.parts.map(partRow));
+  renderRemainder();
+}
+
+// ---------- Lecture, erreurs, envoi ----------
 
 function render() {
-  renderType();
-  $("budget-form-montant").value = form.montant;
-  $("budget-form-libelle").value = form.libelle;
-  $("budget-form-date").value = form.date;
+  Object.entries(TEXT_FIELDS).forEach(([key, id]) => { $(id).value = form[key]; });
   $("budget-form-swile").checked = form.swile;
   $("budget-form-remboursement").checked = form.remboursement;
+  renderType();
   showErrors([]);
 }
 
 function readFields() {
-  form.montant = $("budget-form-montant").value;
-  form.categorie = $("budget-form-categorie").value;
-  form.libelle = $("budget-form-libelle").value;
-  form.date = $("budget-form-date").value;
+  Object.entries(TEXT_FIELDS).forEach(([key, id]) => { form[key] = $(id).value; });
   form.swile = $("budget-form-swile").checked;
   form.remboursement = $("budget-form-remboursement").checked;
 }
@@ -124,7 +172,7 @@ async function save(e) {
   saving = true;
   document.querySelectorAll(`#${BUDGET_FORM_SHEET_ID} [type="submit"]`).forEach((b) => { b.disabled = true; });
   try {
-    const res = await addBudgetEntry(payload);
+    const res = await SEND[form.type](payload);
     showToastSuccess(res.message, "Budget", { action: { label: "Annuler", onClick: () => undo(res.action_id) } });
     manager.closeTop();
     onChanged();
@@ -141,24 +189,28 @@ export function initBudgetForm(sheetManager, { changed }) {
   manager = sheetManager;
   onChanged = changed;
   $("budget-form").addEventListener("submit", save);
-  const input = $("budget-form-categorie");
-  input.addEventListener("input", showSuggestions);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") hideSuggestions();
+  bindCombo({
+    input: $("budget-form-categorie"), list: $("budget-form-suggestions"),
+    anchor: $("budget-form-categorie").closest(".budget-combo"), form: $("budget-form"), scroller: scroller(),
+    getChoices: choices, onPick: () => (form.type === "echeancier" ? $("budget-form-mois-debut") : $("budget-form-libelle")).focus(),
   });
-  // Le toucher d'une suggestion ne doit pas d'abord fermer la liste (perte de focus du champ).
-  $("budget-form-suggestions").addEventListener("pointerdown", (e) => e.preventDefault());
-  input.addEventListener("focus", () => $("budget-form").classList.add("is-searching"));
-  input.addEventListener("blur", () => {
-    hideSuggestions();
-    $("budget-form").classList.remove("is-searching");
+  $("budget-form-montant").addEventListener("input", () => {
+    form.montant = $("budget-form-montant").value;
+    renderRemainder();
+  });
+  $("btn-budget-add-part").addEventListener("click", () => {
+    readFields();
+    form = addPart(form);
+    renderParts();
+    $(`budget-part-${form.parts.length - 1}-categorie`).focus();
   });
   $("budget-form-type").addEventListener("click", (e) => {
     const choice = e.target.closest("button[data-type]");
     if (!choice || choice.dataset.type === form.type) return;
     readFields();
+    const wasIncome = form.type === "revenu";
     form.type = choice.dataset.type;
-    form.categorie = ""; // les listes Dépense et Revenu n'ont aucune catégorie en commun
+    if (wasIncome || form.type === "revenu") form.categorie = ""; // aucune catégorie commune avec les revenus
     renderType();
   });
 }

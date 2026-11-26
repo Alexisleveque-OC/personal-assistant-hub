@@ -230,7 +230,18 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 /* Feuille Budget (Phase 10, étape 7a) : épargné + graphique Dépenses vs Revenus, groupes repliables */
 .budget { display: flex; flex-direction: column; gap: 10px; }
 .budget-form__options { display: flex; flex-direction: column; gap: var(--s-3); }
-.budget-form__options[hidden] { display: none; }
+#budget-form [hidden] { display: none; }
+.budget-form__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+.budget-form__tabs > button { padding: 0 4px; font-size: var(--fs-sm); }
+.budget-parts { display: flex; flex-direction: column; gap: var(--s-2); margin: 0; padding: 0; border: 0; }
+.budget-parts legend { padding: 0; margin-bottom: var(--s-2); font-size: var(--fs-sm); font-weight: 700; color: var(--muted); }
+.budget-part { display: grid; grid-template-columns: minmax(0, 1fr) 72px auto; gap: 6px; align-items: start; }
+.budget-part .budget-combo__list { grid-column: 1 / -1; }
+.budget-part__actions { display: flex; gap: 4px; }
+.budget-part__actions .btn { padding: 0 10px; }
+.budget-part .icon-btn { width: 36px; }
+.budget-parts__remainder { margin: 0; font-size: var(--fs-sm); font-weight: 700; color: var(--muted); }
+.budget-parts__remainder--off { color: var(--danger); }
 .budget-combo { position: relative; }
 .form.is-searching { padding-bottom: 70vh; } /* place pour remonter le champ au-dessus du clavier */
 .budget-combo__list { list-style: none; margin: 4px 0 0; padding: 4px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--card-2); }

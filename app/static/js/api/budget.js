@@ -12,10 +12,10 @@ export async function fetchBudgetOverview() {
   return await res.json();
 }
 
-// Formulaire Dépense / Revenu (étape 7b) : 201 avec `action_id` (annulable via « Dernières actions »),
-// 422 catégorie refusée ou champ invalide (rien n'est écrit), 503 / 502 comme la lecture.
-export async function addBudgetEntry(payload) {
-  const res = await fetch("/api/v1/budget/entries", {
+// Formulaires (étapes 7b, 7c) : 201 avec `message` et `action_id` (annulable via « Dernières actions »),
+// 422 saisie refusée (catégorie, somme des parts…, rien n'est écrit), 503 / 502 comme la lecture.
+async function postBudgetForm(path, payload) {
+  const res = await fetch(`/api/v1/budget/${path}`, {
     method: "POST", headers: getAuthHeaders(), body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -25,3 +25,7 @@ export async function addBudgetEntry(payload) {
   }
   return await res.json();
 }
+
+export const addBudgetEntry = (payload) => postBudgetForm("entries", payload);
+export const addBudgetInstallment = (payload) => postBudgetForm("installments", payload);
+export const addBudgetSplitExpense = (payload) => postBudgetForm("split-expenses", payload);
