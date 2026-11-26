@@ -2,7 +2,7 @@
 // Choix de catégorie : groupes de la liste pour une dépense, types du groupe Revenus pour un revenu (décision du 26/11).
 // Champ texte avec suggestions (retour du 26/11 : liste déroulante trop longue) : sans accents ni casse.
 
-const MAX_SUGGESTIONS = 8;
+const MAX_SUGGESTIONS = 5; // le clavier du téléphone couvre le bas de l'écran (retour du 26/11)
 
 function normalizeName(text) {
   return String(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/\s+/g, " ");

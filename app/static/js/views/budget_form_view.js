@@ -48,6 +48,14 @@ function pick(name) {
   $("budget-form-libelle").focus();
 }
 
+// Le clavier couvre le bas de l'écran : pendant la saisie de la catégorie, le formulaire réserve de la place en bas
+// (classe `is-searching`) et la feuille défile pour placer le champ juste sous son en-tête (retour du 26/11).
+function liftField() {
+  const body = document.querySelector(`#${BUDGET_FORM_SHEET_ID} .sheet__body`);
+  const combo = $("budget-form-categorie").closest(".budget-combo");
+  body.scrollTop += combo.getBoundingClientRect().top - body.getBoundingClientRect().top;
+}
+
 function showSuggestions() {
   const matches = matchCategories(choices(), $("budget-form-categorie").value);
   const options = matches.map(({ name, group }, index) => {
@@ -61,6 +69,7 @@ function showSuggestions() {
   $("budget-form-suggestions").replaceChildren(...options);
   $("budget-form-suggestions").hidden = options.length === 0;
   $("budget-form-categorie").setAttribute("aria-expanded", String(options.length > 0));
+  if (options.length) liftField();
 }
 
 function render() {
@@ -139,7 +148,11 @@ export function initBudgetForm(sheetManager, { changed }) {
   });
   // Le toucher d'une suggestion ne doit pas d'abord fermer la liste (perte de focus du champ).
   $("budget-form-suggestions").addEventListener("pointerdown", (e) => e.preventDefault());
-  input.addEventListener("blur", hideSuggestions);
+  input.addEventListener("focus", () => $("budget-form").classList.add("is-searching"));
+  input.addEventListener("blur", () => {
+    hideSuggestions();
+    $("budget-form").classList.remove("is-searching");
+  });
   $("budget-form-type").addEventListener("click", (e) => {
     const choice = e.target.closest("button[data-type]");
     if (!choice || choice.dataset.type === form.type) return;

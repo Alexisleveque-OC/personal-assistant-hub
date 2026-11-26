@@ -232,9 +232,10 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 .budget-form__options { display: flex; flex-direction: column; gap: var(--s-3); }
 .budget-form__options[hidden] { display: none; }
 .budget-combo { position: relative; }
+.form.is-searching { padding-bottom: 70vh; } /* place pour remonter le champ au-dessus du clavier */
 .budget-combo__list { list-style: none; margin: 4px 0 0; padding: 4px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--card-2); }
 .budget-combo__list[hidden] { display: none; }
-.budget-combo__list [role="option"] { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); min-height: 44px; padding: 0 12px; border-radius: var(--r-sm); cursor: pointer; font-weight: 700; }
+.budget-combo__list [role="option"] { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); min-height: 40px; padding: 0 12px; border-radius: var(--r-sm); cursor: pointer; font-weight: 700; }
 .budget-combo__list [role="option"]:active, .budget-combo__list [aria-selected="true"] { background: var(--border-strong); }
 .budget-combo__list small { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
 .budget-summary { gap: var(--s-2); padding: 14px 14px 10px; }

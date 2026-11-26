@@ -118,6 +118,10 @@ def test_entry_form_writes_an_expense_then_the_toast_undoes_it(page, isolate_sql
         page.fill("#budget-form-montant", "12,50")
         page.fill("#budget-form-categorie", "cour")
         assert page.get_attribute("#budget-form-categorie", "aria-expanded") == "true"
+        # Le clavier du téléphone couvre le bas de l'écran : le champ remonte sous l'en-tête de la feuille.
+        gap = page.evaluate("""() => document.querySelector('.budget-combo').getBoundingClientRect().top
+            - document.querySelector('#view-budget-form .sheet__body').getBoundingClientRect().top""")
+        assert 0 <= gap <= 16, gap
         page.click("#budget-form-suggestions [role='option']:has-text('Course')")
         assert page.input_value("#budget-form-categorie") == "Course"
         assert page.is_hidden("#budget-form-suggestions")
