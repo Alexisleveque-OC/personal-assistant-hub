@@ -2,14 +2,16 @@
 // En tête : épargné du mois actif et graphique Dépenses vs Revenus par mois (toucher une colonne affiche ses montants).
 // Puis les groupes de `Gestion`, repliés à l'ouverture (décision du 25/11) : par catégorie, le reste total et
 // « ce mois : dépensé X / budget Y » avec sa barre. Saisie : barre d'Otis, ou bouton « + » de l'en-tête qui ouvre le
-// formulaire Dépense / Revenu (étape 7b).
+// formulaire Dépense / Revenu (étape 7b) ; bouton appareil photo : import Swile par captures (étape 8).
 import { fetchBudgetOverview } from "../api.js";
 import { budgetSheet } from "../budget_model.js";
 import { initBudgetForm, openBudgetForm, setBudgetFormOverview } from "./budget_form_view.js";
+import { initBudgetSwile } from "./budget_swile_view.js";
 import { el, button } from "./sport/dom.js";
 
 const container = document.getElementById("budget-container");
 const monthLabel = document.getElementById("budget-month");
+let lastOverview = null; // catégories proposées par les formulaires
 
 function note(text, className = "muted") {
   return el("p", `shopping-note ${className}`, text);
@@ -20,6 +22,7 @@ export async function loadBudget() {
   container.replaceChildren(note("Chargement du budget…"));
   try {
     const overview = await fetchBudgetOverview();
+    lastOverview = overview;
     setBudgetFormOverview(overview);
     render(budgetSheet(overview));
   } catch (err) {
@@ -30,6 +33,7 @@ export async function loadBudget() {
 
 export function initBudget(manager) {
   initBudgetForm(manager, { changed: loadBudget });
+  initBudgetSwile(manager, { overview: () => lastOverview, changed: loadBudget });
   const add = document.getElementById("btn-budget-add");
   if (add) add.addEventListener("click", () => openBudgetForm(add));
 }

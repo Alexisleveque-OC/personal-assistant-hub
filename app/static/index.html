@@ -219,6 +219,8 @@
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
         <h2 class="sheet__title" id="view-budget-title">Budget <small id="budget-month"></small></h2>
+        <button type="button" class="icon-btn" id="btn-budget-swile" aria-label="Importer Swile" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+        <input type="file" id="budget-swile-file" accept="image/*" multiple hidden>
         <button type="button" class="icon-btn" id="btn-budget-add" aria-label="Noter une dépense ou un revenu" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
@@ -298,6 +300,29 @@
             </label>
           </div>
           <p class="sport-form__errors" id="budget-form-errors" role="alert" hidden></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- BUDGET — relecture de l'import Swile par captures (étape 8, feuille empilée, views/budget_swile_view.js) -->
+    <section class="sheet sheet--stacked" id="view-budget-swile" role="dialog" aria-modal="true" aria-labelledby="budget-swile-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header sport-form__header">
+        <button type="button" class="btn" data-sheet-close>Annuler</button>
+        <h2 class="sport-form__title" id="budget-swile-title">Import Swile</h2>
+        <span aria-hidden="true"></span>
+      </div>
+      <div class="sheet__body">
+        <form class="form budget-swile" id="budget-swile-form" novalidate>
+          <p class="shopping-note muted" id="budget-swile-status" aria-live="polite"></p>
+          <ul class="budget-swile__warnings" id="budget-swile-warnings" hidden></ul>
+          <label class="settings-row" id="budget-swile-balance-row" hidden>
+            <span class="settings-row__text" id="budget-swile-balance"></span>
+            <span class="switch"><input type="checkbox" id="budget-swile-balance-check" /><span></span></span>
+          </label>
+          <div class="budget-swile__lines" id="budget-swile-lines"></div>
+          <p class="sport-form__errors" id="budget-swile-errors" role="alert" hidden></p>
+          <button type="submit" class="btn btn--primary" id="btn-budget-swile-import" disabled>Rien à importer</button>
         </form>
       </div>
     </section>

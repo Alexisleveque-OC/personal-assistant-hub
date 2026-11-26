@@ -1,6 +1,7 @@
 """Relecture d'un import Swile (sans écriture) : captures lues → lignes datées, catégorisées, doublons signalés.
 
-Décisions utilisateur du 26/11 : catégorie par `Tri auto` puis noms appris ; crédit → « Ticket resto » ; doublon =
+Décisions utilisateur du 26/11 : catégorie par `Tri auto` (mot-clé contenu dans le marchand ou l'inverse) puis noms
+appris ; crédit → « Ticket resto » ; doublon =
 même montant à ±3 jours dans `Swile` (dépense) ou `Revenus` (crédit), une ligne du classeur ne couvrant qu'une ligne
 capturée ; lignes identiques de plusieurs captures fusionnées ; lignes illisibles ignorées et signalées.
 """
@@ -92,9 +93,12 @@ class _Categorizer:
         if line.type == "credit":
             return self._credit
         merchant = f" {normalize(line.marchand)} "
+        # Dans les deux sens, comme `resolve_category` : les mots-clés de `Tri auto` sont des libellés bancaires
+        # (« intermarche la jarrie »), souvent plus longs que le nom affiché par Swile (« Intermarche »).
         by_rule = {
             normalize(rule.category) for rule in self._rules
-            if normalize(rule.keyword) and f" {normalize(rule.keyword)} " in merchant
+            if normalize(rule.keyword)
+            and (f" {normalize(rule.keyword)} " in merchant or merchant in f" {normalize(rule.keyword)} ")
         }
         if len(by_rule) == 1:
             return self._expenses.get(by_rule.pop())  # None si la règle vise un groupe ou une catégorie terminée

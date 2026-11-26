@@ -238,3 +238,22 @@ def test_empty_file_is_refused():
     install()
     res = client.post("/api/v1/budget/swile/analyze", files=[("files", ("a.jpg", BytesIO(b""), "image/jpeg"))])
     assert res.status_code == 400
+
+
+def test_a_merchant_contained_in_a_bank_keyword_takes_its_category():
+    """Vrai `Tri auto` (relevé le 26/11) : mots-clés de libellés bancaires (« intermarche la jarrie »), plus longs que
+    le nom affiché par Swile ; même rapprochement dans les deux sens que la saisie vocale (`resolve_category`)."""
+    install(BudgetSheetState(
+        groups=STATE.groups, categories=STATE.categories,
+        auto_sort=(("intermarche la jarrie", "Course"), ("burger king la rochelle", "Restaurant")),
+    ))
+
+    res = analyze(SwileCapture(is_swile=True, lignes=[
+        line("Intermarche", "Hier, 17:35", -12.81), line("Burger King", "Hier, 12:44", -30.7),
+        line("Inter", "Hier, 10:00", -3.0),  # mot partiel : pas de rapprochement
+    ]))
+
+    lines = by_merchant(res.json())
+    assert lines["Intermarche"]["categorie"] == "Course"
+    assert lines["Burger King"]["categorie"] == "Restaurant"
+    assert lines["Inter"]["categorie"] is None
