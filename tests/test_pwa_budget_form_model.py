@@ -93,9 +93,10 @@ def test_suggestions_ignore_accents_and_case_and_put_name_starts_first():
     assert _matches("ca", "revenu") == [{"name": "CAF", "group": "Revenus"}]
 
 
-def test_suggestions_are_capped_at_eight():
+def test_suggestions_are_capped_at_five():
+    """Retour du 26/11 (téléphone) : le clavier masque le bas de la liste ; peu de lignes, champ remonté."""
     out = _run("""
 const choices = [{ group: "G", names: Array.from({ length: 12 }, (_, i) => `Cat ${i}`) }];
 console.log(JSON.stringify(matchCategories(choices, "cat").length));
 """)
-    assert out == 8
+    assert out == 5
