@@ -64,6 +64,7 @@ personal-assistant-hub/
 │   │   ├── wake_word.py         # Modèle Vosk du mot-clé « Otis » servi en flux (/vosk/model.tar.gz)
 │   │   ├── meals.py             # Planning repas & ingrédients (/api/v1/meals/*)
 │   │   ├── tasks.py             # Onglet Tâches : lire, ajouter, cocher / rouvrir (/api/v1/tasks/*)
+│   │   ├── budget.py            # Écran Budget : suivi & formulaires de saisie (/api/v1/budget/*)
 │   │   ├── sport.py             # Séances, synthèses hebdo, dashboard (/api/v1/sport/*)
 │   │   ├── strava.py            # Ingestion & webhooks Strava (/api/v1/integrations/strava/*)
 │   │   └── mobile.py            # Adaptateur vocal, audio direct & webhooks (/api/v1/interact/*)
@@ -129,7 +130,7 @@ personal-assistant-hub/
 
 ### 📱 3. Interface Mobile Vocale PWA & Conteneurisation — [🟢 Opérationnel]
 * **Web App PWA installable & Offline Outbox :** Micro réactif, synthèse vocale (TTS), Service Worker versionné avec mise en cache.
-* **Interface refondue (menu burger & feuilles) :** accueil à bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche) et « Dernières actions » : chacune des 3 dernières actions faites depuis ce téléphone s'annule d'un tap, sans passer par Otis (`POST /api/v1/home/recent-actions/{id}/undo`), refusée avec la raison si les données ont changé depuis ; une action annulée reste affichée, marquée « Annulée » ; chaque section (Courses, Repas, Tâches, Sport, Trophées, Second cerveau, Journal, Réglages) s'ouvre en feuille qui monte du bas, empilable (détail de séance, formulaire, trophées) ; une seule barre de saisie suit la feuille ouverte et transmet son contexte à Otis ; thème clair/sombre mémorisé ; raccourcis `?action=` du manifeste.
+* **Interface refondue (menu burger & feuilles) :** accueil à bulles (Ce soir, Sport du jour, À acheter, Prochaine tâche) et « Dernières actions » : chacune des 3 dernières actions faites depuis ce téléphone s'annule d'un tap, sans passer par Otis (`POST /api/v1/home/recent-actions/{id}/undo`), refusée avec la raison si les données ont changé depuis ; une action annulée reste affichée, marquée « Annulée » ; chaque section (Courses, Repas, Tâches, Sport, Trophées, Budget, Second cerveau, Journal, Réglages) s'ouvre en feuille qui monte du bas, empilable (détail de séance, formulaire, trophées) ; une seule barre de saisie suit la feuille ouverte et transmet son contexte à Otis ; thème clair/sombre mémorisé ; raccourcis `?action=` du manifeste.
 * **File d'Attente Hors-Ligne & Auto-Retry :** Persistance locale robuste (IndexedDB) pour sauvegarder les messages texte et vocaux en zone blanche ou forêt, avec rejeu automatique et fluide dès le retour de la 4G/WiFi.
 * **Audio Focus & Ducking Casque (Mode Running) :** Atténuation du volume casque (musique/podcast) uniquement pendant la prise de parole d'Otis ou lors d'un enregistrement, sans bloquer le son en arrière-plan.
 * **Mot-clé « Otis » détecté sur le téléphone (Vosk) :** écoute sur micro brut sans traitements audio, la musique n'est plus coupée pendant l'attente du mot-clé (validé sur Android). « Otis » → bip → dictée.
@@ -151,13 +152,15 @@ personal-assistant-hub/
 * **Feuille « Tâches » de la PWA :** tâches par échéance (en retard, cette semaine, plus tard, sans date), sous-tâches groupées, ajout avec date et heure (heure = événement Agenda de 30 min), cochage immédiat avec « Annuler ».
 * **Cache 3 min** partagé par la voix et l'onglet, invalidé à chaque écriture (quotas Google, réponses rapides).
 
-### 💰 6. Budget (Google Sheets) — [🟢 Opérationnel à la voix]
+### 💰 6. Budget (Google Sheets) — [🟢 Opérationnel, voix & PWA]
 * **Classeur existant inchangé :** Otis lit et alimente le classeur budget (`SPREADSHEET_BUDGET_ID`) en écrivant **le même format** que les formulaires de l'Apps Script « Budget » (import bancaire, échéanciers, dépenses multiples), sans passer par son menu.
 * **Lecture :** *« combien il reste en course ? »* (reste total, ou du mois si « ce mois-ci »), reste d'un groupe (somme de ses catégories), *« combien j'ai touché en CAF ce mois-ci ? »*, échéanciers actifs ou suivi d'un échéancier.
 * **Écriture sans confirmation :** dépense (`Débit`, ou `Swile` si « en Swile / ticket resto »), remboursement (ligne négative), revenu (catégories du groupe Revenus), échéancier (`Échéanciers`, mensualité arrondie au centime), dépense d'avance découpée en parts (`Dépenses Multiples`, « A traiter ») ; intitulé `Otis : <libellé>` repérable à l'import ; *« non, c'était dans la catégorie X »* corrige la ligne.
 * **Catégorie jamais inventée :** rapprochement avec `Catégories` (sans accents ni casse) puis les mots-clés de `Tri auto` ; plusieurs choix ou nom de groupe → question.
 * **Annulation sûre :** « annule ça » ou « Dernières actions » retrouve la ligne par son contenu (l'import ajoute des lignes entre-temps) et refuse si elle a été modifiée ou déjà rapprochée par l'import.
 * **Cache 3 min** par onglet, relecture fraîche avant toute écriture. Outils réservés à Gemini (pas à l'expert Claude).
+* **Écran Budget de la PWA (lecture) :** épargné du mois, graphique Dépenses vs Revenus de l'année, groupes de `Gestion` repliables avec leur total ; par catégorie, reste total (rouge si négatif) et « ce mois : dépensé X / budget Y » avec barre (budget = Prévu + Équilibrage) ; catégories terminées masquées, revenus seulement dans le graphique (`GET /api/v1/budget/overview`).
+* **Formulaires de saisie (bouton « + ») :** onglets Dépense (Débit / Swile, remboursement), Revenu, Échéancier, Dépense multiple (parts avec « reste à répartir ») ; catégorie en saisie semi-automatique (« cour » → Course, sans accents) ; mêmes écritures que la voix (`POST /api/v1/budget/entries`, `/installments`, `/split-expenses`), toast « Annuler » et entrée dans « Dernières actions ».
 
 ---
 
@@ -239,11 +242,13 @@ personal-assistant-hub/
   - Reste à faire : connecteur Gmail perso (nouveau consentement `gmail.readonly`)
   - Hors périmètre : tâches par personne, notifications push, création d'événements
 - [ ] **Phase 9 : Chronique Matinale Audio (Mini-Podcast Quotidien via Edge-TTS)**
-- [ ] **Phase 10 : Connecteur Budget (Google Sheets)** — *lecture et écritures à la voix terminées sur `feat/budget-connector` (détail : `ROADMAP.md`)*
+- [x] **Phase 10 : Connecteur Budget (Google Sheets)** — *terminée le 26/11 sur `feat/budget-connector` : voix + écran PWA (détail : `ROADMAP.md`)*
   - Connecteur `app/connectors/sheets/budget_connector.py` (valeurs brutes, écriture `USER_ENTERED`, grille agrandie si l'onglet est plein, formats posés comme l'Apps Script)
   - Outils agent `get_budget_remaining`, `get_income`, `get_installments`, `add_expense`, `add_income`, `correct_budget_category`, `add_installment`, `predeclare_split_expense` (+ annulation)
   - Validé sur une copie du classeur (écritures, formats, annulations) ; E2E de la conversation au classeur (`tests/test_e2e_budget.py`)
-  - Reste à faire : repasse sur l'Apps Script (projet séparé), écran Budget dans la PWA
+  - Apps Script (projet séparé) : catégorisation à l'import et fenêtre « Règles Tri auto »
+  - Écran Budget de la PWA : suivi (graphique, groupes, catégories) et formulaires Dépense / Revenu / Échéancier / Dépense multiple, annulables ; E2E Chromium (`tests/test_e2e_budget_screen.py`)
+  - Idée à cadrer : import des dépenses Swile depuis des captures d'écran
 - [ ] **Phase 11 : Interfaces Vocales & Messageries (Amazon Alexa Skill, Bot Telegram)**
 - [ ] **Phase 12 : Connecteurs Professionnels (Mails Pro, Jira, Trello)**
 - [ ] **Phase 13 : Domotique (Tuya / Home Assistant)**
