@@ -139,3 +139,68 @@ def test_entry_form_writes_an_expense_then_the_toast_undoes_it(page, isolate_sql
         assert not page.script_errors
     finally:
         set_sport_connector(None)
+
+
+def _open_form(page):
+    page.click("#btn-open-drawer")
+    page.click(".drawer__item[data-section='budget']")
+    page.wait_for_selector("#view-budget[aria-hidden='false'] .budget-summary")
+    page.click("#btn-budget-add")
+    page.wait_for_selector("#view-budget-form[aria-hidden='false']")
+
+
+def _rows(sheet, title):
+    values = sheet.worksheet(title).get_all_values(value_render_option="UNFORMATTED_VALUE")[1:]
+    return [r for r in values if any(str(c).strip() for c in r)]
+
+
+@pytest.fixture
+def default_sheet(page):
+    sheet = build_budget_spreadsheet(BudgetSheetState())
+    set_budget_connector(BudgetConnector(sheet, today=lambda: date(2026, 11, 25)))
+    calls = []
+    page.route("**/api/v1/budget/**", _replay(TestClient(app), calls))
+    return sheet
+
+
+def test_split_form_fills_the_rest_into_a_part_then_declares_it(page, default_sheet):
+    _open_form(page)
+    page.click("#budget-form-type [data-type='multiple']")
+    assert page.text_content("#budget-form-montant-label") == "Montant total débité (€)"
+    assert page.is_hidden("#budget-form-libelle") and page.is_visible("#budget-form-mot-cle")
+
+    page.fill("#budget-form-montant", "60")
+    page.fill("#budget-form-mot-cle", "amazon")
+    page.fill("#budget-part-0-categorie", "cour")
+    page.click("#budget-part-0-suggestions [role='option']:has-text('Course')")
+    page.fill("#budget-part-0-montant", "45")
+    assert page.text_content("#budget-form-remainder").replace(" ", " ") == "Reste à répartir : 15 €"
+    page.fill("#budget-part-1-categorie", "chat")
+    page.click("#budget-part-1-suggestions [role='option']:has-text('Chats')")
+    page.click("#budget-form-parts .budget-part:nth-child(2) .budget-part__rest")
+    assert page.input_value("#budget-part-1-montant") == "15,00"
+    assert page.text_content("#budget-form-remainder").replace(" ", " ") == "Reste à répartir : 0 €"
+
+    page.click("#view-budget-form [type='submit']")
+    page.locator(".notice--success").filter(has_text="Dépense multiple pré-déclarée : amazon, 60 €").wait_for()
+    [row] = _rows(default_sheet, "Dépenses Multiples")
+    assert row[1:4] == ["amazon", 60, "A traiter"]
+    assert not page.script_errors
+
+
+def test_installment_form_creates_an_installment(page, default_sheet):
+    _open_form(page)
+    page.click("#budget-form-type [data-type='echeancier']")
+    assert page.is_visible("#budget-form-nom") and page.is_hidden("#budget-form-libelle")
+    page.fill("#budget-form-montant", "400")
+    page.fill("#budget-form-nom", "ikea")
+    page.fill("#budget-form-nb-echeances", "4")
+    page.fill("#budget-form-categorie", "loisir a")
+    page.click("#budget-form-suggestions [role='option']:has-text('Loisir Alex')")
+    page.fill("#budget-form-mois-debut", "2026-12")
+
+    page.click("#view-budget-form [type='submit']")
+    page.locator(".notice--success").filter(has_text="Échéancier créé : ikea, 400 € en 4 fois").wait_for()
+    [row] = _rows(default_sheet, "Échéanciers")
+    assert row[:5] == ["ikea", 400, 4, 0, 100] and row[6] == "Loisir Alex"
+    assert not page.script_errors

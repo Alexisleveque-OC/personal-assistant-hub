@@ -25,6 +25,8 @@ def test_empty_form_is_an_expense_of_today_on_the_bank_account():
     assert _run('console.log(JSON.stringify(emptyBudgetForm("2026-11-26")));') == {
         "type": "depense", "montant": "", "categorie": "", "libelle": "", "date": "2026-11-26",
         "swile": False, "remboursement": False,
+        "nom": "", "nbEcheances": "", "moisDebut": "2026-11", "commentaire": "",
+        "motCle": "", "parts": [{"categorie": "", "montant": ""}, {"categorie": "", "montant": ""}],
     }
 
 
@@ -100,3 +102,67 @@ const choices = [{ group: "G", names: Array.from({ length: 12 }, (_, i) => `Cat 
 console.log(JSON.stringify(matchCategories(choices, "cat").length));
 """)
     assert out == 5
+
+
+
+# --- Étape 7c : Échéancier et Dépense multiple (décisions du 26/11 : 4 onglets, « reste à répartir ») ---------------
+
+CHOICES = 'categoryChoices({groups: [{name: "Courants", categories: [{name: "Course"}, {name: "Chats"}]}]}, "multiple")'
+
+
+def test_installment_and_split_forms_choose_among_expense_categories():
+    out = _run(f"console.log(JSON.stringify([{CHOICES}, categoryChoices({{groups: []}}, \"echeancier\")]));")
+    assert out == [[{"group": "Courants", "names": ["Course", "Chats"]}], []]
+
+
+def test_installment_payload_with_its_start_month():
+    out = _run(f"""
+const form = {{ ...emptyBudgetForm("2026-11-26"), type: "echeancier", nom: " ikea ", montant: "400", nbEcheances: "4",
+  categorie: "course", moisDebut: "2026-12", commentaire: " canapé " }};
+console.log(JSON.stringify(budgetFormToPayload(form, "pwa-1", {CHOICES})));
+""")
+    assert out == {"errors": [], "payload": {
+        "nom": "ikea", "montant_total": 400, "nb_echeances": 4, "categorie": "Course", "mois_debut": "2026-12",
+        "commentaire": "canapé", "session_id": "pwa-1",
+    }}
+
+
+def test_installment_errors_and_empty_start_month():
+    out = _run(f"""
+const bad = {{ ...emptyBudgetForm("2026-11-26"), type: "echeancier", nbEcheances: "1", moisDebut: "" }};
+const ok = {{ ...bad, nom: "frigo", montant: "600", nbEcheances: "3", categorie: "Chats" }};
+console.log(JSON.stringify([budgetFormToPayload(bad, "s", {CHOICES}).errors,
+  budgetFormToPayload(ok, "s", {CHOICES}).payload.mois_debut]));
+""")
+    assert out == [["Écris un nom (magasin ou achat).", "Montant invalide (ex. 12,50).",
+                    "Nombre d'échéances : 2 ou plus.", "Choisis une catégorie."], None]
+
+
+def test_split_remainder_and_fill_the_rest_into_a_part():
+    out = _run("""
+const form = { ...emptyBudgetForm("2026-11-26"), type: "multiple", montant: "60,10",
+  parts: [{ categorie: "Course", montant: "45" }, { categorie: "Chats", montant: "" }] };
+const before = splitRemainder(form);
+const filled = fillRemainder(form, 1);
+const over = splitRemainder({ ...form, parts: [{ categorie: "Course", montant: "70" }] });
+console.log(JSON.stringify([before, filled.parts[1].montant, splitRemainder(filled), over, form.parts[1].montant]));
+""")
+    assert out == [15.1, "15,10", 0, -9.9, ""]  # fillRemainder ne modifie pas le formulaire d'origine
+
+
+def test_split_payload_and_its_errors():
+    out = _run(f"""
+const base = {{ ...emptyBudgetForm("2026-11-26"), type: "multiple", motCle: " amazon ", montant: "60" }};
+const ok = {{ ...base, parts: [{{ categorie: "course", montant: "45" }}, {{ categorie: "Chats", montant: "15,00" }}] }};
+const unbalanced = {{ ...base, parts: [{{ categorie: "Course", montant: "45" }}, {{ categorie: "Jardin", montant: "" }}] }};
+const empty = {{ ...base, motCle: "", parts: [{{ categorie: "", montant: "" }}, {{ categorie: "", montant: "" }}] }};
+console.log(JSON.stringify([budgetFormToPayload(ok, "s", {CHOICES}),
+  budgetFormToPayload(unbalanced, "s", {CHOICES}).errors, budgetFormToPayload(empty, "s", {CHOICES}).errors]));
+""")
+    assert out[0] == {"errors": [], "payload": {
+        "mot_cle": "amazon", "montant_total": 60, "date": "2026-11-26", "session_id": "s",
+        "parts": [{"categorie": "Course", "montant": 45}, {"categorie": "Chats", "montant": 15}],
+    }}
+    assert out[1] == ["Part 2 : choisis une catégorie dans la liste.", "Part 2 : montant invalide.",
+                      "Les parts font 45 € sur 60 € : il reste 15 € à répartir."]
+    assert out[2] == ["Écris le mot-clé du relevé bancaire.", "Ajoute au moins une part."]

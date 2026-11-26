@@ -58,9 +58,26 @@ def test_budget_header_opens_a_stacked_entry_form():
 
 def test_form_view_saves_then_offers_undo_without_html_injection():
     view = static_source("js/views/budget_form_view.js")
-    for needle in ("budgetFormToPayload(", "categoryChoices(", "addBudgetEntry(", "undoRecentAction(",
-                   "getActiveSessionId()", '"Annuler"', "action_id", "matchCategories(", "aria-expanded",
-                   '"option"'):
+    for needle in ("budgetFormToPayload(", "categoryChoices(", "addBudgetEntry", "addBudgetInstallment",
+                   "addBudgetSplitExpense", "undoRecentAction(", "getActiveSessionId()", '"Annuler"', "action_id",
+                   "bindCombo(", "fillRemainder(", "splitRemainder("):
         assert needle in view, needle
-    assert "innerHTML" not in view and "alert(" not in view
+    combo = static_source("js/views/budget_combo.js")
+    for needle in ("matchCategories(", "aria-expanded", '"option"', '"listbox"', "is-searching"):
+        assert needle in combo, needle
+    for source in (view, combo):
+        assert "innerHTML" not in source and "alert(" not in source
+
+
+def test_form_has_four_tabs_and_the_installment_and_split_fields():
+    """Étape 7c (décisions du 26/11) : 4 onglets dans la même feuille ; parts avec « reste à répartir »."""
+    form = section(rendered_html(), "view-budget-form")
+    for kind, label in (("depense", "Dépense"), ("revenu", "Revenu"), ("echeancier", "Échéancier"),
+                        ("multiple", "Multiple")):
+        assert f'data-type="{kind}" aria-pressed="{str(kind == "depense").lower()}">{label}</button>' in form
+    for needle in ('id="budget-form-nom"', 'id="budget-form-nb-echeances"', 'type="month" id="budget-form-mois-debut"',
+                   'id="budget-form-commentaire"', 'id="budget-form-mot-cle"', 'id="budget-form-parts"',
+                   'id="btn-budget-add-part"', 'id="budget-form-remainder" aria-live="polite"',
+                   'data-types="depense revenu echeancier"', 'data-types="multiple"'):
+        assert needle in form, needle
     assert "initBudgetForm(" in static_source("js/views/budget_view.js")

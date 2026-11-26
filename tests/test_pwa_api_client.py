@@ -224,3 +224,18 @@ print({ ok, call, refused, fallback });
     assert out["call"]["body"] == {"type": "depense", "montant": 12.5}
     assert out["refused"]["message"] == "Catégorie « Jardin » inconnue du budget."
     assert out["fallback"]["message"] == "Saisie non enregistrée (422)"
+
+
+
+def test_installment_and_split_forms_post_to_their_routes():
+    out = _run("""
+respond(201, { message: "ok", action_id: 5 });
+await addBudgetInstallment({ nom: "ikea" });
+const installment = last();
+await addBudgetSplitExpense({ mot_cle: "amazon" });
+print({ installment, split: last() });
+""")
+
+    assert out["installment"]["url"] == "/api/v1/budget/installments" and out["installment"]["method"] == "POST"
+    assert out["installment"]["body"] == {"nom": "ikea"}
+    assert out["split"]["url"] == "/api/v1/budget/split-expenses" and out["split"]["body"] == {"mot_cle": "amazon"}

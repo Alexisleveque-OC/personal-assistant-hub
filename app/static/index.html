@@ -238,28 +238,56 @@
       </div>
       <div class="sheet__body">
         <form class="form" id="budget-form" novalidate>
-          <div class="seg seg--rail" id="budget-form-type">
+          <div class="seg seg--rail budget-form__tabs" id="budget-form-type">
             <button type="button" data-type="depense" aria-pressed="true">Dépense</button>
             <button type="button" data-type="revenu" aria-pressed="false">Revenu</button>
+            <button type="button" data-type="echeancier" aria-pressed="false">Échéancier</button>
+            <button type="button" data-type="multiple" aria-pressed="false">Multiple</button>
           </div>
           <label class="field">
-            <span class="field__label">Montant (€)</span>
+            <span class="field__label" id="budget-form-montant-label">Montant (€)</span>
             <input class="input" type="text" inputmode="decimal" id="budget-form-montant" autocomplete="off" placeholder="12,50" required>
           </label>
-          <div class="field budget-combo">
+          <label class="field" data-types="echeancier">
+            <span class="field__label">Nom (magasin ou achat)</span>
+            <input class="input" type="text" id="budget-form-nom" maxlength="60" autocomplete="off" placeholder="ex. ikea, frigo">
+          </label>
+          <label class="field" data-types="multiple">
+            <span class="field__label">Mot-clé du relevé bancaire</span>
+            <input class="input" type="text" id="budget-form-mot-cle" maxlength="60" autocomplete="off" autocapitalize="off" placeholder="ex. amazon, leclerc">
+          </label>
+          <label class="field" data-types="echeancier">
+            <span class="field__label">Nombre d'échéances</span>
+            <input class="input" type="text" inputmode="numeric" id="budget-form-nb-echeances" autocomplete="off" placeholder="4">
+          </label>
+          <div class="field budget-combo" data-types="depense revenu echeancier">
             <label class="field__label" id="budget-form-categorie-label" for="budget-form-categorie">Catégorie</label>
             <input class="input" type="text" id="budget-form-categorie" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="budget-form-suggestions" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Tape « cour », « resto »…" required>
             <ul class="budget-combo__list" id="budget-form-suggestions" role="listbox" aria-labelledby="budget-form-categorie-label" hidden></ul>
           </div>
-          <label class="field">
+          <label class="field" data-types="depense revenu">
             <span class="field__label">Libellé</span>
             <input class="input" type="text" id="budget-form-libelle" maxlength="80" autocomplete="off" placeholder="ex. pain, CAF novembre" required>
           </label>
-          <label class="field">
-            <span class="field__label">Date</span>
+          <label class="field" data-types="depense revenu multiple">
+            <span class="field__label" id="budget-form-date-label">Date</span>
             <input class="input" type="date" id="budget-form-date" required>
           </label>
-          <div class="budget-form__options" id="budget-form-expense-options">
+          <label class="field" data-types="echeancier">
+            <span class="field__label">Mois de la 1re échéance</span>
+            <input class="input" type="month" id="budget-form-mois-debut">
+          </label>
+          <label class="field" data-types="echeancier">
+            <span class="field__label">Commentaire (facultatif)</span>
+            <input class="input" type="text" id="budget-form-commentaire" maxlength="80" autocomplete="off" placeholder="ex. le canapé">
+          </label>
+          <fieldset class="budget-parts" data-types="multiple">
+            <legend>Parts</legend>
+            <div class="budget-parts__list" id="budget-form-parts"></div>
+            <button type="button" class="btn" id="btn-budget-add-part">+ Ajouter une part</button>
+            <p class="budget-parts__remainder" id="budget-form-remainder" aria-live="polite"></p>
+          </fieldset>
+          <div class="budget-form__options" id="budget-form-expense-options" data-types="depense">
             <label class="settings-row">
               <span class="settings-row__text">Payé en Swile<small>Sinon : compte bancaire (Débit)</small></span>
               <span class="switch"><input type="checkbox" id="budget-form-swile" /><span></span></span>
