@@ -1,9 +1,9 @@
 """Écriture d'un import Swile relu (Phase 10, étape 8) : dépenses → `Swile`, crédits → `Revenus`, solde → « Reste
-Swile » du mois actif. Toutes les catégories sont vérifiées avant la moindre écriture ; une écriture refusée en cours
+Swile » du mois actif ; la catégorie de chaque marchand est retenue (noms appris, décision du 26/11). Toutes les catégories sont vérifiées avant la moindre écriture ; une écriture refusée en cours
 de route retire les lignes déjà écrites (jamais d'import à moitié fait sans annulation possible).
 """
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Protocol, Tuple
 
 from app.connectors.sheets.budget_connector import (
     INCOME_GROUP,
@@ -14,11 +14,16 @@ from app.connectors.sheets.budget_connector import (
     normalize,
 )
 from app.connectors.sheets.budget_models import BudgetEntry
-from app.core.agent.tools.budget_models import SwileBalanceChange, SwileImportUndo
+from app.core.agent.tools.budget_models import BudgetAliasLearnedUndo, SwileBalanceChange, SwileImportUndo
 from app.core.swile_import.models import SwileImportForm, SwileImportLine
 
 logger = logging.getLogger(__name__)
 COMMENT_PREFIX = "Swile : "
+
+
+class AliasStore(Protocol):
+    def get_budget_alias(self, alias: str) -> Optional[str]: ...
+    def learn_budget_alias(self, alias: str, category: str) -> None: ...
 
 
 class SwileImportError(Exception):
@@ -82,7 +87,25 @@ def _roll_back(connector: BudgetConnector, written: List[BudgetEntry], cause: Ex
         ) from cause
 
 
-def import_swile(connector: BudgetConnector, form: SwileImportForm) -> SwileImportUndo:
+def _learn_merchants(aliases: AliasStore, entries: List[BudgetEntry], form: SwileImportForm) -> List[BudgetAliasLearnedUndo]:
+    """Marchand (normalisé) → catégorie des dépenses importées ; la dernière ligne d'un marchand l'emporte."""
+    chosen: Dict[str, str] = {}
+    for line, entry in zip(form.lignes, entries):
+        if line.type == "depense":
+            chosen[normalize(line.marchand)] = entry.category
+    undos = []
+    for alias, category in chosen.items():
+        previous = aliases.get_budget_alias(alias)
+        if previous == category:
+            continue
+        aliases.learn_budget_alias(alias, category)
+        undos.append(BudgetAliasLearnedUndo(alias=alias, category=category, previous=previous))
+    return undos
+
+
+def import_swile(
+    connector: BudgetConnector, form: SwileImportForm, aliases: Optional[AliasStore] = None,
+) -> Tuple[SwileImportUndo, List[BudgetAliasLearnedUndo]]:
     entries = _entries(connector, form)
     by_sheet: Dict[str, List[BudgetEntry]] = {SWILE_SHEET: [], INCOME_SHEET: []}
     for entry in entries:
@@ -102,4 +125,5 @@ def import_swile(connector: BudgetConnector, form: SwileImportForm) -> SwileImpo
     except Exception as exc:
         _roll_back(connector, written, exc)
         raise
-    return SwileImportUndo(entries=written, balance=balance)
+    learned = _learn_merchants(aliases, entries, form) if aliases is not None else []
+    return SwileImportUndo(entries=written, balance=balance), learned

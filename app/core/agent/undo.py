@@ -213,6 +213,9 @@ class UndoService:
     def _apply(self, undo: AgentUndo) -> str:
         if isinstance(undo, BudgetAliasLearnedUndo):
             if self.db.get_budget_alias(undo.alias) == undo.category:
+                if undo.previous is not None:
+                    self.db.learn_budget_alias(undo.alias, undo.previous)
+                    return f"nom appris « {undo.alias} » remis en {undo.previous.strip()}"
                 self.db.forget_budget_alias(undo.alias)
             return f"nom appris « {undo.alias} » oublié"
         if isinstance(undo, _BUDGET_UNDOS):

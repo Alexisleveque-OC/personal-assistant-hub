@@ -60,10 +60,10 @@ def import_swile_lines(form: SwileImportForm) -> BudgetFormAck:
     502 structure du classeur ou refus de Google (lignes déjà écrites retirées)."""
     connector = _connector_or_503()
     try:
-        undo = import_swile(connector, form)
+        undo, learned = import_swile(connector, form, get_database_manager())
     except SwileImportError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     except _SHEETS_ERRORS as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    message, action_id = _journalize(form, "Import Swile par captures", [undo], {})
+    message, action_id = _journalize(form, "Import Swile par captures", [undo, *learned], {})
     return BudgetFormAck(message=message, action_id=action_id)

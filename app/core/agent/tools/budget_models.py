@@ -197,6 +197,7 @@ class BudgetAliasLearnedUndo(BaseModel):
     kind: Literal["budget_alias_learned"] = "budget_alias_learned"
     alias: str
     category: str
+    previous: Optional[str] = Field(None, description="Catégorie apprise avant (import Swile) : remise à l'annulation.")
 
 
 class InstallmentMutation(BaseModel):
