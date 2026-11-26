@@ -49,21 +49,17 @@ def test_budget_sheet_shows_chart_and_collapsed_groups_then_expands_one(page, ov
     assert "novembre : dépenses 203,20" in page.text_content(".budget-chart__caption")
 
     heads = page.locator(".budget-group__head")
-    assert heads.count() == 2
-    assert [heads.nth(i).get_attribute("aria-expanded") for i in range(2)] == ["false", "false"]
+    assert heads.count() == 1  # pas de groupe Revenus (déjà dans le graphique)
+    assert heads.nth(0).get_attribute("aria-expanded") == "false"
     assert not page.is_visible(".budget-cat")
 
     heads.nth(0).click()
     assert heads.nth(0).get_attribute("aria-expanded") == "true"
-    restaurant = page.locator(".budget-group--expense .budget-cat").nth(1)
+    restaurant = page.locator(".budget-cat").nth(1)
     assert "budget-amount--danger" in restaurant.locator(".budget-amount").get_attribute("class")
     assert "dépensé 49" in restaurant.text_content()
     assert "progress--warn" in restaurant.locator(".progress").get_attribute("class")
-
-    heads.nth(1).click()
-    salary = page.locator(".budget-group--income .budget-cat").first
-    assert "reçu 1" in salary.text_content() and "prévu 1" in salary.text_content()
-    assert "budget-amount--danger" not in salary.locator(".budget-amount").get_attribute("class")
+    assert "Salaire" not in page.text_content("#budget-container")
 
 
 def test_unavailable_sheet_shows_the_server_reason(page):

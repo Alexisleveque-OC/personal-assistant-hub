@@ -202,7 +202,6 @@ class BudgetCategoryLine(BaseModel):
 class BudgetGroup(BaseModel):
     """Groupe de `Gestion` (Courants, Loisir…) ; `total_remaining` couvre toutes ses catégories, même masquées."""
     name: str
-    kind: Literal["expense", "income"]
     total_remaining: float
     categories: List[BudgetCategoryLine]
 
