@@ -78,7 +78,9 @@ def _budget_label(kind: str, a: Dict[str, Any]) -> str:
 
 
 def budget_form_label(form: Dict[str, Any]) -> str:
-    """Saisie du formulaire de l'écran Budget (étape 7b) : même libellé que la saisie vocale."""
+    """Saisie d'un formulaire de l'écran Budget (étapes 7b, 7c) : même libellé que la saisie vocale."""
+    if form.get("type") in _PLAN_FORM_TOOLS:
+        return _TOOL_LABELS[_PLAN_FORM_TOOLS[form["type"]]](form)
     if form.get("type") == "revenu":
         kind = "Revenu"
     else:
@@ -115,6 +117,10 @@ _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "forget_budget_alias": lambda a: "Nom de catégorie oublié" + (f" : {a['nom']}" if a.get("nom") else ""),
     "undo_last_action": lambda a: "Dernière action annulée",
 }
+
+
+# Formulaires Échéancier et Dépense multiple : mêmes champs que les outils vocaux, donc même libellé.
+_PLAN_FORM_TOOLS = {"echeancier": "add_installment", "multiple": "predeclare_split_expense"}
 
 
 def _added_articles(p: Dict[str, Any]) -> Optional[str]:
