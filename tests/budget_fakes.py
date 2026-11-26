@@ -48,20 +48,23 @@ class BudgetFakeWorksheet:
     def update(self, range_name: str, values: List[List[Any]], value_input_option: Optional[str] = None) -> None:
         if value_input_option != "USER_ENTERED":
             raise AssertionError(f"Écriture budget attendue en USER_ENTERED, reçu {value_input_option!r}")
-        match = re.fullmatch(r"([A-Z])(\d+)(?::([A-Z])(\d+))?", range_name)
+        match = re.fullmatch(r"([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?", range_name)
         if match is None:
             raise ValueError(f"Plage non supportée par la doublure : {range_name!r}")
-        row, col = int(match.group(2)), ord(match.group(1)) - ord("A")
+        row, col = int(match.group(2)), _column_index(match.group(1))
         if row > self.row_count:
             raise ValueError(f"Plage {range_name} hors de la grille ({self.row_count} lignes) : add_rows d'abord.")
+        if row + len(values) - 1 > self.row_count:
+            raise ValueError(f"Plage {range_name} hors de la grille ({self.row_count} lignes) : add_rows d'abord.")
         self.writes.append((range_name, values))
-        while len(self.rows) < row:
-            self.rows.append([])
-        target = self.rows[row - 1]
-        for offset, value in enumerate(values[0]):
-            while len(target) <= col + offset:
-                target.append("")
-            target[col + offset] = _user_entered(value)
+        for line, cells in enumerate(values):
+            while len(self.rows) < row + line:
+                self.rows.append([])
+            target = self.rows[row + line - 1]
+            for offset, value in enumerate(cells):
+                while len(target) <= col + offset:
+                    target.append("")
+                target[col + offset] = _user_entered(value)
 
     def batch_format(self, formats: List[Dict[str, Any]]) -> None:
         """Formats de nombre (monnaie, mois) : enregistrés tels quels, sans effet sur les valeurs."""
@@ -73,6 +76,13 @@ class BudgetFakeWorksheet:
     def delete_rows(self, index: int) -> None:
         del self.rows[index - 1]
         self.row_count -= 1
+
+
+def _column_index(letters: str) -> int:
+    index = 0
+    for letter in letters:
+        index = index * 26 + ord(letter) - ord("A") + 1
+    return index - 1
 
 
 def _blank(value: Any) -> bool:

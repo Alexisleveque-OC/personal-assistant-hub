@@ -10,6 +10,7 @@ from app.core.agent.tools.budget_models import (
     BudgetEntryAddedUndo,
     InstallmentAddedUndo,
     SplitDeclaredUndo,
+    SwileImportUndo,
 )
 from app.core.agent.tools.budget_tools import BudgetTools
 from app.core.agent.tools.meals_models import (
@@ -37,14 +38,14 @@ AgentUndo = Annotated[
     Union[
         UndoSnapshot, NoteUndo, ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo,
         TaskAddedUndo, TaskCompletedUndo, BudgetEntryAddedUndo, BudgetCategoryChangedUndo, InstallmentAddedUndo,
-        SplitDeclaredUndo, BudgetAliasLearnedUndo,
+        SplitDeclaredUndo, SwileImportUndo, BudgetAliasLearnedUndo,
     ],
     Field(discriminator="kind"),
 ]
 _MEALS_UNDOS = (ShoppingAddedUndo, ShoppingCheckedUndo, ShoppingRemovedUndo, MealUndo, RayonLearnedUndo)
 _TASKS_UNDOS = (TaskAddedUndo, TaskCompletedUndo)
 _BUDGET_ENTRY_UNDOS = (BudgetEntryAddedUndo, BudgetCategoryChangedUndo)
-_BUDGET_UNDOS = _BUDGET_ENTRY_UNDOS + (InstallmentAddedUndo, SplitDeclaredUndo)
+_BUDGET_UNDOS = _BUDGET_ENTRY_UNDOS + (InstallmentAddedUndo, SplitDeclaredUndo, SwileImportUndo)
 _UNDOS_ADAPTER = TypeAdapter(List[AgentUndo])
 
 
