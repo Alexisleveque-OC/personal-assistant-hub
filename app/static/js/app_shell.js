@@ -7,7 +7,7 @@ import { createSheetManager, bindSheetInteractions } from "./sheets.js";
 import { scrollConversationToEnd } from "./views/chat_view.js";
 import { fetchShoppingList } from "./views/shopping_view.js";
 import { loadTasks } from "./views/tasks_view.js";
-import { loadBudget } from "./views/budget_view.js";
+import { initBudget, loadBudget } from "./views/budget_view.js";
 import { initDuePicker, setDuePickerVisible } from "./views/task_due_picker.js";
 import { loadMeals, resetMealsWeek } from "./views/meals_view.js";
 import { initSportSheet, loadSport } from "./views/sport/sport_sheet.js";
@@ -49,6 +49,7 @@ export function initShell() {
   bindSheetInteractions(manager, document);
   initDuePicker();
   initSportSheet(manager);
+  initBudget(manager);
 
   const composer = document.getElementById("query-form");
   const queryInput = document.getElementById("query-input");

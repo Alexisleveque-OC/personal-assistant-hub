@@ -204,3 +204,23 @@ print({ ok, call, refused });
     assert out["call"]["url"] == "/api/v1/home/recent-actions/12/undo?session_id=pwa+1"
     assert out["call"]["method"] == "POST" and out["call"]["headers"]["X-API-Key"] == "k"
     assert out["refused"]["message"] == "Annulation impossible : Lait a été coché depuis."
+
+
+def test_budget_entry_is_posted_as_json_and_reports_the_server_detail():
+    out = _run("""
+respond(201, { message: "Dépense enregistrée : 12,5 € en Course", action_id: 4 });
+const ok = await addBudgetEntry({ type: "depense", montant: 12.5 });
+const call = last();
+respond(422, { detail: "Catégorie « Jardin » inconnue du budget." });
+const refused = await errorOf(addBudgetEntry({}));
+respond(422, { detail: [{ msg: "objet" }] });
+const fallback = await errorOf(addBudgetEntry({}));
+print({ ok, call, refused, fallback });
+""")
+
+    assert out["ok"]["action_id"] == 4
+    assert out["call"]["url"] == "/api/v1/budget/entries" and out["call"]["method"] == "POST"
+    assert out["call"]["headers"]["Content-Type"] == "application/json"
+    assert out["call"]["body"] == {"type": "depense", "montant": 12.5}
+    assert out["refused"]["message"] == "Catégorie « Jardin » inconnue du budget."
+    assert out["fallback"]["message"] == "Saisie non enregistrée (422)"

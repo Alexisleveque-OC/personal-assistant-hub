@@ -1,8 +1,8 @@
-"""Test E2E de l'écran Budget (Phase 10, étape 7a) : faux classeur → BudgetConnector → GET /api/v1/budget/overview
-→ feuille Budget dans un vrai Chromium (Playwright).
+"""Test E2E de l'écran Budget (Phase 10, étapes 7a et 7b) : faux classeur → BudgetConnector → API → feuille Budget et
+formulaire Dépense / Revenu dans un vrai Chromium (Playwright).
 
-Le serveur E2E n'a aucun accès Google : la réponse de l'endpoint est calculée par l'application elle-même (TestClient)
-sur le faux classeur, puis servie au navigateur à la place de l'appel réseau. Aucune donnée réelle, lecture seule.
+Le serveur E2E n'a aucun accès Google : les requêtes Budget du navigateur sont rejouées sur l'application elle-même
+(TestClient) avec le faux classeur, et leur réponse lui est servie à la place de l'appel réseau. Aucune donnée réelle.
 """
 from datetime import date
 
@@ -10,7 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.connectors.sheets.budget_connector import BudgetConnector
-from app.core.dependencies import set_budget_connector
+from app.connectors.sqlite.sport_connector import SqlSportConnector
+from app.core.dependencies import set_budget_connector, set_sport_connector
 from app.main import app
 from tests.budget_fakes import BudgetSheetState, GestionLine, build_budget_spreadsheet
 from tests.test_e2e_navigation import base_url, browser, e2e_server, page  # noqa: F401 (fixtures)
@@ -67,3 +68,64 @@ def test_unavailable_sheet_shows_the_server_reason(page):
     page.click(".drawer__item[data-section='budget']")
     page.wait_for_selector("#budget-container .shopping-note--error")
     assert "Classeur Budget indisponible" in page.text_content("#budget-container")
+
+
+def _replay(client, sheet_calls):
+    """Rejoue la requête du navigateur sur l'application (faux classeur) et lui sert la vraie réponse."""
+    def handler(route):
+        request = route.request
+        path = request.url.split("://", 1)[1].split("/", 1)[1]
+        sheet_calls.append((request.method, path.split("?")[0]))
+        res = client.request(request.method, "/" + path, content=request.post_data,
+                             headers={"Content-Type": "application/json"})
+        route.fulfill(status=res.status_code, content_type="application/json", body=res.text)
+    return handler
+
+
+def test_entry_form_writes_an_expense_then_the_toast_undoes_it(page, isolate_sqlite_database):
+    state = BudgetSheetState(groups=(
+        ("Courants", (GestionLine("Course", 923.15, planned={NOV: 1000}, spent={NOV: 76.02}),)),
+        ("Revenus", (GestionLine("CAF", 0, planned={NOV: 151.05}),)),
+    ))
+    sheet = build_budget_spreadsheet(state)
+    set_budget_connector(BudgetConnector(sheet, today=lambda: date(2026, 11, 25)))
+    set_sport_connector(SqlSportConnector(db_manager=isolate_sqlite_database))  # exigé par le service d'annulation
+    calls = []
+    handler = _replay(TestClient(app), calls)
+    page.route("**/api/v1/budget/**", handler)
+    page.route("**/api/v1/home/recent-actions/*/undo*", handler)
+    debit = lambda: [r for r in sheet.worksheet("Débit").get_all_values(value_render_option="UNFORMATTED_VALUE")[1:]
+                     if any(str(c).strip() for c in r)]
+    try:
+        page.click("#btn-open-drawer")
+        page.click(".drawer__item[data-section='budget']")
+        page.wait_for_selector("#view-budget[aria-hidden='false'] .budget-summary")
+        page.click("#btn-budget-add")
+        page.wait_for_selector("#view-budget-form[aria-hidden='false']")
+
+        page.click("#budget-form-type [data-type='revenu']")
+        assert page.text_content("#budget-form-categorie-label") == "Type de revenu"
+        assert page.is_hidden("#budget-form-expense-options")
+        page.click("#budget-form-type [data-type='depense']")
+        assert page.locator("#budget-form-categorie optgroup").first.get_attribute("label") == "Courants"
+
+        page.click("#view-budget-form [type='submit']")
+        assert "Montant invalide" in page.text_content("#budget-form-errors")
+        assert ("POST", "api/v1/budget/entries") not in calls
+
+        page.fill("#budget-form-montant", "12,50")
+        page.select_option("#budget-form-categorie", "Course")
+        page.fill("#budget-form-libelle", "pain")
+        page.click("#view-budget-form [type='submit']")
+        page.wait_for_selector("#view-budget-form[aria-hidden='true']", state="attached")
+        toast = page.locator(".notice--success").filter(has_text="Dépense enregistrée : 12,5 € en Course")
+        toast.wait_for()
+        assert len(debit()) == 1 and debit()[0][4] == "Otis : pain"
+
+        toast.locator(".btn-undo-action").click()
+        page.locator(".notice--success").filter(has_text="C'est annulé").wait_for()
+        assert debit() == []
+        assert len([c for c in calls if c[0] == "GET"]) >= 3  # écran rechargé après la saisie et l'annulation
+        assert not page.script_errors
+    finally:
+        set_sport_connector(None)

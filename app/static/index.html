@@ -219,12 +219,58 @@
       <span class="sheet__handle" aria-hidden="true"></span>
       <div class="sheet__header">
         <h2 class="sheet__title" id="view-budget-title">Budget <small id="budget-month"></small></h2>
+        <button type="button" class="icon-btn" id="btn-budget-add" aria-label="Noter une dépense ou un revenu" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         <button type="button" class="icon-btn" data-sheet-close aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="sheet__body">
         <div id="budget-container" class="budget"></div>
       </div>
       <div class="composer-slot"></div>
+    </section>
+
+    <!-- VIEW 2b: BUDGET — formulaire Dépense / Revenu (étape 7b, feuille empilée) -->
+    <section class="sheet sheet--stacked" id="view-budget-form" role="dialog" aria-modal="true" aria-labelledby="budget-form-title" aria-hidden="true" tabindex="-1" inert>
+      <span class="sheet__handle" aria-hidden="true"></span>
+      <div class="sheet__header sport-form__header">
+        <button type="button" class="btn" data-sheet-close>Annuler</button>
+        <h2 class="sport-form__title" id="budget-form-title">Saisie</h2>
+        <button type="submit" class="btn btn--primary" form="budget-form">OK</button>
+      </div>
+      <div class="sheet__body">
+        <form class="form" id="budget-form" novalidate>
+          <div class="seg seg--rail" id="budget-form-type">
+            <button type="button" data-type="depense" aria-pressed="true">Dépense</button>
+            <button type="button" data-type="revenu" aria-pressed="false">Revenu</button>
+          </div>
+          <label class="field">
+            <span class="field__label">Montant (€)</span>
+            <input class="input" type="text" inputmode="decimal" id="budget-form-montant" autocomplete="off" placeholder="12,50" required>
+          </label>
+          <label class="field">
+            <span class="field__label" id="budget-form-categorie-label">Catégorie</span>
+            <select class="select" id="budget-form-categorie" required></select>
+          </label>
+          <label class="field">
+            <span class="field__label">Libellé</span>
+            <input class="input" type="text" id="budget-form-libelle" maxlength="80" autocomplete="off" placeholder="ex. pain, CAF novembre" required>
+          </label>
+          <label class="field">
+            <span class="field__label">Date</span>
+            <input class="input" type="date" id="budget-form-date" required>
+          </label>
+          <div class="budget-form__options" id="budget-form-expense-options">
+            <label class="settings-row">
+              <span class="settings-row__text">Payé en Swile<small>Sinon : compte bancaire (Débit)</small></span>
+              <span class="switch"><input type="checkbox" id="budget-form-swile" /><span></span></span>
+            </label>
+            <label class="settings-row">
+              <span class="settings-row__text">Remboursement<small>Argent rendu : ligne négative dans la catégorie</small></span>
+              <span class="switch"><input type="checkbox" id="budget-form-remboursement" /><span></span></span>
+            </label>
+          </div>
+          <p class="sport-form__errors" id="budget-form-errors" role="alert" hidden></p>
+        </form>
+      </div>
     </section>
 
     <!-- VIEW 3: MEAL PLAN -->
