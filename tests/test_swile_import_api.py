@@ -178,3 +178,55 @@ def test_a_failed_roll_back_lists_the_lines_left_in_the_sheet():
     assert res.status_code == 502
     detail = res.json()["detail"]
     assert "Swile : Intermarche 12.81 € le 25/11" in detail and "À supprimer à la main" in detail
+
+
+# Décision utilisateur du 26/11 : l'import retient la catégorie choisie pour chaque marchand (noms appris de l'app),
+# proposée aux imports suivants ; annuler l'import oublie ce qu'il a appris (ou remet la catégorie d'avant).
+def aliases():
+    from app.core.database import get_database_manager
+    return get_database_manager().list_budget_aliases()
+
+
+def test_import_learns_the_category_of_each_merchant_but_not_of_credits():
+    install()
+
+    post([expense("Maryann", 6.9, "2026-11-23", "Restaurant"), expense("Sas Thimonet", 24.0, "2026-11-10", "course"),
+          CREDIT])
+
+    assert aliases() == {"maryann": "Restaurant", "sas thimonet": "Course"}
+
+
+def test_learned_merchant_is_proposed_at_the_next_review():
+    from tests.test_swile_review_api import analyze, by_merchant, line
+    from app.core.swile_import.models import SwileCapture
+    install()
+    post([expense("Maryann", 6.9, "2026-11-23", "Restaurant")])
+
+    res = analyze(SwileCapture(is_swile=True, lignes=[line("Maryann", "Hier, 12:52", -7.5)]))
+
+    assert by_merchant(res.json())["Maryann"]["categorie"] == "Restaurant"
+
+
+def test_undo_forgets_what_the_import_learned_and_restores_a_previous_choice():
+    from app.core.database import get_database_manager
+    install()
+    get_database_manager().learn_budget_alias("burger king", "Loisir Alex")
+    action_id = post([expense("Maryann", 6.9, "2026-11-23", "Restaurant"),
+                      expense("Burger King", 30.7, "2026-11-13", "Restaurant")]).json()["action_id"]
+    assert aliases() == {"burger king": "Restaurant", "maryann": "Restaurant"}
+
+    res = client.post(f"/api/v1/home/recent-actions/{action_id}/undo", params={"session_id": SESSION})
+
+    assert res.status_code == 200, res.text
+    assert aliases() == {"burger king": "Loisir Alex"}
+
+
+def test_an_unchanged_merchant_category_is_not_relearned():
+    from app.core.database import get_database_manager
+    install()
+    get_database_manager().learn_budget_alias("maryann", "Restaurant")
+    action_id = post([expense("Maryann", 6.9, "2026-11-23", "Restaurant")]).json()["action_id"]
+
+    client.post(f"/api/v1/home/recent-actions/{action_id}/undo", params={"session_id": SESSION})
+
+    assert aliases() == {"maryann": "Restaurant"}  # appris avant l'import : l'annulation n'y touche pas
