@@ -1,9 +1,11 @@
 // Feuille Budget (Phase 10, étape 7a) : suivi en lecture seule du classeur Budget.
 // En tête : épargné du mois actif et graphique Dépenses vs Revenus par mois (toucher une colonne affiche ses montants).
 // Puis les groupes de `Gestion`, repliés à l'ouverture (décision du 25/11) : par catégorie, le reste total et
-// « ce mois : dépensé X / budget Y » avec sa barre. La saisie passe par la barre d'Otis (formulaires en 7b / 7c).
+// « ce mois : dépensé X / budget Y » avec sa barre. Saisie : barre d'Otis, ou bouton « + » de l'en-tête qui ouvre le
+// formulaire Dépense / Revenu (étape 7b).
 import { fetchBudgetOverview } from "../api.js";
 import { budgetSheet } from "../budget_model.js";
+import { initBudgetForm, openBudgetForm, setBudgetFormOverview } from "./budget_form_view.js";
 import { el, button } from "./sport/dom.js";
 
 const container = document.getElementById("budget-container");
@@ -17,11 +19,19 @@ export async function loadBudget() {
   if (!container) return;
   container.replaceChildren(note("Chargement du budget…"));
   try {
-    render(budgetSheet(await fetchBudgetOverview()));
+    const overview = await fetchBudgetOverview();
+    setBudgetFormOverview(overview);
+    render(budgetSheet(overview));
   } catch (err) {
     if (monthLabel) monthLabel.textContent = "";
     container.replaceChildren(note(err.message || "Impossible de charger le budget.", "shopping-note--error"));
   }
+}
+
+export function initBudget(manager) {
+  initBudgetForm(manager, { changed: loadBudget });
+  const add = document.getElementById("btn-budget-add");
+  if (add) add.addEventListener("click", () => openBudgetForm(add));
 }
 
 function summaryCard(sheet) {

@@ -229,6 +229,8 @@ select.chip { -webkit-appearance: none; appearance: none; background: var(--fiel
 
 /* Feuille Budget (Phase 10, étape 7a) : épargné + graphique Dépenses vs Revenus, groupes repliables */
 .budget { display: flex; flex-direction: column; gap: 10px; }
+.budget-form__options { display: flex; flex-direction: column; gap: var(--s-3); }
+.budget-form__options[hidden] { display: none; }
 .budget-summary { gap: var(--s-2); padding: 14px 14px 10px; }
 .budget-saved { display: flex; justify-content: space-between; align-items: baseline; }
 .budget-saved__label { font-size: var(--fs-sm); font-weight: 700; color: var(--muted); }

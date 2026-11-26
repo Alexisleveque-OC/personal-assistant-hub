@@ -3,5 +3,5 @@
 Bumper `SW_CACHE` à chaque changement d'un asset précaché (sw.js, CACHE_NAME) ;
 `APP_JS` suit le paramètre ?v= du script principal dans index.html.
 """
-SW_CACHE = "pah-pwa-cache-v54"
+SW_CACHE = "pah-pwa-cache-v55"
 APP_JS = "/static/app.js?v=31.0"
