@@ -429,11 +429,14 @@ class BudgetConnector:
         today = self._today()
         ended = {normalize(c.name) for c in self.get_categories() if not c.is_active(today)}
         col = self._gestion_month_col(gestion, active)
-        groups = []
+        groups, income_categories = [], []
         for header, members in self._gestion_groups(gestion).items():
             group_name = str(gestion[header][0]).strip()
             if normalize(group_name) == normalize(INCOME_GROUP):
-                continue  # revenus : seulement dans le graphique (leur « reste » n'a pas de sens)
+                # Revenus : seulement dans le graphique (leur « reste » n'a pas de sens) et au formulaire Revenu.
+                names = (str(gestion[index][0]).strip() for index in members)
+                income_categories = [name for name in names if normalize(name) not in ended]
+                continue
             lines, group_total = [], 0.0
             for index in members:
                 row = gestion[index]
@@ -457,6 +460,7 @@ class BudgetConnector:
                 groups.append(BudgetGroup(name=group_name, total_remaining=round(group_total, 2) + 0.0, categories=lines))
         return BudgetOverview(
             active_month=active, saved=total_line(TOTAL_SAVED_ROW, active_col, active), series=series, groups=groups,
+            income_categories=income_categories,
         )
 
     @staticmethod

@@ -51,6 +51,13 @@ def test_groups_follow_gestion_order_without_the_revenus_group() -> None:
     assert [c.name for c in result.groups[0].categories] == ["Course", "Restaurant", "Chats"]
 
 
+def test_income_categories_list_the_active_members_of_the_revenus_group() -> None:
+    """Choix du formulaire Revenu (étape 7b) : les types de revenu permis, sans les catégories terminées."""
+    state = BudgetSheetState(categories=BudgetSheetState().categories + (("CAF", date(2024, 1, 1), date(2025, 1, 1)),))
+    assert overview().income_categories == ["Salaire Alexis", "CAF"]
+    assert overview(state).income_categories == ["Salaire Alexis"]
+
+
 def test_category_has_total_remaining_month_spent_and_budget_planned_plus_balancing() -> None:
     state = BudgetSheetState(groups=(
         ("Courants", (

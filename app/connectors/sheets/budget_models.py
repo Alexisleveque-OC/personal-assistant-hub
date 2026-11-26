@@ -219,3 +219,4 @@ class BudgetOverview(BaseModel):
     saved: float
     series: List[MonthlyTotals]
     groups: List[BudgetGroup]
+    income_categories: List[str] = Field(description="Types de revenu actifs (groupe Revenus) : choix du formulaire.")

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 WEEKDAYS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 UNDO_INTENT = "undo_last_action"
+BUDGET_FORM_INTENT = "budget_form"  # saisie du formulaire de l'écran Budget (sans LLM)
 
 
 class RecentAction(BaseModel):
@@ -76,6 +77,16 @@ def _budget_label(kind: str, a: Dict[str, Any]) -> str:
     return f"{kind} {verb}" + (f" : {details}" if details else "")
 
 
+def budget_form_label(form: Dict[str, Any]) -> str:
+    """Saisie du formulaire de l'écran Budget (étape 7b) : même libellé que la saisie vocale."""
+    if form.get("type") == "revenu":
+        kind = "Revenu"
+    else:
+        kind = "Remboursement" if form.get("remboursement") else "Dépense"
+    category = form.get("categorie")
+    return _budget_label(kind, {"montant": form.get("montant"), "categorie": category, "type": category})
+
+
 # Outils de l'agent qui modifient des données → libellé (à partir de leurs arguments).
 _TOOL_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "add_shopping_items": lambda a: _items_label([x.get("nom", "") for x in a.get("articles", [])], "ajouté", "aux courses"),
@@ -135,6 +146,7 @@ _INTENT_LABELS: Dict[str, Callable[[Dict[str, Any]], Optional[str]]] = {
     "plan_weekly_training": lambda p: "Semaine d'entraînement planifiée",
     "teach_assistant": lambda p: "Correction mémorisée",
     "log_expense": lambda p: "Dépense enregistrée",
+    BUDGET_FORM_INTENT: lambda p: budget_form_label(p.get("form") or {}),
     UNDO_INTENT: lambda p: "Dernière action annulée",
 }
 
